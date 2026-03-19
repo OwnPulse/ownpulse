@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::body::Body;
 use axum::Router;
+use http::Request;
+use http_body_util::BodyExt;
+use serde_json::Value;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use testcontainers::runners::AsyncRunner;
 use testcontainers::ImageExt;
 use testcontainers_modules::postgres::Postgres;
+use uuid::Uuid;
 
 /// Holds the Axum app, database pool, and the container handle (which keeps
 /// the ephemeral Postgres alive for the lifetime of the test).
@@ -82,6 +87,74 @@ pub async fn setup() -> TestApp {
         pool,
         _container: container,
     }
+}
+
+/// Insert a test user and return (user_id, jwt_token).
+pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
+    let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash failed");
+    let row: (Uuid,) = sqlx::query_as(
+        "INSERT INTO users (username, password_hash, auth_provider) VALUES ($1, $2, 'local') RETURNING id",
+    )
+    .bind(format!("testuser-{}", Uuid::new_v4()))
+    .bind(&hash)
+    .fetch_one(&app.pool)
+    .await
+    .expect("failed to insert test user");
+
+    let token = api::auth::jwt::encode_access_token(
+        row.0,
+        "test-jwt-secret-at-least-32-bytes-long",
+        3600,
+    )
+    .expect("failed to encode JWT");
+
+    (row.0, token)
+}
+
+/// Build an authenticated HTTP request.
+pub fn auth_request(
+    method: &str,
+    uri: &str,
+    token: &str,
+    body: Option<&Value>,
+) -> Request<Body> {
+    let mut builder = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("authorization", format!("Bearer {token}"));
+
+    if body.is_some() {
+        builder = builder.header("content-type", "application/json");
+    }
+
+    let body = match body {
+        Some(v) => Body::from(serde_json::to_string(v).unwrap()),
+        None => Body::empty(),
+    };
+
+    builder.body(body).unwrap()
+}
+
+/// Collect the response body into a parsed JSON value.
+pub async fn body_json(response: axum::response::Response) -> Value {
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
+/// Collect the response body into a string.
+pub async fn body_string(response: axum::response::Response) -> String {
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .unwrap()
+        .to_bytes();
+    String::from_utf8(bytes.to_vec()).unwrap()
 }
 
 /// Read every SQL migration file from `db/migrations/` and execute them in

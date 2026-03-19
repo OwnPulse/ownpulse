@@ -7,3 +7,4 @@
 //! compatibility in tests — they accept a base URL parameter.
 
 pub mod google;
+pub mod google_calendar;
