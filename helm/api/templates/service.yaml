@@ -4,6 +4,10 @@ metadata:
   name: {{ include "ownpulse-api.fullname" . }}
   labels:
     {{- include "ownpulse-api.labels" . | nindent 4 }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "{{ .Values.service.targetPort }}"
+    prometheus.io/path: "/metrics"
 spec:
   type: {{ .Values.service.type }}
   ports:
