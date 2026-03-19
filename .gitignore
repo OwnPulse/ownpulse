@@ -31,8 +31,9 @@ Thumbs.db
 # Bootstrap docs (reference only, not part of the application)
 bootstrap/
 
-# Separate repos that may live as siblings
+# Separate repos that live as subdirectories
 ownpulse-infra/
+ownpulse-web/
 
 # Cargo lock (workspace level)
 # backend/Cargo.lock is committed
