@@ -5,4 +5,6 @@
 //!
 //! Each file in this module defines a function returning an Axum `Router`.
 //! Route groups: auth, health_records, interventions, checkins, observations,
-//! labs, timeline, export, integrations, cooperative.
+//! labs, timeline, export, integrations, cooperative, waitlist.
+
+pub mod waitlist;
