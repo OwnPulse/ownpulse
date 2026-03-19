@@ -15,7 +15,7 @@ pub async fn insert(
         r#"INSERT INTO observations
             (user_id, type, name, start_time, end_time, value, source, metadata)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         RETURNING id, user_id, type as "obs_type", name, start_time, end_time,
+         RETURNING id, user_id, type, name, start_time, end_time,
                    value, source, metadata, created_at"#,
     )
     .bind(user_id)
@@ -37,7 +37,7 @@ pub async fn list(
     obs_type: Option<&str>,
 ) -> Result<Vec<ObservationRow>, sqlx::Error> {
     sqlx::query_as::<_, ObservationRow>(
-        r#"SELECT id, user_id, type as "obs_type", name, start_time, end_time,
+        r#"SELECT id, user_id, type, name, start_time, end_time,
                   value, source, metadata, created_at
            FROM observations
            WHERE user_id = $1
@@ -58,7 +58,7 @@ pub async fn get_by_id(
     id: Uuid,
 ) -> Result<ObservationRow, sqlx::Error> {
     sqlx::query_as::<_, ObservationRow>(
-        r#"SELECT id, user_id, type as "obs_type", name, start_time, end_time,
+        r#"SELECT id, user_id, type, name, start_time, end_time,
                   value, source, metadata, created_at
            FROM observations
            WHERE id = $1 AND user_id = $2"#,
