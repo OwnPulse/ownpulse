@@ -1,5 +1,8 @@
 name: Deploy
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 on:
   workflow_run:
     workflows: [Backend, Web]
@@ -12,7 +15,7 @@ jobs:
     if: >
       github.event.workflow_run.conclusion == 'success'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Helm
         uses: azure/setup-helm@v4
