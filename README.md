@@ -12,13 +12,14 @@ OwnPulse is an open source health data platform owned by its users as a cooperat
 curl -sfL https://get.k3s.io | sh -
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-# Add the OwnPulse Helm repo and install
-helm repo add ownpulse https://charts.ownpulse.health
-helm repo update
-helm install ownpulse ownpulse/ownpulse \
+# Clone and deploy from local Helm charts
+git clone https://github.com/OwnPulse/ownpulse.git && cd ownpulse
+helm install postgres helm/postgres -n ownpulse --create-namespace
+helm install api helm/api -n ownpulse \
   --set domain=health.yourdomain.com \
   --set postgres.password=<your-password> \
   --set jwt.secret=$(openssl rand -hex 32)
+helm install web helm/web -n ownpulse --set domain=health.yourdomain.com
 ```
 
 Minimum requirements: Linux VPS with 2 GB RAM. See [docs/guides/self-hosting.md](docs/guides/self-hosting.md) for the full guide.
@@ -28,7 +29,7 @@ Minimum requirements: Linux VPS with 2 GB RAM. See [docs/guides/self-hosting.md]
 ```bash
 # Backend (Rust)
 docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:16
-export DATABASE_URL=postgres://postgres:dev@localhost:5432/health
+export DATABASE_URL=postgres://postgres:dev@localhost:5432/ownpulse
 cd db && sqlx migrate run
 cd backend && cargo test
 

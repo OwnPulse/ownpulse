@@ -42,18 +42,20 @@ TLS certificates are provisioned automatically by cert-manager (installed with t
 ## Step 4: Install OwnPulse
 
 ```bash
-# Add the OwnPulse Helm repo
-helm repo add ownpulse https://charts.ownpulse.health
-helm repo update
+# Clone the repo and deploy from local Helm charts
+git clone https://github.com/OwnPulse/ownpulse.git
+cd ownpulse
 
-# Install
-helm install ownpulse ownpulse/ownpulse \
-  --namespace ownpulse --create-namespace \
+helm install postgres helm/postgres -n ownpulse --create-namespace
+helm install api helm/api -n ownpulse \
   --set domain=yourdomain.com \
   --set postgres.password=$(openssl rand -hex 16) \
   --set jwt.secret=$(openssl rand -hex 32) \
   --set encryption.key=$(openssl rand -hex 32)
+helm install web helm/web -n ownpulse --set domain=yourdomain.com
 ```
+
+> **Note:** A public Helm chart repository will be available in a future release. For now, deploy directly from the cloned repo.
 
 This deploys:
 - PostgreSQL 16
@@ -86,8 +88,11 @@ For offsite backups, sync to S3-compatible storage (DigitalOcean Spaces, Backbla
 ## Upgrades
 
 ```bash
-helm repo update
-helm upgrade ownpulse ownpulse/ownpulse -n ownpulse
+cd ownpulse
+git pull
+helm upgrade postgres helm/postgres -n ownpulse
+helm upgrade api helm/api -n ownpulse
+helm upgrade web helm/web -n ownpulse
 ```
 
 Helm performs atomic, rollback-capable upgrades. If something goes wrong:

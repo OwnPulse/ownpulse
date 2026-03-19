@@ -36,6 +36,14 @@ All wearable and device measurements (heart rate, HRV, weight, blood glucose, sl
 | `recorded_at` | TIMESTAMPTZ | When the measurement was taken |
 | `created_at` | TIMESTAMPTZ | |
 
+#### Deduplication
+
+Before inserting any health record, the API checks for existing records within a **60-second window** and **2% value tolerance** from a different source. When a potential duplicate is detected:
+
+- The new record is still inserted, but with its `duplicate_of` column set to reference the existing record's ID. Records are never silently dropped.
+- The `source_preferences` table determines which source is preferred for each metric type. The preferred source's record is treated as canonical.
+- A structured warning is logged containing both record IDs and their respective sources, enabling audit and debugging.
+
 ### `interventions`
 
 Substance, medication, and supplement logs. Names are freeform text with no validation (non-judgmental by design).

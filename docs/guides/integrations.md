@@ -43,8 +43,8 @@ New data sources follow a consistent 12-step process. This ensures each integrat
 
 | Provider | Status | ADR |
 |----------|--------|-----|
-| HealthKit | Phase 1 | [ADR-0008](../decisions/0008-healthkit-sync.md) |
-| Garmin | Phase 1 | -- |
-| Oura | Phase 1 | -- |
-| Dexcom | Phase 2 | -- |
-| Google Calendar | Phase 1 | -- |
+| Google OAuth | Implemented (login + calendar events client) | -- |
+| HealthKit | Implemented (bulk sync, write-queue, confirm) | [ADR-0008](../decisions/0008-healthkit-sync.md) |
+| Garmin | Planned (Phase 1 -- OAuth client not yet wired) | -- |
+| Oura | Planned (Phase 1 -- OAuth client not yet wired) | -- |
+| Dexcom | Planned (Phase 2) | -- |
