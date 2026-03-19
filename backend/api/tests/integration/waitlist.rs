@@ -30,6 +30,10 @@ async fn body_json(response: axum::response::Response) -> Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
 #[tokio::test]
 async fn test_signup_valid_email() {
     let test_app = common::setup().await;
@@ -45,6 +49,7 @@ async fn test_signup_valid_email() {
     let json = body_json(response).await;
     assert_eq!(json["ok"], true);
 
+    // Verify the row was persisted.
     let row: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM waitlist WHERE email = 'test@example.com'")
             .fetch_one(&test_app.pool)
@@ -57,6 +62,7 @@ async fn test_signup_valid_email() {
 async fn test_signup_duplicate_email() {
     let test_app = common::setup().await;
 
+    // First signup.
     let resp1 = test_app
         .app
         .clone()
@@ -65,6 +71,7 @@ async fn test_signup_duplicate_email() {
         .unwrap();
     assert_eq!(resp1.status(), 200);
 
+    // Second signup with the same email.
     let resp2 = test_app
         .app
         .oneshot(waitlist_request(&json!({"email": "dup@example.com"})))
@@ -75,6 +82,7 @@ async fn test_signup_duplicate_email() {
     let json = body_json(resp2).await;
     assert_eq!(json["ok"], true);
 
+    // Only one row should exist.
     let row: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM waitlist WHERE email = 'dup@example.com'")
             .fetch_one(&test_app.pool)
@@ -127,6 +135,10 @@ async fn test_signup_with_name() {
 
     assert_eq!(response.status(), 200);
 
+    let json = body_json(response).await;
+    assert_eq!(json["ok"], true);
+
+    // Verify the name was stored.
     let row: (Option<String>,) =
         sqlx::query_as("SELECT name FROM waitlist WHERE email = 'a@b.com'")
             .fetch_one(&test_app.pool)
@@ -147,6 +159,10 @@ async fn test_signup_without_name() {
 
     assert_eq!(response.status(), 200);
 
+    let json = body_json(response).await;
+    assert_eq!(json["ok"], true);
+
+    // Verify the name is NULL.
     let row: (Option<String>,) =
         sqlx::query_as("SELECT name FROM waitlist WHERE email = 'a@b.com'")
             .fetch_one(&test_app.pool)
@@ -167,6 +183,10 @@ async fn test_signup_email_trimmed_and_lowercased() {
 
     assert_eq!(response.status(), 200);
 
+    let json = body_json(response).await;
+    assert_eq!(json["ok"], true);
+
+    // Verify it was stored as the normalized form.
     let row: (i64,) =
         sqlx::query_as("SELECT COUNT(*) FROM waitlist WHERE email = 'test@example.com'")
             .fetch_one(&test_app.pool)

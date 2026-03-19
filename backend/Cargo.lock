@@ -91,8 +91,6 @@ dependencies = [
  "chrono",
  "envy",
  "fake",
- "futures",
- "hex",
  "http",
  "http-body-util",
  "hyper",
@@ -103,7 +101,6 @@ dependencies = [
  "rstest",
  "serde",
  "serde_json",
- "sha2",
  "sqlx",
  "testcontainers",
  "testcontainers-modules",
@@ -3639,7 +3636,6 @@ checksum = "a68d3c8f01c0cfa54a75291d83601161799e4a89a39e0929f4b0354d88757a37"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
- "serde_core",
  "wasm-bindgen",
 ]
 
