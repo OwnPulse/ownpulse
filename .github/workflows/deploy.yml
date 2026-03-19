@@ -20,14 +20,56 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@v4
 
+      - name: Ensure namespace exists
+        run: kubectl create namespace ownpulse --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy Postgres (idempotent)
+        run: helm upgrade --install postgres helm/postgres -n ownpulse
+
+      - name: Wait for Postgres ready
+        run: kubectl rollout status statefulset/postgres-ownpulse-postgres -n ownpulse --timeout=120s
+
       - name: Deploy API
         run: >
           helm upgrade --install api helm/api
           -n ownpulse
           --set image.tag=${{ github.sha }}
 
+      - name: Verify API rollout
+        id: api-rollout
+        run: kubectl rollout status deployment/api-ownpulse-api -n ownpulse --timeout=120s
+
+      - name: Rollback API on failure
+        if: failure() && steps.api-rollout.outcome == 'failure'
+        run: helm rollback api -n ownpulse
+
       - name: Deploy Web
         run: >
           helm upgrade --install web helm/web
           -n ownpulse
           --set image.tag=${{ github.sha }}
+
+      - name: Verify Web rollout
+        id: web-rollout
+        run: kubectl rollout status deployment/web-ownpulse-web -n ownpulse --timeout=120s
+
+      - name: Rollback Web on failure
+        if: failure() && steps.web-rollout.outcome == 'failure'
+        run: helm rollback web -n ownpulse
+
+      - name: Deploy Alloy (idempotent)
+        run: helm upgrade --install alloy helm/alloy -n ownpulse
+
+      - name: Smoke test
+        run: |
+          # Wait for API to be reachable via service
+          for i in $(seq 1 10); do
+            if kubectl exec deploy/api-ownpulse-api -n ownpulse -- wget -qO- http://localhost:8080/api/v1/health 2>/dev/null | grep -q '"ok"'; then
+              echo "API health check passed"
+              exit 0
+            fi
+            echo "Waiting for API... ($i/10)"
+            sleep 5
+          done
+          echo "Smoke test failed"
+          exit 1
