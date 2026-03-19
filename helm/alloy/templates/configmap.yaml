@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "alloy.fullname" . }}
+  labels:
+    {{- include "alloy.labels" . | nindent 4 }}
+data:
+  config.alloy: |
+    prometheus.scrape "ownpulse_api" {
+      targets = [{"__address__" = "{{ .Values.scrape.apiService }}:{{ .Values.scrape.apiPort }}"}]
+      metrics_path = "{{ .Values.scrape.metricsPath }}"
+      scrape_interval = "{{ .Values.scrape.interval }}"
+      forward_to = [prometheus.remote_write.grafana_cloud.receiver]
+    }
+
+    prometheus.remote_write "grafana_cloud" {
+      endpoint {
+        url = env("GRAFANA_CLOUD_URL")
+        basic_auth {
+          username = env("GRAFANA_CLOUD_USER")
+          password = env("GRAFANA_CLOUD_API_KEY")
+        }
+      }
+    }
