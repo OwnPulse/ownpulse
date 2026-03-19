@@ -109,6 +109,16 @@ These areas can be worked on simultaneously without merge conflicts:
 | `pact/contracts/web-backend.json` from two agents | ❌ | One agent edits contracts at a time |
 | `schema/open-schema.json` from two agents | ❌ | One agent edits schema at a time |
 
+### Worktree isolation
+
+Each agent MUST work in a dedicated git worktree. This prevents file conflicts when multiple agents work in parallel:
+
+```bash
+git worktree add ../ownpulse-<agent-task> -b feat/<branch-name>
+```
+
+The primary checkout (`ownpulse/`) must always stay on `main` and clean. Agents should never modify files in the primary checkout directly.
+
 ---
 
 ## PR Workflow

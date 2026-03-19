@@ -35,6 +35,33 @@ This repo is designed for parallel AI agent work (Claude Code, Cursor). Read thi
 3. Read the `AGENTS.md` in the specific directory you're working in
 4. Run the test suite for your area before making changes — establish a baseline
 
+### Git worktrees
+
+**Always use a git worktree for feature work.** Never commit directly on `main` or work in the primary checkout.
+
+```bash
+# Create a worktree for your feature branch
+git worktree add ../ownpulse-feat-name -b feat/feature-name
+
+# Work in the worktree
+cd ../ownpulse-feat-name
+# ... make changes, commit, push ...
+
+# Clean up when done
+cd ../ownpulse
+git worktree remove ../ownpulse-feat-name
+```
+
+Why: worktrees prevent agents from stepping on each other's work. Each agent gets an isolated copy of the repo with its own working tree and index. The primary checkout stays clean on `main` for reference.
+
+Rules:
+- One worktree per feature branch
+- Name the worktree directory after the branch: `../ownpulse-feat-name`
+- Always branch from latest `main` (`git pull` first)
+- Push the branch and open a PR from the worktree
+- Remove the worktree after the PR is merged
+- Never leave uncommitted changes in a worktree you're not actively using
+
 ### Agent boundaries
 
 Each service is independently buildable and testable. Work within one service at a time.

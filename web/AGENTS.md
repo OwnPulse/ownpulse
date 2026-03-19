@@ -1,5 +1,7 @@
 # Web Frontend — AGENTS.md
 
+> **Note:** Always work in a git worktree, not the primary checkout. See root CLAUDE.md § "Git worktrees".
+
 ## Ownership
 
 **Owns:** `web/`
