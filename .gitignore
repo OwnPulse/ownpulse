@@ -27,13 +27,3 @@ Thumbs.db
 
 # Note: .sqlx/ is NOT ignored — it must be committed per CLAUDE.md
 # (cargo sqlx prepare output for compile-time query checking)
-
-# Bootstrap docs (reference only, not part of the application)
-bootstrap/
-
-# Separate repos that live as subdirectories
-ownpulse-infra/
-ownpulse-web/
-
-# Cargo lock (workspace level)
-# backend/Cargo.lock is committed
