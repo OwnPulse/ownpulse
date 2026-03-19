@@ -12,7 +12,7 @@ mod models;
 mod routes;
 mod stats;
 
-use axum::{routing::get, Json, Router};
+use axum::{routing::{get, post}, Json, Router};
 use serde_json::json;
 use sqlx::postgres::PgPoolOptions;
 use tokio::signal;
@@ -43,6 +43,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/api/v1/health", get(health))
+        .route("/api/v1/waitlist", post(routes::waitlist::signup))
         .with_state(pool);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
