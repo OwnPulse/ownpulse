@@ -21,11 +21,18 @@ tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 envy = "0.4"
 thiserror = "1"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
+metrics = "0.24"
+metrics-exporter-prometheus = "0.16"
+axum-prometheus = "0.7"
 
 [dev-dependencies]
-testcontainers = "0.20"
-testcontainers-modules = { version = "0.7", features = ["postgres"] }
+testcontainers = "0.23"
+testcontainers-modules = { version = "0.11", features = ["postgres"] }
 wiremock = "0.6"
 fake = "2.9"
 rstest = "0.22"
 tokio-test = "0.4"
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+http = "1"
+hyper = "1"
