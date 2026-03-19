@@ -5,4 +5,6 @@
 //!
 //! One module per data source. All clients are designed for WireMock
 //! compatibility in tests — they accept a base URL parameter.
-//! Modules: healthkit_write, garmin, oura, dexcom, lab_pdf, genetics.
+
+pub mod google;
+pub mod google_calendar;
