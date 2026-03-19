@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use axum::extract::State;
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::Json;
-use serde::Deserialize;
-use serde_json::json;
+use axum::{extract::State, http::StatusCode, Json};
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use tracing::{info, warn};
-
-use crate::AppState;
 
 #[derive(Deserialize)]
 pub struct WaitlistRequest {
@@ -17,16 +12,21 @@ pub struct WaitlistRequest {
     pub name: Option<String>,
 }
 
+#[derive(Serialize)]
+pub struct WaitlistResponse {
+    pub ok: bool,
+}
+
 pub async fn signup(
-    State(state): State<AppState>,
+    State(pool): State<PgPool>,
     Json(body): Json<WaitlistRequest>,
-) -> impl IntoResponse {
+) -> (StatusCode, Json<WaitlistResponse>) {
     let email = body.email.trim().to_lowercase();
 
     if email.is_empty() || !email.contains('@') {
         return (
             StatusCode::BAD_REQUEST,
-            Json(json!({"ok": false})),
+            Json(WaitlistResponse { ok: false }),
         );
     }
 
@@ -35,7 +35,7 @@ pub async fn signup(
     )
     .bind(&email)
     .bind(&body.name)
-    .execute(&state.pool)
+    .execute(&pool)
     .await;
 
     match result {
@@ -52,5 +52,5 @@ pub async fn signup(
     }
 
     // Always return ok — don't leak whether the email exists
-    (StatusCode::OK, Json(json!({"ok": true})))
+    (StatusCode::OK, Json(WaitlistResponse { ok: true }))
 }

@@ -1,13 +1,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+mod auth;
+mod config;
+mod crypto;
+mod db;
+mod export;
+mod integrations;
+mod jobs;
+mod models;
+mod routes;
+mod stats;
+
+use axum::{routing::{get, post}, Json, Router};
+use serde_json::json;
 use sqlx::postgres::PgPoolOptions;
 use tokio::signal;
 use tracing::info;
 
+async fn health() -> Json<serde_json::Value> {
+    Json(json!({"status": "ok"}))
+}
+
 #[tokio::main]
 async fn main() {
-    let config = api::config::Config::load();
+    let config = config::Config::load();
 
     if std::env::var("RUST_LOG")
         .unwrap_or_default()
@@ -24,13 +41,10 @@ async fn main() {
         .await
         .expect("failed to connect to database");
 
-    let state = api::AppState {
-        pool,
-        config,
-        http_client: reqwest::Client::new(),
-    };
-
-    let app = api::build_app(state);
+    let app = Router::new()
+        .route("/api/v1/health", get(health))
+        .route("/api/v1/waitlist", post(routes::waitlist::signup))
+        .with_state(pool);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
         .await
