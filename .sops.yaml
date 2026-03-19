@@ -1,0 +1,5 @@
+# SOPS encryption configuration — real values in ownpulse-infra repo.
+# This file is a placeholder to document the expected structure.
+creation_rules:
+  - path_regex: \.env\.encrypted$
+    age: "<age-public-key-here>"
