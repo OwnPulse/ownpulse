@@ -1,0 +1,30 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: [Backend, Web]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: arc-runner-set
+    if: >
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+
+      - name: Deploy API
+        run: >
+          helm upgrade --install api helm/api
+          -n ownpulse
+          --set image.tag=${{ github.sha }}
+
+      - name: Deploy Web
+        run: >
+          helm upgrade --install web helm/web
+          -n ownpulse
+          --set image.tag=${{ github.sha }}

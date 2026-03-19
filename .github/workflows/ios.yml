@@ -1,0 +1,30 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "ios/**"
+
+jobs:
+  test:
+    runs-on: macos-tart
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cirruslabs/tart-action@v1
+        with:
+          image: ghcr.io/cirruslabs/macos-sequoia-xcode:16.2
+
+      - name: Run Xcode tests
+        run: >
+          xcodebuild test
+          -scheme OwnPulse
+          -destination 'platform=iOS Simulator,name=iPhone 16'
+
+      - name: Run Maestro tests
+        run: maestro test ios/maestro/flows/

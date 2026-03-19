@@ -1,0 +1,54 @@
+name: Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "db/**"
+      - "schema/**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - "db/**"
+      - "schema/**"
+
+jobs:
+  test:
+    runs-on: arc-runner-set
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - run: cargo test --lib
+
+      - run: cargo test --test '*'
+
+      - run: cargo clippy -- -D warnings
+
+      - run: cargo sqlx prepare --check
+
+  build:
+    runs-on: arc-runner-set
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: backend
+          push: true
+          tags: ghcr.io/ownpulse/ownpulse-api:${{ github.sha }}
