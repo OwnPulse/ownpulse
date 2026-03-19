@@ -449,7 +449,7 @@ cd db && sqlx migrate run
 ```bash
 # Postgres only via Docker (no full cluster)
 docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:16
-export DATABASE_URL=postgres://postgres:dev@localhost:5432/health
+export DATABASE_URL=postgres://postgres:dev@localhost:5432/ownpulse
 cd db && sqlx migrate run
 cd backend && cargo sqlx prepare --workspace
 cargo run -p api         # API on :8080
