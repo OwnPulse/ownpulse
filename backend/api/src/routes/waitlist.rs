@@ -3,25 +3,54 @@
 
 use axum::extract::State;
 use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::Json;
 use serde::Deserialize;
+use serde_json::json;
+use tracing::{info, warn};
 
-use crate::error::ApiError;
 use crate::AppState;
 
 #[derive(Deserialize)]
-pub struct WaitlistSignup {
+pub struct WaitlistRequest {
     pub email: String,
+    pub name: Option<String>,
 }
 
 pub async fn signup(
     State(state): State<AppState>,
-    Json(body): Json<WaitlistSignup>,
-) -> Result<StatusCode, ApiError> {
-    sqlx::query("INSERT INTO waitlist (email) VALUES ($1) ON CONFLICT DO NOTHING")
-        .bind(&body.email)
-        .execute(&state.pool)
-        .await?;
+    Json(body): Json<WaitlistRequest>,
+) -> impl IntoResponse {
+    let email = body.email.trim().to_lowercase();
 
-    Ok(StatusCode::NO_CONTENT)
+    if email.is_empty() || !email.contains('@') {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"ok": false})),
+        );
+    }
+
+    let result = sqlx::query(
+        "INSERT INTO waitlist (email, name) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING",
+    )
+    .bind(&email)
+    .bind(&body.name)
+    .execute(&state.pool)
+    .await;
+
+    match result {
+        Ok(r) => {
+            if r.rows_affected() > 0 {
+                info!(email = %email, "new waitlist signup");
+            } else {
+                info!(email = %email, "waitlist signup already exists");
+            }
+        }
+        Err(e) => {
+            warn!(error = %e, "failed to insert waitlist signup");
+        }
+    }
+
+    // Always return ok — don't leak whether the email exists
+    (StatusCode::OK, Json(json!({"ok": true})))
 }

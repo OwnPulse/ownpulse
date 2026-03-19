@@ -5,6 +5,7 @@ use axum::Router;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use testcontainers::runners::AsyncRunner;
+use testcontainers::ImageExt;
 use testcontainers_modules::postgres::Postgres;
 
 /// Holds the Axum app, database pool, and the container handle (which keeps
@@ -47,6 +48,7 @@ fn test_config(database_url: &str) -> api::config::Config {
 /// return a ready-to-use [`TestApp`].
 pub async fn setup() -> TestApp {
     let container = Postgres::default()
+        .with_tag("16-alpine")
         .start()
         .await
         .expect("failed to start postgres container");
@@ -73,7 +75,7 @@ pub async fn setup() -> TestApp {
         http_client: reqwest::Client::new(),
     };
 
-    let app = api::build_app(state);
+    let app = api::build_app_without_metrics(state);
 
     TestApp {
         app,
@@ -83,7 +85,7 @@ pub async fn setup() -> TestApp {
 }
 
 /// Read every SQL migration file from `db/migrations/` and execute them in
-/// filename order.
+/// filename order. Uses raw_sql to support multi-statement migrations.
 async fn run_migrations(pool: &PgPool) {
     let migrations_dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../db/migrations");
@@ -106,7 +108,7 @@ async fn run_migrations(pool: &PgPool) {
     for path in entries {
         let sql = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-        sqlx::query(&sql)
+        sqlx::raw_sql(&sql)
             .execute(pool)
             .await
             .unwrap_or_else(|e| panic!("migration {} failed: {e}", path.display()));
