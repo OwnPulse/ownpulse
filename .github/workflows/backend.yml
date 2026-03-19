@@ -28,15 +28,101 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, llvm-tools-preview
 
-      - run: cargo test --lib
-
-      - run: cargo test --test '*'
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
 
       - run: cargo clippy -- -D warnings
 
       - run: cargo sqlx prepare --check
+
+      - name: Run tests with coverage
+        run: |
+          cargo llvm-cov --all-targets --lcov --output-path lcov.info
+          cargo llvm-cov report --summary-only 2>&1 | tee coverage-summary.txt
+
+      - name: Parse coverage percentage
+        id: coverage
+        run: |
+          LINE_COV=$(grep TOTAL coverage-summary.txt | awk '{print $(NF-2)}' | sed 's/%//')
+          echo "percentage=$LINE_COV" >> "$GITHUB_OUTPUT"
+          echo "Backend line coverage: ${LINE_COV}%"
+
+      - name: Generate coverage HTML report
+        run: |
+          cargo llvm-cov --all-targets --html --output-dir coverage-html
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: backend/coverage-html/
+          retention-days: 30
+
+      - name: Comment coverage on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const percentage = '${{ steps.coverage.outputs.percentage }}';
+            const body = `## Backend Coverage\n\n**Line coverage: ${percentage}%**\n\n[Download full report](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) → Artifacts → backend-coverage-report`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.startsWith('## Backend Coverage'));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Update coverage badge
+        if: github.ref == 'refs/heads/main'
+        run: |
+          LINE_COV="${{ steps.coverage.outputs.percentage }}"
+          # Color: green ≥70, yellow ≥50, red <50
+          if [ "$(echo "$LINE_COV >= 70" | bc -l)" -eq 1 ]; then
+            COLOR="brightgreen"
+          elif [ "$(echo "$LINE_COV >= 50" | bc -l)" -eq 1 ]; then
+            COLOR="yellow"
+          else
+            COLOR="red"
+          fi
+          mkdir -p /tmp/badges
+          cat > /tmp/badges/backend-coverage.json << BADGE
+          {
+            "schemaVersion": 1,
+            "label": "backend coverage",
+            "message": "${LINE_COV}%",
+            "color": "${COLOR}"
+          }
+          BADGE
+
+      - name: Deploy badge to badges branch
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin badges || true
+          git checkout badges 2>/dev/null || git checkout --orphan badges
+          cp /tmp/badges/backend-coverage.json .
+          git add backend-coverage.json
+          git diff --cached --quiet || git commit -m "Update backend coverage badge"
+          git push origin badges
 
   build:
     runs-on: arc-runner-set

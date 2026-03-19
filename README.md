@@ -1,5 +1,8 @@
 # OwnPulse
 
+![Backend Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OwnPulse/ownpulse/badges/backend-coverage.json)
+![Web Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/OwnPulse/ownpulse/badges/web-coverage.json)
+
 OwnPulse is an open source health data platform owned by its users as a cooperative. You track interventions, wearable data, labs, and subjective scores; the platform finds correlations and lets you export everything in open formats. Licensed AGPL-3.0; the open data schema is CC0.
 
 ## Quick Start: Self-Hosting
