@@ -11,10 +11,16 @@ use tracing::{info, warn};
 
 use crate::AppState;
 
+const VALID_PERSONAS: &[&str] = &[
+    "quantified_self", "biohacker", "peptide_pioneer", "iron_scientist",
+    "health_detective", "builder", "clinician", "basics",
+];
+
 #[derive(Deserialize)]
 pub struct WaitlistRequest {
     pub email: String,
     pub name: Option<String>,
+    pub persona: Option<String>,
 }
 
 pub async fn signup(
@@ -30,11 +36,18 @@ pub async fn signup(
         );
     }
 
+    if let Some(ref p) = body.persona {
+        if !VALID_PERSONAS.contains(&p.as_str()) {
+            return (StatusCode::BAD_REQUEST, Json(json!({"ok": false})));
+        }
+    }
+
     let result = sqlx::query(
-        "INSERT INTO waitlist (email, name) VALUES ($1, $2) ON CONFLICT (email) DO NOTHING",
+        "INSERT INTO waitlist (email, name, persona) VALUES ($1, $2, $3) ON CONFLICT (email) DO NOTHING",
     )
     .bind(&email)
     .bind(&body.name)
+    .bind(&body.persona)
     .execute(&state.pool)
     .await;
 

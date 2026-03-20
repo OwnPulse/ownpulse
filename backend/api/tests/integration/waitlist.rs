@@ -174,3 +174,45 @@ async fn test_signup_email_trimmed_and_lowercased() {
             .unwrap();
     assert_eq!(row.0, 1);
 }
+
+#[tokio::test]
+async fn test_signup_with_persona() {
+    let test_app = common::setup().await;
+
+    let response = test_app
+        .app
+        .oneshot(waitlist_request(&json!({
+            "email": "a@b.com",
+            "persona": "biohacker"
+        })))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200);
+
+    let row: (Option<String>,) =
+        sqlx::query_as("SELECT persona FROM waitlist WHERE email = 'a@b.com'")
+            .fetch_one(&test_app.pool)
+            .await
+            .unwrap();
+    assert_eq!(row.0.as_deref(), Some("biohacker"));
+}
+
+#[tokio::test]
+async fn test_signup_invalid_persona() {
+    let test_app = common::setup().await;
+
+    let response = test_app
+        .app
+        .oneshot(waitlist_request(&json!({
+            "email": "a@b.com",
+            "persona": "invalid_type"
+        })))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 400);
+
+    let json = body_json(response).await;
+    assert_eq!(json["ok"], false);
+}

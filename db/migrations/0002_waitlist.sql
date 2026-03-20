@@ -7,5 +7,15 @@ CREATE TABLE waitlist (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT NOT NULL UNIQUE,
     name TEXT,
+    persona TEXT CHECK (persona IN (
+        'quantified_self',
+        'biohacker',
+        'peptide_pioneer',
+        'iron_scientist',
+        'health_detective',
+        'builder',
+        'clinician',
+        'basics'
+    )),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
