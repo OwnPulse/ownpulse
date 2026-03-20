@@ -1,0 +1,19 @@
+image:
+  repository: postgres
+  tag: "16"
+  pullPolicy: IfNotPresent
+
+storage:
+  size: 10Gi
+
+# Secret containing POSTGRES_PASSWORD, POSTGRES_USER, POSTGRES_DB
+# Created as a SealedSecret in the infra repo
+credentialsSecret: ownpulse-postgres-secrets
+
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 512Mi
+    cpu: 500m

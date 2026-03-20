@@ -11,6 +11,7 @@ service:
   targetPort: 8080
 
 containerPort: 8080
+metricsPort: 9090
 
 ingress:
   enabled: true
