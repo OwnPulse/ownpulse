@@ -28,9 +28,10 @@ pub async fn exchange_code_for_tokens(
     client_secret: &str,
     redirect_uri: &str,
     code: &str,
+    token_url: &str,
 ) -> Result<GoogleTokenResponse, String> {
     let response = client
-        .post("https://oauth2.googleapis.com/token")
+        .post(token_url)
         .form(&[
             ("grant_type", "authorization_code"),
             ("client_id", client_id),
@@ -63,9 +64,10 @@ pub async fn exchange_code_for_tokens(
 pub async fn fetch_user_info(
     client: &reqwest::Client,
     access_token: &str,
+    userinfo_url: &str,
 ) -> Result<GoogleUserInfo, String> {
     let response = client
-        .get("https://www.googleapis.com/oauth2/v3/userinfo")
+        .get(userinfo_url)
         .bearer_auth(access_token)
         .send()
         .await

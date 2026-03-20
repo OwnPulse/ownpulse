@@ -20,6 +20,13 @@ jobs:
         with:
           image: ghcr.io/cirruslabs/macos-sequoia-xcode:16.2
 
+      - name: Resolve SPM dependencies
+        working-directory: ios
+        run: >
+          xcodebuild -resolvePackageDependencies
+          -scheme OwnPulse
+          -clonedSourcePackagesDirPath .spm-cache
+
       - name: Run Xcode tests
         run: >
           xcodebuild test

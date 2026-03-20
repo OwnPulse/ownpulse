@@ -15,7 +15,7 @@ use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
 use crate::db::refresh_tokens;
 use crate::db::users;
 use crate::error::ApiError;
-use crate::models::user::{LoginRequest, TokenResponse};
+use crate::models::user::{LoginRequest, RefreshRequest, TokenResponse};
 use crate::AppState;
 
 /// POST /auth/login — username + password authentication.
@@ -39,25 +39,36 @@ pub async fn login(
 }
 
 /// POST /auth/refresh — rotate refresh token, issue new access + refresh.
+///
+/// Accepts the refresh token from either a JSON body (`{"refresh_token": "..."}`)
+/// or an httpOnly cookie. Body takes precedence — iOS uses the body variant since
+/// it stores tokens in the Keychain, not cookies.
 pub async fn refresh(
     State(state): State<AppState>,
     headers: HeaderMap,
+    body: Option<Json<RefreshRequest>>,
 ) -> Result<Response, ApiError> {
-    let cookie_header = headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .ok_or(ApiError::Unauthorized)?;
+    // Body takes precedence over cookie
+    let token_value = if let Some(Json(req)) = body {
+        req.refresh_token
+    } else {
+        let cookie_header = headers
+            .get(axum::http::header::COOKIE)
+            .and_then(|v| v.to_str().ok())
+            .ok_or(ApiError::Unauthorized)?;
 
-    let token_value = cookie_header
-        .split(';')
-        .filter_map(|c| {
-            let c = c.trim();
-            c.strip_prefix("refresh_token=")
-        })
-        .next()
-        .ok_or(ApiError::Unauthorized)?;
+        cookie_header
+            .split(';')
+            .filter_map(|c| {
+                let c = c.trim();
+                c.strip_prefix("refresh_token=")
+            })
+            .next()
+            .ok_or(ApiError::Unauthorized)?
+            .to_string()
+    };
 
-    let token_hash = hash_refresh_token(token_value);
+    let token_hash = hash_refresh_token(&token_value);
     let row = refresh_tokens::find_by_hash(&state.pool, &token_hash)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
@@ -106,6 +117,9 @@ pub async fn logout(
 #[derive(Deserialize)]
 pub struct GoogleCallbackQuery {
     pub code: String,
+    /// When set to `"ios"`, redirect to `ownpulse://auth?token=...` instead of
+    /// the web origin. The iOS app passes `state=ios` in the OAuth URL.
+    pub state: Option<String>,
 }
 
 /// GET /auth/google/callback?code=... — exchange authorization code, find/create user, redirect.
@@ -135,6 +149,7 @@ pub async fn google_callback(
         client_secret,
         redirect_uri,
         &query.code,
+        &state.config.google_token_url,
     )
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -142,6 +157,7 @@ pub async fn google_callback(
     let google_user = crate::integrations::google::fetch_user_info(
         &state.http_client,
         &tokens.access_token,
+        &state.config.google_userinfo_url,
     )
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -179,12 +195,24 @@ pub async fn google_callback(
         raw_token, state.config.refresh_token_expiry_seconds
     );
 
-    let redirect_url = format!("{}/?token={}", state.config.web_origin, access_token);
+    let is_ios = query.state.as_deref() == Some("ios");
+
+    let redirect_url = if is_ios {
+        format!(
+            "ownpulse://auth?token={}&refresh_token={}",
+            access_token, raw_token
+        )
+    } else {
+        format!("{}/?token={}", state.config.web_origin, access_token)
+    };
 
     let mut response = Redirect::to(&redirect_url).into_response();
-    response
-        .headers_mut()
-        .insert(SET_COOKIE, cookie.parse().unwrap());
+    // Set cookie for web clients; iOS uses the URL params instead
+    if !is_ios {
+        response
+            .headers_mut()
+            .insert(SET_COOKIE, cookie.parse().unwrap());
+    }
     Ok(response)
 }
 
