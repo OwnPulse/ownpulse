@@ -7,6 +7,7 @@ use axum::Json;
 use serde::Serialize;
 
 use crate::auth::extractor::AuthUser;
+use crate::crypto;
 use crate::db::integration_tokens as db;
 use crate::error::ApiError;
 use crate::AppState;
@@ -22,7 +23,9 @@ pub async fn list(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
 ) -> Result<Json<Vec<IntegrationStatus>>, ApiError> {
-    let tokens = db::list_for_user(&state.pool, user_id).await?;
+    let key = crypto::parse_encryption_key(&state.config.encryption_key)
+        .map_err(|e| ApiError::Internal(format!("bad encryption key config: {e}")))?;
+    let tokens = db::list_for_user(&state.pool, user_id, &key).await?;
     let statuses = tokens
         .into_iter()
         .map(|t| IntegrationStatus {

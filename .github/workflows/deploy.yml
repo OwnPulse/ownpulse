@@ -15,10 +15,37 @@ jobs:
     if: >
       github.event.workflow_run.conclusion == 'success'
     steps:
-      - uses: actions/checkout@v6
+      - name: Verify both Backend and Web succeeded for this SHA
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const sha = context.payload.workflow_run.head_sha;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            for (const workflow of ['backend.yml', 'web.yml']) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner, repo, workflow_id: workflow, head_sha: sha, status: 'success',
+              });
+              if (runs.data.total_count === 0) {
+                core.setFailed(`No successful ${workflow} run for SHA ${sha}`);
+                return;
+              }
+            }
+            core.info(`Both Backend and Web succeeded for ${sha}`);
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Install Helm
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+
+      - name: Ensure namespace exists
+        run: kubectl create namespace ownpulse --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy Postgres (idempotent)
+        run: helm upgrade --install postgres helm/postgres -n ownpulse
+
+      - name: Wait for Postgres ready
+        run: kubectl rollout status statefulset/postgres-ownpulse-postgres -n ownpulse --timeout=120s
 
       - name: Deploy API
         run: >
@@ -26,8 +53,38 @@ jobs:
           -n ownpulse
           --set image.tag=${{ github.sha }}
 
+      - name: Verify API rollout
+        id: api-rollout
+        run: kubectl rollout status deployment/api-ownpulse-api -n ownpulse --timeout=120s
+
+      - name: Rollback API on failure
+        if: failure() && steps.api-rollout.outcome == 'failure'
+        run: helm rollback api -n ownpulse
+
       - name: Deploy Web
         run: >
           helm upgrade --install web helm/web
           -n ownpulse
           --set image.tag=${{ github.sha }}
+
+      - name: Verify Web rollout
+        id: web-rollout
+        run: kubectl rollout status deployment/web-ownpulse-web -n ownpulse --timeout=120s
+
+      - name: Rollback Web on failure
+        if: failure() && steps.web-rollout.outcome == 'failure'
+        run: helm rollback web -n ownpulse
+
+      - name: Smoke test
+        run: |
+          # Wait for API to be reachable via service
+          for i in $(seq 1 10); do
+            if kubectl exec deploy/api-ownpulse-api -n ownpulse -- wget -qO- http://localhost:8080/api/v1/health 2>/dev/null | grep -q '"ok"'; then
+              echo "API health check passed"
+              exit 0
+            fi
+            echo "Waiting for API... ($i/10)"
+            sleep 5
+          done
+          echo "Smoke test failed"
+          exit 1

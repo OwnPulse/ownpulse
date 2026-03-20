@@ -26,16 +26,43 @@ use axum::{
 
 use crate::AppState;
 
-/// Build the versioned API router. Mounted under `/api/v1` by `build_app`.
-pub fn api_routes() -> Router<AppState> {
+fn auth_routes() -> Router<AppState> {
     Router::new()
-        // Waitlist (unauthenticated)
-        .route("/waitlist", post(waitlist::signup))
-        // Auth
         .route("/auth/login", post(auth::login))
         .route("/auth/refresh", post(auth::refresh))
         .route("/auth/logout", post(auth::logout))
         .route("/auth/google/callback", get(auth::google_callback))
+}
+
+/// Build the versioned API router with rate limiting on auth endpoints.
+/// Mounted under `/api/v1` by `build_app`.
+pub fn api_routes() -> Router<AppState> {
+    use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+
+    // 5 requests per 60 seconds per IP on auth endpoints.
+    let auth_governor_conf = GovernorConfigBuilder::default()
+        .per_second(12) // replenish 1 token every 12s → 5/min
+        .burst_size(5)
+        .finish()
+        .expect("failed to build governor config");
+
+    let rate_limited_auth = auth_routes().layer(GovernorLayer {
+        config: auth_governor_conf.into(),
+    });
+
+    base_routes().merge(rate_limited_auth)
+}
+
+/// Build the versioned API router without rate limiting.
+/// Used by integration tests where `ConnectInfo` is not available.
+pub fn api_routes_without_rate_limit() -> Router<AppState> {
+    base_routes().merge(auth_routes())
+}
+
+fn base_routes() -> Router<AppState> {
+    Router::new()
+        // Waitlist (unauthenticated)
+        .route("/waitlist", post(waitlist::signup))
         // Health records
         .route("/health-records", post(health_records::create))
         .route("/health-records", get(health_records::list))

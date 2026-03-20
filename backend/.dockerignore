@@ -1,0 +1,6 @@
+target/
+tests/
+coverage-html/
+lcov.info
+coverage-summary.txt
+*.md

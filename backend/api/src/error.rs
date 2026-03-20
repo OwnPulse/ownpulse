@@ -40,6 +40,12 @@ impl IntoResponse for ApiError {
     }
 }
 
+impl From<crate::crypto::CryptoError> for ApiError {
+    fn from(err: crate::crypto::CryptoError) -> Self {
+        ApiError::Internal(format!("crypto error: {err}"))
+    }
+}
+
 impl From<sqlx::Error> for ApiError {
     fn from(err: sqlx::Error) -> Self {
         match &err {
