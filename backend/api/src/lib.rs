@@ -20,8 +20,6 @@ use axum_prometheus::PrometheusMetricLayer;
 use config::Config;
 use serde_json::json;
 use sqlx::PgPool;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
 use tracing::info;
 
