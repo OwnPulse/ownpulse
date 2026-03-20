@@ -24,7 +24,13 @@ async fn main() {
         .await
         .expect("failed to connect to database");
 
-    let app = api::build_app(pool);
+    let state = api::AppState {
+        pool,
+        config,
+        http_client: reqwest::Client::new(),
+    };
+
+    let app = api::build_app(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
         .await
