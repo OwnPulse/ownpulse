@@ -1,0 +1,7 @@
+appId: health.ownpulse.app
+---
+- launchApp
+- assertVisible:
+    id: "openDashboardButton"
+- tapOn:
+    id: "openDashboardButton"

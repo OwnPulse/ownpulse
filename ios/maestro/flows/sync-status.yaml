@@ -1,0 +1,9 @@
+appId: health.ownpulse.app
+---
+- launchApp
+- assertVisible:
+    id: "syncNowButton"
+- tapOn:
+    id: "syncNowButton"
+- assertVisible:
+    id: "syncingIndicator"
