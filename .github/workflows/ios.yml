@@ -24,6 +24,8 @@ jobs:
 
       - name: Create ephemeral Tart VM
         run: |
+          # Unlock keychain — Virtualization.framework needs this on macOS >= 15.2
+          security unlock-keychain -p "ci-keychain" ~/Library/Keychains/login.keychain-db 2>/dev/null || true
           tart clone $TART_IMAGE $VM_NAME
           tart run $VM_NAME --no-graphics &
           # Wait for VM to boot and SSH to become available
