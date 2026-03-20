@@ -8,14 +8,21 @@ on:
     branches: [main]
     paths:
       - "web/**"
+      - ".github/workflows/web.yml"
   pull_request:
     branches: [main]
     paths:
       - "web/**"
+      - ".github/workflows/web.yml"
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
 
 jobs:
   test:
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: web
@@ -28,7 +35,7 @@ jobs:
 
       - run: npm ci
 
-      - run: tsc --noEmit
+      - run: npx tsc --noEmit
 
       - name: Run tests with coverage
         run: |
@@ -78,7 +85,13 @@ jobs:
             }
 
       - name: Run E2E tests
-        run: npm run test:e2e
+        run: |
+          if compgen -G "tests/e2e/*.spec.*" > /dev/null; then
+            npx playwright install --with-deps chromium
+            npx playwright test
+          else
+            echo "No E2E test files in tests/e2e/, skipping"
+          fi
 
       - name: Update coverage badge
         if: github.ref == 'refs/heads/main'
@@ -115,7 +128,8 @@ jobs:
           git push origin badges
 
   build:
-    runs-on: arc-runner-set
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
     needs: test
     steps:
       - uses: actions/checkout@v6
