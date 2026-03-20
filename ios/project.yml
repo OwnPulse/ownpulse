@@ -1,0 +1,68 @@
+name: OwnPulse
+options:
+  bundleIdPrefix: health.ownpulse
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "16.2"
+  createIntermediateGroups: true
+
+targets:
+  OwnPulse:
+    type: application
+    platform: iOS
+    sources:
+      - OwnPulse
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: health.ownpulse.app
+        SWIFT_VERSION: "6.0"
+        INFOPLIST_FILE: OwnPulse/Info.plist
+        CODE_SIGN_ENTITLEMENTS: OwnPulse/OwnPulse.entitlements
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        ENABLE_HARDENED_RUNTIME: YES
+        DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+      configs:
+        Debug:
+          xcconfig: OwnPulse/Config/Debug.xcconfig
+        Release:
+          xcconfig: OwnPulse/Config/Release.xcconfig
+    dependencies:
+      - package: GRDB
+    entitlements:
+      path: OwnPulse/OwnPulse.entitlements
+      properties:
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
+
+  OwnPulseTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - OwnPulseTests
+    dependencies:
+      - target: OwnPulse
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+
+packages:
+  GRDB:
+    url: https://github.com/groue/GRDB.swift
+    from: "7.0.0"
+
+schemes:
+  OwnPulse:
+    build:
+      targets:
+        OwnPulse: all
+        OwnPulseTests: [test]
+    test:
+      targets:
+        - OwnPulseTests
+      commandLineArguments:
+        "-com.apple.CoreData.ConcurrencyDebug": "1"
+    run:
+      config: Debug
+    archive:
+      config: Release
