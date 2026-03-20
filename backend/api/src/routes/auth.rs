@@ -68,7 +68,7 @@ pub async fn refresh(
             .to_string()
     };
 
-    let token_hash = hash_refresh_token(token_value, &state.config.jwt_secret);
+    let token_hash = hash_refresh_token(&token_value, &state.config.jwt_secret);
     let row = refresh_tokens::find_by_hash(&state.pool, &token_hash)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
