@@ -53,3 +53,10 @@ pub struct TokenResponse {
     pub token_type: String,
     pub expires_in: u64,
 }
+
+/// Request body for `/auth/refresh` — iOS sends the refresh token in the body
+/// instead of an httpOnly cookie.
+#[derive(Deserialize)]
+pub struct RefreshRequest {
+    pub refresh_token: String,
+}

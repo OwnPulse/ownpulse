@@ -236,6 +236,244 @@ async fn test_logout_clears_refresh_token() {
 }
 
 #[tokio::test]
+async fn test_refresh_with_json_body() {
+    let test_app = common::setup().await;
+    insert_test_user(&test_app.pool, "frank", "bodyrefresh").await;
+
+    // Login to get a refresh token
+    let login_response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/login",
+            &json!({"username": "frank", "password": "bodyrefresh"}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(login_response.status(), 200);
+    let refresh_token = extract_refresh_cookie(&login_response);
+
+    // Refresh using JSON body instead of cookie
+    let refresh_response = test_app
+        .app
+        .oneshot(post_json(
+            "/api/v1/auth/refresh",
+            &json!({"refresh_token": refresh_token}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(refresh_response.status(), 200);
+
+    let json = body_json(refresh_response).await;
+    assert!(json["access_token"].is_string());
+    assert!(!json["access_token"].as_str().unwrap().is_empty());
+    assert_eq!(json["token_type"], "Bearer");
+}
+
+#[tokio::test]
+async fn test_google_callback_ios_redirects_to_custom_scheme() {
+    let test_app = common::setup().await;
+
+    // Start WireMock for Google token exchange + userinfo
+    let mock_server = wiremock::MockServer::start().await;
+
+    wiremock::Mock::given(wiremock::matchers::method("POST"))
+        .and(wiremock::matchers::path("/token"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "mock-google-access-token",
+            "id_token": "mock-id-token",
+            "refresh_token": "mock-google-refresh-token"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/userinfo"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+            "sub": "google-123",
+            "email": "iosuser@example.com",
+            "name": "iOS User"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    // Build a test app with Google config pointing to WireMock
+    let config = api::config::Config {
+        database_url: "unused".to_string(),
+        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
+        jwt_expiry_seconds: 3600,
+        refresh_token_expiry_seconds: 2_592_000,
+        google_client_id: Some("test-client-id".to_string()),
+        google_client_secret: Some("test-client-secret".to_string()),
+        google_redirect_uri: Some("http://localhost/callback".to_string()),
+        google_token_url: format!("{}/token", mock_server.uri()),
+        google_userinfo_url: format!("{}/userinfo", mock_server.uri()),
+        garmin_client_id: None,
+        garmin_client_secret: None,
+        oura_client_id: None,
+        oura_client_secret: None,
+        dexcom_client_id: None,
+        dexcom_client_secret: None,
+        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+        storage_path: None,
+        app_user: None,
+        app_password_hash: None,
+        data_region: "us".to_string(),
+        web_origin: "http://localhost:5173".to_string(),
+        rust_log: "info".to_string(),
+    };
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+    };
+
+    let app = api::build_app_without_metrics(state);
+
+    // Call the callback with state=ios
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code&state=ios")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Should be a redirect (303 See Other from axum::Redirect::to)
+    assert!(
+        response.status().is_redirection(),
+        "expected redirect, got {}",
+        response.status()
+    );
+
+    let location = response
+        .headers()
+        .get("location")
+        .expect("missing location header")
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.starts_with("ownpulse://auth?"),
+        "expected custom scheme redirect, got: {location}"
+    );
+    assert!(
+        location.contains("token="),
+        "redirect should contain token param"
+    );
+    assert!(
+        location.contains("refresh_token="),
+        "redirect should contain refresh_token param"
+    );
+
+    // iOS redirects should NOT set a cookie
+    assert!(
+        response.headers().get("set-cookie").is_none(),
+        "iOS redirect should not set cookie"
+    );
+}
+
+#[tokio::test]
+async fn test_google_callback_web_redirects_to_web_origin() {
+    let test_app = common::setup().await;
+
+    let mock_server = wiremock::MockServer::start().await;
+
+    wiremock::Mock::given(wiremock::matchers::method("POST"))
+        .and(wiremock::matchers::path("/token"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "mock-google-access-token",
+            "id_token": "mock-id-token",
+            "refresh_token": "mock-google-refresh-token"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/userinfo"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+            "sub": "google-456",
+            "email": "webuser@example.com",
+            "name": "Web User"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let config = api::config::Config {
+        database_url: "unused".to_string(),
+        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
+        jwt_expiry_seconds: 3600,
+        refresh_token_expiry_seconds: 2_592_000,
+        google_client_id: Some("test-client-id".to_string()),
+        google_client_secret: Some("test-client-secret".to_string()),
+        google_redirect_uri: Some("http://localhost/callback".to_string()),
+        google_token_url: format!("{}/token", mock_server.uri()),
+        google_userinfo_url: format!("{}/userinfo", mock_server.uri()),
+        garmin_client_id: None,
+        garmin_client_secret: None,
+        oura_client_id: None,
+        oura_client_secret: None,
+        dexcom_client_id: None,
+        dexcom_client_secret: None,
+        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+        storage_path: None,
+        app_user: None,
+        app_password_hash: None,
+        data_region: "us".to_string(),
+        web_origin: "http://localhost:5173".to_string(),
+        rust_log: "info".to_string(),
+    };
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+    };
+
+    let app = api::build_app_without_metrics(state);
+
+    // Call WITHOUT state=ios → should redirect to web origin
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(response.status().is_redirection());
+
+    let location = response
+        .headers()
+        .get("location")
+        .expect("missing location header")
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.starts_with("http://localhost:5173/?token="),
+        "expected web origin redirect, got: {location}"
+    );
+
+    // Web redirects SHOULD set a cookie
+    assert!(
+        response.headers().get("set-cookie").is_some(),
+        "web redirect should set refresh_token cookie"
+    );
+}
+
+#[tokio::test]
 async fn test_login_returns_decodable_jwt() {
     let test_app = common::setup().await;
     let user_id = insert_test_user(&test_app.pool, "eve", "jwttest").await;

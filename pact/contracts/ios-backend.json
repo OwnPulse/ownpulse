@@ -1,6 +1,94 @@
 {
   "consumer": { "name": "ownpulse-ios" },
   "provider": { "name": "ownpulse-api" },
-  "interactions": [],
+  "interactions": [
+    {
+      "description": "a request to refresh auth token via JSON body",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/refresh",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "refresh_token": "some-refresh-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "access_token": "some-jwt-token",
+          "token_type": "Bearer",
+          "expires_in": 3600
+        }
+      }
+    },
+    {
+      "description": "a request to bulk sync HealthKit records",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/healthkit/sync",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "records": [
+            {
+              "source": "healthkit",
+              "record_type": "heart_rate",
+              "value": 72.0,
+              "unit": "bpm",
+              "start_time": "2026-03-20T10:00:00Z",
+              "end_time": "2026-03-20T10:00:00Z"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      }
+    },
+    {
+      "description": "a request to get the HealthKit write-back queue",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/healthkit/write-queue",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": []
+      }
+    },
+    {
+      "description": "a request to confirm HealthKit write-back items",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/healthkit/confirm",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "ids": []
+        }
+      },
+      "response": {
+        "status": 204
+      }
+    }
+  ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }
 }
