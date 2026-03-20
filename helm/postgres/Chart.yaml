@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ownpulse-postgres
+description: PostgreSQL 16 for OwnPulse
+type: application
+version: 0.1.0
+appVersion: "16"
