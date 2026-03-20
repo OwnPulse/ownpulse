@@ -15,6 +15,11 @@ on:
       - "web/**"
       - ".github/workflows/web.yml"
 
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
 jobs:
   test:
     runs-on: arc-runner-set

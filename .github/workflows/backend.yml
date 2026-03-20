@@ -19,6 +19,11 @@ on:
       - "schema/**"
       - ".github/workflows/backend.yml"
 
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
 jobs:
   test:
     runs-on: arc-runner-set
@@ -37,10 +42,10 @@ jobs:
         with:
           components: clippy, llvm-tools-preview
 
-      - name: Install cargo-llvm-cov
+      - name: Install cargo tools
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov
+          tool: cargo-llvm-cov,sqlx-cli
 
       - run: cargo clippy -- -D warnings
 
