@@ -88,6 +88,82 @@
       "response": {
         "status": 204
       }
+    },
+    {
+      "description": "a request to create a sleep record from HealthKit",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/sleep",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "date": "2026-03-19",
+          "sleep_start": "2026-03-19T22:00:00Z",
+          "sleep_end": "2026-03-20T06:00:00Z",
+          "duration_minutes": 480,
+          "deep_minutes": 90,
+          "light_minutes": 240,
+          "rem_minutes": 120,
+          "awake_minutes": 30,
+          "score": null,
+          "source": "healthkit",
+          "source_id": "com.apple.health",
+          "notes": null
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "some-uuid",
+          "user_id": "some-user-uuid",
+          "date": "2026-03-19",
+          "sleep_start": "2026-03-19T22:00:00Z",
+          "sleep_end": "2026-03-20T06:00:00Z",
+          "duration_minutes": 480,
+          "deep_minutes": 90,
+          "light_minutes": 240,
+          "rem_minutes": 120,
+          "awake_minutes": 30,
+          "score": null,
+          "source": "healthkit",
+          "source_id": "com.apple.health",
+          "notes": null,
+          "created_at": "2026-03-20T00:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to create a duplicate sleep record returns 409",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/sleep",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "date": "2026-03-19",
+          "sleep_start": "2026-03-19T22:00:00Z",
+          "sleep_end": "2026-03-20T06:00:00Z",
+          "duration_minutes": 480,
+          "deep_minutes": 90,
+          "light_minutes": 240,
+          "rem_minutes": 120,
+          "awake_minutes": 30,
+          "score": null,
+          "source": "healthkit",
+          "source_id": "com.apple.health",
+          "notes": null
+        }
+      },
+      "response": {
+        "status": 409
+      }
     }
   ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }

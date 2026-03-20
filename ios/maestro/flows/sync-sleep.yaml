@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# E2E flow: user initiates a manual sleep sync from the Health tab.
+# Covers: HealthKit permission prompt (if first run), sync trigger, success feedback.
+#
+# Prerequisites:
+#   - App is installed and the user is authenticated (JWT in Keychain).
+#   - HealthKit simulator has at least one sleep sample seeded.
+
+appId: com.ownpulse.app
+
+---
+
+- launchApp:
+    clearState: false
+
+# Navigate to the Health tab where sleep sync lives.
+- assertVisible:
+    id: tab-bar-health
+- tapOn:
+    id: tab-bar-health
+
+# The Sleep section should be visible.
+- assertVisible:
+    id: sleep-section-header
+
+# Tap the Sync Sleep button to initiate the flow.
+- assertVisible:
+    id: sync-sleep-button
+- tapOn:
+    id: sync-sleep-button
+
+# HealthKit may present a system permission sheet on first run.
+# Allow it if it appears; skip if already granted.
+- runFlow:
+    when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+
+# Wait for the sync to complete. The button becomes disabled and a
+# confirmation banner appears.
+- assertVisible:
+    id: sleep-sync-success-banner
+    timeout: 10000
+
+# The button should be re-enabled after sync completes.
+- assertVisible:
+    id: sync-sleep-button
