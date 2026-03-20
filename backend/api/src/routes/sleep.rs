@@ -48,6 +48,10 @@ pub async fn delete(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    db::delete(&state.pool, user_id, id).await?;
-    Ok(StatusCode::NO_CONTENT)
+    let deleted = db::delete(&state.pool, user_id, id).await?;
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(ApiError::NotFound)
+    }
 }
