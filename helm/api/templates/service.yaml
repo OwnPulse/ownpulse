@@ -5,8 +5,11 @@ metadata:
   labels:
     {{- include "ownpulse-api.labels" . | nindent 4 }}
   annotations:
+    # Prometheus annotations for endpoints service discovery (prometheus.io/scrape convention).
+    # These are correct for the default Prometheus helm chart scrape config that discovers
+    # Services via kubernetes_sd_configs with role: endpoints.
     prometheus.io/scrape: "true"
-    prometheus.io/port: "{{ .Values.service.targetPort }}"
+    prometheus.io/port: "{{ .Values.metricsPort }}"
     prometheus.io/path: "/metrics"
 spec:
   type: {{ .Values.service.type }}
@@ -15,5 +18,9 @@ spec:
       targetPort: {{ .Values.service.targetPort }}
       protocol: TCP
       name: http
+    - port: {{ .Values.metricsPort }}
+      targetPort: {{ .Values.metricsPort }}
+      protocol: TCP
+      name: metrics
   selector:
     {{- include "ownpulse-api.selectorLabels" . | nindent 4 }}

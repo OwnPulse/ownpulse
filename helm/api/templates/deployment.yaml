@@ -26,6 +26,9 @@ spec:
             - name: http
               containerPort: {{ .Values.containerPort }}
               protocol: TCP
+            - name: metrics
+              containerPort: {{ .Values.metricsPort }}
+              protocol: TCP
           envFrom:
             - configMapRef:
                 name: {{ include "ownpulse-api.fullname" . }}

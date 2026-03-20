@@ -38,12 +38,15 @@ pub async fn signup(
     .execute(&state.pool)
     .await;
 
+    // Log only the domain part of the email to avoid PII in logs.
+    let domain = email.rsplit('@').next().unwrap_or("unknown");
+
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
-                info!(email = %email, "new waitlist signup");
+                info!(email_domain = %domain, "new waitlist signup");
             } else {
-                info!(email = %email, "waitlist signup already exists");
+                info!(email_domain = %domain, "waitlist signup already exists");
             }
         }
         Err(e) => {
