@@ -4,7 +4,7 @@
 import Foundation
 import HealthKit
 
-// MARK: - Value type
+// MARK: - Value types
 
 /// Aggregated sleep data for a single night, derived from raw HealthKit samples.
 struct HealthKitSleepSample: Sendable {
@@ -16,6 +16,17 @@ struct HealthKitSleepSample: Sendable {
     let remMinutes: Int?
     let awakeMinutes: Int?
     let sourceId: String?
+}
+
+/// A lightweight representation of a single raw HealthKit sleep sample,
+/// decoupled from `HKCategorySample` so the aggregation logic can be tested
+/// without a live `HKHealthStore`.
+struct RawSleepSample: Sendable {
+    let startDate: Date
+    let endDate: Date
+    /// Raw value of `HKCategoryValueSleepAnalysis`.
+    let stage: Int
+    let sourceBundleIdentifier: String
 }
 
 // MARK: - Protocol
@@ -60,7 +71,7 @@ final class LiveHealthKitSleepProvider: HealthKitSleepProvider, @unchecked Senda
         let sleepType = HKCategoryType(.sleepAnalysis)
         let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
 
-        let rawSamples: [HKCategorySample] = try await withCheckedThrowingContinuation { continuation in
+        let hkSamples: [HKCategorySample] = try await withCheckedThrowingContinuation { continuation in
             let query = HKSampleQuery(
                 sampleType: sleepType,
                 predicate: predicate,
@@ -77,32 +88,44 @@ final class LiveHealthKitSleepProvider: HealthKitSleepProvider, @unchecked Senda
             store.execute(query)
         }
 
-        // UNCONDITIONAL: drop any samples whose source bundle ID matches ours.
-        // This prevents write-back cycles regardless of any configuration.
-        let filtered = rawSamples.filter { $0.sourceRevision.source.bundleIdentifier != ownBundleID }
+        // Convert to RawSleepSample and delegate to the static aggregator.
+        // The static method handles the unconditional bundle ID exclusion.
+        let raw = hkSamples.map { s in
+            RawSleepSample(
+                startDate: s.startDate,
+                endDate: s.endDate,
+                stage: s.value,
+                sourceBundleIdentifier: s.sourceRevision.source.bundleIdentifier
+            )
+        }
 
-        return aggregate(samples: filtered)
+        return Self.aggregate(raw, excludingBundleID: ownBundleID)
     }
 
-    // MARK: - Private helpers
+    // MARK: - Testable static aggregation
 
-    /// Groups samples by noon-to-noon night windows and aggregates stage minutes.
-    private func aggregate(samples: [HKCategorySample]) -> [HealthKitSleepSample] {
-        guard !samples.isEmpty else { return [] }
+    /// Groups `samples` by noon-to-noon night windows, drops any sample whose
+    /// `sourceBundleIdentifier` matches `excludingBundleID` UNCONDITIONALLY
+    /// (cycle-prevention guard), and aggregates stage minutes per night.
+    ///
+    /// This is `static` so tests can call it directly with `RawSleepSample`
+    /// values, exercising the real logic without a live `HKHealthStore`.
+    static func aggregate(_ samples: [RawSleepSample], excludingBundleID: String) -> [HealthKitSleepSample] {
+        // UNCONDITIONAL: drop samples written by this app to prevent write-back cycles.
+        let filtered = samples.filter { $0.sourceBundleIdentifier != excludingBundleID }
 
-        // Group samples by night key: the calendar date of the noon anchor that
-        // precedes each sample's start time.  A sample starting before noon belongs
-        // to the night whose noon anchor is the previous day.
-        var nights: [String: [HKCategorySample]] = [:]
+        guard !filtered.isEmpty else { return [] }
+
+        // Group by night: noon-to-noon windows keyed by the anchor date string.
         let calendar = Calendar.current
+        var nights: [String: [RawSleepSample]] = [:]
 
-        for sample in samples {
+        for sample in filtered {
             let key = noonAnchorKey(for: sample.startDate, calendar: calendar)
             nights[key, default: []].append(sample)
         }
 
         var result: [HealthKitSleepSample] = []
-
         for (_, nightSamples) in nights {
             guard let aggregated = buildSample(from: nightSamples) else { continue }
             result.append(aggregated)
@@ -111,24 +134,34 @@ final class LiveHealthKitSleepProvider: HealthKitSleepProvider, @unchecked Senda
         return result.sorted { $0.sleepStart < $1.sleepStart }
     }
 
+    // MARK: - Private static helpers
+
     /// Returns a stable string key for the noon-to-noon window containing `date`.
     /// Dates before noon belong to the window starting noon the previous day.
-    private func noonAnchorKey(for date: Date, calendar: Calendar) -> String {
-        var components = calendar.dateComponents([.year, .month, .day, .hour], from: date)
+    private static func noonAnchorKey(for date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.year, .month, .day, .hour], from: date)
         let hour = components.hour ?? 0
         if hour < 12 {
-            // Before noon — belongs to the previous day's window
+            // Before noon — belongs to the previous day's window.
             guard let previous = calendar.date(byAdding: .day, value: -1, to: date) else {
-                return "\(components.year!)-\(components.month!)-\(components.day!)"
+                guard let y = components.year, let m = components.month, let d = components.day else {
+                    return "unknown"
+                }
+                return "\(y)-\(m)-\(d)"
             }
             let prev = calendar.dateComponents([.year, .month, .day], from: previous)
-            return "\(prev.year!)-\(prev.month!)-\(prev.day!)"
+            guard let y = prev.year, let m = prev.month, let d = prev.day else {
+                return "unknown"
+            }
+            return "\(y)-\(m)-\(d)"
         }
-        components.hour = nil
-        return "\(components.year!)-\(components.month!)-\(components.day!)"
+        guard let y = components.year, let m = components.month, let d = components.day else {
+            return "unknown"
+        }
+        return "\(y)-\(m)-\(d)"
     }
 
-    private func buildSample(from samples: [HKCategorySample]) -> HealthKitSleepSample? {
+    private static func buildSample(from samples: [RawSleepSample]) -> HealthKitSleepSample? {
         guard let earliest = samples.map(\.startDate).min(),
               let latest = samples.map(\.endDate).max() else {
             return nil
@@ -142,7 +175,7 @@ final class LiveHealthKitSleepProvider: HealthKitSleepProvider, @unchecked Senda
         for sample in samples {
             let duration = sample.endDate.timeIntervalSince(sample.startDate)
             guard duration > 0 else { continue }
-            guard let value = HKCategoryValueSleepAnalysis(rawValue: sample.value) else { continue }
+            guard let value = HKCategoryValueSleepAnalysis(rawValue: sample.stage) else { continue }
 
             switch value {
             case .asleepDeep:
@@ -164,7 +197,7 @@ final class LiveHealthKitSleepProvider: HealthKitSleepProvider, @unchecked Senda
         let durationSeconds = totalAsleep > 0 ? totalAsleep : latest.timeIntervalSince(earliest)
         let durationMinutes = max(1, Int(durationSeconds / 60))
 
-        let sourceId = samples.first.map { $0.sourceRevision.source.bundleIdentifier }
+        let sourceId = samples.first?.sourceBundleIdentifier
 
         return HealthKitSleepSample(
             sleepStart: earliest,

@@ -49,7 +49,7 @@ final class SleepSyncService: Sendable {
 
         for sample in samples {
             let body = CreateSleep(
-                date: isoDateString(from: sample.sleepStart),
+                date: Self.isoDateFormatter.string(from: sample.sleepStart),
                 sleepStart: sample.sleepStart,
                 sleepEnd: sample.sleepEnd,
                 durationMinutes: sample.durationMinutes,
@@ -74,10 +74,10 @@ final class SleepSyncService: Sendable {
 
     // MARK: - Private helpers
 
-    private func isoDateString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone.current
-        return formatter.string(from: date)
-    }
+    private static let isoDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = TimeZone(identifier: "UTC")!
+        return f
+    }()
 }
