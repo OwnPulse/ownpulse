@@ -7,5 +7,6 @@ pub mod healthkit;
 pub mod intervention;
 pub mod lab_result;
 pub mod observation;
+pub mod sleep;
 pub mod source_preference;
 pub mod user;

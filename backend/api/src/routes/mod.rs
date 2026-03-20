@@ -15,6 +15,7 @@ pub mod integrations;
 pub mod interventions;
 pub mod labs;
 pub mod observations;
+pub mod sleep;
 pub mod source_preferences;
 pub mod waitlist;
 
@@ -73,6 +74,11 @@ pub fn api_routes() -> Router<AppState> {
         // Export
         .route("/export/json", get(export::export_json))
         .route("/export/csv", get(export::export_csv))
+        // Sleep records
+        .route("/sleep", post(sleep::create))
+        .route("/sleep", get(sleep::list))
+        .route("/sleep/:id", get(sleep::get))
+        .route("/sleep/:id", delete(sleep::delete))
         // Integrations
         .route("/integrations", get(integrations::list))
         .route("/integrations/:source", delete(integrations::disconnect))

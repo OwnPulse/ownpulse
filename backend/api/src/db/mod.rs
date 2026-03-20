@@ -13,5 +13,6 @@ pub mod interventions;
 pub mod lab_results;
 pub mod observations;
 pub mod refresh_tokens;
+pub mod sleep;
 pub mod source_preferences;
 pub mod users;
