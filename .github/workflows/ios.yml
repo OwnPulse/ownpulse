@@ -18,6 +18,7 @@ jobs:
     env:
       VM_NAME: "ci-ios-${{ github.run_id }}"
       TART_IMAGE: "ghcr.io/cirruslabs/macos-sequoia-xcode:16.2"
+      PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
     steps:
       - uses: actions/checkout@v6
 
