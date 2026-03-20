@@ -32,10 +32,8 @@ export default function SleepChart({ data }: SleepChartProps) {
   }
 
   const tickValues = data.map((_, i) => i);
-  const tickFormat = (_tick: number | Date, i: number): string => {
-    const d = data[i];
-    return d ? d.date.slice(5) : ""; // "MM-DD"
-  };
+  const tickFormat = (tick: number | Date): string =>
+    data[Number(tick)]?.date?.slice(5) ?? "";
 
   return (
     <div style={{ width: "100%", height: 280 }}>

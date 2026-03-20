@@ -68,6 +68,22 @@ describe("SleepChart", () => {
     expect(screen.queryByTestId("xy-container")).toBeNull();
   });
 
+  it("renders without errors when all stage minutes are null", () => {
+    const data = [
+      makeSleepRecord({
+        deep_minutes: null,
+        light_minutes: null,
+        rem_minutes: null,
+        awake_minutes: null,
+      }),
+    ];
+
+    render(<SleepChart data={data} />);
+
+    expect(screen.getByTestId("xy-container")).toBeDefined();
+    expect(screen.getByTestId("stacked-bar")).toBeDefined();
+  });
+
   it("does not log any health data to the console", () => {
     const consoleSpy = vi.spyOn(console, "log");
     const data = [makeSleepRecord()];

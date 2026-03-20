@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { healthRecordsApi } from "../api/health-records";
 import { checkinsApi } from "../api/checkins";
@@ -18,9 +19,11 @@ export default function Timeline() {
     queryFn: () => checkinsApi.list(),
   });
 
-  const since = new Date();
-  since.setDate(since.getDate() - 14);
-  const sinceStr = since.toISOString().slice(0, 10);
+  const sinceStr = useMemo(() => {
+    const since = new Date();
+    since.setDate(since.getDate() - 14);
+    return since.toISOString().slice(0, 10);
+  }, []);
 
   const sleepRecords = useQuery({
     queryKey: ["sleep", { since: sinceStr }],
