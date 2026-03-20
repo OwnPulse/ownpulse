@@ -10,46 +10,34 @@ on:
       - "backend/**"
       - "db/**"
       - "schema/**"
-      - ".github/workflows/backend.yml"
   pull_request:
     branches: [main]
     paths:
       - "backend/**"
       - "db/**"
       - "schema/**"
-      - ".github/workflows/backend.yml"
-
-permissions:
-  contents: write
-  pull-requests: write
-  packages: write
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     defaults:
       run:
         working-directory: backend
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev
-
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, llvm-tools-preview
 
-      - name: Install cargo tools
+      - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov,sqlx-cli
+          tool: cargo-llvm-cov
 
       - run: cargo clippy -- -D warnings
 
-      - run: cargo sqlx prepare --workspace --check
+      - run: cargo sqlx prepare --check
 
       - name: Run tests with coverage
         run: |
@@ -139,8 +127,7 @@ jobs:
           git push origin badges
 
   build:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: arc-runner-set
     needs: test
     steps:
       - uses: actions/checkout@v6

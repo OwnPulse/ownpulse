@@ -57,9 +57,6 @@ jobs:
         if: failure() && steps.web-rollout.outcome == 'failure'
         run: helm rollback web -n ownpulse
 
-      - name: Deploy Alloy (idempotent)
-        run: helm upgrade --install alloy helm/alloy -n ownpulse
-
       - name: Smoke test
         run: |
           # Wait for API to be reachable via service

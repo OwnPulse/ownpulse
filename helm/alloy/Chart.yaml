@@ -1,6 +1,0 @@
-apiVersion: v2
-name: ownpulse-alloy
-description: Grafana Alloy — scrapes metrics and pushes to Grafana Cloud
-type: application
-version: 0.1.0
-appVersion: "1.8.1"
