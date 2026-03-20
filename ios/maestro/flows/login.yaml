@@ -1,0 +1,7 @@
+appId: health.ownpulse.app
+---
+- launchApp
+- assertVisible:
+    id: "loginButton"
+- tapOn:
+    id: "loginButton"
