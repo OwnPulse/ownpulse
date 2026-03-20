@@ -1,0 +1,43 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/ownpulse/ownpulse-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+containerPort: 8080
+
+ingress:
+  enabled: true
+  className: ""
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  host: api.ownpulse.health
+  tls:
+    enabled: true
+    secretName: ownpulse-api-tls
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+configmap:
+  RUST_LOG: "info"
+  DATA_REGION: "us"
+  WEB_ORIGIN: "https://app.ownpulse.health"
+
+secret:
+  name: ownpulse-api-secret
+  keys:
+    - DATABASE_URL
+    - JWT_SECRET
+    - ENCRYPTION_KEY

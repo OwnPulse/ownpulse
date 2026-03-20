@@ -1,0 +1,14 @@
+{
+  "schema_version": "0.1.0",
+  "schema_url": "https://github.com/ownpulse/ownpulse/blob/main/schema/open-schema.json",
+  "description": "OwnPulse open data export schema",
+  "exported_at": null,
+  "user": {},
+  "health_records": [],
+  "interventions": [],
+  "daily_checkins": [],
+  "lab_results": [],
+  "observations": [],
+  "calendar_days": [],
+  "sharing_consents": []
+}

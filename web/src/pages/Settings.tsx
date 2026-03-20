@@ -1,0 +1,110 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) OwnPulse Contributors
+
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { exportJson, exportCsv } from "../api/export";
+import { sourcePreferencesApi } from "../api/source-preferences";
+import { accountApi } from "../api/account";
+import { logout } from "../api/auth";
+
+export default function Settings() {
+  const [exporting, setExporting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const sourcePrefs = useQuery({
+    queryKey: ["source-preferences"],
+    queryFn: () => sourcePreferencesApi.list(),
+  });
+
+  const handleExportJson = async () => {
+    setExporting(true);
+    try {
+      await exportJson();
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      await exportCsv();
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    await accountApi.delete();
+    await logout();
+    window.location.href = "/login";
+  };
+
+  return (
+    <main style={{ padding: "1.5rem" }}>
+      <h1>Settings</h1>
+
+      <section>
+        <h2>Export Data</h2>
+        <p>Download all your data in open formats.</p>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <button onClick={handleExportJson} disabled={exporting}>
+            {exporting ? "Exporting..." : "Export JSON"}
+          </button>
+          <button onClick={handleExportCsv} disabled={exporting}>
+            {exporting ? "Exporting..." : "Export CSV"}
+          </button>
+        </div>
+      </section>
+
+      <section style={{ marginTop: "2rem" }}>
+        <h2>Source Preferences</h2>
+        {sourcePrefs.isLoading && <p>Loading...</p>}
+        {sourcePrefs.isError && <p>Error loading source preferences.</p>}
+        {sourcePrefs.data && sourcePrefs.data.length === 0 && (
+          <p>No source preferences configured.</p>
+        )}
+        {sourcePrefs.data && sourcePrefs.data.length > 0 && (
+          <ul>
+            {sourcePrefs.data.map((pref) => (
+              <li key={pref.id}>
+                <strong>{pref.metric_type}</strong>: {pref.preferred_source}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section style={{ marginTop: "2rem" }}>
+        <h2>Danger Zone</h2>
+        {!confirmDelete ? (
+          <button
+            onClick={handleDeleteAccount}
+            style={{ color: "red" }}
+          >
+            Delete Account
+          </button>
+        ) : (
+          <div>
+            <p>
+              Are you sure? This will permanently delete your account and all
+              data.
+            </p>
+            <button
+              onClick={handleDeleteAccount}
+              style={{ color: "red", marginRight: "0.5rem" }}
+            >
+              Yes, delete my account
+            </button>
+            <button onClick={() => setConfirmDelete(false)}>Cancel</button>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}

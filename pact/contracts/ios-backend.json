@@ -1,0 +1,6 @@
+{
+  "consumer": { "name": "ownpulse-ios" },
+  "provider": { "name": "ownpulse-api" },
+  "interactions": [],
+  "metadata": { "pactSpecification": { "version": "2.0.0" } }
+}
