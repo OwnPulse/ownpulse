@@ -5,26 +5,60 @@ on:
     branches: [main]
     paths:
       - "ios/**"
+      - ".github/workflows/ios.yml"
   pull_request:
     branches: [main]
     paths:
       - "ios/**"
+      - ".github/workflows/ios.yml"
 
 jobs:
   test:
     runs-on: macos-tart
+    env:
+      VM_NAME: "ci-ios-${{ github.run_id }}"
+      TART_IMAGE: "ghcr.io/cirruslabs/macos-sequoia-xcode:16.2"
     steps:
       - uses: actions/checkout@v6
 
-      - uses: cirruslabs/tart-action@v1
-        with:
-          image: ghcr.io/cirruslabs/macos-sequoia-xcode:16.2
+      - name: Create ephemeral Tart VM
+        run: |
+          tart clone $TART_IMAGE $VM_NAME
+          tart run $VM_NAME --no-graphics &
+          # Wait for VM to boot and SSH to become available
+          for i in $(seq 1 60); do
+            IP=$(tart ip $VM_NAME 2>/dev/null || true)
+            if [ -n "$IP" ] && ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@"$IP" true 2>/dev/null; then
+              echo "VM ready at $IP"
+              echo "VM_IP=$IP" >> "$GITHUB_ENV"
+              break
+            fi
+            sleep 5
+          done
+          [ -n "$IP" ] || { echo "VM failed to boot"; exit 1; }
+
+      - name: Copy repo into VM
+        run: |
+          rsync -az --exclude='.git' -e 'ssh -o StrictHostKeyChecking=no' \
+            "$GITHUB_WORKSPACE/" admin@$VM_IP:~/workspace/
+
+      - name: Resolve SPM dependencies
+        run: |
+          ssh -o StrictHostKeyChecking=no admin@$VM_IP \
+            'cd ~/workspace/ios && xcodebuild -resolvePackageDependencies -scheme OwnPulse -clonedSourcePackagesDirPath .spm-cache'
 
       - name: Run Xcode tests
-        run: >
-          xcodebuild test
-          -scheme OwnPulse
-          -destination 'platform=iOS Simulator,name=iPhone 16'
+        run: |
+          ssh -o StrictHostKeyChecking=no admin@$VM_IP \
+            'cd ~/workspace/ios && xcodebuild test -scheme OwnPulse -destination "platform=iOS Simulator,name=iPhone 16" -clonedSourcePackagesDirPath .spm-cache'
 
       - name: Run Maestro tests
-        run: maestro test ios/maestro/flows/
+        run: |
+          ssh -o StrictHostKeyChecking=no admin@$VM_IP \
+            'cd ~/workspace && maestro test ios/maestro/flows/'
+
+      - name: Teardown VM
+        if: always()
+        run: |
+          tart stop $VM_NAME 2>/dev/null || true
+          tart delete $VM_NAME 2>/dev/null || true
