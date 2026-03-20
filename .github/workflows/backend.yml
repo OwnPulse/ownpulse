@@ -49,7 +49,7 @@ jobs:
 
       - run: cargo clippy -- -D warnings
 
-      - run: cargo sqlx prepare --check
+      - run: cargo sqlx prepare --workspace --check
 
       - name: Run tests with coverage
         run: |
