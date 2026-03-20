@@ -4,6 +4,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { healthRecordsApi } from "../api/health-records";
 import { checkinsApi } from "../api/checkins";
+import { sleepApi } from "../api/sleep";
+import SleepChart from "../components/SleepChart";
 
 export default function Timeline() {
   const healthRecords = useQuery({
@@ -16,9 +18,27 @@ export default function Timeline() {
     queryFn: () => checkinsApi.list(),
   });
 
+  const since = new Date();
+  since.setDate(since.getDate() - 14);
+  const sinceStr = since.toISOString().slice(0, 10);
+
+  const sleepRecords = useQuery({
+    queryKey: ["sleep", { since: sinceStr }],
+    queryFn: () => sleepApi.list({ since: sinceStr }),
+  });
+
   return (
     <main style={{ padding: "1.5rem" }}>
       <h1>Timeline</h1>
+
+      <section>
+        <h2>Sleep (Last 14 Days)</h2>
+        {sleepRecords.isLoading && <p>Loading...</p>}
+        {sleepRecords.isError && <p>Error loading sleep records.</p>}
+        {sleepRecords.data && (
+          <SleepChart data={sleepRecords.data} />
+        )}
+      </section>
 
       <section>
         <h2>Recent Check-ins</h2>
