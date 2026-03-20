@@ -28,7 +28,7 @@ jobs:
 
       - run: npm ci
 
-      - run: tsc --noEmit
+      - run: npx tsc --noEmit
 
       - name: Run tests with coverage
         run: |
