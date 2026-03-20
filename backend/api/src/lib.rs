@@ -21,6 +21,7 @@ use config::Config;
 use serde_json::json;
 use sqlx::PgPool;
 use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
+use tracing::info;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -53,25 +54,46 @@ fn cors_layer(web_origin: &str) -> CorsLayer {
 }
 
 /// Build the application router with Prometheus metrics.
+///
+/// Metrics are served on a **separate** internal listener (port 9090) so they
+/// are never exposed through the public ingress.  Call [`spawn_metrics_server`]
+/// after building the app to start that listener.
 pub fn build_app(state: AppState) -> Router {
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+
+    // Spawn internal metrics server on port 9090
+    tokio::spawn(async move {
+        let metrics_app = Router::new().route("/metrics", get(move || {
+            let h = metric_handle.clone();
+            async move { h.render() }
+        }));
+
+        let listener = tokio::net::TcpListener::bind("0.0.0.0:9090")
+            .await
+            .expect("failed to bind metrics port 9090");
+
+        info!("metrics listening on 0.0.0.0:9090");
+
+        axum::serve(listener, metrics_app)
+            .await
+            .expect("metrics server error");
+    });
 
     Router::new()
         .route("/api/v1/health", get(health))
         .nest("/api/v1", routes::api_routes())
-        .route("/metrics", get(|| async move { metric_handle.render() }))
         .layer(prometheus_layer)
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)
 }
 
-/// Build the application router without Prometheus metrics.
-/// Used by integration tests to avoid global recorder conflicts across
-/// parallel test threads.
+/// Build the application router without Prometheus metrics or rate limiting.
+/// Used by integration tests where `ConnectInfo` is not available and global
+/// recorder conflicts would occur across parallel test threads.
 pub fn build_app_without_metrics(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/health", get(health))
-        .nest("/api/v1", routes::api_routes())
+        .nest("/api/v1", routes::api_routes_without_rate_limit())
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)
 }

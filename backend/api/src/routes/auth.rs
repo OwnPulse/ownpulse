@@ -57,7 +57,7 @@ pub async fn refresh(
         .next()
         .ok_or(ApiError::Unauthorized)?;
 
-    let token_hash = hash_refresh_token(token_value);
+    let token_hash = hash_refresh_token(token_value, &state.config.jwt_secret);
     let row = refresh_tokens::find_by_hash(&state.pool, &token_hash)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
@@ -88,7 +88,7 @@ pub async fn logout(
             .filter_map(|c| c.trim().strip_prefix("refresh_token="))
             .next()
         {
-            let token_hash = hash_refresh_token(token_value);
+            let token_hash = hash_refresh_token(token_value, &state.config.jwt_secret);
             let _ = refresh_tokens::delete_by_hash(&state.pool, &token_hash).await;
         }
     }
@@ -159,7 +159,7 @@ pub async fn google_callback(
 
     // Issue tokens
     let raw_token = generate_refresh_token();
-    let token_hash = hash_refresh_token(&raw_token);
+    let token_hash = hash_refresh_token(&raw_token, &state.config.jwt_secret);
     let expires_at = Utc::now()
         + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
 
@@ -199,7 +199,7 @@ async fn issue_tokens(state: &AppState, user_id: Uuid) -> Result<Response, ApiEr
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let raw_refresh = generate_refresh_token();
-    let refresh_hash = hash_refresh_token(&raw_refresh);
+    let refresh_hash = hash_refresh_token(&raw_refresh, &state.config.jwt_secret);
     let expires_at = Utc::now()
         + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
 
