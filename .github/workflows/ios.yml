@@ -20,7 +20,7 @@ jobs:
       TART_IMAGE: "ghcr.io/cirruslabs/macos-sequoia-xcode:16.2"
       PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       - name: Create ephemeral Tart VM
         run: |
