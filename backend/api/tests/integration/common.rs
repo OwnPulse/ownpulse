@@ -46,6 +46,7 @@ fn test_config(database_url: &str) -> api::config::Config {
         data_region: "us".to_string(),
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
+        encryption_key_previous: None,
     }
 }
 
