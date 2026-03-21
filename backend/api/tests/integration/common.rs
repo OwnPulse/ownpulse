@@ -106,6 +106,7 @@ pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
 
     let token = api::auth::jwt::encode_access_token(
         row.0,
+        "user",
         "test-jwt-secret-at-least-32-bytes-long",
         3600,
     )

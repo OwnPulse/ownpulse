@@ -17,7 +17,7 @@ use crate::AppState;
 /// POST /health-records
 pub async fn create(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<CreateHealthRecord>,
 ) -> Result<(StatusCode, Json<HealthRecordRow>), ApiError> {
     // Check for duplicates (within 60s and 2% value tolerance from a different source)
@@ -67,7 +67,7 @@ pub async fn create(
 /// GET /health-records
 pub async fn list(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Query(query): Query<HealthRecordQuery>,
 ) -> Result<Json<Vec<HealthRecordRow>>, ApiError> {
     let rows = db_hr::list(
@@ -85,7 +85,7 @@ pub async fn list(
 /// GET /health-records/:id
 pub async fn get(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<HealthRecordRow>, ApiError> {
     let row = db_hr::get_by_id(&state.pool, user_id, id).await?;
@@ -95,7 +95,7 @@ pub async fn get(
 /// DELETE /health-records/:id
 pub async fn delete(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     let deleted = db_hr::delete(&state.pool, user_id, id).await?;

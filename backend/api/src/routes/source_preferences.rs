@@ -14,7 +14,7 @@ use crate::AppState;
 /// GET /source-preferences
 pub async fn list(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Json<Vec<SourcePreferenceRow>>, ApiError> {
     let rows = db::list(&state.pool, user_id).await?;
     Ok(Json(rows))
@@ -23,7 +23,7 @@ pub async fn list(
 /// POST /source-preferences — upsert a per-metric source preference.
 pub async fn upsert(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<UpsertSourcePreference>,
 ) -> Result<(StatusCode, Json<SourcePreferenceRow>), ApiError> {
     let row = db::upsert(&state.pool, user_id, &body.metric_type, &body.preferred_source).await?;

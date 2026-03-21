@@ -6,6 +6,7 @@
 //! Each sub-module defines handlers for one route group.
 
 pub mod account;
+pub mod admin;
 pub mod audit;
 pub mod auth;
 pub mod checkins;
@@ -21,7 +22,7 @@ pub mod source_preferences;
 pub mod waitlist;
 
 use axum::{
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 
@@ -112,4 +113,7 @@ fn base_routes() -> Router<AppState> {
         // Integrations
         .route("/integrations", get(integrations::list))
         .route("/integrations/:source", delete(integrations::disconnect))
+        // Admin
+        .route("/admin/users", get(admin::list_users))
+        .route("/admin/users/:id/role", patch(admin::update_role))
 }

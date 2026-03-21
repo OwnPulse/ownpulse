@@ -26,7 +26,7 @@ fn validate_score(value: Option<i32>, field: &str) -> Result<(), ApiError> {
 /// POST /checkins — upsert by date; validates all scores are 1-10 if provided.
 pub async fn upsert(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<UpsertCheckin>,
 ) -> Result<(StatusCode, Json<CheckinRow>), ApiError> {
     validate_score(body.energy, "energy")?;
@@ -42,7 +42,7 @@ pub async fn upsert(
 /// GET /checkins
 pub async fn list(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Query(_query): Query<CheckinQuery>,
 ) -> Result<Json<Vec<CheckinRow>>, ApiError> {
     let rows = db::list(&state.pool, user_id).await?;
@@ -52,7 +52,7 @@ pub async fn list(
 /// GET /checkins/:id
 pub async fn get(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<CheckinRow>, ApiError> {
     let row = db::get_by_id(&state.pool, user_id, id).await?;
@@ -62,7 +62,7 @@ pub async fn get(
 /// DELETE /checkins/:id
 pub async fn delete(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     db::delete(&state.pool, user_id, id).await?;

@@ -35,7 +35,7 @@ pub async fn login(
         return Err(ApiError::Unauthorized);
     }
 
-    issue_tokens(&state, user.id).await
+    issue_tokens(&state, user.id, &user.role).await
 }
 
 /// POST /auth/refresh — rotate refresh token, issue new access + refresh.
@@ -281,6 +281,7 @@ pub async fn google_callback(
 
     let access_token = encode_access_token(
         user.id,
+        &user.role,
         &state.config.jwt_secret,
         state.config.jwt_expiry_seconds,
     )
@@ -361,9 +362,10 @@ fn sanitize_username(raw: &str) -> String {
 
 /// Create a JWT access token and a refresh token, returning a JSON body with
 /// the access token and setting an httpOnly cookie for the refresh token.
-async fn issue_tokens(state: &AppState, user_id: Uuid) -> Result<Response, ApiError> {
+async fn issue_tokens(state: &AppState, user_id: Uuid, role: &str) -> Result<Response, ApiError> {
     let access_token = encode_access_token(
         user_id,
+        role,
         &state.config.jwt_secret,
         state.config.jwt_expiry_seconds,
     )
@@ -405,8 +407,12 @@ async fn issue_tokens_with_family(
     user_id: Uuid,
     family_id: Uuid,
 ) -> Result<Response, ApiError> {
+    let user = users::find_by_id(&state.pool, user_id)
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
     let access_token = encode_access_token(
         user_id,
+        &user.role,
         &state.config.jwt_secret,
         state.config.jwt_expiry_seconds,
     )

@@ -6,7 +6,10 @@ import { api } from "./client";
 export interface UserAccount {
   id: string;
   username: string;
+  auth_provider: string;
   email?: string;
+  role: string;
+  data_region: string;
   created_at: string;
 }
 

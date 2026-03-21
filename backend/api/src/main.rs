@@ -24,6 +24,10 @@ async fn main() {
         .await
         .expect("failed to connect to database");
 
+    api::db::users::ensure_admin_exists(&pool, config.app_user.as_deref())
+        .await
+        .expect("failed to bootstrap admin user");
+
     let state = api::AppState {
         pool,
         config,

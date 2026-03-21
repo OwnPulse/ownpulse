@@ -20,7 +20,7 @@ const SLEEP_TYPE: &str = "sleep";
 /// POST /sleep — create a sleep observation.
 pub async fn create(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<CreateSleep>,
 ) -> Result<(StatusCode, Json<SleepResponse>), ApiError> {
     let source = body.source.as_deref().unwrap_or("manual");
@@ -65,7 +65,7 @@ pub async fn create(
 /// GET /sleep — list sleep observations with optional date range.
 pub async fn list(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Query(query): Query<SleepQuery>,
 ) -> Result<Json<Vec<SleepResponse>>, ApiError> {
     let rows = db::list_by_type_with_date_range(
@@ -87,7 +87,7 @@ pub async fn list(
 /// GET /sleep/:id
 pub async fn get(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<SleepResponse>, ApiError> {
     let row = db::get_by_id(&state.pool, user_id, id).await?;
@@ -102,7 +102,7 @@ pub async fn get(
 /// DELETE /sleep/:id
 pub async fn delete(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     let deleted = db::delete(&state.pool, user_id, id).await?;
