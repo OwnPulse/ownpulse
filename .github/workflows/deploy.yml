@@ -1,37 +1,29 @@
-name: Deploy
+name: Deploy Production
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 on:
   workflow_run:
-    workflows: [Backend, Web]
+    workflows: [Deploy Staging]
     types: [completed]
     branches: [main]
 
 jobs:
   deploy:
     runs-on: arc-runner-set
+    environment: production
     if: >
       github.event.workflow_run.conclusion == 'success'
     steps:
-      - name: Verify both Backend and Web succeeded for this SHA
+      - name: Resolve SHA from staging deploy
+        id: sha
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
           script: |
             const sha = context.payload.workflow_run.head_sha;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            for (const workflow of ['backend.yml', 'web.yml']) {
-              const runs = await github.rest.actions.listWorkflowRuns({
-                owner, repo, workflow_id: workflow, head_sha: sha, status: 'success',
-              });
-              if (runs.data.total_count === 0) {
-                core.setFailed(`No successful ${workflow} run for SHA ${sha}`);
-                return;
-              }
-            }
-            core.info(`Both Backend and Web succeeded for ${sha}`);
+            core.setOutput('sha', sha);
+            core.info(`Deploying to production: ${sha}`);
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -51,7 +43,7 @@ jobs:
         run: >
           helm upgrade --install api helm/api
           -n ownpulse
-          --set image.tag=${{ github.sha }}
+          --set image.tag=${{ steps.sha.outputs.sha }}
 
       - name: Verify API rollout
         id: api-rollout
@@ -65,7 +57,7 @@ jobs:
         run: >
           helm upgrade --install web helm/web
           -n ownpulse
-          --set image.tag=${{ github.sha }}
+          --set image.tag=${{ steps.sha.outputs.sha }}
 
       - name: Verify Web rollout
         id: web-rollout

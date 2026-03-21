@@ -4,6 +4,10 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 on:
+  workflow_run:
+    workflows: [Backend, Web]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
     inputs:
       sha:
@@ -14,10 +18,32 @@ on:
 jobs:
   deploy-staging:
     runs-on: arc-runner-set
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     env:
       INPUT_SHA: ${{ github.event.inputs.sha }}
-      CURRENT_SHA: ${{ github.sha }}
+      CURRENT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
+      - name: Verify both Backend and Web succeeded
+        if: github.event_name == 'workflow_run'
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const sha = context.payload.workflow_run.head_sha;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            for (const workflow of ['backend.yml', 'web.yml']) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner, repo, workflow_id: workflow, head_sha: sha, status: 'success',
+              });
+              if (runs.data.total_count === 0) {
+                core.setFailed(`No successful ${workflow} run for SHA ${sha}`);
+                return;
+              }
+            }
+            core.info(`Both Backend and Web succeeded for ${sha}`);
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Resolve image tag
