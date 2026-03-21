@@ -132,9 +132,11 @@ ownpulse/
 │   ├── postgres/
 │   ├── arc/                    # Actions Runner Controller
 │   └── woodpecker/
+├── userdocs/                   # User-facing docs site (MkDocs Material → docs.ownpulse.health)
 ├── .github/workflows/
 │   ├── backend.yml
 │   ├── web.yml
+│   ├── userdocs.yml
 │   ├── ios.yml
 │   └── deploy.yml
 └── docs/

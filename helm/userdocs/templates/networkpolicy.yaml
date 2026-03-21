@@ -1,0 +1,13 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ownpulse-userdocs.fullname" . }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ownpulse-userdocs.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ .Values.containerPort }}
