@@ -10,6 +10,7 @@ pub mod admin;
 pub mod audit;
 pub mod auth;
 pub mod checkins;
+pub mod dashboard;
 pub mod export;
 pub mod health_records;
 pub mod healthkit;
@@ -113,6 +114,8 @@ fn base_routes() -> Router<AppState> {
         // Integrations
         .route("/integrations", get(integrations::list))
         .route("/integrations/:source", delete(integrations::disconnect))
+        // Dashboard
+        .route("/dashboard/summary", get(dashboard::summary))
         // Admin
         .route("/admin/users", get(admin::list_users))
         .route("/admin/users/:id/role", patch(admin::update_role))
