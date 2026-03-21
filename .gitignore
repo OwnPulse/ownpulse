@@ -27,3 +27,4 @@ Thumbs.db
 
 # Note: .sqlx/ is NOT ignored — it must be committed per CLAUDE.md
 # (cargo sqlx prepare output for compile-time query checking)
+ios/.spm-cache/
