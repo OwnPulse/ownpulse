@@ -29,13 +29,10 @@ targets:
         DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
-      configs:
-        Debug:
-          xcconfig: OwnPulse/Config/Debug.xcconfig
-        Staging:
-          xcconfig: OwnPulse/Config/Staging.xcconfig
-        Release:
-          xcconfig: OwnPulse/Config/Release.xcconfig
+    configFiles:
+      Debug: OwnPulse/Config/Debug.xcconfig
+      Staging: OwnPulse/Config/Staging.xcconfig
+      Release: OwnPulse/Config/Release.xcconfig
     dependencies:
       - package: GRDB
     entitlements:
