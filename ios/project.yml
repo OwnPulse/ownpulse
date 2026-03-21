@@ -1,4 +1,10 @@
 name: OwnPulse
+
+configs:
+  Debug: debug
+  Staging: release
+  Release: release
+
 options:
   bundleIdPrefix: health.ownpulse
   deploymentTarget:
