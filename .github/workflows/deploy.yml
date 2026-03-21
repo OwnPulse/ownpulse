@@ -40,10 +40,12 @@ jobs:
         run: kubectl rollout status statefulset/postgres-ownpulse-postgres -n ownpulse --timeout=120s
 
       - name: Deploy API
+        env:
+          IMAGE_TAG: ${{ steps.sha.outputs.sha }}
         run: >
           helm upgrade --install api helm/api
           -n ownpulse
-          --set image.tag=${{ steps.sha.outputs.sha }}
+          --set "image.tag=$IMAGE_TAG"
 
       - name: Verify API rollout
         id: api-rollout
@@ -54,10 +56,12 @@ jobs:
         run: helm rollback api -n ownpulse
 
       - name: Deploy Web
+        env:
+          IMAGE_TAG: ${{ steps.sha.outputs.sha }}
         run: >
           helm upgrade --install web helm/web
           -n ownpulse
-          --set image.tag=${{ steps.sha.outputs.sha }}
+          --set "image.tag=$IMAGE_TAG"
 
       - name: Verify Web rollout
         id: web-rollout
@@ -69,10 +73,9 @@ jobs:
 
       - name: Smoke test
         run: |
-          # Wait for API to be reachable via service
           for i in $(seq 1 10); do
-            if kubectl exec deploy/api-ownpulse-api -n ownpulse -- wget -qO- http://localhost:8080/api/v1/health 2>/dev/null | grep -q '"ok"'; then
-              echo "API health check passed"
+            if kubectl run smoke-prod-$(date +%s) --rm -i --restart=Never --image=busybox -n ownpulse -- wget -qO- http://api-ownpulse-api:80/api/v1/health 2>/dev/null | grep -q '"ok"'; then
+              echo "Production API health check passed"
               exit 0
             fi
             echo "Waiting for API... ($i/10)"

@@ -58,6 +58,22 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
 
+      - name: Validate staging Helm charts
+        run: |
+          helm lint helm/api -f helm/api/values-staging.yaml
+          helm lint helm/web -f helm/web/values-staging.yaml
+          helm lint helm/postgres -f helm/postgres/values-staging.yaml
+          # Verify no Ingress resources are generated for staging
+          if helm template api-staging helm/api -f helm/api/values-staging.yaml | grep -q "kind: Ingress"; then
+            echo "ERROR: Staging API chart should not generate Ingress resources"
+            exit 1
+          fi
+          if helm template web-staging helm/web -f helm/web/values-staging.yaml | grep -q "kind: Ingress"; then
+            echo "ERROR: Staging Web chart should not generate Ingress resources"
+            exit 1
+          fi
+          echo "All staging Helm charts validated"
+
       - name: Ensure staging namespace exists
         run: kubectl create namespace ownpulse-staging --dry-run=client -o yaml | kubectl apply -f -
 
@@ -118,7 +134,7 @@ jobs:
       - name: Smoke test
         run: |
           for i in $(seq 1 10); do
-            if kubectl run smoke-test-$i --rm -i --restart=Never --image=busybox -n ownpulse-staging -- wget -qO- http://api-staging-ownpulse-api:80/api/v1/health 2>/dev/null | grep -q '"ok"'; then
+            if kubectl run smoke-staging-$(date +%s) --rm -i --restart=Never --image=busybox -n ownpulse-staging -- wget -qO- http://api-staging-ownpulse-api:80/api/v1/health 2>/dev/null | grep -q '"ok"'; then
               echo "Staging API health check passed"
               exit 0
             fi
