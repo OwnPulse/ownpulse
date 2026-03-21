@@ -5,6 +5,7 @@ import Foundation
 import Observation
 
 @Observable
+@MainActor
 final class AppDependencies {
     let keychainService: KeychainServiceProtocol
     let networkClient: NetworkClientProtocol
