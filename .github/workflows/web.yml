@@ -57,32 +57,12 @@ jobs:
 
       - name: Comment coverage on PR
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        uses: OwnPulse/gh-actions/coverage-comment@v1
         with:
-          script: |
-            const percentage = '${{ steps.coverage.outputs.percentage }}';
-            const body = `## Web Coverage\n\n**Statement coverage: ${percentage}%**\n\n[Download full report](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) → Artifacts → web-coverage-report`;
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const existing = comments.find(c => c.body.startsWith('## Web Coverage'));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body,
-              });
-            }
+          percentage: ${{ steps.coverage.outputs.percentage }}
+          service: Web
+          coverage-type: Statement coverage
+          artifact-name: web-coverage-report
 
       - name: Run E2E tests
         run: |
@@ -95,37 +75,11 @@ jobs:
 
       - name: Update coverage badge
         if: github.ref == 'refs/heads/main'
-        run: |
-          STMT_COV="${{ steps.coverage.outputs.percentage }}"
-          if [ "$(echo "$STMT_COV >= 70" | bc -l)" -eq 1 ]; then
-            COLOR="brightgreen"
-          elif [ "$(echo "$STMT_COV >= 50" | bc -l)" -eq 1 ]; then
-            COLOR="yellow"
-          else
-            COLOR="red"
-          fi
-          mkdir -p /tmp/badges
-          cat > /tmp/badges/web-coverage.json << BADGE
-          {
-            "schemaVersion": 1,
-            "label": "web coverage",
-            "message": "${STMT_COV}%",
-            "color": "${COLOR}"
-          }
-          BADGE
-
-      - name: Deploy badge to badges branch
-        if: github.ref == 'refs/heads/main'
-        run: |
-          cd "$GITHUB_WORKSPACE"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin badges || true
-          git checkout badges 2>/dev/null || git checkout --orphan badges
-          cp /tmp/badges/web-coverage.json .
-          git add web-coverage.json
-          git diff --cached --quiet || git commit -m "Update web coverage badge"
-          git push origin badges
+        uses: OwnPulse/gh-actions/coverage-badge@v1
+        with:
+          percentage: ${{ steps.coverage.outputs.percentage }}
+          label: web coverage
+          badge-file: web-coverage.json
 
   build:
     if: github.ref == 'refs/heads/main'
@@ -134,14 +88,8 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7
+      - uses: OwnPulse/gh-actions/docker-build-push@v1
         with:
           context: web
-          push: true
-          tags: ghcr.io/ownpulse/ownpulse-web:${{ github.sha }}
+          image-name: ownpulse-web
+          tag: ${{ github.sha }}

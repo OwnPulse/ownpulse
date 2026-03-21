@@ -63,6 +63,9 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
 
+      - name: Ensure staging namespace exists
+        run: kubectl create namespace ownpulse-staging --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Validate staging Helm charts
         run: |
           helm lint helm/api -f helm/api/values-staging.yaml
@@ -94,55 +97,34 @@ jobs:
         run: kubectl rollout status statefulset/postgres-staging-ownpulse-postgres -n ownpulse-staging --timeout=120s
 
       - name: Deploy API (staging)
-        env:
-          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
-        run: >
-          helm upgrade --install api-staging helm/api
-          -n ownpulse-staging
-          -f helm/api/values-staging.yaml
-          --set "image.tag=$IMAGE_TAG"
-
-      - name: Verify API rollout
-        id: api-rollout
-        run: kubectl rollout status deployment/api-staging-ownpulse-api -n ownpulse-staging --timeout=120s
-
-      - name: Rollback API on failure
-        if: failure() && steps.api-rollout.outcome == 'failure'
-        run: helm rollback api-staging -n ownpulse-staging
+        uses: OwnPulse/gh-actions/helm-deploy@v1
+        with:
+          release-name: api-staging
+          chart-path: helm/api
+          namespace: ownpulse-staging
+          image-tag: ${{ steps.tag.outputs.tag }}
+          values-file: helm/api/values-staging.yaml
+          deployment-name: api-staging-ownpulse-api
 
       - name: Deploy Web (staging)
-        env:
-          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
-        run: >
-          helm upgrade --install web-staging helm/web
-          -n ownpulse-staging
-          -f helm/web/values-staging.yaml
-          --set "image.tag=$IMAGE_TAG"
-
-      - name: Verify Web rollout
-        id: web-rollout
-        run: kubectl rollout status deployment/web-staging-ownpulse-web -n ownpulse-staging --timeout=120s
-
-      - name: Rollback Web on failure
-        if: failure() && steps.web-rollout.outcome == 'failure'
-        run: helm rollback web-staging -n ownpulse-staging
+        uses: OwnPulse/gh-actions/helm-deploy@v1
+        with:
+          release-name: web-staging
+          chart-path: helm/web
+          namespace: ownpulse-staging
+          image-tag: ${{ steps.tag.outputs.tag }}
+          values-file: helm/web/values-staging.yaml
+          deployment-name: web-staging-ownpulse-web
 
       - name: Deploy User Docs (staging)
-        env:
-          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
-        run: >
-          helm upgrade --install userdocs-staging helm/userdocs
-          -n ownpulse-staging
-          -f helm/userdocs/values-staging.yaml
-          --set "image.tag=$IMAGE_TAG"
-
-      - name: Verify User Docs rollout
-        id: userdocs-rollout
-        run: kubectl rollout status deployment/userdocs-staging-ownpulse-userdocs -n ownpulse-staging --timeout=120s
-
-      - name: Rollback User Docs on failure
-        if: failure() && steps.userdocs-rollout.outcome == 'failure'
-        run: helm rollback userdocs-staging -n ownpulse-staging
+        uses: OwnPulse/gh-actions/helm-deploy@v1
+        with:
+          release-name: userdocs-staging
+          chart-path: helm/userdocs
+          namespace: ownpulse-staging
+          image-tag: ${{ steps.tag.outputs.tag }}
+          values-file: helm/userdocs/values-staging.yaml
+          deployment-name: userdocs-staging-ownpulse-userdocs
 
       - name: Register Tailscale Serve for staging
         run: |
@@ -156,14 +138,8 @@ jobs:
           echo "Staging Web: https://ownpulse-us.zorse-snake.ts.net:8445"
 
       - name: Smoke test
-        run: |
-          for i in $(seq 1 10); do
-            if kubectl run smoke-staging-$(date +%s) --rm -i --restart=Never --image=busybox -n ownpulse-staging -- wget -qO- http://api-staging-ownpulse-api:80/api/v1/health 2>/dev/null | grep -q '"ok"'; then
-              echo "Staging API health check passed"
-              exit 0
-            fi
-            echo "Waiting for staging API... ($i/10)"
-            sleep 5
-          done
-          echo "Smoke test failed"
-          exit 1
+        uses: OwnPulse/gh-actions/smoke-test@v1
+        with:
+          service-url: http://api-staging-ownpulse-api:80/api/v1/health
+          namespace: ownpulse-staging
+          label: Staging API

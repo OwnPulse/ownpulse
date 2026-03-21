@@ -41,14 +41,8 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9  # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294  # v7
+      - uses: OwnPulse/gh-actions/docker-build-push@v1
         with:
           context: userdocs
-          push: true
-          tags: ghcr.io/ownpulse/ownpulse-userdocs:${{ github.sha }}
+          image-name: ownpulse-userdocs
+          tag: ${{ github.sha }}
