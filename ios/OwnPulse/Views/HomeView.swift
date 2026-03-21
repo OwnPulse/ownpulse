@@ -40,6 +40,9 @@ struct HomeView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
+                // Sleep & HRV chart
+                SleepChartView()
+
                 // Sync Now button
                 Button {
                     Task {
