@@ -14,6 +14,7 @@ pub const VALID_OBSERVATION_TYPES: &[&str] = &[
     "note",
     "context_tag",
     "environmental",
+    "sleep",
 ];
 
 pub fn is_valid_observation_type(t: &str) -> bool {
