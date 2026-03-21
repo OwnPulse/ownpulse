@@ -6,6 +6,7 @@
 //! Each sub-module defines handlers for one route group.
 
 pub mod account;
+pub mod audit;
 pub mod auth;
 pub mod checkins;
 pub mod export;
@@ -98,6 +99,7 @@ fn base_routes() -> Router<AppState> {
         // Account
         .route("/account", get(account::get_account))
         .route("/account", delete(account::delete_account))
+        .route("/account/audit-log", get(audit::list_audit_log))
         // Export
         .route("/export/json", get(export::export_json))
         .route("/export/csv", get(export::export_csv))

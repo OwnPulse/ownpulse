@@ -6,6 +6,7 @@ use axum::http::StatusCode;
 use axum::Json;
 
 use crate::auth::extractor::AuthUser;
+use crate::db;
 use crate::db::users;
 use crate::error::ApiError;
 use crate::models::user::UserResponse;
@@ -25,6 +26,16 @@ pub async fn delete_account(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
 ) -> Result<StatusCode, ApiError> {
+    // Write the audit entry synchronously before deleting the user so that the
+    // record is committed regardless of whether the caller's connection closes
+    // immediately after. The data_access_log table has no FK on user_id
+    // intentionally — the log must survive account deletion.
+    if let Err(e) =
+        db::audit::log_access(&state.pool, user_id, "delete_account", "account", None, None).await
+    {
+        tracing::warn!(error = %e, user_id = %user_id, "audit log insert failed before account deletion");
+    }
+
     users::delete_user(&state.pool, user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
