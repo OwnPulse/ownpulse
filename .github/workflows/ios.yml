@@ -1,6 +1,7 @@
 name: iOS
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -16,9 +17,10 @@ jobs:
   test:
     runs-on: macos-tart
     env:
-      # Local image name, pulled by nix-darwin tart.nix activation script
       TART_IMAGE: "ghcr.io/cirruslabs/macos-sequoia-xcode:16.2"
+      VM_NAME: "ci-ios-${{ github.run_id }}"
       PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+      VM_IP_FILE: "/tmp/ci-vm-ip-${{ github.run_id }}"
     steps:
       - uses: actions/checkout@v6
 
@@ -32,42 +34,46 @@ jobs:
 
       - name: Start Tart VM
         run: |
-          # Run directly from the pulled image — no clone needed.
-          # The image resets on next `tart pull` via nix-darwin converge.
-          tart run $TART_IMAGE --no-graphics &
-          # Wait for VM to boot and SSH to become available
+          tart clone $TART_IMAGE $VM_NAME
+          tart run $VM_NAME --no-graphics &
           for i in $(seq 1 60); do
-            IP=$(tart ip $TART_IMAGE 2>/dev/null || true)
+            IP=$(tart ip $VM_NAME 2>/dev/null || true)
             if [ -n "$IP" ] && ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 admin@"$IP" true 2>/dev/null; then
               echo "VM ready at $IP"
-              echo "VM_IP=$IP" >> "$GITHUB_ENV"
+              echo "$IP" > "$VM_IP_FILE"
               break
             fi
             sleep 5
           done
-          [ -n "$IP" ] || { echo "VM failed to boot"; exit 1; }
+          [ -f "$VM_IP_FILE" ] || { echo "VM failed to boot"; exit 1; }
 
       - name: Copy repo into VM
         run: |
+          VM_IP=$(cat "$VM_IP_FILE")
           rsync -az --exclude='.git' -e 'ssh -o StrictHostKeyChecking=no' \
-            "$GITHUB_WORKSPACE/" admin@$VM_IP:~/workspace/
+            "$GITHUB_WORKSPACE/" admin@"$VM_IP":~/workspace/
 
       - name: Resolve SPM dependencies
         run: |
-          ssh -o StrictHostKeyChecking=no admin@$VM_IP \
+          VM_IP=$(cat "$VM_IP_FILE")
+          ssh -o StrictHostKeyChecking=no admin@"$VM_IP" \
             'cd ~/workspace/ios && xcodebuild -resolvePackageDependencies -scheme OwnPulse -clonedSourcePackagesDirPath .spm-cache'
 
       - name: Run Xcode tests
         run: |
-          ssh -o StrictHostKeyChecking=no admin@$VM_IP \
+          VM_IP=$(cat "$VM_IP_FILE")
+          ssh -o StrictHostKeyChecking=no admin@"$VM_IP" \
             'cd ~/workspace/ios && xcodebuild test -scheme OwnPulse -destination "platform=iOS Simulator,name=iPhone 16" -clonedSourcePackagesDirPath .spm-cache'
 
       - name: Run Maestro tests
         run: |
-          ssh -o StrictHostKeyChecking=no admin@$VM_IP \
+          VM_IP=$(cat "$VM_IP_FILE")
+          ssh -o StrictHostKeyChecking=no admin@"$VM_IP" \
             'cd ~/workspace && maestro test ios/maestro/flows/'
 
-      - name: Stop VM
+      - name: Teardown VM
         if: always()
         run: |
-          tart stop $TART_IMAGE 2>/dev/null || true
+          tart stop $VM_NAME 2>/dev/null || true
+          tart delete $VM_NAME 2>/dev/null || true
+          rm -f "$VM_IP_FILE"
