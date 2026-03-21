@@ -12,6 +12,12 @@ struct OfflineQueueEntry: Codable, FetchableRecord, PersistableRecord, Sendable 
     let createdAt: Date
     var completedAt: Date?
 
+    enum CodingKeys: String, CodingKey {
+        case id, payload
+        case createdAt = "created_at"
+        case completedAt = "completed_at"
+    }
+
     enum Columns: String, ColumnExpression {
         case id, payload, createdAt = "created_at", completedAt = "completed_at"
     }
