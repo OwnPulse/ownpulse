@@ -34,3 +34,15 @@ Connected integrations sync automatically on a recurring schedule. The exact int
 ## Troubleshooting
 
 If an integration shows an error status, try disconnecting and reconnecting it. This refreshes the OAuth token. If the error persists, verify that your account on the third-party service is still active and that you have not revoked OwnPulse's access from the third-party settings.
+
+## Google Calendar
+
+Google Calendar integration syncs your meeting data in read-only mode. OwnPulse pulls meeting counts and durations to help you correlate schedule load with your health metrics. Connect via the **Sources** page using your Google account. OwnPulse does not modify your calendar -- access is strictly read-only.
+
+## Coming soon
+
+The following integrations are planned for a future release:
+
+- **Garmin** -- activity, sleep, and HRV data from Garmin wearables
+- **Oura** -- readiness, sleep, and activity data from Oura Ring
+- **Dexcom** -- continuous glucose monitor readings

@@ -30,6 +30,33 @@ The 14-day sleep chart on the Timeline page uses stacked horizontal bars. Each b
 
 Nights with less than your average duration are visually distinct, making it easy to spot patterns like consistently short sleep on weekdays.
 
+## iOS sleep chart
+
+!!! note "iOS only"
+    This chart is available in the OwnPulse iOS app on the home screen.
+
+The iOS app shows a combined sleep and HRV chart. Sleep stages are displayed as stacked bars with the following colors:
+
+- **Deep** -- dark blue
+- **Core/Light** -- light blue
+- **REM** -- purple
+- **Awake** -- orange
+
+HRV (heart rate variability) is shown as a white line overlay on the same chart, with the min and max range displayed in milliseconds. This gives you a quick view of both sleep quality and autonomic nervous system recovery in one visualization.
+
+The iOS app reads sleep data directly from HealthKit. The web dashboard shows the same data after it has been synced to the backend.
+
+## Manual sleep entry
+
+Sleep records can also be entered manually via the Data Entry page on the web. Manual sleep entries include:
+
+- **Duration** -- total sleep time
+- **Stage breakdown** -- deep, light, REM, and awake minutes (optional)
+- **Sleep score** -- an optional subjective or device-provided quality score
+- **Notes** -- free-form text for anything relevant to that night
+
+Manual entries are useful for filling in nights when you did not wear a tracking device. They appear on the timeline chart alongside synced data.
+
 ## Tips for better sleep data
 
 For the most accurate sleep tracking, wear your device to bed consistently and charge it at a different time of day. If you use manual entry, log your sleep as close to waking as possible while your memory is fresh.

@@ -10,11 +10,19 @@ The preferred source is used for display on the Timeline and in analysis. Data f
 
 See [Integrations](integrations.md) for more on connecting and managing data sources.
 
+### How source preferences work
+
+When multiple sources report the same metric, the preferred source's value is shown on the dashboard and used in analysis. Non-preferred source data is kept in the database -- it is not deleted, just deprioritized. You can always see data from all sources in exports and detailed data views. Changing your preference takes effect immediately for all future display.
+
 ## Export data
 
 The Export section lets you download your complete dataset in JSON or CSV format. Exports are streamed directly and follow the OwnPulse Open Schema for maximum portability.
 
-See [Data Export](export.md) for full details on export formats and what is included.
+Exports include health records, check-ins, interventions, observations, lab results, and sleep data. See [Data Export](export.md) for full details on export formats and the Open Schema.
+
+## Audit log
+
+OwnPulse logs access to sensitive operations for your records. Logged operations include data exports, account deletion, and bulk operations. The audit log is accessible via the API (`GET /account/audit-log`) and shows the last 100 entries. This log is for your reference only -- no one else has access to it.
 
 ## Account management
 

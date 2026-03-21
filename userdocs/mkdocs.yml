@@ -22,12 +22,16 @@ theme:
 
 nav:
   - Home: index.md
+  - Getting Started: quickstart.md
   - Login & Account Setup: login.md
+  - Dashboard & Timeline: timeline.md
   - Manual Data Entry: data-entry.md
+  - iOS App: ios-app.md
   - Apple Health: apple-health.md
   - Integrations: integrations.md
   - Data Export: export.md
   - Sleep Tracking: sleep.md
+  - Privacy & Security: privacy.md
   - Settings & Account: settings.md
 
 markdown_extensions:
