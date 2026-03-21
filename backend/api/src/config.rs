@@ -94,6 +94,86 @@ fn default_rust_log() -> String {
 impl Config {
     /// Load configuration from environment variables.
     pub fn load() -> Self {
-        envy::from_env::<Config>().expect("failed to load config from environment")
+        let config =
+            envy::from_env::<Config>().expect("failed to load config from environment");
+        config.validate();
+        config
+    }
+
+    /// Panic if insecure defaults are used outside localhost development.
+    ///
+    /// This prevents accidentally running production with the placeholder
+    /// `JWT_SECRET` or an all-zero `ENCRYPTION_KEY`.
+    fn validate(&self) {
+        let is_localhost = self.web_origin.starts_with("http://localhost");
+
+        if !is_localhost && self.jwt_secret == "dev-only-change-me" {
+            panic!(
+                "JWT_SECRET is still the default placeholder — \
+                 set a real secret before running in production"
+            );
+        }
+
+        if !is_localhost && self.encryption_key.chars().all(|c| c == '0') {
+            panic!(
+                "ENCRYPTION_KEY is all zeros — \
+                 set a real 32-byte hex key before running in production"
+            );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a `Config` with safe test defaults. Individual tests override
+    /// the fields they care about.
+    fn test_config() -> Config {
+        Config {
+            database_url: "postgres://localhost/test".to_string(),
+            jwt_secret: default_jwt_secret(),
+            jwt_expiry_seconds: default_jwt_expiry(),
+            refresh_token_expiry_seconds: default_refresh_expiry(),
+            google_client_id: None,
+            google_client_secret: None,
+            google_redirect_uri: None,
+            garmin_client_id: None,
+            garmin_client_secret: None,
+            oura_client_id: None,
+            oura_client_secret: None,
+            dexcom_client_id: None,
+            dexcom_client_secret: None,
+            encryption_key: default_encryption_key(),
+            storage_path: None,
+            app_user: None,
+            app_password_hash: None,
+            data_region: default_data_region(),
+            web_origin: default_web_origin(),
+            rust_log: default_rust_log(),
+        }
+    }
+
+    #[test]
+    fn default_config_with_localhost_does_not_panic() {
+        let config = test_config();
+        config.validate(); // should not panic
+    }
+
+    #[test]
+    #[should_panic(expected = "JWT_SECRET")]
+    fn default_jwt_secret_panics_in_production() {
+        let mut config = test_config();
+        config.web_origin = "https://app.ownpulse.health".to_string();
+        config.validate();
+    }
+
+    #[test]
+    #[should_panic(expected = "ENCRYPTION_KEY")]
+    fn all_zero_encryption_key_panics_in_production() {
+        let mut config = test_config();
+        config.web_origin = "https://app.ownpulse.health".to_string();
+        config.jwt_secret = "a-real-secret-that-is-not-the-default".to_string();
+        config.validate();
     }
 }
