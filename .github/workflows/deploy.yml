@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: "Image tag to deploy (defaults to latest main SHA)"
+        description: "Override image tag for ALL services (leave blank for per-service latest)"
         required: false
         default: ""
 
@@ -20,51 +20,65 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  verify:
+  resolve-tags:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
+      api-tag: ${{ steps.tags.outputs.api }}
+      web-tag: ${{ steps.tags.outputs.web }}
+      userdocs-tag: ${{ steps.tags.outputs.userdocs }}
     steps:
-      - name: Verify all CI workflows succeeded
-        if: github.event_name == 'workflow_run'
+      - name: Resolve per-service image tags
+        id: tags
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        with:
-          script: |
-            const sha = context.payload.workflow_run.head_sha;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-            for (const workflow of ['backend.yml', 'web.yml', 'userdocs.yml']) {
-              const runs = await github.rest.actions.listWorkflowRuns({
-                owner, repo, workflow_id: workflow, head_sha: sha, status: 'success',
-              });
-              if (runs.data.total_count === 0) {
-                core.setFailed(`No successful ${workflow} run for SHA ${sha}`);
-                return;
-              }
-            }
-            core.info(`All CI workflows succeeded for ${sha}`);
-
-      - name: Resolve image tag
-        id: tag
         env:
           INPUT_SHA: ${{ github.event.inputs.sha }}
-          CURRENT_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-        run: |
-          if [ -n "$INPUT_SHA" ]; then
-            echo "tag=$INPUT_SHA" >> "$GITHUB_OUTPUT"
-          else
-            echo "tag=$CURRENT_SHA" >> "$GITHUB_OUTPUT"
-          fi
+        with:
+          script: |
+            const inputSha = process.env.INPUT_SHA;
+
+            // If manual dispatch with explicit SHA, use it for all services
+            if (inputSha) {
+              core.info(`Manual override: using ${inputSha} for all services`);
+              core.setOutput('api', inputSha);
+              core.setOutput('web', inputSha);
+              core.setOutput('userdocs', inputSha);
+              return;
+            }
+
+            // Otherwise, find each service's latest successful build on main
+            const services = [
+              { name: 'api', workflow: 'backend.yml' },
+              { name: 'web', workflow: 'web.yml' },
+              { name: 'userdocs', workflow: 'userdocs.yml' },
+            ];
+
+            for (const svc of services) {
+              const runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: svc.workflow,
+                branch: 'main',
+                status: 'success',
+                per_page: 1,
+              });
+              if (runs.data.total_count === 0) {
+                core.setFailed(`No successful ${svc.workflow} run found on main`);
+                return;
+              }
+              const sha = runs.data.workflow_runs[0].head_sha;
+              core.setOutput(svc.name, sha);
+              core.info(`${svc.name}: ${sha} (from ${svc.workflow})`);
+            }
 
   # ---------------------------------------------------------------------------
   # Staging
   # ---------------------------------------------------------------------------
 
   staging-infra:
-    needs: verify
+    needs: resolve-tags
     runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -101,7 +115,7 @@ jobs:
         run: kubectl rollout status statefulset/postgres-staging-ownpulse-postgres -n ownpulse-staging --timeout=120s
 
   staging-services:
-    needs: [verify, staging-infra]
+    needs: [resolve-tags, staging-infra]
     runs-on: arc-runner-set
     strategy:
       fail-fast: true
@@ -111,14 +125,21 @@ jobs:
             chart: helm/api
             values: helm/api/values-staging.yaml
             deployment: api-staging-ownpulse-api
+            service: api
           - release: web-staging
             chart: helm/web
             values: helm/web/values-staging.yaml
             deployment: web-staging-ownpulse-web
+            service: web
           - release: userdocs-staging
             chart: helm/userdocs
             values: helm/userdocs/values-staging.yaml
             deployment: userdocs-staging-ownpulse-userdocs
+            service: userdocs
+    env:
+      API_TAG: ${{ needs.resolve-tags.outputs.api-tag }}
+      WEB_TAG: ${{ needs.resolve-tags.outputs.web-tag }}
+      USERDOCS_TAG: ${{ needs.resolve-tags.outputs.userdocs-tag }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -130,12 +151,21 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
 
+      - name: Resolve image tag for ${{ matrix.service }}
+        id: tag
+        run: |
+          case "${{ matrix.service }}" in
+            api) echo "tag=$API_TAG" >> "$GITHUB_OUTPUT" ;;
+            web) echo "tag=$WEB_TAG" >> "$GITHUB_OUTPUT" ;;
+            userdocs) echo "tag=$USERDOCS_TAG" >> "$GITHUB_OUTPUT" ;;
+          esac
+
       - uses: OwnPulse/gh-actions/helm-deploy@v1
         with:
           release-name: ${{ matrix.release }}
           chart-path: ${{ matrix.chart }}
           namespace: ownpulse-staging
-          image-tag: ${{ needs.verify.outputs.tag }}
+          image-tag: ${{ steps.tag.outputs.tag }}
           values-file: ${{ matrix.values }}
           deployment-name: ${{ matrix.deployment }}
 
@@ -177,7 +207,7 @@ jobs:
       - run: echo "Production deploy approved"
 
   production-infra:
-    needs: [verify, production-approve]
+    needs: [resolve-tags, production-approve]
     runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -197,7 +227,7 @@ jobs:
         run: kubectl rollout status statefulset/postgres-ownpulse-postgres -n ownpulse --timeout=120s
 
   production-services:
-    needs: [verify, production-infra]
+    needs: [resolve-tags, production-infra]
     runs-on: arc-runner-set
     strategy:
       fail-fast: true
@@ -206,12 +236,19 @@ jobs:
           - release: api
             chart: helm/api
             deployment: api-ownpulse-api
+            service: api
           - release: web
             chart: helm/web
             deployment: web-ownpulse-web
+            service: web
           - release: userdocs
             chart: helm/userdocs
             deployment: userdocs-ownpulse-userdocs
+            service: userdocs
+    env:
+      API_TAG: ${{ needs.resolve-tags.outputs.api-tag }}
+      WEB_TAG: ${{ needs.resolve-tags.outputs.web-tag }}
+      USERDOCS_TAG: ${{ needs.resolve-tags.outputs.userdocs-tag }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
@@ -223,12 +260,21 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
 
+      - name: Resolve image tag for ${{ matrix.service }}
+        id: tag
+        run: |
+          case "${{ matrix.service }}" in
+            api) echo "tag=$API_TAG" >> "$GITHUB_OUTPUT" ;;
+            web) echo "tag=$WEB_TAG" >> "$GITHUB_OUTPUT" ;;
+            userdocs) echo "tag=$USERDOCS_TAG" >> "$GITHUB_OUTPUT" ;;
+          esac
+
       - uses: OwnPulse/gh-actions/helm-deploy@v1
         with:
           release-name: ${{ matrix.release }}
           chart-path: ${{ matrix.chart }}
           namespace: ownpulse
-          image-tag: ${{ needs.verify.outputs.tag }}
+          image-tag: ${{ steps.tag.outputs.tag }}
           deployment-name: ${{ matrix.deployment }}
 
   production-validate:
