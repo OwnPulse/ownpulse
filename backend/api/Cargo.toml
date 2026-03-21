@@ -29,6 +29,7 @@ metrics = "0.24"
 metrics-exporter-prometheus = "0.16"
 axum-prometheus = "0.7"
 tower_governor = "0.4"
+urlencoding = "2"
 
 [dev-dependencies]
 testcontainers = "0.23"

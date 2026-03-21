@@ -54,21 +54,22 @@ async fn insert_test_user(pool: &sqlx::PgPool, username: &str, password: &str) -
     row.0
 }
 
-/// Helper: extract the refresh_token value from a Set-Cookie header.
+/// Helper: extract the refresh_token value from Set-Cookie headers.
 fn extract_refresh_cookie(response: &axum::response::Response) -> String {
-    let cookie_header = response
+    response
         .headers()
-        .get("set-cookie")
-        .expect("no set-cookie header")
-        .to_str()
-        .unwrap();
-    cookie_header
-        .split(';')
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .filter_map(|cookie| {
+            cookie
+                .split(';')
+                .next()
+                .and_then(|first| first.strip_prefix("refresh_token="))
+                .map(|s| s.to_string())
+        })
         .next()
-        .unwrap()
-        .strip_prefix("refresh_token=")
-        .expect("cookie does not start with refresh_token=")
-        .to_string()
+        .expect("no refresh_token cookie found")
 }
 
 #[tokio::test]
@@ -334,7 +335,7 @@ async fn test_google_callback_ios_redirects_to_custom_scheme() {
 
     let app = api::build_app_without_metrics(state);
 
-    // Call the callback with state=ios
+    // Call the callback with state=ios (iOS bypasses CSRF)
     let response = app
         .oneshot(
             Request::builder()
@@ -372,16 +373,10 @@ async fn test_google_callback_ios_redirects_to_custom_scheme() {
         location.contains("refresh_token="),
         "redirect should contain refresh_token param"
     );
-
-    // iOS redirects should NOT set a cookie
-    assert!(
-        response.headers().get("set-cookie").is_none(),
-        "iOS redirect should not set cookie"
-    );
 }
 
 #[tokio::test]
-async fn test_google_callback_web_redirects_to_web_origin() {
+async fn test_google_callback_web_redirects_with_cookies() {
     let test_app = common::setup().await;
 
     let mock_server = wiremock::MockServer::start().await;
@@ -440,12 +435,18 @@ async fn test_google_callback_web_redirects_to_web_origin() {
 
     let app = api::build_app_without_metrics(state);
 
-    // Call WITHOUT state=ios → should redirect to web origin
+    let csrf_state = "test-csrf-state-value";
+
+    // Call with matching state and oauth_state cookie (CSRF validated)
     let response = app
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/api/v1/auth/google/callback?code=test-auth-code")
+                .uri(&format!(
+                    "/api/v1/auth/google/callback?code=test-auth-code&state={}",
+                    csrf_state
+                ))
+                .header("cookie", format!("oauth_state={}", csrf_state))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -461,15 +462,91 @@ async fn test_google_callback_web_redirects_to_web_origin() {
         .to_str()
         .unwrap();
 
+    // Web redirect should NOT contain tokens in the URL
     assert!(
-        location.starts_with("http://localhost:5173/#token="),
-        "expected web origin redirect, got: {location}"
+        location.starts_with("http://localhost:5173/?auth=success"),
+        "expected web origin redirect without tokens, got: {location}"
+    );
+    assert!(
+        !location.contains("token="),
+        "redirect URL should NOT contain tokens"
     );
 
-    // Web redirects SHOULD set a cookie
+    // Web redirects SHOULD set cookies for both access_token and refresh_token
+    let set_cookies: Vec<&str> = response
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .collect();
+
     assert!(
-        response.headers().get("set-cookie").is_some(),
-        "web redirect should set refresh_token cookie"
+        set_cookies.iter().any(|c| c.starts_with("access_token=")),
+        "web redirect should set access_token cookie, got: {:?}",
+        set_cookies
+    );
+    assert!(
+        set_cookies.iter().any(|c| c.starts_with("refresh_token=")),
+        "web redirect should set refresh_token cookie, got: {:?}",
+        set_cookies
+    );
+}
+
+#[tokio::test]
+async fn test_google_callback_rejects_mismatched_csrf_state() {
+    let test_app = common::setup().await;
+
+    let config = api::config::Config {
+        database_url: "unused".to_string(),
+        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
+        jwt_expiry_seconds: 3600,
+        refresh_token_expiry_seconds: 2_592_000,
+        google_client_id: Some("test-client-id".to_string()),
+        google_client_secret: Some("test-client-secret".to_string()),
+        google_redirect_uri: Some("http://localhost/callback".to_string()),
+        google_token_url: "https://oauth2.googleapis.com/token".to_string(),
+        google_userinfo_url: "https://www.googleapis.com/oauth2/v3/userinfo".to_string(),
+        garmin_client_id: None,
+        garmin_client_secret: None,
+        oura_client_id: None,
+        oura_client_secret: None,
+        dexcom_client_id: None,
+        dexcom_client_secret: None,
+        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+        storage_path: None,
+        app_user: None,
+        app_password_hash: None,
+        data_region: "us".to_string(),
+        web_origin: "http://localhost:5173".to_string(),
+        rust_log: "info".to_string(),
+    };
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+    };
+
+    let app = api::build_app_without_metrics(state);
+
+    // Send with mismatched state values — should be rejected before token exchange
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code&state=attacker-state")
+                .header("cookie", "oauth_state=real-state")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        400,
+        "mismatched CSRF state should return 400"
     );
 }
 
@@ -500,4 +577,74 @@ async fn test_login_returns_decodable_jwt() {
 
     assert_eq!(claims.sub, user_id);
     assert!(claims.exp > chrono::Utc::now().timestamp());
+}
+
+/// Regression test: presenting an already-rotated refresh token should return 401.
+/// This verifies replay detection — once a token is rotated, the old one is invalid.
+#[tokio::test]
+async fn test_rotated_refresh_token_returns_401() {
+    let test_app = common::setup().await;
+    insert_test_user(&test_app.pool, "grace", "replaytest").await;
+
+    // Step 1: Login to get the initial refresh token
+    let login_response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/login",
+            &json!({"username": "grace", "password": "replaytest"}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(login_response.status(), 200);
+    let old_refresh_token = extract_refresh_cookie(&login_response);
+
+    // Step 2: Use the refresh token to rotate it (get a new one)
+    let refresh_response = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={old_refresh_token}"),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(refresh_response.status(), 200);
+    let new_refresh_token = extract_refresh_cookie(&refresh_response);
+    assert_ne!(old_refresh_token, new_refresh_token, "token should have rotated");
+
+    // Step 3: Present the OLD (already-rotated) refresh token — should be rejected
+    let replay_response = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={old_refresh_token}"),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        replay_response.status(),
+        401,
+        "presenting an already-rotated refresh token should return 401"
+    );
+
+    // Step 4: Verify the new token still works
+    let valid_response = test_app
+        .app
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={new_refresh_token}"),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        valid_response.status(),
+        200,
+        "the current valid refresh token should still work"
+    );
 }
