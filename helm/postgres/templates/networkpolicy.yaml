@@ -1,0 +1,17 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "postgres.fullname" . }}-db
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "postgres.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ownpulse-api
+      ports:
+        - port: 5432
