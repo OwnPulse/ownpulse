@@ -63,9 +63,6 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
 
-      - name: Ensure staging namespace exists
-        run: kubectl create namespace ownpulse-staging --dry-run=client -o yaml | kubectl apply -f -
-
       - name: Validate staging Helm charts
         run: |
           helm lint helm/api -f helm/api/values-staging.yaml
