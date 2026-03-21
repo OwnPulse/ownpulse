@@ -71,6 +71,22 @@ jobs:
         if: failure() && steps.web-rollout.outcome == 'failure'
         run: helm rollback web -n ownpulse
 
+      - name: Deploy User Docs
+        env:
+          IMAGE_TAG: ${{ steps.sha.outputs.sha }}
+        run: >
+          helm upgrade --install userdocs helm/userdocs
+          -n ownpulse
+          --set "image.tag=$IMAGE_TAG"
+
+      - name: Verify User Docs rollout
+        id: userdocs-rollout
+        run: kubectl rollout status deployment/userdocs-ownpulse-userdocs -n ownpulse --timeout=120s
+
+      - name: Rollback User Docs on failure
+        if: failure() && steps.userdocs-rollout.outcome == 'failure'
+        run: helm rollback userdocs -n ownpulse
+
       - name: Smoke test
         run: |
           for i in $(seq 1 10); do

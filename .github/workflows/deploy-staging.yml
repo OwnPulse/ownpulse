@@ -5,7 +5,7 @@ env:
 
 on:
   workflow_run:
-    workflows: [Backend, Web]
+    workflows: [Backend, Web, User Docs]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -33,7 +33,7 @@ jobs:
             const sha = context.payload.workflow_run.head_sha;
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            for (const workflow of ['backend.yml', 'web.yml']) {
+            for (const workflow of ['backend.yml', 'web.yml', 'userdocs.yml']) {
               const runs = await github.rest.actions.listWorkflowRuns({
                 owner, repo, workflow_id: workflow, head_sha: sha, status: 'success',
               });
@@ -62,6 +62,7 @@ jobs:
         run: |
           helm lint helm/api -f helm/api/values-staging.yaml
           helm lint helm/web -f helm/web/values-staging.yaml
+          helm lint helm/userdocs -f helm/userdocs/values-staging.yaml
           helm lint helm/postgres -f helm/postgres/values-staging.yaml
           # Verify no Ingress resources are generated for staging
           if helm template api-staging helm/api -f helm/api/values-staging.yaml | grep -q "kind: Ingress"; then
@@ -70,6 +71,10 @@ jobs:
           fi
           if helm template web-staging helm/web -f helm/web/values-staging.yaml | grep -q "kind: Ingress"; then
             echo "ERROR: Staging Web chart should not generate Ingress resources"
+            exit 1
+          fi
+          if helm template userdocs-staging helm/userdocs -f helm/userdocs/values-staging.yaml | grep -q "kind: Ingress"; then
+            echo "ERROR: Staging User Docs chart should not generate Ingress resources"
             exit 1
           fi
           echo "All staging Helm charts validated"
@@ -119,6 +124,23 @@ jobs:
       - name: Rollback Web on failure
         if: failure() && steps.web-rollout.outcome == 'failure'
         run: helm rollback web-staging -n ownpulse-staging
+
+      - name: Deploy User Docs (staging)
+        env:
+          IMAGE_TAG: ${{ steps.tag.outputs.tag }}
+        run: >
+          helm upgrade --install userdocs-staging helm/userdocs
+          -n ownpulse-staging
+          -f helm/userdocs/values-staging.yaml
+          --set "image.tag=$IMAGE_TAG"
+
+      - name: Verify User Docs rollout
+        id: userdocs-rollout
+        run: kubectl rollout status deployment/userdocs-staging-ownpulse-userdocs -n ownpulse-staging --timeout=120s
+
+      - name: Rollback User Docs on failure
+        if: failure() && steps.userdocs-rollout.outcome == 'failure'
+        run: helm rollback userdocs-staging -n ownpulse-staging
 
       - name: Register Tailscale Serve for staging
         run: |

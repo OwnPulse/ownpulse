@@ -1,0 +1,38 @@
+site_name: OwnPulse Docs
+site_url: https://docs.ownpulse.health
+site_description: User documentation for OwnPulse health data platform
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.sections
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Login & Account Setup: login.md
+  - Manual Data Entry: data-entry.md
+  - Apple Health: apple-health.md
+  - Integrations: integrations.md
+  - Data Export: export.md
+  - Sleep Tracking: sleep.md
+  - Settings & Account: settings.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - toc:
+      permalink: true
