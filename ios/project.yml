@@ -24,6 +24,8 @@ targets:
       configs:
         Debug:
           xcconfig: OwnPulse/Config/Debug.xcconfig
+        Staging:
+          xcconfig: OwnPulse/Config/Staging.xcconfig
         Release:
           xcconfig: OwnPulse/Config/Release.xcconfig
     dependencies:
@@ -66,3 +68,17 @@ schemes:
       config: Debug
     archive:
       config: Release
+  OwnPulse-Staging:
+    build:
+      targets:
+        OwnPulse: all
+        OwnPulseTests: [test]
+    test:
+      targets:
+        - OwnPulseTests
+      commandLineArguments:
+        "-com.apple.CoreData.ConcurrencyDebug": "1"
+    run:
+      config: Staging
+    archive:
+      config: Staging

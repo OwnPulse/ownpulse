@@ -1,0 +1,11 @@
+# Staging overrides — Tailscale-only, no public ingress.
+ingress:
+  enabled: false
+
+resources:
+  requests:
+    memory: "32Mi"
+    cpu: "25m"
+  limits:
+    memory: "64Mi"
+    cpu: "100m"
