@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "postgres.fullname" . }}-initdb
+  labels:
+    {{- include "postgres.labels" . | nindent 4 }}
+data:
+  01-create-app-role.sql: |
+    -- Create a non-superuser role for the application.
+    -- In production, DATABASE_URL should use ownpulse_app instead of the
+    -- superuser. Migrations still run as superuser; normal API traffic uses
+    -- this least-privilege role.
+    --
+    -- TODO: source password from APP_ROLE_PASSWORD env var via sealed secret
+    --       instead of the Helm value. For now this bootstraps the role.
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ownpulse_app') THEN
+        CREATE ROLE ownpulse_app WITH LOGIN PASSWORD '{{ .Values.appRolePassword | default "changeme" }}';
+      END IF;
+    END
+    $$;
+
+    -- Grant necessary permissions on the ownpulse database
+    GRANT CONNECT ON DATABASE ownpulse TO ownpulse_app;
+    GRANT USAGE ON SCHEMA public TO ownpulse_app;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ownpulse_app;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ownpulse_app;
+    GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ownpulse_app;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO ownpulse_app;

@@ -17,3 +17,8 @@ resources:
   limits:
     memory: 512Mi
     cpu: 500m
+
+# Non-superuser application role password.
+# In production, set via sealed secret (add APP_ROLE_PASSWORD to the
+# ownpulse-postgres-secrets SealedSecret in the infra repo).
+appRolePassword: "changeme"
