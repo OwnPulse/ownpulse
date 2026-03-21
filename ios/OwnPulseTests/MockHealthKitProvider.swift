@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import HealthKit
+@testable import OwnPulse
 
 final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
     var authorizationRequested = false
