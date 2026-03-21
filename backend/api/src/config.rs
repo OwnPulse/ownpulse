@@ -164,6 +164,8 @@ mod tests {
             dexcom_client_secret: None,
             encryption_key: default_encryption_key(),
             encryption_key_previous: None,
+            google_token_url: default_google_token_url(),
+            google_userinfo_url: default_google_userinfo_url(),
             storage_path: None,
             app_user: None,
             app_password_hash: None,

@@ -319,6 +319,7 @@ async fn test_google_callback_ios_redirects_to_custom_scheme() {
         dexcom_client_secret: None,
         encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
             .to_string(),
+        encryption_key_previous: None,
         storage_path: None,
         app_user: None,
         app_password_hash: None,
@@ -419,6 +420,7 @@ async fn test_google_callback_web_redirects_with_cookies() {
         dexcom_client_secret: None,
         encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
             .to_string(),
+        encryption_key_previous: None,
         storage_path: None,
         app_user: None,
         app_password_hash: None,
@@ -514,6 +516,7 @@ async fn test_google_callback_rejects_mismatched_csrf_state() {
         dexcom_client_secret: None,
         encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
             .to_string(),
+        encryption_key_previous: None,
         storage_path: None,
         app_user: None,
         app_password_hash: None,
