@@ -110,7 +110,7 @@ pub async fn logout(
     let mut response = StatusCode::NO_CONTENT.into_response();
     response
         .headers_mut()
-        .insert(SET_COOKIE, clear_cookie.parse().unwrap());
+        .insert(SET_COOKIE, clear_cookie.parse().expect("static cookie string"));
     Ok(response)
 }
 
@@ -199,11 +199,11 @@ pub async fn google_callback(
 
     let redirect_url = if is_ios {
         format!(
-            "ownpulse://auth?token={}&refresh_token={}",
+            "ownpulse://auth#token={}&refresh_token={}",
             access_token, raw_token
         )
     } else {
-        format!("{}/?token={}", state.config.web_origin, access_token)
+        format!("{}/#token={}", state.config.web_origin, access_token)
     };
 
     let mut response = Redirect::to(&redirect_url).into_response();
@@ -211,7 +211,7 @@ pub async fn google_callback(
     if !is_ios {
         response
             .headers_mut()
-            .insert(SET_COOKIE, cookie.parse().unwrap());
+            .insert(SET_COOKIE, cookie.parse().expect("static cookie string"));
     }
     Ok(response)
 }
@@ -249,6 +249,6 @@ async fn issue_tokens(state: &AppState, user_id: Uuid) -> Result<Response, ApiEr
     let mut response = (StatusCode::OK, Json(token_response)).into_response();
     response
         .headers_mut()
-        .insert(SET_COOKIE, cookie.parse().unwrap());
+        .insert(SET_COOKIE, cookie.parse().expect("static cookie string"));
     Ok(response)
 }

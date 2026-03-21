@@ -35,24 +35,11 @@ pub async fn find_or_create_google_user(
     email: &str,
     username: &str,
 ) -> Result<UserRow, sqlx::Error> {
-    let existing = sqlx::query_as::<_, UserRow>(
-        "SELECT id, username, password_hash, auth_provider, email,
-                data_region, federation_id, created_at
-         FROM users WHERE email = $1 AND auth_provider = 'google'",
-    )
-    .bind(email)
-    .fetch_optional(pool)
-    .await?;
-
-    if let Some(user) = existing {
-        return Ok(user);
-    }
-
     sqlx::query_as::<_, UserRow>(
-        "INSERT INTO users (username, auth_provider, email)
-         VALUES ($1, 'google', $2)
-         RETURNING id, username, password_hash, auth_provider, email,
-                   data_region, federation_id, created_at",
+        "INSERT INTO users (username, email, auth_provider)
+         VALUES ($1, $2, 'google')
+         ON CONFLICT (email, auth_provider) DO UPDATE SET email = EXCLUDED.email
+         RETURNING *",
     )
     .bind(username)
     .bind(email)
