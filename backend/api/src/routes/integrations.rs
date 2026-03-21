@@ -25,7 +25,15 @@ pub async fn list(
 ) -> Result<Json<Vec<IntegrationStatus>>, ApiError> {
     let key = crypto::parse_encryption_key(&state.config.encryption_key)
         .map_err(|e| ApiError::Internal(format!("bad encryption key config: {e}")))?;
-    let tokens = db::list_for_user(&state.pool, user_id, &key).await?;
+    let prev_key = state
+        .config
+        .encryption_key_previous
+        .as_ref()
+        .map(|k| crypto::parse_encryption_key(k))
+        .transpose()
+        .map_err(|e| ApiError::Internal(format!("bad previous encryption key config: {e}")))?;
+    let tokens =
+        db::list_for_user(&state.pool, user_id, &key, prev_key.as_ref()).await?;
     let statuses = tokens
         .into_iter()
         .map(|t| IntegrationStatus {

@@ -34,10 +34,11 @@ pub struct IntegrationStatus {
 fn decrypt_row(
     row: &mut IntegrationTokenRow,
     key: &[u8; 32],
+    previous_key: Option<&[u8; 32]>,
 ) -> Result<(), crypto::CryptoError> {
-    row.access_token = crypto::decrypt(&row.access_token, key)?;
+    row.access_token = crypto::decrypt(&row.access_token, key, previous_key)?;
     if let Some(ref rt) = row.refresh_token {
-        row.refresh_token = Some(crypto::decrypt(rt, key)?);
+        row.refresh_token = Some(crypto::decrypt(rt, key, previous_key)?);
     }
     Ok(())
 }
@@ -47,6 +48,7 @@ pub async fn list_for_user(
     pool: &PgPool,
     user_id: Uuid,
     encryption_key: &[u8; 32],
+    previous_key: Option<&[u8; 32]>,
 ) -> Result<Vec<IntegrationTokenRow>, sqlx::Error> {
     let mut rows = sqlx::query_as::<_, IntegrationTokenRow>(
         "SELECT id, user_id, source, access_token, refresh_token,
@@ -60,7 +62,7 @@ pub async fn list_for_user(
     .await?;
 
     for row in &mut rows {
-        decrypt_row(row, encryption_key).map_err(|e| {
+        decrypt_row(row, encryption_key, previous_key).map_err(|e| {
             tracing::error!(error = %e, user_id = %user_id, source = %row.source, "failed to decrypt integration token");
             sqlx::Error::Protocol(format!("token decryption failed: {e}"))
         })?;
