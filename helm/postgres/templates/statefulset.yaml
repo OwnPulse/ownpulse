@@ -15,10 +15,31 @@ spec:
       labels:
         {{- include "postgres.selectorLabels" . | nindent 8 }}
     spec:
+      initContainers:
+        - name: generate-tls
+          image: alpine/openssl:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              openssl req -x509 -newkey rsa:2048 -days 3650 -nodes \
+                -keyout /tls/server.key -out /tls/server.crt \
+                -subj "/CN=postgres"
+              chmod 600 /tls/server.key
+              chown 999:999 /tls/server.key /tls/server.crt
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /tls
       containers:
         - name: postgres
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "-c"
+            - "ssl=on"
+            - "-c"
+            - "ssl_cert_file=/tls/server.crt"
+            - "-c"
+            - "ssl_key_file=/tls/server.key"
           ports:
             - name: postgres
               containerPort: 5432
@@ -42,6 +63,18 @@ spec:
             - name: data
               mountPath: /var/lib/postgresql/data
               subPath: pgdata
+            - name: tls-certs
+              mountPath: /tls
+              readOnly: true
+            - name: initdb
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+      volumes:
+        - name: tls-certs
+          emptyDir: {}
+        - name: initdb
+          configMap:
+            name: {{ include "postgres.fullname" . }}-initdb
   volumeClaimTemplates:
     - metadata:
         name: data
