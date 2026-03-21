@@ -35,8 +35,6 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
 
-      - name: Ensure namespace exists
-        run: kubectl create namespace ownpulse --dry-run=client -o yaml | kubectl apply -f -
 
       - name: Deploy Postgres (idempotent)
         run: helm upgrade --install postgres helm/postgres -n ownpulse

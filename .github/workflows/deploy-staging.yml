@@ -84,9 +84,6 @@ jobs:
           fi
           echo "All staging Helm charts validated"
 
-      - name: Ensure staging namespace exists
-        run: kubectl create namespace ownpulse-staging --dry-run=client -o yaml | kubectl apply -f -
-
       - name: Deploy Postgres (staging)
         run: >
           helm upgrade --install postgres-staging helm/postgres
