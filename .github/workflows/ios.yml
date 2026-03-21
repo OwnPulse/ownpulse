@@ -1,52 +1,24 @@
 name: iOS
 
+# Disabled until self-hosted macOS runner has Xcode installed.
+# Run manually: gh api repos/OwnPulse/ownpulse/actions/workflows/ios.yml/dispatches -f ref=main
+# Tests pass on macos-15 GitHub-hosted runner (verified 2026-03-21).
+
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "ios/**"
-      - ".github/workflows/ios.yml"
-  pull_request:
-    branches: [main]
-    paths:
-      - "ios/**"
-      - ".github/workflows/ios.yml"
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "ios/**"
+  #     - ".github/workflows/ios.yml"
+  # pull_request:
+  #   branches: [main]
+  #   paths:
+  #     - "ios/**"
+  #     - ".github/workflows/ios.yml"
 
 jobs:
-  # Self-hosted runner — runs xcodebuild directly on the host.
-  # Requires Xcode installed via xcodes (managed by nix-darwin xcode.nix).
-  # Falls through to github-hosted if this runner is offline.
-  test-self-hosted:
-    runs-on: macos-tart
-    timeout-minutes: 30
-    env:
-      PATH: "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Resolve SPM dependencies
-        working-directory: ios
-        run: >
-          xcodebuild -resolvePackageDependencies
-          -scheme OwnPulse
-          -clonedSourcePackagesDirPath .spm-cache
-
-      - name: Run Xcode tests
-        working-directory: ios
-        run: >
-          xcodebuild test
-          -scheme OwnPulse
-          -destination 'platform=iOS Simulator,name=iPhone 16'
-          -clonedSourcePackagesDirPath .spm-cache
-
-      - name: Run Maestro tests
-        run: maestro test ios/maestro/flows/
-
-  # GitHub-hosted fallback — runs when self-hosted runner is unavailable.
-  # More expensive ($0.12/min) but always available.
-  test-github-hosted:
-    if: github.event_name == 'workflow_dispatch'
+  test:
     runs-on: macos-15
     timeout-minutes: 30
     steps:
