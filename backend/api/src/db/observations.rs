@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use chrono::NaiveDate;
+
 use crate::models::observation::{CreateObservation, ObservationRow};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -47,6 +49,33 @@ pub async fn list(
     )
     .bind(user_id)
     .bind(obs_type)
+    .fetch_all(pool)
+    .await
+}
+
+/// List observations for a user filtered by type with optional date-range filters.
+pub async fn list_by_type_with_date_range(
+    pool: &PgPool,
+    user_id: Uuid,
+    obs_type: &str,
+    start: Option<NaiveDate>,
+    end: Option<NaiveDate>,
+) -> Result<Vec<ObservationRow>, sqlx::Error> {
+    sqlx::query_as::<_, ObservationRow>(
+        r#"SELECT id, user_id, type, name, start_time, end_time,
+                  value, source, metadata, created_at
+           FROM observations
+           WHERE user_id = $1
+             AND type = $2
+             AND ($3::date IS NULL OR start_time::date >= $3)
+             AND ($4::date IS NULL OR start_time::date <= $4)
+           ORDER BY start_time DESC
+           LIMIT 1000"#,
+    )
+    .bind(user_id)
+    .bind(obs_type)
+    .bind(start)
+    .bind(end)
     .fetch_all(pool)
     .await
 }

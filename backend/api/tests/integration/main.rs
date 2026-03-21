@@ -10,4 +10,5 @@ mod health_records;
 mod interventions;
 mod labs;
 mod observations;
+mod sleep;
 mod waitlist;
