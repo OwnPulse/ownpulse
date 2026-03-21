@@ -16,6 +16,9 @@ import Sources from "./pages/Sources";
 import Settings from "./pages/Settings";
 import DataEntry from "./pages/DataEntry";
 import Admin from "./pages/Admin";
+import Friends from "./pages/Friends";
+import FriendView from "./pages/FriendView";
+import ShareAccept from "./pages/ShareAccept";
 
 const queryClient = new QueryClient();
 
@@ -32,7 +35,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
               <Route path="/entry" element={<DataEntry />} />
               <Route path="/sources" element={<Sources />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/friends" element={<Friends />} />
+              <Route path="/friends/:friendId" element={<FriendView />} />
             </Route>
+            <Route path="/share/accept" element={<ShareAccept />} />
             <Route element={<AdminRoute />}>
               <Route element={<Layout />}>
                 <Route path="/admin" element={<Admin />} />
