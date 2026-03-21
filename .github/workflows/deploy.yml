@@ -152,10 +152,47 @@ jobs:
         run: |
           STAGING_API_IP=$(kubectl get svc api-staging-ownpulse-api -n ownpulse-staging -o jsonpath='{.spec.clusterIP}')
           STAGING_WEB_IP=$(kubectl get svc web-staging-ownpulse-web -n ownpulse-staging -o jsonpath='{.spec.clusterIP}')
-          tailscale serve --https=8444 off 2>/dev/null || true
-          tailscale serve --bg --https=8444 "http://$STAGING_API_IP:80"
-          tailscale serve --https=8445 off 2>/dev/null || true
-          tailscale serve --bg --https=8445 "http://$STAGING_WEB_IP:80"
+
+          # Configure tailscale serve on the host via a Job with hostNetwork
+          # and the tailscale socket mounted. The serve config persists in the
+          # tailscale daemon — the Job can exit after configuring it.
+          kubectl delete job tailscale-serve-staging -n ownpulse-staging --ignore-not-found
+          cat <<ENDOFYAML | kubectl apply -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: tailscale-serve-staging
+            namespace: ownpulse-staging
+          spec:
+            ttlSecondsAfterFinished: 60
+            template:
+              spec:
+                hostNetwork: true
+                restartPolicy: Never
+                volumes:
+                  - name: tailscale-socket
+                    hostPath:
+                      path: /var/run/tailscale
+                containers:
+                  - name: serve
+                    image: ghcr.io/tailscale/tailscale:latest
+                    volumeMounts:
+                      - name: tailscale-socket
+                        mountPath: /var/run/tailscale
+                    command: ["/bin/sh", "-c"]
+                    args:
+                      - |
+                        tailscale serve --https=8444 off 2>/dev/null || true
+                        tailscale serve --bg --https=8444 http://${STAGING_API_IP}:80
+                        tailscale serve --https=8445 off 2>/dev/null || true
+                        tailscale serve --bg --https=8445 http://${STAGING_WEB_IP}:80
+                    env:
+                      - name: STAGING_API_IP
+                        value: "${STAGING_API_IP}"
+                      - name: STAGING_WEB_IP
+                        value: "${STAGING_WEB_IP}"
+          ENDOFYAML
+          kubectl wait --for=condition=complete job/tailscale-serve-staging -n ownpulse-staging --timeout=60s
           echo "Staging API: https://ownpulse-us.zorse-snake.ts.net:8444"
           echo "Staging Web: https://ownpulse-us.zorse-snake.ts.net:8445"
 
