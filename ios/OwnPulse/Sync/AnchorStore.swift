@@ -11,6 +11,12 @@ struct SyncAnchorRecord: Codable, FetchableRecord, PersistableRecord {
     let anchorData: Data
     let updatedAt: Date
 
+    enum CodingKeys: String, CodingKey {
+        case recordType = "record_type"
+        case anchorData = "anchor_data"
+        case updatedAt = "updated_at"
+    }
+
     enum Columns: String, ColumnExpression {
         case recordType = "record_type"
         case anchorData = "anchor_data"

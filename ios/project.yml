@@ -1,4 +1,10 @@
 name: OwnPulse
+
+configs:
+  Debug: debug
+  Staging: release
+  Release: release
+
 options:
   bundleIdPrefix: health.ownpulse
   deploymentTarget:
@@ -21,6 +27,8 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
         ENABLE_HARDENED_RUNTIME: YES
         DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
       configs:
         Debug:
           xcconfig: OwnPulse/Config/Debug.xcconfig
@@ -47,6 +55,7 @@ targets:
       base:
         SWIFT_VERSION: "6.0"
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        GENERATE_INFOPLIST_FILE: YES
 
 packages:
   GRDB:

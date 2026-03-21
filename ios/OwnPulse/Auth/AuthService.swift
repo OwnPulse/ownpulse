@@ -5,6 +5,7 @@ import AuthenticationServices
 import Foundation
 import Observation
 
+@MainActor
 protocol AuthServiceProtocol: Sendable {
     var isAuthenticated: Bool { get }
     func login() async throws
