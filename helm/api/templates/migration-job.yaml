@@ -15,6 +15,10 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "ownpulse-api.name" . }}-migrate
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       restartPolicy: Never
       containers:
         - name: migrate
