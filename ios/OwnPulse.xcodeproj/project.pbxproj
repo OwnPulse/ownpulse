@@ -15,6 +15,7 @@
 		29D6DD6A5FFAD5FD2B951CD9 /* APIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */; };
 		2DD65D3B1A369A99B888317D /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4245A1A03B84BDF2DF58525 /* APIModels.swift */; };
 		4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CF4D7068AEF598DB5632A8 /* SleepChartView.swift */; };
+		57EE1C7CC900455D2ADB35D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 768780B3383F621DD4B4996C /* Assets.xcassets */; };
 		669E3589FB26EF4E8DE81475 /* HealthKitProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */; };
 		6CE29FC72945FB6FFDD8EFB9 /* AppDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A331F016221490E34041F5 /* AppDependencies.swift */; };
 		6D4B93AFBD5E73E73A0D59CE /* HealthKitTypeMapTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3CF51E74D2A5D23EB666510 /* HealthKitTypeMapTests.swift */; };
@@ -59,6 +60,7 @@
 		649703259D6C4F6BFE3BB74D /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		7351C0E5E3BB61A29712219B /* NetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkClient.swift; sourceTree = "<group>"; };
 		743F8866BD3B373594525752 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		768780B3383F621DD4B4996C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7EB1A978FF07FCBCFF5DFBDC /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JWTDecoderTests.swift; sourceTree = "<group>"; };
 		86CE06D7E9EFE8AF5DE5E74A /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
@@ -112,6 +114,7 @@
 		11968815857BFCFD78991B25 /* OwnPulse */ = {
 			isa = PBXGroup;
 			children = (
+				768780B3383F621DD4B4996C /* Assets.xcassets */,
 				FFBC7A34027D30D960D2A518 /* Info.plist */,
 				132911986050FB28F427C68D /* OwnPulse.entitlements */,
 				D3A8697CCEA67CF5609C947B /* App */,
@@ -243,6 +246,7 @@
 			buildConfigurationList = 67C985EB67F04A41F29F803B /* Build configuration list for PBXNativeTarget "OwnPulse" */;
 			buildPhases = (
 				94AF5184FD5CFE7680E87C88 /* Sources */,
+				9D1F56861E263BFB04BDB4CC /* Resources */,
 				D8AE49766853A512509FCBE7 /* Frameworks */,
 			);
 			buildRules = (
@@ -312,6 +316,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9D1F56861E263BFB04BDB4CC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				57EE1C7CC900455D2ADB35D9 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		94AF5184FD5CFE7680E87C88 /* Sources */ = {
