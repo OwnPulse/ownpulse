@@ -5,6 +5,7 @@
 //!
 //! SQLx query functions live here. No business logic — just data access.
 
+pub mod audit;
 pub mod checkins;
 pub mod health_records;
 pub mod healthkit;

@@ -7,7 +7,8 @@ use axum::Json;
 use uuid::Uuid;
 
 use crate::auth::extractor::AuthUser;
-use crate::db::health_records as db;
+use crate::db;
+use crate::db::health_records as db_hr;
 use crate::db::healthkit as db_healthkit;
 use crate::error::ApiError;
 use crate::models::health_record::{CreateHealthRecord, HealthRecordQuery, HealthRecordRow};
@@ -20,7 +21,7 @@ pub async fn create(
     Json(body): Json<CreateHealthRecord>,
 ) -> Result<(StatusCode, Json<HealthRecordRow>), ApiError> {
     // Check for duplicates (within 60s and 2% value tolerance from a different source)
-    let duplicate_of = match db::find_duplicate(&state.pool, user_id, &body).await {
+    let duplicate_of = match db_hr::find_duplicate(&state.pool, user_id, &body).await {
         Ok(Some(dup)) => {
             tracing::warn!(
                 user_id = %user_id,
@@ -39,7 +40,7 @@ pub async fn create(
         }
     };
 
-    let row = db::insert(&state.pool, user_id, &body, duplicate_of).await?;
+    let row = db_hr::insert(&state.pool, user_id, &body, duplicate_of).await?;
 
     // If source is not healthkit, enqueue for HealthKit write-back (non-fatal)
     if body.source != "healthkit" {
@@ -69,7 +70,7 @@ pub async fn list(
     AuthUser(user_id): AuthUser,
     Query(query): Query<HealthRecordQuery>,
 ) -> Result<Json<Vec<HealthRecordRow>>, ApiError> {
-    let rows = db::list(
+    let rows = db_hr::list(
         &state.pool,
         user_id,
         query.record_type.as_deref(),
@@ -87,7 +88,7 @@ pub async fn get(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<HealthRecordRow>, ApiError> {
-    let row = db::get_by_id(&state.pool, user_id, id).await?;
+    let row = db_hr::get_by_id(&state.pool, user_id, id).await?;
     Ok(Json(row))
 }
 
@@ -97,8 +98,24 @@ pub async fn delete(
     AuthUser(user_id): AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
-    let deleted = db::delete(&state.pool, user_id, id).await?;
+    let deleted = db_hr::delete(&state.pool, user_id, id).await?;
     if deleted {
+        // Fire-and-forget: audit log insert must not block or fail the response.
+        let pool = state.pool.clone();
+        tokio::spawn(async move {
+            if let Err(e) = db::audit::log_access(
+                &pool,
+                user_id,
+                "delete",
+                "health_record",
+                Some(id),
+                None,
+            )
+            .await
+            {
+                tracing::warn!(error = %e, user_id = %user_id, record_id = %id, "audit log insert failed");
+            }
+        });
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(ApiError::NotFound)
