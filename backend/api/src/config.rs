@@ -44,6 +44,11 @@ pub struct Config {
 
     #[serde(default = "default_encryption_key")]
     pub encryption_key: String,
+    /// Previous encryption key, used as fallback when decrypting legacy
+    /// (unversioned) values during key rotation. Unset once all values have
+    /// been re-encrypted with the current key.
+    #[serde(default)]
+    pub encryption_key_previous: Option<String>,
 
     #[serde(default)]
     pub storage_path: Option<String>,
@@ -145,6 +150,7 @@ mod tests {
             dexcom_client_id: None,
             dexcom_client_secret: None,
             encryption_key: default_encryption_key(),
+            encryption_key_previous: None,
             storage_path: None,
             app_user: None,
             app_password_hash: None,
