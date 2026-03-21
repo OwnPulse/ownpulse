@@ -34,5 +34,3 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Values.secret.name }}
-            - configMapRef:
-                name: {{ include "ownpulse-api.fullname" . }}
