@@ -48,6 +48,13 @@ jobs:
           ssh -o StrictHostKeyChecking=no admin@$VM_IP \
             'cd ~/workspace/ios && xcodebuild -resolvePackageDependencies -scheme OwnPulse -clonedSourcePackagesDirPath .spm-cache'
 
+      - name: Resolve SPM dependencies
+        working-directory: ios
+        run: >
+          xcodebuild -resolvePackageDependencies
+          -scheme OwnPulse
+          -clonedSourcePackagesDirPath .spm-cache
+
       - name: Run Xcode tests
         run: |
           ssh -o StrictHostKeyChecking=no admin@$VM_IP \

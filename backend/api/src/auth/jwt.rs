@@ -36,10 +36,12 @@ pub fn decode_access_token(
     token: &str,
     secret: &str,
 ) -> Result<Claims, jsonwebtoken::errors::Error> {
+    let mut validation = Validation::new(jsonwebtoken::Algorithm::HS256);
+    validation.validate_exp = true;
     let token_data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &validation,
     )?;
     Ok(token_data.claims)
 }

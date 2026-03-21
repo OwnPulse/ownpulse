@@ -32,6 +32,8 @@ fn test_config(database_url: &str) -> api::config::Config {
         google_client_id: None,
         google_client_secret: None,
         google_redirect_uri: None,
+        google_token_url: "https://oauth2.googleapis.com/token".to_string(),
+        google_userinfo_url: "https://www.googleapis.com/oauth2/v3/userinfo".to_string(),
         garmin_client_id: None,
         garmin_client_secret: None,
         oura_client_id: None,

@@ -27,6 +27,11 @@ pub struct Config {
     #[serde(default)]
     pub google_redirect_uri: Option<String>,
 
+    #[serde(default = "default_google_token_url")]
+    pub google_token_url: String,
+    #[serde(default = "default_google_userinfo_url")]
+    pub google_userinfo_url: String,
+
     #[serde(default)]
     pub garmin_client_id: Option<String>,
     #[serde(default)]
@@ -92,6 +97,14 @@ fn default_web_origin() -> String {
     "http://localhost:5173".to_string()
 }
 
+fn default_google_token_url() -> String {
+    "https://oauth2.googleapis.com/token".to_string()
+}
+
+fn default_google_userinfo_url() -> String {
+    "https://www.googleapis.com/oauth2/v3/userinfo".to_string()
+}
+
 fn default_rust_log() -> String {
     "info".to_string()
 }
@@ -151,6 +164,8 @@ mod tests {
             dexcom_client_secret: None,
             encryption_key: default_encryption_key(),
             encryption_key_previous: None,
+            google_token_url: default_google_token_url(),
+            google_userinfo_url: default_google_userinfo_url(),
             storage_path: None,
             app_user: None,
             app_password_hash: None,

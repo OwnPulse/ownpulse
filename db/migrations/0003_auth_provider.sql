@@ -6,3 +6,5 @@
 ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
 ALTER TABLE users ADD COLUMN auth_provider TEXT NOT NULL DEFAULT 'local';
 ALTER TABLE users ADD COLUMN email TEXT;
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_auth_provider_idx ON users (email, auth_provider);
