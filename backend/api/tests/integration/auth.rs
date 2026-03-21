@@ -361,7 +361,7 @@ async fn test_google_callback_ios_redirects_to_custom_scheme() {
         .unwrap();
 
     assert!(
-        location.starts_with("ownpulse://auth?"),
+        location.starts_with("ownpulse://auth#"),
         "expected custom scheme redirect, got: {location}"
     );
     assert!(
@@ -462,7 +462,7 @@ async fn test_google_callback_web_redirects_to_web_origin() {
         .unwrap();
 
     assert!(
-        location.starts_with("http://localhost:5173/?token="),
+        location.starts_with("http://localhost:5173/#token="),
         "expected web origin redirect, got: {location}"
     );
 
