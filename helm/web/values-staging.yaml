@@ -5,7 +5,7 @@ ingress:
   className: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-dns01
-    nginx.ingress.kubernetes.io/whitelist-source-range: "100.64.0.0/10"
+
   host: app.staging.ownpulse.health
   tls:
     enabled: true
