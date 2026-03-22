@@ -550,6 +550,14 @@ pub async fn unlink_auth(
             .map_err(ApiError::from)?;
 
     if rows_deleted == 0 {
+        // Distinguish "last method" from "provider not linked":
+        // delete_if_not_last returns 0 for both cases.
+        let methods = user_auth_methods::list_for_user(&state.pool, auth_user.id)
+            .await
+            .map_err(ApiError::from)?;
+        if methods.len() > 1 {
+            return Err(ApiError::NotFoundMsg("provider not linked".into()));
+        }
         return Err(ApiError::BadRequest(
             "cannot remove your only login method".into(),
         ));

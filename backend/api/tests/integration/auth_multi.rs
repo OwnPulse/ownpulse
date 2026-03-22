@@ -906,3 +906,89 @@ async fn test_unauthenticated_unlink_returns_401() {
         "DELETE /auth/link/:provider without JWT should return 401"
     );
 }
+
+// ---------------------------------------------------------------------------
+// S2: link_auth with "google" returns 400 (not yet supported)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_link_google_returns_not_yet_supported() {
+    let test_app = common::setup().await;
+    let (_, token) = common::create_test_user(&test_app).await;
+
+    let response = test_app
+        .app
+        .oneshot(auth_post(
+            "/api/v1/auth/link",
+            &token,
+            &json!({"provider": "google"}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        400,
+        "linking Google should return 400 (not yet supported)"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// S3: link_auth with short password returns 400
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_link_local_short_password_returns_400() {
+    let test_app = common::setup().await;
+    let (_, token) = common::create_test_user(&test_app).await;
+
+    let response = test_app
+        .app
+        .oneshot(auth_post(
+            "/api/v1/auth/link",
+            &token,
+            &json!({"provider": "local", "password": "short"}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        400,
+        "password shorter than 8 characters should return 400"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// S4: unlink a provider the user doesn't have returns 404
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_unlink_nonexistent_provider_returns_404() {
+    let test_app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&test_app).await;
+
+    // Give the user a second method so the "last method" guard doesn't trigger.
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email) VALUES ($1, 'google', $2, $3)",
+    )
+    .bind(user_id)
+    .bind("google-sub-nonexistent")
+    .bind("nonexistent@example.com")
+    .execute(&test_app.pool)
+    .await
+    .unwrap();
+
+    // Try to unlink 'apple' which the user doesn't have.
+    let response = test_app
+        .app
+        .oneshot(auth_delete("/api/v1/auth/link/apple", &token))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        404,
+        "unlinking a provider the user doesn't have should return 404"
+    );
+}

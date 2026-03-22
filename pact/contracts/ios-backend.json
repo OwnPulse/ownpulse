@@ -88,6 +88,109 @@
       "response": {
         "status": 204
       }
+    },
+    {
+      "description": "a request to authenticate via Apple Sign-In callback",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/apple/callback",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id_token": "some-apple-id-token",
+          "platform": "ios"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "access_token": "some-jwt-token",
+          "refresh_token": "some-refresh-token",
+          "token_type": "Bearer",
+          "expires_in": 3600
+        }
+      }
+    },
+    {
+      "description": "a request to list linked auth methods",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/auth/methods",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "some-uuid",
+            "provider": "apple",
+            "email": "user@example.com",
+            "created_at": "2026-03-20T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to link a new auth provider",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/link",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "provider": "local",
+          "password": "securepassword123"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "some-uuid",
+            "provider": "local",
+            "email": null,
+            "created_at": "2026-03-20T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to unlink an auth provider",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/auth/link/google",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "some-uuid",
+            "provider": "apple",
+            "email": "user@example.com",
+            "created_at": "2026-03-20T10:00:00Z"
+          }
+        ]
+      }
     }
   ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }
