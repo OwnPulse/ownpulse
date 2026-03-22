@@ -75,39 +75,6 @@ pub async fn update_user_role(
     .await
 }
 
-/// Ensure at least one admin exists. If `app_username` is provided, promote
-/// that user to admin. Otherwise, if no admin exists, promote the earliest user.
-pub async fn ensure_admin_exists(
-    pool: &PgPool,
-    app_username: Option<&str>,
-) -> Result<(), sqlx::Error> {
-    if let Some(username) = app_username {
-        sqlx::query("UPDATE users SET role = 'admin' WHERE username = $1")
-            .bind(username)
-            .execute(pool)
-            .await?;
-        return Ok(());
-    }
-
-    // Check if any admin exists
-    let admin_count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM users WHERE role = 'admin'")
-            .fetch_one(pool)
-            .await?;
-
-    if admin_count.0 == 0 {
-        // Promote the earliest user
-        sqlx::query(
-            "UPDATE users SET role = 'admin'
-             WHERE id = (SELECT id FROM users ORDER BY created_at LIMIT 1)",
-        )
-        .execute(pool)
-        .await?;
-    }
-
-    Ok(())
-}
-
 /// Delete a user and all their data from child tables, then the user row.
 pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
