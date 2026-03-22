@@ -29,6 +29,7 @@
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
     "@playwright/test": "^1.45.0",
+    "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.0.0",
     "@types/react": "^18.3.0",

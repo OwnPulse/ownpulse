@@ -74,5 +74,8 @@ export async function getAuthMethods(): Promise<AuthMethod[]> {
 }
 
 export async function unlinkAuth(provider: string): Promise<AuthMethod[]> {
+  if (!/^[a-z]+$/.test(provider)) {
+    throw new Error(`Invalid provider: ${provider}`);
+  }
   return api.delete<AuthMethod[]>(`/api/v1/auth/link/${provider}`);
 }

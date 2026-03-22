@@ -39,7 +39,7 @@ function LinkedAccounts() {
   });
 
   const handleUnlink = (provider: string) => {
-    if (!window.confirm(`Unlink ${provider}? You won't be able to log in with it anymore.`)) {
+    if (!window.confirm(`Unlink ${providerDisplayName(provider)}? You won't be able to log in with it anymore.`)) {
       return;
     }
     unlinkMutation.mutate(provider);

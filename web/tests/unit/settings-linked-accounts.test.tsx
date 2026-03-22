@@ -6,7 +6,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { setupServer } from "msw/node";
-import { http, HttpResponse } from "msw";
+import { http, HttpResponse, delay } from "msw";
 import { useAuthStore } from "../../src/store/auth";
 import type { AuthMethod } from "../../src/api/auth";
 
@@ -45,6 +45,22 @@ async function renderSettings() {
 describe("Settings — Linked Accounts", () => {
   beforeEach(() => {
     useAuthStore.setState({ token: TOKEN, isAuthenticated: true });
+  });
+
+  it("shows Loading... while auth methods are being fetched", async () => {
+    server.use(
+      http.get("/api/v1/auth/methods", async () => {
+        await delay("infinite");
+        return HttpResponse.json([]);
+      }),
+    );
+
+    await renderSettings();
+
+    // Both "Source Preferences" and "Linked Accounts" sections show Loading...
+    // Verify at least two Loading indicators, confirming Linked Accounts has one
+    const loadingElements = screen.getAllByText("Loading...");
+    expect(loadingElements.length).toBeGreaterThanOrEqual(2);
   });
 
   it("shows linked accounts list", async () => {

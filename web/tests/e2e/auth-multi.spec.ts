@@ -24,6 +24,18 @@ test.describe("Apple Sign-In button", () => {
     await expect(appleLink).toBeVisible();
     await expect(appleLink).toHaveAttribute("href", "/api/v1/auth/apple/login");
   });
+
+  test("clicking Apple link initiates navigation to /api/v1/auth/apple/login", async ({ page }) => {
+    await page.goto("/login");
+
+    // Intercept navigation to the Apple auth endpoint
+    const [request] = await Promise.all([
+      page.waitForRequest((req) => req.url().includes("/api/v1/auth/apple/login")),
+      page.getByRole("link", { name: /sign in with apple/i }).click(),
+    ]);
+
+    expect(request.url()).toContain("/api/v1/auth/apple/login");
+  });
 });
 
 test.describe("Linked Accounts", () => {

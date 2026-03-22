@@ -56,4 +56,68 @@ describe("auth multi-provider API", () => {
     expect(capturedProvider).toBe("apple");
     expect(result).toEqual(remaining);
   });
+
+  it("getAuthMethods throws on 401 and triggers logout", async () => {
+    server.use(
+      http.get("/api/v1/auth/methods", () =>
+        new HttpResponse("Unauthorized", { status: 401 }),
+      ),
+    );
+
+    const { getAuthMethods } = await import("../../src/api/auth");
+
+    await expect(getAuthMethods()).rejects.toThrow("Unauthorized");
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it("getAuthMethods throws ApiError on 500", async () => {
+    server.use(
+      http.get("/api/v1/auth/methods", () =>
+        new HttpResponse("Internal Server Error", { status: 500 }),
+      ),
+    );
+
+    const { getAuthMethods } = await import("../../src/api/auth");
+
+    await expect(getAuthMethods()).rejects.toMatchObject({
+      name: "ApiError",
+      status: 500,
+    });
+  });
+
+  it("unlinkAuth throws on 401 and triggers logout", async () => {
+    server.use(
+      http.delete("/api/v1/auth/link/:provider", () =>
+        new HttpResponse("Unauthorized", { status: 401 }),
+      ),
+    );
+
+    const { unlinkAuth } = await import("../../src/api/auth");
+
+    await expect(unlinkAuth("google")).rejects.toThrow("Unauthorized");
+    expect(useAuthStore.getState().isAuthenticated).toBe(false);
+  });
+
+  it("unlinkAuth throws ApiError on 500", async () => {
+    server.use(
+      http.delete("/api/v1/auth/link/:provider", () =>
+        new HttpResponse("Server error", { status: 500 }),
+      ),
+    );
+
+    const { unlinkAuth } = await import("../../src/api/auth");
+
+    await expect(unlinkAuth("google")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 500,
+    });
+  });
+
+  it("unlinkAuth throws on invalid provider name", async () => {
+    const { unlinkAuth } = await import("../../src/api/auth");
+
+    await expect(unlinkAuth("goo gle")).rejects.toThrow("Invalid provider");
+    await expect(unlinkAuth("../admin")).rejects.toThrow("Invalid provider");
+    await expect(unlinkAuth("GOOGLE")).rejects.toThrow("Invalid provider");
+  });
 });
