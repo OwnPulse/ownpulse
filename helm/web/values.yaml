@@ -25,6 +25,9 @@ ingress:
     enabled: true
     secretName: ownpulse-web-tls
 
+env:
+  API_UPSTREAM: api-ownpulse-api:80
+
 resources:
   requests:
     memory: "32Mi"

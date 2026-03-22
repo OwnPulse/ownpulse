@@ -10,6 +10,9 @@ ingress:
     enabled: true
     secretName: staging-web-tls
 
+env:
+  API_UPSTREAM: api-staging-ownpulse-api:80
+
 resources:
   requests:
     memory: "32Mi"
