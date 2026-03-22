@@ -4,13 +4,56 @@
 import AuthenticationServices
 import SwiftUI
 
+enum LoginMethod: Sendable {
+    case apple, google, password
+}
+
+@Observable
+@MainActor
+final class LoginViewModel {
+    var username = ""
+    var password = ""
+    var loadingMethod: LoginMethod?
+    var errorMessage: String?
+
+    private let authService: AuthServiceProtocol
+
+    init(authService: AuthServiceProtocol) {
+        self.authService = authService
+    }
+
+    var isLoading: Bool { loadingMethod != nil }
+
+    func performLogin(_ method: LoginMethod) {
+        guard loadingMethod == nil else { return }
+        loadingMethod = method
+        errorMessage = nil
+
+        Task {
+            do {
+                switch method {
+                case .apple:
+                    try await authService.loginWithApple()
+                case .google:
+                    try await authService.loginWithGoogle()
+                case .password:
+                    try await authService.loginWithPassword(
+                        username: username,
+                        password: password
+                    )
+                    password = ""
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+            loadingMethod = nil
+        }
+    }
+}
+
 struct LoginView: View {
     @Environment(AppDependencies.self) private var dependencies
-
-    @State private var username = ""
-    @State private var password = ""
-    @State private var loadingMethod: LoginMethod?
-    @State private var errorMessage: String?
+    @State private var viewModel: LoginViewModel?
 
     var body: some View {
         ScrollView {
@@ -30,127 +73,112 @@ struct LoginView: View {
 
                 Spacer(minLength: 32)
 
-                VStack(spacing: 12) {
-                    Button {
-                        performLogin(.apple)
-                    } label: {
-                        HStack(spacing: 6) {
-                            if loadingMethod == .apple {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Image(systemName: "apple.logo")
-                            }
-                            Text("Sign in with Apple")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(.black)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                if let vm = viewModel {
+                    loginButtons(vm: vm)
+                    dividerRow()
+                    passwordFields(vm: vm)
+
+                    if let errorMessage = vm.errorMessage {
+                        Text(errorMessage)
+                            .foregroundStyle(.red)
+                            .font(.caption)
+                            .multilineTextAlignment(.center)
+                            .accessibilityIdentifier("loginError")
                     }
-                    .disabled(loadingMethod != nil)
-                    .accessibilityIdentifier("appleSignInButton")
-
-                    Button {
-                        performLogin(.google)
-                    } label: {
-                        HStack {
-                            if loadingMethod == .google {
-                                ProgressView()
-                                    .tint(.white)
-                            }
-                            Text("Sign in with Google")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(.blue)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .disabled(loadingMethod != nil)
-                    .accessibilityIdentifier("googleSignInButton")
-                }
-
-                dividerRow()
-
-                VStack(spacing: 12) {
-                    TextField("Username", text: $username)
-                        .textContentType(.username)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("usernameField")
-
-                    SecureField("Password", text: $password)
-                        .textContentType(.password)
-                        .textFieldStyle(.roundedBorder)
-                        .accessibilityIdentifier("passwordField")
-
-                    Button {
-                        performLogin(.password)
-                    } label: {
-                        Group {
-                            if loadingMethod == .password {
-                                ProgressView()
-                                    .tint(.white)
-                            } else {
-                                Text("Sign In")
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50)
-                        .background(.primary)
-                        .foregroundStyle(.background)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-                    .disabled(loadingMethod != nil || username.isEmpty || password.isEmpty)
-                    .accessibilityIdentifier("passwordSignInButton")
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .foregroundStyle(.red)
-                        .font(.caption)
-                        .multilineTextAlignment(.center)
-                        .accessibilityIdentifier("loginError")
                 }
 
                 Spacer(minLength: 24)
             }
             .padding(.horizontal, 24)
         }
+        .onAppear {
+            if viewModel == nil {
+                viewModel = LoginViewModel(authService: dependencies.authService)
+            }
+        }
     }
 
     // MARK: - Private
 
-    private enum LoginMethod {
-        case apple, google, password
+    @ViewBuilder
+    private func loginButtons(vm: LoginViewModel) -> some View {
+        VStack(spacing: 12) {
+            Button {
+                vm.performLogin(.apple)
+            } label: {
+                HStack(spacing: 6) {
+                    if vm.loadingMethod == .apple {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "apple.logo")
+                    }
+                    Text("Sign in with Apple")
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(.black)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .disabled(vm.isLoading)
+            .accessibilityIdentifier("appleSignInButton")
+
+            Button {
+                vm.performLogin(.google)
+            } label: {
+                HStack {
+                    if vm.loadingMethod == .google {
+                        ProgressView()
+                            .tint(.white)
+                    }
+                    Text("Sign in with Google")
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(.blue)
+                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            }
+            .disabled(vm.isLoading)
+            .accessibilityIdentifier("googleSignInButton")
+        }
     }
 
-    private func performLogin(_ method: LoginMethod) {
-        guard loadingMethod == nil else { return }
-        loadingMethod = method
-        errorMessage = nil
+    @ViewBuilder
+    private func passwordFields(vm: LoginViewModel) -> some View {
+        VStack(spacing: 12) {
+            TextField("Username", text: Bindable(vm).username)
+                .textContentType(.username)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("usernameField")
 
-        Task {
-            do {
-                switch method {
-                case .apple:
-                    try await dependencies.authService.loginWithApple()
-                case .google:
-                    try await dependencies.authService.loginWithGoogle()
-                case .password:
-                    try await dependencies.authService.loginWithPassword(
-                        username: username,
-                        password: password
-                    )
-                    password = ""
+            SecureField("Password", text: Bindable(vm).password)
+                .textContentType(.password)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("passwordField")
+
+            Button {
+                vm.performLogin(.password)
+            } label: {
+                Group {
+                    if vm.loadingMethod == .password {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text("Sign In")
+                    }
                 }
-            } catch {
-                errorMessage = error.localizedDescription
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(.primary)
+                .foregroundStyle(.background)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            loadingMethod = nil
+            .disabled(vm.isLoading || vm.username.isEmpty || vm.password.isEmpty)
+            .accessibilityIdentifier("passwordSignInButton")
         }
     }
 

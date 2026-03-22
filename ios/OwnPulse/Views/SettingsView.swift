@@ -9,7 +9,7 @@ private let logger = Logger(subsystem: "health.ownpulse.app", category: "setting
 
 @Observable
 @MainActor
-private final class SettingsViewModel {
+final class SettingsViewModel {
     var authMethods: [AuthMethod] = []
     var isLoadingMethods = false
     var linkError: String?
@@ -181,6 +181,13 @@ struct SettingsView: View {
                         Task { await vm.linkApple() }
                     }
                     .accessibilityIdentifier("linkAppleButton")
+                }
+
+                if !vm.authMethods.contains(where: { $0.provider == "google" }) {
+                    Button("Link Google Account") {
+                        vm.linkGoogle()
+                    }
+                    .accessibilityIdentifier("linkGoogleButton")
                 }
             }
 
