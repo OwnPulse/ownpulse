@@ -1,6 +1,7 @@
 name: Backend
 
 env:
+  # Remove after OwnPulse/gh-actions docker-build-push updates to docker/login-action v4
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 on:

@@ -1,8 +1,5 @@
 name: Deploy
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 on:
   workflow_run:
     workflows: [Backend, Web, User Docs]
@@ -127,7 +124,7 @@ jobs:
 
       - name: Install Helm
         run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
       - name: Validate staging Helm charts
         run: |
@@ -189,7 +186,7 @@ jobs:
 
       - name: Install Helm
         run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
       - name: Resolve image tag for ${{ matrix.service }}
         id: tag
@@ -254,7 +251,7 @@ jobs:
 
       - name: Install Helm
         run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
       - name: Clean up stuck Postgres release (production)
         run: |
@@ -301,7 +298,7 @@ jobs:
 
       - name: Install Helm
         run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
       - name: Resolve image tag for ${{ matrix.service }}
         id: tag
