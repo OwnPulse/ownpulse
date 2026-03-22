@@ -146,9 +146,9 @@ pub async fn setup_with_config(
 pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
     let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash failed");
     let row: (Uuid,) = sqlx::query_as(
-        "INSERT INTO users (username, password_hash, auth_provider) VALUES ($1, $2, 'local') RETURNING id",
+        "INSERT INTO users (email, password_hash, auth_provider) VALUES ($1, $2, 'local') RETURNING id",
     )
-    .bind(format!("testuser-{}", Uuid::new_v4()))
+    .bind(format!("testuser-{}@example.com", Uuid::new_v4()))
     .bind(&hash)
     .fetch_one(&app.pool)
     .await

@@ -191,6 +191,191 @@
           }
         ]
       }
+    },
+    {
+      "description": "a request to list all users as admin",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/admin/users",
+        "headers": {
+          "Authorization": "Bearer some-admin-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "username": "admin",
+            "auth_provider": "local",
+            "email": "admin@example.com",
+            "role": "admin",
+            "status": "active",
+            "data_region": "us",
+            "created_at": "2026-01-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to update a user role",
+      "request": {
+        "method": "PATCH",
+        "path": "/api/v1/admin/users/550e8400-e29b-41d4-a716-446655440001/role",
+        "headers": {
+          "Authorization": "Bearer some-admin-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "role": "user"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440001",
+          "username": "testuser",
+          "auth_provider": "google",
+          "role": "user",
+          "status": "active",
+          "data_region": "us",
+          "created_at": "2026-01-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to update a user status",
+      "request": {
+        "method": "PATCH",
+        "path": "/api/v1/admin/users/550e8400-e29b-41d4-a716-446655440001/status",
+        "headers": {
+          "Authorization": "Bearer some-admin-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "status": "disabled"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440001",
+          "username": "testuser",
+          "auth_provider": "google",
+          "role": "user",
+          "status": "disabled",
+          "data_region": "us",
+          "created_at": "2026-01-01T00:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to delete a user",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/admin/users/550e8400-e29b-41d4-a716-446655440001",
+        "headers": {
+          "Authorization": "Bearer some-admin-jwt-token"
+        }
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
+      "description": "a request to list all invite codes",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/admin/invites",
+        "headers": {
+          "Authorization": "Bearer some-admin-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "660e8400-e29b-41d4-a716-446655440000",
+            "code": "ABC123DEF456",
+            "label": "Friends",
+            "max_uses": 10,
+            "use_count": 3,
+            "expires_at": null,
+            "revoked_at": null,
+            "created_at": "2026-01-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to create an invite code",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/admin/invites",
+        "headers": {
+          "Authorization": "Bearer some-admin-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "label": "Team",
+          "max_uses": 5,
+          "expires_in_hours": 24
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "660e8400-e29b-41d4-a716-446655440001",
+          "code": "XYZ789ABC012",
+          "label": "Team",
+          "max_uses": 5,
+          "use_count": 0,
+          "expires_at": "2026-03-22T00:00:00Z",
+          "revoked_at": null,
+          "created_at": "2026-03-21T00:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to revoke an invite code",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/admin/invites/660e8400-e29b-41d4-a716-446655440000",
+        "headers": {
+          "Authorization": "Bearer some-admin-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "660e8400-e29b-41d4-a716-446655440000",
+          "code": "ABC123DEF456",
+          "label": "Friends",
+          "max_uses": 10,
+          "use_count": 3,
+          "expires_at": null,
+          "revoked_at": "2026-03-21T12:00:00Z",
+          "created_at": "2026-01-01T00:00:00Z"
+        }
+      }
     }
   ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }

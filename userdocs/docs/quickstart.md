@@ -4,10 +4,13 @@ This guide walks you through your first five minutes with OwnPulse -- from signi
 
 ## Step 1: Sign in
 
-Open your OwnPulse web dashboard in a browser. You have two options:
+Open your OwnPulse web dashboard in a browser. If you have an invite link, open it to go directly to the registration page.
 
 - **Google OAuth** -- tap **Sign in with Google** and authorize OwnPulse. Your account is created automatically on first login.
-- **Username and password** -- enter the credentials provided by your instance administrator.
+- **Username and password** -- choose a username and password on the registration page, or enter existing credentials on the login page.
+
+!!! note "Invite codes"
+    Most instances require an invite code to register. If you do not have one, ask your instance administrator.
 
 ## Step 2: Set up the iOS app (optional)
 

@@ -16,6 +16,17 @@ use crate::models::friend_share::{
 };
 use crate::AppState;
 
+/// Mask an email for privacy: show first char + *** + domain.
+/// e.g., "tony@gmail.com" → "t***@gmail.com"
+fn mask_email(email: &str) -> String {
+    match email.split_once('@') {
+        Some((local, domain)) if !local.is_empty() => {
+            format!("{}***@{}", &local[..1], domain)
+        }
+        _ => "***".to_string(),
+    }
+}
+
 const VALID_DATA_TYPES: &[&str] = &[
     "checkins",
     "health_records",
@@ -49,8 +60,8 @@ pub async fn create_share(
 ) -> Result<(StatusCode, Json<FriendShareResponse>), ApiError> {
     validate_data_types(&body.data_types)?;
 
-    let (friend_id, invite_token, invite_expires_at) = if let Some(ref username) = body.friend_username {
-        let friend = db::users::find_by_username(&state.pool, username).await?;
+    let (friend_id, invite_token, invite_expires_at) = if let Some(ref email) = body.friend_email {
+        let friend = db::users::find_by_email(&state.pool, email).await?;
         if friend.id == user_id {
             return Err(ApiError::BadRequest(
                 "cannot share with yourself".to_string(),
@@ -75,16 +86,16 @@ pub async fn create_share(
     db::friend_shares::set_permissions(&state.pool, share.id, &body.data_types).await?;
 
     // Build response
-    let friend_username = body.friend_username.clone();
+    let friend_email = body.friend_email.clone();
 
     let owner = db::users::find_by_id(&state.pool, user_id).await?;
 
     let response = FriendShareResponse {
         id: share.id,
         owner_id: share.owner_id,
-        owner_username: owner.username,
+        owner_email: owner.email,
         friend_id: share.friend_id,
-        friend_username,
+        friend_email,
         status: share.status,
         invite_token: share.invite_token,
         data_types: body.data_types,
@@ -109,8 +120,14 @@ pub async fn list_incoming(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Json<Vec<FriendShareResponse>>, ApiError> {
-    let shares = db::friend_shares::list_incoming(&state.pool, user_id).await?;
-    Ok(Json(shares))
+    let mut responses = db::friend_shares::list_incoming(&state.pool, user_id).await?;
+    // Mask owner email for non-accepted shares (prevent enumeration)
+    for share in &mut responses {
+        if share.status != "accepted" {
+            share.owner_email = mask_email(&share.owner_email);
+        }
+    }
+    Ok(Json(responses))
 }
 
 /// POST /friends/shares/:id/accept — accept a direct share.
@@ -234,4 +251,17 @@ pub async fn get_friend_data(
     }
 
     Ok(Json(Value::Object(result)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mask_email() {
+        assert_eq!(mask_email("tony@gmail.com"), "t***@gmail.com");
+        assert_eq!(mask_email("a@example.com"), "a***@example.com");
+        assert_eq!(mask_email("@broken.com"), "***");
+        assert_eq!(mask_email("noatsign"), "***");
+    }
 }

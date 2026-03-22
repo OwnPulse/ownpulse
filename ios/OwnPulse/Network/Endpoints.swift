@@ -8,4 +8,6 @@ enum Endpoints {
     static let healthKitSync = "/api/v1/healthkit/sync"
     static let healthKitWriteQueue = "/api/v1/healthkit/write-queue"
     static let healthKitConfirm = "/api/v1/healthkit/confirm"
+    static let adminUsers = "/api/v1/admin/users"
+    static let adminInvites = "/api/v1/admin/invites"
 }

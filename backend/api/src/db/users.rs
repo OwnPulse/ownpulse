@@ -17,19 +17,22 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error>
     .await
 }
 
-/// Find a user by username.
-pub async fn find_by_username(pool: &PgPool, username: &str) -> Result<UserRow, sqlx::Error> {
+/// Find a user by email address.
+pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
                 role, data_region, federation_id, created_at
-         FROM users WHERE username = $1",
+         FROM users WHERE LOWER(email) = LOWER($1)",
     )
-    .bind(username)
+    .bind(email)
     .fetch_one(pool)
     .await
 }
 
 /// Look up a Google-authenticated user, creating one if none exists.
+///
+/// `display_name` is an optional human-readable name derived from the email
+/// local part; it is stored in the nullable `username` column.
 ///
 /// Lookup order:
 /// 1. `user_auth_methods` by `(provider='google', provider_subject=google_sub)`
@@ -39,7 +42,7 @@ pub async fn find_or_create_google_user(
     pool: &PgPool,
     google_sub: &str,
     email: &str,
-    username: &str,
+    display_name: Option<&str>,
 ) -> Result<UserRow, sqlx::Error> {
     // 1. Look up by stable subject (preferred — doesn't change if user changes email)
     match crate::db::user_auth_methods::find_by_provider_subject(pool, "google", google_sub).await
@@ -76,7 +79,7 @@ pub async fn find_or_create_google_user(
          RETURNING id, username, password_hash, auth_provider, email,
                    role, data_region, federation_id, created_at",
     )
-    .bind(username)
+    .bind(display_name)
     .bind(email)
     .fetch_one(&mut *tx)
     .await?;

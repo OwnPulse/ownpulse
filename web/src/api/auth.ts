@@ -11,11 +11,11 @@ export interface TokenResponse {
 }
 
 export async function login(
-  username: string,
+  email: string,
   password: string,
 ): Promise<void> {
   const data = await api.post<TokenResponse>("/api/v1/auth/login", {
-    username,
+    email,
     password,
   });
   useAuthStore.getState().login(data.access_token);
@@ -34,6 +34,19 @@ export async function refreshToken(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function register(
+  username: string,
+  password: string,
+  inviteCode: string,
+): Promise<void> {
+  const data = await api.post<TokenResponse>("/api/v1/auth/register", {
+    username,
+    password,
+    invite_code: inviteCode,
+  });
+  useAuthStore.getState().login(data.access_token);
 }
 
 export async function logout(): Promise<void> {
