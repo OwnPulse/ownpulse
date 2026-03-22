@@ -60,7 +60,7 @@ final class AuthService: AuthServiceProtocol {
 
     func loginWithGoogle() async throws {
         let authURL = try buildGoogleAuthURL()
-        logger.info("Starting Google OAuth flow. URL: \(authURL.absoluteString, privacy: .public)")
+        logger.info("Starting Google OAuth flow. URL: \(authURL.absoluteString, privacy: .private)")
 
         let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             self.authContinuation = continuation
@@ -74,7 +74,7 @@ final class AuthService: AuthServiceProtocol {
                     logger.error("Google OAuth error: \(error.localizedDescription, privacy: .public)")
                     continuation.resume(throwing: error)
                 } else if let url {
-                    logger.info("Google OAuth callback URL: \(url.absoluteString, privacy: .public)")
+                    logger.info("Google OAuth callback URL: \(url.absoluteString, privacy: .private)")
                     continuation.resume(returning: url)
                 }
             }

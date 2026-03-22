@@ -17,6 +17,7 @@ final class LoginViewModel {
     var errorMessage: String?
 
     private let authService: AuthServiceProtocol
+    private var loginTask: Task<Void, Never>?
 
     init(authService: AuthServiceProtocol) {
         self.authService = authService
@@ -24,12 +25,18 @@ final class LoginViewModel {
 
     var isLoading: Bool { loadingMethod != nil }
 
+    func cancelLogin() {
+        loginTask?.cancel()
+        loginTask = nil
+        loadingMethod = nil
+    }
+
     func performLogin(_ method: LoginMethod) {
         guard loadingMethod == nil else { return }
         loadingMethod = method
         errorMessage = nil
 
-        Task {
+        loginTask = Task {
             do {
                 switch method {
                 case .apple:
@@ -45,6 +52,7 @@ final class LoginViewModel {
                 }
             } catch {
                 errorMessage = error.localizedDescription
+                password = ""
             }
             loadingMethod = nil
         }
@@ -96,6 +104,9 @@ struct LoginView: View {
             if viewModel == nil {
                 viewModel = LoginViewModel(authService: dependencies.authService)
             }
+        }
+        .onDisappear {
+            viewModel?.cancelLogin()
         }
     }
 

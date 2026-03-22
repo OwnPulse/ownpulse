@@ -36,9 +36,17 @@ final class SettingsViewModel {
         isLoadingMethods = false
     }
 
+    private static let allowedProviders: Set<String> = ["apple", "google", "local"]
+
     func unlinkMethod(_ provider: String) async {
         linkError = nil
         linkInfo = nil
+
+        guard Self.allowedProviders.contains(provider) else {
+            linkError = "Invalid provider: \(provider)"
+            return
+        }
+
         do {
             let _: [AuthMethod] = try await networkClient.request(
                 method: "DELETE",
@@ -87,6 +95,8 @@ final class SettingsViewModel {
 struct SettingsView: View {
     @Environment(AppDependencies.self) private var dependencies
     @State private var showLogoutConfirmation = false
+    @State private var showUnlinkConfirmation = false
+    @State private var unlinkProvider: String?
     @State private var hkAuthorized = false
     @State private var viewModel: SettingsViewModel?
 
@@ -166,6 +176,16 @@ struct SettingsView: View {
                 }
             }
         }
+        .confirmationDialog(
+            "Unlink \(unlinkProvider?.capitalized ?? "") account?",
+            isPresented: $showUnlinkConfirmation
+        ) {
+            Button("Unlink", role: .destructive) {
+                if let provider = unlinkProvider {
+                    Task { await viewModel?.unlinkMethod(provider) }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -190,7 +210,8 @@ struct SettingsView: View {
                         Spacer()
                         if vm.authMethods.count > 1 {
                             Button("Unlink", role: .destructive) {
-                                Task { await vm.unlinkMethod(method.provider) }
+                                unlinkProvider = method.provider
+                                showUnlinkConfirmation = true
                             }
                             .accessibilityIdentifier("unlink-\(method.provider)")
                         }

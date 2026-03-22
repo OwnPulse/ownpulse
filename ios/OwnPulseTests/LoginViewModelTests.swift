@@ -92,4 +92,32 @@ struct LoginViewModelTests {
         #expect(vm.errorMessage == "Auth failed")
         #expect(vm.loadingMethod == nil)
     }
+
+    @Test("password is cleared on failed password login")
+    func passwordClearedOnFailure() async {
+        let mock = MockAuthService()
+        mock.loginError = NSError(domain: "test", code: 1, userInfo: [
+            NSLocalizedDescriptionKey: "Wrong password",
+        ])
+        let vm = LoginViewModel(authService: mock)
+        vm.username = "tony"
+        vm.password = "wrong"
+
+        vm.performLogin(.password)
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(vm.password == "")
+        #expect(vm.errorMessage == "Wrong password")
+    }
+
+    @Test("cancelLogin cancels running task")
+    func cancelLoginCancelsTask() async {
+        let mock = MockAuthService()
+        let vm = LoginViewModel(authService: mock)
+
+        vm.performLogin(.apple)
+        vm.cancelLogin()
+
+        #expect(vm.loadingMethod == nil)
+    }
 }
