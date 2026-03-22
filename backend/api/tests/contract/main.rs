@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+#[allow(deprecated)]
 use pact_verifier::{
     FilterInfo, NullRequestFilterExecutor, PactSource, ProviderInfo, ProviderTransport,
     VerificationOptions, callback_executors::ProviderStateExecutor, verify_provider_async,
@@ -120,9 +121,11 @@ async fn verify_contract(app: &ContractTestApp, contract_path: PathBuf) {
         scheme: Some("http".to_string()),
     };
 
+    #[allow(deprecated)]
     let provider = ProviderInfo {
         name: "ownpulse-api".to_string(),
         host: "127.0.0.1".to_string(),
+        port: Some(app.port),
         transports: vec![transport],
         ..Default::default()
     };
