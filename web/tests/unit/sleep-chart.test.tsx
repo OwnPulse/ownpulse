@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import SleepChart from "../../src/components/SleepChart";
+import { describe, expect, it, vi } from "vitest";
 import type { SleepRecord } from "../../src/api/sleep";
+import SleepChart from "../../src/components/SleepChart";
 
 // Unovis uses SVG and D3 under the hood which don't render meaningfully in jsdom.
 // Mock the unovis components so we can test SleepChart's own logic in isolation.

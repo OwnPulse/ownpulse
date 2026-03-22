@@ -31,14 +31,9 @@ export const adminApi = {
     api.patch<AdminUser>(`/api/v1/admin/users/${userId}/role`, { role }),
   updateUserStatus: (userId: string, status: string) =>
     api.patch<AdminUser>(`/api/v1/admin/users/${userId}/status`, { status }),
-  deleteUser: (userId: string) =>
-    api.delete<void>(`/api/v1/admin/users/${userId}`),
+  deleteUser: (userId: string) => api.delete<void>(`/api/v1/admin/users/${userId}`),
   listInvites: () => api.get<InviteCode[]>("/api/v1/admin/invites"),
-  createInvite: (data: {
-    label?: string;
-    max_uses?: number;
-    expires_in_hours?: number;
-  }) => api.post<InviteCode>("/api/v1/admin/invites", data),
-  revokeInvite: (id: string) =>
-    api.delete<InviteCode>(`/api/v1/admin/invites/${id}`),
+  createInvite: (data: { label?: string; max_uses?: number; expires_in_hours?: number }) =>
+    api.post<InviteCode>("/api/v1/admin/invites", data),
+  revokeInvite: (id: string) => api.delete<InviteCode>(`/api/v1/admin/invites/${id}`),
 };

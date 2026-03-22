@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { useAuthStore } from "../../src/store/auth";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import Login from "../../src/pages/Login";
+import { useAuthStore } from "../../src/store/auth";
 
 vi.mock("../../src/hooks/useAuth", () => ({
   useAuth: () => ({ loading: false }),
@@ -58,9 +58,7 @@ describe("Login", () => {
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/invalid email or password/i),
-      ).toBeDefined();
+      expect(screen.getByText(/invalid email or password/i)).toBeDefined();
     });
   });
 });

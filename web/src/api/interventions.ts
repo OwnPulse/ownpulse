@@ -32,7 +32,6 @@ export const interventionsApi = {
     return api.get<Intervention[]>(`/api/v1/interventions${qs}`);
   },
   get: (id: string) => api.get<Intervention>(`/api/v1/interventions/${id}`),
-  create: (data: CreateIntervention) =>
-    api.post<Intervention>("/api/v1/interventions", data),
+  create: (data: CreateIntervention) => api.post<Intervention>("/api/v1/interventions", data),
   delete: (id: string) => api.delete<void>(`/api/v1/interventions/${id}`),
 };

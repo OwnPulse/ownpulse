@@ -16,6 +16,7 @@ pub struct UserRow {
     pub role: String,
     pub data_region: String,
     pub federation_id: Option<String>,
+    pub status: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -62,4 +63,40 @@ pub struct TokenResponse {
 #[derive(Deserialize)]
 pub struct RefreshRequest {
     pub refresh_token: String,
+}
+
+/// A single linked auth method returned to the client.
+#[derive(Serialize, sqlx::FromRow)]
+pub struct AuthMethodRow {
+    pub id: Uuid,
+    pub provider: String,
+    pub email: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Request body for `POST /auth/apple/callback`.
+#[derive(Deserialize)]
+pub struct AppleCallbackRequest {
+    pub id_token: String,
+    pub platform: String,
+}
+
+/// Request body for `POST /auth/link`.
+#[derive(Deserialize)]
+pub struct LinkAuthRequest {
+    pub provider: String,
+    pub id_token: Option<String>,
+    pub password: Option<String>,
+}
+
+/// Token response that includes the refresh token in the JSON body.
+///
+/// Used for iOS clients that store tokens in the Keychain rather than
+/// relying on httpOnly cookies.
+#[derive(Serialize)]
+pub struct TokenResponseWithRefresh {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub token_type: String,
+    pub expires_in: u64,
 }

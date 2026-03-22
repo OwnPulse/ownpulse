@@ -19,6 +19,21 @@ User accounts.
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 
+### `user_auth_methods`
+
+Maps users to their linked authentication providers. A user can have multiple methods (e.g. local password + Apple Sign-In). Populated from existing `users.auth_provider` data by migration 0008.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | `gen_random_uuid()` |
+| `user_id` | UUID FK | References `users`, `ON DELETE CASCADE` |
+| `provider` | TEXT | `local`, `google`, or `apple` |
+| `provider_subject` | TEXT | Provider-specific user ID (e.g. Apple `sub` claim); `user_id::TEXT` for local |
+| `email` | TEXT nullable | Email associated with this auth method |
+| `created_at` | TIMESTAMPTZ | |
+
+**Unique constraints:** `(provider, provider_subject)`, `(provider, email)`.
+
 ### `health_records`
 
 All wearable and device measurements (heart rate, HRV, weight, blood glucose, sleep, steps, etc.).
