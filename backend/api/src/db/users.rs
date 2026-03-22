@@ -192,10 +192,66 @@ pub async fn update_user_role(
     .await
 }
 
+/// Create a new user with an email and bcrypt-hashed password.
+pub async fn create_user_with_password(
+    pool: &PgPool,
+    email: &str,
+    username: Option<&str>,
+    password_hash: &str,
+) -> Result<UserRow, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    let user = sqlx::query_as::<_, UserRow>(
+        "INSERT INTO users (email, username, password_hash, auth_provider)
+         VALUES ($1, $2, $3, 'local')
+         RETURNING id, username, password_hash, auth_provider, email,
+                   role, data_region, federation_id, status, created_at",
+    )
+    .bind(email)
+    .bind(username)
+    .bind(password_hash)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email)
+         VALUES ($1, 'local', $2, $3)",
+    )
+    .bind(user.id)
+    .bind(user.id.to_string())
+    .bind(email)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(user)
+}
+
+/// Update a user's status (active/disabled).
+pub async fn update_user_status(
+    pool: &PgPool,
+    user_id: Uuid,
+    status: &str,
+) -> Result<UserRow, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "UPDATE users SET status = $2 WHERE id = $1
+         RETURNING id, username, password_hash, auth_provider, email,
+                   role, data_region, federation_id, status, created_at",
+    )
+    .bind(user_id)
+    .bind(status)
+    .fetch_one(pool)
+    .await
+}
+
 /// Delete a user and all their data from child tables, then the user row.
 pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
+    sqlx::query("DELETE FROM invite_codes WHERE created_by = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM friend_shares WHERE owner_id = $1 OR friend_id = $1")
         .bind(user_id)
         .execute(&mut *tx)

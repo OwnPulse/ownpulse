@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 mod account;
+mod admin_invites;
 mod audit;
 mod auth;
 mod auth_multi;
