@@ -301,6 +301,7 @@ fn google_config(mock_uri: &str) -> api::config::Config {
         data_region: "us".to_string(),
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
+        require_invite: false,
     }
 }
 
@@ -411,6 +412,7 @@ async fn test_google_callback_state_ios_no_longer_bypasses_csrf() {
         data_region: "us".to_string(),
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
+        require_invite: false,
     };
 
     let state = api::AppState {
@@ -473,6 +475,7 @@ async fn test_google_callback_no_verifier_no_cookie_returns_400() {
         data_region: "us".to_string(),
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
+        require_invite: false,
     };
 
     let state = api::AppState {
@@ -542,7 +545,7 @@ async fn test_google_callback_web_redirects_with_cookies() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!(
+                .uri(format!(
                     "/api/v1/auth/google/callback?code=test-auth-code&state={}",
                     csrf_state
                 ))

@@ -4,6 +4,7 @@
   "interactions": [
     {
       "description": "a request to list sleep records",
+      "providerState": "an authenticated user exists",
       "request": {
         "method": "GET",
         "path": "/api/v1/sleep",

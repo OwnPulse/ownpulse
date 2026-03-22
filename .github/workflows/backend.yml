@@ -72,9 +72,6 @@ jobs:
 
       - run: cargo sqlx prepare --workspace --check
 
-      - name: Run contract tests (Pact verification)
-        run: cargo test --test contract
-
       - name: Run tests with coverage
         run: |
           cargo llvm-cov --all-targets --lcov --output-path lcov.info
