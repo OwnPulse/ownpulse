@@ -21,6 +21,7 @@ final class AuthService: AuthServiceProtocol {
     private let networkClient: NetworkClientProtocol
     private let keychainService: KeychainServiceProtocol
     private var authContinuation: CheckedContinuation<URL, Error>?
+    private var authSession: ASWebAuthenticationSession?
 
     nonisolated static let accessTokenKey = "access_token"
     nonisolated static let refreshTokenKey = "refresh_token"
@@ -40,13 +41,14 @@ final class AuthService: AuthServiceProtocol {
     func login() async throws {
         let authURL = buildGoogleAuthURL()
 
-        let callbackURL = try await withCheckedThrowingContinuation { continuation in
+        let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             self.authContinuation = continuation
 
             let session = ASWebAuthenticationSession(
                 url: authURL,
                 callback: .customScheme("ownpulse")
-            ) { url, error in
+            ) { [weak self] url, error in
+                self?.authSession = nil
                 if let error {
                     continuation.resume(throwing: error)
                 } else if let url {
@@ -55,6 +57,8 @@ final class AuthService: AuthServiceProtocol {
             }
 
             session.prefersEphemeralWebBrowserSession = false
+            // Keep a strong reference so the session isn't deallocated
+            self.authSession = session
             session.start()
         }
 
