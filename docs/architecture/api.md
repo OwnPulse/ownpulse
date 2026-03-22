@@ -23,6 +23,10 @@ All endpoints require JWT authentication unless marked as public. Tokens are iss
 | POST | `/auth/logout` | Invalidate refresh token | 1 |
 | GET | `/auth/google/login` | Google OAuth redirect (accepts optional `?invite_code=XYZ`) | 1 |
 | GET | `/auth/google/callback` | Google OAuth callback | 1 |
+| POST | `/auth/apple/callback` | Apple Sign-In callback (verify id_token, issue tokens) | 1 |
+| GET | `/auth/methods` | List auth methods linked to current user (requires JWT) | 1 |
+| POST | `/auth/link` | Link a new auth provider to current user (requires JWT) | 1 |
+| DELETE | `/auth/link/:provider` | Unlink an auth provider from current user (requires JWT) | 1 |
 
 #### `POST /auth/register`
 
@@ -50,6 +54,115 @@ Register a new account. When the instance requires invites (`REQUIRE_INVITE=true
 #### Google OAuth with invite code
 
 `GET /auth/google/login` accepts an optional `?invite_code=XYZ` query parameter. If the user does not yet have an account and invite codes are required, the invite code is validated during the OAuth callback. If no valid code is present, the callback redirects to the login page with `?error=invite_required`.
+
+#### `POST /auth/apple/callback`
+
+Verify an Apple Sign-In identity token and issue access + refresh tokens. Creates a new user if one does not exist for the Apple `sub` claim.
+
+**Request body:**
+
+```json
+{
+  "id_token": "string (Apple identity JWT)",
+  "platform": "string (\"web\" or \"ios\")"
+}
+```
+
+**Response (iOS / non-web):** `TokenResponseWithRefresh` — includes `refresh_token` in the JSON body for Keychain storage.
+
+```json
+{
+  "access_token": "string",
+  "refresh_token": "string",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}
+```
+
+**Response (web):** `TokenResponse` — refresh token is set as an httpOnly cookie only; not included in the body.
+
+```json
+{
+  "access_token": "string",
+  "token_type": "Bearer",
+  "expires_in": 3600
+}
+```
+
+**Errors:**
+
+| Status | Reason |
+|--------|--------|
+| 400 | Unknown `platform` value (must be `"web"` or `"ios"`) |
+| 401 | Identity token verification failed (invalid signature, expired, wrong audience, JWKS fetch error) |
+| 500 | `APPLE_CLIENT_ID` not configured |
+
+#### `GET /auth/methods`
+
+List all auth methods linked to the authenticated user's account. Requires JWT.
+
+**Response:** `200 OK` — array of `AuthMethodRow`.
+
+```json
+[
+  {
+    "id": "uuid",
+    "provider": "local",
+    "email": "user@example.com",
+    "created_at": "2026-03-21T00:00:00Z"
+  },
+  {
+    "id": "uuid",
+    "provider": "apple",
+    "email": "user@privaterelay.appleid.com",
+    "created_at": "2026-03-21T00:00:00Z"
+  }
+]
+```
+
+**Errors:**
+
+| Status | Reason |
+|--------|--------|
+| 401 | Missing or invalid JWT |
+
+#### `POST /auth/link`
+
+Link a new auth provider to the authenticated user's account. Requires JWT.
+
+**Request body:**
+
+```json
+{
+  "provider": "string (\"apple\", \"local\", or \"google\")",
+  "id_token": "string (required for apple)",
+  "password": "string (required for local, min 8 characters)"
+}
+```
+
+**Response:** `200 OK` — array of `AuthMethodRow` (updated list of all linked methods).
+
+**Errors:**
+
+| Status | Reason |
+|--------|--------|
+| 400 | Missing required field for provider, password too short, unsupported provider, or Google linking (not yet supported) |
+| 401 | Missing/invalid JWT, or Apple id_token verification failed |
+| 409 | The Apple account is already linked to a different user |
+
+#### `DELETE /auth/link/:provider`
+
+Unlink an auth provider from the authenticated user's account. Users cannot unlink their last remaining login method. Requires JWT.
+
+**Response:** `200 OK` — array of `AuthMethodRow` (updated list after removal).
+
+**Errors:**
+
+| Status | Reason |
+|--------|--------|
+| 400 | Cannot remove your only login method |
+| 401 | Missing or invalid JWT |
+| 404 | Provider not linked to this account |
 
 ### Admin -- Invite Management
 

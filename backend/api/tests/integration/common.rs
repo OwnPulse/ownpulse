@@ -34,6 +34,8 @@ fn test_config(database_url: &str) -> api::config::Config {
         google_redirect_uri: None,
         google_token_url: "https://oauth2.googleapis.com/token".to_string(),
         google_userinfo_url: "https://www.googleapis.com/oauth2/v3/userinfo".to_string(),
+        apple_client_id: None,
+        apple_jwks_url: api::config::default_apple_jwks_url(),
         garmin_client_id: None,
         garmin_client_secret: None,
         oura_client_id: None,
@@ -93,7 +95,53 @@ pub async fn setup() -> TestApp {
     }
 }
 
+/// Spin up an ephemeral Postgres and build a TestApp using the provided config overrides.
+/// `config_fn` receives a mutable reference to the default config so callers can patch
+/// fields like `apple_client_id` or `apple_jwks_url` without repeating the whole struct.
+pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config)) -> TestApp {
+    let container = Postgres::default()
+        .with_tag("16-alpine")
+        .start()
+        .await
+        .expect("failed to start postgres container");
+
+    let host_port = container
+        .get_host_port_ipv4(5432)
+        .await
+        .expect("failed to get mapped port");
+
+    let database_url = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await
+        .expect("failed to connect to testcontainers postgres");
+
+    run_migrations(&pool).await;
+
+    let mut config = test_config(&database_url);
+    config_fn(&mut config);
+
+    let state = api::AppState {
+        pool: pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+    };
+
+    let app = api::build_app_without_metrics(state);
+
+    TestApp {
+        app,
+        pool,
+        _container: container,
+    }
+}
+
 /// Insert a test user and return (user_id, jwt_token).
+///
+/// Also inserts a `user_auth_methods` row with `provider='local'` so that the
+/// user is consistent with the multi-auth schema.
 pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
     let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash failed");
     let row: (Uuid,) = sqlx::query_as(
@@ -104,6 +152,17 @@ pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
     .fetch_one(&app.pool)
     .await
     .expect("failed to insert test user");
+
+    // Insert the corresponding auth method row.
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject)
+         VALUES ($1, 'local', $2)",
+    )
+    .bind(row.0)
+    .bind(row.0.to_string())
+    .execute(&app.pool)
+    .await
+    .expect("failed to insert user_auth_methods row for test user");
 
     let token = api::auth::jwt::encode_access_token(
         row.0,

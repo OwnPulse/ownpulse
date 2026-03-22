@@ -10,5 +10,6 @@
   "lab_results": [],
   "observations": [],
   "calendar_days": [],
-  "sharing_consents": []
+  "sharing_consents": [],
+  "user_auth_methods": []
 }

@@ -58,3 +58,21 @@ export async function logout(): Promise<void> {
     useAuthStore.getState().logout();
   }
 }
+
+export interface AuthMethod {
+  id: string;
+  provider: string;
+  email: string | null;
+  created_at: string;
+}
+
+export async function getAuthMethods(): Promise<AuthMethod[]> {
+  return api.get<AuthMethod[]>("/api/v1/auth/methods");
+}
+
+export async function unlinkAuth(provider: string): Promise<AuthMethod[]> {
+  if (!/^[a-z]+$/.test(provider)) {
+    throw new Error(`Invalid provider: ${provider}`);
+  }
+  return api.delete<AuthMethod[]>(`/api/v1/auth/link/${provider}`);
+}

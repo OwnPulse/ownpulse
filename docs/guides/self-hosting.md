@@ -82,6 +82,8 @@ The following environment variables can be set on the API deployment to customiz
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `REQUIRE_INVITE` | `true` | When `true`, new users must provide a valid invite code to register. Set to `false` for open signups. |
+| `APPLE_CLIENT_ID` | *(none)* | Apple Sign-In Service ID (web) or app bundle ID (iOS). Optional — Apple Sign-In is disabled when unset. |
+| `APPLE_JWKS_URL` | `https://appleid.apple.com/auth/keys` | Apple JWKS endpoint for verifying identity tokens. Override only for testing. |
 
 When `REQUIRE_INVITE` is `true` (the default), only users with a valid invite code can create an account. An admin creates invite codes from the admin panel and shares them with people they want to grant access. See the [User Management](https://docs.ownpulse.health/admin/) guide for details.
 

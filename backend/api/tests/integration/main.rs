@@ -4,6 +4,7 @@
 mod account;
 mod audit;
 mod auth;
+mod auth_multi;
 mod checkins;
 mod common;
 mod export;
