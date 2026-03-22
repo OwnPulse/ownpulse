@@ -13,6 +13,7 @@ final class MockAuthService: AuthServiceProtocol {
     var loginWithPasswordCalled = false
     var loginWithPasswordArgs: (username: String, password: String)?
     var logoutCalled = false
+    var handleCallbackCalled = false
     var handleCallbackURL: URL?
 
     var loginError: Error?
@@ -42,6 +43,7 @@ final class MockAuthService: AuthServiceProtocol {
     }
 
     func handleCallback(url: URL) {
+        handleCallbackCalled = true
         handleCallbackURL = url
     }
 }

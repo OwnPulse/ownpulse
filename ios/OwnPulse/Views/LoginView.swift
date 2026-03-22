@@ -91,6 +91,7 @@ struct LoginView: View {
             }
             .padding(.horizontal, 24)
         }
+        .scrollDismissesKeyboard(.interactively)
         .onAppear {
             if viewModel == nil {
                 viewModel = LoginViewModel(authService: dependencies.authService)

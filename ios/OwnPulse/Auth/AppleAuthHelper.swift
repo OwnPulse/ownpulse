@@ -7,7 +7,7 @@ import os
 private let logger = Logger(subsystem: "health.ownpulse.app", category: "appleAuth")
 
 /// Wraps ASAuthorizationController delegate callbacks in a CheckedContinuation.
-final class AppleAuthDelegate: NSObject, ASAuthorizationControllerDelegate, Sendable {
+private final class AppleAuthDelegate: NSObject, ASAuthorizationControllerDelegate, Sendable {
     private let continuation: CheckedContinuation<ASAuthorization, Error>
 
     init(continuation: CheckedContinuation<ASAuthorization, Error>) {
@@ -31,7 +31,7 @@ final class AppleAuthDelegate: NSObject, ASAuthorizationControllerDelegate, Send
 }
 
 /// Provides a window anchor for ASAuthorizationController.
-final class ApplePresentationContext: NSObject,
+private final class ApplePresentationContext: NSObject,
     ASAuthorizationControllerPresentationContextProviding
 {
     @MainActor

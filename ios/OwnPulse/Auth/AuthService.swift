@@ -56,7 +56,7 @@ final class AuthService: AuthServiceProtocol {
     }
 
     func loginWithGoogle() async throws {
-        let authURL = buildGoogleAuthURL()
+        let authURL = try buildGoogleAuthURL()
         logger.info("Starting Google OAuth flow. URL: \(authURL.absoluteString, privacy: .public)")
 
         let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
@@ -168,8 +168,10 @@ final class AuthService: AuthServiceProtocol {
         isAuthenticated = true
     }
 
-    private func buildGoogleAuthURL() -> URL {
-        var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
+    private func buildGoogleAuthURL() throws -> URL {
+        guard var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth") else {
+            throw AuthError.urlConstructionFailed
+        }
         components.queryItems = [
             URLQueryItem(name: "client_id", value: AppConfig.googleClientID),
             URLQueryItem(name: "redirect_uri", value: AppConfig.googleRedirectURI),
@@ -177,11 +179,15 @@ final class AuthService: AuthServiceProtocol {
             URLQueryItem(name: "scope", value: "openid email"),
             URLQueryItem(name: "state", value: "ios"),
         ]
-        return components.url!
+        guard let url = components.url else {
+            throw AuthError.urlConstructionFailed
+        }
+        return url
     }
 }
 
 enum AuthError: Error {
     case invalidCallback
     case tokenStorageFailed
+    case urlConstructionFailed
 }

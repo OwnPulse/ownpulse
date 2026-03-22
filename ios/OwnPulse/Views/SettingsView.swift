@@ -189,20 +189,20 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("linkGoogleButton")
                 }
-            }
 
-            if let info = vm.linkInfo {
-                Text(info)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("linkInfo")
-            }
+                if let info = vm.linkInfo {
+                    Text(info)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("linkInfo")
+                }
 
-            if let error = vm.linkError {
-                Text(error)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-                    .accessibilityIdentifier("linkError")
+                if let error = vm.linkError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                        .accessibilityIdentifier("linkError")
+                }
             }
         }
     }
