@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { friendsApi } from "../api/friends";
 import { useAuthStore } from "../store/auth";
+import styles from "./ShareAccept.module.css";
 
 export default function ShareAccept() {
   const [searchParams] = useSearchParams();
@@ -41,7 +42,7 @@ export default function ShareAccept() {
 
   if (!token) {
     return (
-      <main style={{ padding: "1.5rem", maxWidth: "32rem", margin: "0 auto" }}>
+      <main className={`op-page ${styles.page}`}>
         <h1>Invalid Link</h1>
         <p>No invite token found in this link.</p>
         <Link to="/friends">Go to Friends</Link>
@@ -50,7 +51,7 @@ export default function ShareAccept() {
   }
 
   return (
-    <main style={{ padding: "1.5rem", maxWidth: "32rem", margin: "0 auto" }}>
+    <main className={`op-page ${styles.page}`}>
       {status === "loading" && (
         <>
           <h1>Accepting Invite</h1>
@@ -67,7 +68,7 @@ export default function ShareAccept() {
       {status === "error" && (
         <>
           <h1>Error</h1>
-          <p style={{ color: "var(--color-error, red)" }}>{errorMessage}</p>
+          <p className="op-error-msg">{errorMessage}</p>
           <Link to="/friends">Go to Friends</Link>
         </>
       )}

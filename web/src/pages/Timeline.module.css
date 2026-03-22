@@ -1,0 +1,29 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.section {
+  margin-bottom: 2rem;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.listItem {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.listItem:last-child {
+  border-bottom: none;
+}
+
+.recordLabel {
+  font-weight: 600;
+}
+
+.recordMeta {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

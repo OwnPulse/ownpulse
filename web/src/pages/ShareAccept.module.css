@@ -1,0 +1,19 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.card {
+  max-width: 32rem;
+  width: 100%;
+}
+
+.page {
+  max-width: 32rem;
+  margin: 0 auto;
+}

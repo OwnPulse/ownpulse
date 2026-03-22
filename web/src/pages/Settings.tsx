@@ -7,6 +7,7 @@ import { accountApi } from "../api/account";
 import { getAuthMethods, logout, unlinkAuth } from "../api/auth";
 import { exportCsv, exportJson } from "../api/export";
 import { sourcePreferencesApi } from "../api/source-preferences";
+import styles from "./Settings.module.css";
 
 const PROVIDER_NAMES: Record<string, string> = {
   google: "Google",
@@ -54,26 +55,22 @@ function LinkedAccounts() {
   };
 
   return (
-    <section style={{ marginTop: "2rem" }}>
+    <section className="op-section">
       <h2>Linked Accounts</h2>
       {isLoading && <p>Loading...</p>}
       {isError && <p>Error loading linked accounts.</p>}
-      {unlinkError && <p style={{ color: "var(--color-error, red)" }}>{unlinkError}</p>}
+      {unlinkError && <p className="op-error-msg">{unlinkError}</p>}
       {methods && methods.length === 0 && <p>No linked accounts.</p>}
       {methods && methods.length > 0 && (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul className={styles.linkedList}>
           {methods.map((method) => (
-            <li
-              key={method.id}
-              style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}
-            >
+            <li key={method.id} className={styles.linkedAccount}>
               <strong>{providerDisplayName(method.provider)}</strong>
-              {method.email && (
-                <span style={{ color: "var(--color-text-muted)" }}>{method.email}</span>
-              )}
+              {method.email && <span className={styles.linkedAccountEmail}>{method.email}</span>}
               {methods.length > 1 && (
                 <button
                   type="button"
+                  className="op-btn op-btn-ghost op-btn-sm"
                   onClick={() => handleUnlink(method.provider)}
                   disabled={unlinkMutation.isPending}
                   aria-label={`Unlink ${method.provider}`}
@@ -127,23 +124,33 @@ export default function Settings() {
   };
 
   return (
-    <main style={{ padding: "1.5rem" }}>
+    <main className="op-page">
       <h1>Settings</h1>
 
       <section>
         <h2>Export Data</h2>
         <p>Download all your data in open formats.</p>
-        <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button type="button" onClick={handleExportJson} disabled={exporting}>
+        <div className={styles.exportButtons}>
+          <button
+            type="button"
+            className="op-btn op-btn-secondary"
+            onClick={handleExportJson}
+            disabled={exporting}
+          >
             {exporting ? "Exporting..." : "Export JSON"}
           </button>
-          <button type="button" onClick={handleExportCsv} disabled={exporting}>
+          <button
+            type="button"
+            className="op-btn op-btn-secondary"
+            onClick={handleExportCsv}
+            disabled={exporting}
+          >
             {exporting ? "Exporting..." : "Export CSV"}
           </button>
         </div>
       </section>
 
-      <section style={{ marginTop: "2rem" }}>
+      <section className="op-section">
         <h2>Source Preferences</h2>
         {sourcePrefs.isLoading && <p>Loading...</p>}
         {sourcePrefs.isError && <p>Error loading source preferences.</p>}
@@ -163,28 +170,30 @@ export default function Settings() {
 
       <LinkedAccounts />
 
-      <section style={{ marginTop: "2rem" }}>
-        <h2>Danger Zone</h2>
+      <div className={styles.dangerZone}>
+        <h2 className={styles.dangerTitle}>Danger Zone</h2>
         {!confirmDelete ? (
-          <button type="button" onClick={handleDeleteAccount} style={{ color: "red" }}>
+          <button type="button" className="op-btn op-btn-danger" onClick={handleDeleteAccount}>
             Delete Account
           </button>
         ) : (
           <div>
             <p>Are you sure? This will permanently delete your account and all data.</p>
-            <button
-              type="button"
-              onClick={handleDeleteAccount}
-              style={{ color: "red", marginRight: "0.5rem" }}
-            >
-              Yes, delete my account
-            </button>
-            <button type="button" onClick={() => setConfirmDelete(false)}>
-              Cancel
-            </button>
+            <div className={styles.confirmActions}>
+              <button type="button" className="op-btn op-btn-danger" onClick={handleDeleteAccount}>
+                Yes, delete my account
+              </button>
+              <button
+                type="button"
+                className="op-btn op-btn-ghost"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         )}
-      </section>
+      </div>
     </main>
   );
 }

@@ -1,0 +1,59 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.googleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.625rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-elevated);
+  color: var(--color-text);
+  text-decoration: none;
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  margin-bottom: 1.5rem;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.googleBtn:hover {
+  background: var(--color-bg);
+  border-color: var(--color-text-muted);
+}
+
+.dividerText {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  margin-bottom: 1.5rem;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+.footerLink {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.footerLink:hover {
+  text-decoration: underline;
+}
+
+.monoInput {
+  font-family: var(--font-mono);
+}
+
+.errorMsg {
+  margin-bottom: 1rem;
+}
+
+.fullBtn {
+  width: 100%;
+}

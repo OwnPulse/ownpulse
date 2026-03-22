@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CreateIntervention, interventionsApi } from "../../api/interventions";
+import forms from "./forms.module.css";
 
 export default function InterventionForm() {
   const queryClient = useQueryClient();
@@ -43,65 +44,99 @@ export default function InterventionForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label>
+    <form onSubmit={handleSubmit} className={forms.form}>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="intervention-substance">
           Substance
-          <input value={substance} onChange={(e) => setSubstance(e.target.value)} required />
         </label>
+        <input
+          id="intervention-substance"
+          value={substance}
+          onChange={(e) => setSubstance(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="intervention-dose">
           Dose
-          <input
-            type="number"
-            step="any"
-            value={dose}
-            onChange={(e) => setDose(e.target.value)}
-            required
-          />
         </label>
+        <input
+          id="intervention-dose"
+          type="number"
+          step="any"
+          value={dose}
+          onChange={(e) => setDose(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="intervention-unit">
           Unit
-          <input value={unit} onChange={(e) => setUnit(e.target.value)} required />
         </label>
+        <input
+          id="intervention-unit"
+          value={unit}
+          onChange={(e) => setUnit(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="intervention-route">
           Route
-          <input value={route} onChange={(e) => setRoute(e.target.value)} required />
         </label>
+        <input
+          id="intervention-route"
+          value={route}
+          onChange={(e) => setRoute(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="intervention-time">
           Administered At
-          <input
-            type="datetime-local"
-            value={administeredAt}
-            onChange={(e) => setAdministeredAt(e.target.value)}
-            required
-          />
         </label>
+        <input
+          id="intervention-time"
+          type="datetime-local"
+          value={administeredAt}
+          onChange={(e) => setAdministeredAt(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
-          <input type="checkbox" checked={fasted} onChange={(e) => setFasted(e.target.checked)} />
+      <div className={forms.checkboxField}>
+        <input
+          type="checkbox"
+          id="intervention-fasted"
+          checked={fasted}
+          onChange={(e) => setFasted(e.target.checked)}
+        />
+        <label htmlFor="intervention-fasted" className={forms.checkboxLabel}>
           Fasted
         </label>
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="intervention-notes">
           Notes
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
+        <textarea
+          id="intervention-notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className={forms.textarea}
+        />
       </div>
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? "Saving..." : "Save Intervention"}
-      </button>
-      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
+      <div className={forms.actions}>
+        <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
+          {mutation.isPending ? "Saving..." : "Save Intervention"}
+        </button>
+      </div>
+      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
+      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
     </form>
   );
 }

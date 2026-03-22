@@ -1,0 +1,24 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.backLink {
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+  margin-bottom: 1rem;
+  display: inline-block;
+}
+
+.section {
+  margin-bottom: 1rem;
+}
+
+.sectionTitle {
+  margin-top: 0;
+}
+
+.page {
+  max-width: 48rem;
+}
+
+.backRow {
+  margin-bottom: 1rem;
+}

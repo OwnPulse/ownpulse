@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { checkinsApi, type UpsertCheckin } from "../../api/checkins";
+import forms from "./forms.module.css";
 
 export default function CheckinForm() {
   const queryClient = useQueryClient();
@@ -43,12 +44,19 @@ export default function CheckinForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label>
+    <form onSubmit={handleSubmit} className={forms.form}>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="checkin-date">
           Date
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </label>
+        <input
+          id="checkin-date"
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
       {[
         { label: "Energy", value: energy, setter: setEnergy },
@@ -57,30 +65,40 @@ export default function CheckinForm() {
         { label: "Recovery", value: recovery, setter: setRecovery },
         { label: "Libido", value: libido, setter: setLibido },
       ].map(({ label, value, setter }) => (
-        <div key={label}>
-          <label>
-            {label} ({value}/10)
-            <input
-              type="range"
-              min="1"
-              max="10"
-              value={value}
-              onChange={(e) => setter(e.target.value)}
-            />
-          </label>
+        <div key={label} className={forms.sliderField}>
+          <div className={forms.sliderLabel}>
+            <span className={forms.sliderLabelText}>{label}</span>
+            <span className={forms.sliderValue}>{value}/10</span>
+          </div>
+          <input
+            type="range"
+            min="1"
+            max="10"
+            value={value}
+            onChange={(e) => setter(e.target.value)}
+            className="op-slider"
+            aria-label={label}
+          />
         </div>
       ))}
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="checkin-notes">
           Notes
-          <textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
         </label>
+        <textarea
+          id="checkin-notes"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className={forms.textarea}
+        />
       </div>
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? "Saving..." : "Save Check-in"}
-      </button>
-      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
+      <div className={forms.actions}>
+        <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
+          {mutation.isPending ? "Saving..." : "Save Check-in"}
+        </button>
+      </div>
+      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
+      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
     </form>
   );
 }

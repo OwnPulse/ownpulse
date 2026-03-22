@@ -1,0 +1,63 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.statValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1;
+}
+
+.statLabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: 0.25rem;
+}
+
+.checkinScores {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.scoreItem {
+  text-align: center;
+}
+
+.logBtn {
+  text-decoration: none;
+}
+
+.checkinCard {
+  margin-bottom: 1.5rem;
+}
+
+.checkinCard h2 {
+  margin: 0 0 0.75rem;
+}
+
+.alertCard {
+  border-color: var(--color-primary);
+  margin-bottom: 1.5rem;
+}
+
+.alertCard p {
+  margin: 0;
+}
+
+.labCard p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.labCard strong {
+  color: var(--color-text);
+}
