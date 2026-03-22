@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { exportJson, exportCsv } from "../api/export";
-import { sourcePreferencesApi } from "../api/source-preferences";
 import { accountApi } from "../api/account";
-import { logout, getAuthMethods, unlinkAuth } from "../api/auth";
+import { getAuthMethods, logout, unlinkAuth } from "../api/auth";
+import { exportCsv, exportJson } from "../api/export";
+import { sourcePreferencesApi } from "../api/source-preferences";
 
 const PROVIDER_NAMES: Record<string, string> = {
   google: "Google",
@@ -22,7 +22,11 @@ function LinkedAccounts() {
   const queryClient = useQueryClient();
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
 
-  const { data: methods, isLoading, isError } = useQuery({
+  const {
+    data: methods,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["authMethods"],
     queryFn: getAuthMethods,
   });
@@ -39,7 +43,11 @@ function LinkedAccounts() {
   });
 
   const handleUnlink = (provider: string) => {
-    if (!window.confirm(`Unlink ${providerDisplayName(provider)}? You won't be able to log in with it anymore.`)) {
+    if (
+      !window.confirm(
+        `Unlink ${providerDisplayName(provider)}? You won't be able to log in with it anymore.`,
+      )
+    ) {
       return;
     }
     unlinkMutation.mutate(provider);
@@ -60,9 +68,12 @@ function LinkedAccounts() {
               style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}
             >
               <strong>{providerDisplayName(method.provider)}</strong>
-              {method.email && <span style={{ color: "var(--color-text-muted)" }}>{method.email}</span>}
+              {method.email && (
+                <span style={{ color: "var(--color-text-muted)" }}>{method.email}</span>
+              )}
               {methods.length > 1 && (
                 <button
+                  type="button"
                   onClick={() => handleUnlink(method.provider)}
                   disabled={unlinkMutation.isPending}
                   aria-label={`Unlink ${method.provider}`}

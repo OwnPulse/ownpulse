@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 // Auth note: These E2E tests run against the Vite dev server which proxies
 // /api to the backend. Playwright route intercepts catch API calls before
@@ -45,7 +45,12 @@ test.describe("Linked Accounts", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([
-          { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+          {
+            id: "1",
+            provider: "google",
+            email: "user@example.com",
+            created_at: "2026-01-01T00:00:00Z",
+          },
           { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
         ]),
       }),
@@ -66,7 +71,12 @@ test.describe("Linked Accounts", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([
-          { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+          {
+            id: "1",
+            provider: "google",
+            email: "user@example.com",
+            created_at: "2026-01-01T00:00:00Z",
+          },
           { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
         ]),
       }),
@@ -106,7 +116,12 @@ test.describe("Linked Accounts", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([
-          { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+          {
+            id: "1",
+            provider: "google",
+            email: "user@example.com",
+            created_at: "2026-01-01T00:00:00Z",
+          },
           { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
         ]),
       }),
@@ -134,7 +149,12 @@ test.describe("Linked Accounts", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([
-          { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+          {
+            id: "1",
+            provider: "google",
+            email: "user@example.com",
+            created_at: "2026-01-01T00:00:00Z",
+          },
         ]),
       }),
     );

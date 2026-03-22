@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { describe, it, expect, beforeAll, afterAll, afterEach, beforeEach } from "vitest";
+import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { http, HttpResponse } from "msw";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { useAuthStore } from "../../src/store/auth";
 
 const TOKEN = "test-jwt";
@@ -21,7 +21,12 @@ describe("auth multi-provider API", () => {
 
   it("getAuthMethods GETs /api/v1/auth/methods", async () => {
     const methods = [
-      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+      {
+        id: "1",
+        provider: "google",
+        email: "user@example.com",
+        created_at: "2026-01-01T00:00:00Z",
+      },
     ];
 
     server.use(
@@ -38,14 +43,19 @@ describe("auth multi-provider API", () => {
 
   it("unlinkAuth DELETEs /api/v1/auth/link/:provider", async () => {
     const remaining = [
-      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+      {
+        id: "1",
+        provider: "google",
+        email: "user@example.com",
+        created_at: "2026-01-01T00:00:00Z",
+      },
     ];
 
     let capturedProvider: string | undefined;
 
     server.use(
       http.delete("/api/v1/auth/link/:provider", ({ params }) => {
-        capturedProvider = params["provider"] as string;
+        capturedProvider = params.provider as string;
         return HttpResponse.json(remaining);
       }),
     );
@@ -59,9 +69,7 @@ describe("auth multi-provider API", () => {
 
   it("getAuthMethods throws on 401 and triggers logout", async () => {
     server.use(
-      http.get("/api/v1/auth/methods", () =>
-        new HttpResponse("Unauthorized", { status: 401 }),
-      ),
+      http.get("/api/v1/auth/methods", () => new HttpResponse("Unauthorized", { status: 401 })),
     );
 
     const { getAuthMethods } = await import("../../src/api/auth");
@@ -72,8 +80,9 @@ describe("auth multi-provider API", () => {
 
   it("getAuthMethods throws ApiError on 500", async () => {
     server.use(
-      http.get("/api/v1/auth/methods", () =>
-        new HttpResponse("Internal Server Error", { status: 500 }),
+      http.get(
+        "/api/v1/auth/methods",
+        () => new HttpResponse("Internal Server Error", { status: 500 }),
       ),
     );
 
@@ -87,8 +96,9 @@ describe("auth multi-provider API", () => {
 
   it("unlinkAuth throws on 401 and triggers logout", async () => {
     server.use(
-      http.delete("/api/v1/auth/link/:provider", () =>
-        new HttpResponse("Unauthorized", { status: 401 }),
+      http.delete(
+        "/api/v1/auth/link/:provider",
+        () => new HttpResponse("Unauthorized", { status: 401 }),
       ),
     );
 
@@ -100,8 +110,9 @@ describe("auth multi-provider API", () => {
 
   it("unlinkAuth throws ApiError on 500", async () => {
     server.use(
-      http.delete("/api/v1/auth/link/:provider", () =>
-        new HttpResponse("Server error", { status: 500 }),
+      http.delete(
+        "/api/v1/auth/link/:provider",
+        () => new HttpResponse("Server error", { status: 500 }),
       ),
     );
 

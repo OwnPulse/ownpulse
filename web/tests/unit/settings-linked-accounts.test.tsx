@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { describe, it, expect, vi, beforeAll, afterAll, afterEach, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { delay, HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { http, HttpResponse, delay } from "msw";
-import { useAuthStore } from "../../src/store/auth";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthMethod } from "../../src/api/auth";
+import { useAuthStore } from "../../src/store/auth";
 
 const TOKEN = "test-jwt";
 
@@ -64,9 +64,7 @@ describe("Settings — Linked Accounts", () => {
   });
 
   it("shows linked accounts list", async () => {
-    server.use(
-      http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)),
-    );
+    server.use(http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)));
 
     await renderSettings();
 
@@ -78,9 +76,7 @@ describe("Settings — Linked Accounts", () => {
   });
 
   it("shows Unlink buttons only when more than one method exists", async () => {
-    server.use(
-      http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)),
-    );
+    server.use(http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)));
 
     await renderSettings();
 
@@ -91,9 +87,7 @@ describe("Settings — Linked Accounts", () => {
   });
 
   it("hides Unlink button when only one method exists", async () => {
-    server.use(
-      http.get("/api/v1/auth/methods", () => HttpResponse.json(ONE_METHOD)),
-    );
+    server.use(http.get("/api/v1/auth/methods", () => HttpResponse.json(ONE_METHOD)));
 
     await renderSettings();
 
@@ -109,7 +103,7 @@ describe("Settings — Linked Accounts", () => {
     server.use(
       http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)),
       http.delete("/api/v1/auth/link/:provider", ({ params }) => {
-        capturedProvider = params["provider"] as string;
+        capturedProvider = params.provider as string;
         return HttpResponse.json(ONE_METHOD);
       }),
     );
@@ -158,8 +152,9 @@ describe("Settings — Linked Accounts", () => {
   it("shows error message when unlink fails", async () => {
     server.use(
       http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)),
-      http.delete("/api/v1/auth/link/:provider", () =>
-        new HttpResponse("Server error", { status: 500 }),
+      http.delete(
+        "/api/v1/auth/link/:provider",
+        () => new HttpResponse("Server error", { status: 500 }),
       ),
     );
 
