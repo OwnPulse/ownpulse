@@ -49,7 +49,6 @@ export default function Admin() {
         <table style={tableStyle}>
           <thead>
             <tr>
-              <th style={thStyle}>Username</th>
               <th style={thStyle}>Email</th>
               <th style={thStyle}>Provider</th>
               <th style={thStyle}>Role</th>
@@ -59,8 +58,14 @@ export default function Admin() {
           <tbody>
             {users?.map((u: AdminUser) => (
               <tr key={u.id}>
-                <td style={tdStyle}>{u.username}</td>
-                <td style={tdStyle}>{u.email || "\u2014"}</td>
+                <td style={tdStyle}>
+                  {u.email}
+                  {u.username && (
+                    <span style={{ display: "block", fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+                      {u.username}
+                    </span>
+                  )}
+                </td>
                 <td style={tdStyle}>{u.auth_provider}</td>
                 <td style={tdStyle}>
                   <select

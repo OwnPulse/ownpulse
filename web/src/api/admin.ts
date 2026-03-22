@@ -5,9 +5,9 @@ import { api } from "./client";
 
 export interface AdminUser {
   id: string;
-  username: string;
+  username?: string;
   auth_provider: string;
-  email?: string;
+  email: string;
   role: string;
   data_region: string;
   created_at: string;

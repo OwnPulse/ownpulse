@@ -11,7 +11,7 @@ import styles from "./Login.module.css";
 export default function Login() {
   const { loading } = useAuth();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -29,9 +29,9 @@ export default function Login() {
     setError("");
     setSubmitting(true);
     try {
-      await login(username, password);
+      await login(email, password);
     } catch {
-      setError("Invalid username or password.");
+      setError("Invalid email or password.");
     } finally {
       setSubmitting(false);
     }
@@ -59,15 +59,15 @@ export default function Login() {
 
         <form onSubmit={handleSubmit}>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="username">Username</label>
+            <label className={styles.label} htmlFor="email">Email</label>
             <input
-              id="username"
+              id="email"
               className={styles.input}
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
-              autoComplete="username"
+              autoComplete="email"
             />
           </div>
           <div className={styles.field}>
