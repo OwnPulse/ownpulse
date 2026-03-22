@@ -679,3 +679,230 @@ async fn test_auth_methods_list() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// #9: Apple callback with invalid token returns 401
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_apple_callback_invalid_token_returns_401() {
+    let test_app = common::setup_with_config(|c| {
+        c.apple_client_id = Some("com.example.ownpulse".to_string());
+        // JWKS URL doesn't matter — token header decode will fail first.
+    })
+    .await;
+
+    let response = test_app
+        .app
+        .oneshot(post_json(
+            "/api/v1/auth/apple/callback",
+            &json!({"id_token": "not.a.valid.jwt", "platform": "ios"}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        401,
+        "an invalid Apple id_token should return 401"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// #10: link_auth with "local" provider (social-only user links password)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_link_local_to_social_user() {
+    let kid = "test-key-link-local";
+    let client_id = "com.example.ownpulse";
+    let private_key = gen_rsa_key();
+    let jwks = make_jwks(&private_key, kid);
+
+    let mock_server = wiremock::MockServer::start().await;
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/auth/keys"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(&jwks))
+        .mount(&mock_server)
+        .await;
+
+    let jwks_url = format!("{}/auth/keys", mock_server.uri());
+
+    let test_app = common::setup_with_config(|c| {
+        c.apple_client_id = Some(client_id.to_string());
+        c.apple_jwks_url = jwks_url.clone();
+    })
+    .await;
+
+    // Create an Apple-only user via the callback flow.
+    let apple_sub = "apple-sub-link-local";
+    let id_token = make_apple_id_token(
+        &private_key,
+        kid,
+        apple_sub,
+        client_id,
+        Some("linklocal@example.com"),
+    );
+
+    let r1 = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/apple/callback",
+            &json!({"id_token": id_token, "platform": "ios"}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(r1.status(), 200);
+    let j1 = body_json(r1).await;
+    let token = j1["access_token"].as_str().unwrap().to_string();
+
+    // Link a local (password) auth method.
+    let link_response = test_app
+        .app
+        .clone()
+        .oneshot(auth_post(
+            "/api/v1/auth/link",
+            &token,
+            &json!({"provider": "local", "password": "securepassword123"}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(link_response.status(), 200);
+    let methods = body_json(link_response).await;
+    let providers: Vec<&str> = methods
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|m| m["provider"].as_str())
+        .collect();
+    assert!(
+        providers.contains(&"local"),
+        "local should now be linked, got: {:?}",
+        providers
+    );
+
+    // Verify the user can log in with password.
+    // First, get the username.
+    let user_row: (String,) = sqlx::query_as("SELECT username FROM users WHERE id = (SELECT user_id FROM user_auth_methods WHERE provider = 'apple' AND provider_subject = $1)")
+        .bind(apple_sub)
+        .fetch_one(&test_app.pool)
+        .await
+        .unwrap();
+
+    let login_response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/login",
+            &json!({"username": user_row.0, "password": "securepassword123"}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        login_response.status(),
+        200,
+        "user should be able to log in with the linked password"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// #11: link_auth with unsupported provider returns 400
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_link_unsupported_provider_returns_400() {
+    let test_app = common::setup().await;
+    let (_, token) = common::create_test_user(&test_app).await;
+
+    let response = test_app
+        .app
+        .oneshot(auth_post(
+            "/api/v1/auth/link",
+            &token,
+            &json!({"provider": "github"}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        400,
+        "unsupported provider should return 400"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// #12: Unauthenticated access to protected endpoints returns 401
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_unauthenticated_auth_methods_returns_401() {
+    let test_app = common::setup().await;
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/methods")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        401,
+        "GET /auth/methods without JWT should return 401"
+    );
+}
+
+#[tokio::test]
+async fn test_unauthenticated_link_returns_401() {
+    let test_app = common::setup().await;
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/link",
+            &json!({"provider": "local", "password": "testpass123"}),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        401,
+        "POST /auth/link without JWT should return 401"
+    );
+}
+
+#[tokio::test]
+async fn test_unauthenticated_unlink_returns_401() {
+    let test_app = common::setup().await;
+
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri("/api/v1/auth/link/local")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        401,
+        "DELETE /auth/link/:provider without JWT should return 401"
+    );
+}

@@ -210,6 +210,10 @@ pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error
         .bind(user_id)
         .execute(&mut *tx)
         .await?;
+    sqlx::query("DELETE FROM user_auth_methods WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM integration_tokens WHERE user_id = $1")
         .bind(user_id)
         .execute(&mut *tx)

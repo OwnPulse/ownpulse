@@ -140,6 +140,9 @@ pub async fn setup_with_config(
 }
 
 /// Insert a test user and return (user_id, jwt_token).
+///
+/// Also inserts a `user_auth_methods` row with `provider='local'` so that the
+/// user is consistent with the multi-auth schema.
 pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
     let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash failed");
     let row: (Uuid,) = sqlx::query_as(
@@ -150,6 +153,17 @@ pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
     .fetch_one(&app.pool)
     .await
     .expect("failed to insert test user");
+
+    // Insert the corresponding auth method row.
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject)
+         VALUES ($1, 'local', $2)",
+    )
+    .bind(row.0)
+    .bind(row.0.to_string())
+    .execute(&app.pool)
+    .await
+    .expect("failed to insert user_auth_methods row for test user");
 
     let token = api::auth::jwt::encode_access_token(
         row.0,

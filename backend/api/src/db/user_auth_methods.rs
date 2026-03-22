@@ -82,28 +82,24 @@ pub async fn list_for_user(
     .await
 }
 
-/// Delete the auth method for a specific provider from a user's account.
-pub async fn delete(
+/// Atomically delete the auth method for a specific provider from a user's
+/// account, but only if the user has more than one method remaining.
+///
+/// Returns the number of rows deleted (0 if the user only had one method
+/// or the provider was not found).
+pub async fn delete_if_not_last(
     pool: &PgPool,
     user_id: Uuid,
     provider: &str,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "DELETE FROM user_auth_methods WHERE user_id = $1 AND provider = $2",
+) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query(
+        "DELETE FROM user_auth_methods
+         WHERE user_id = $1 AND provider = $2
+           AND (SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1) > 1",
     )
     .bind(user_id)
     .bind(provider)
     .execute(pool)
     .await?;
-    Ok(())
-}
-
-/// Count how many auth methods a user has linked.
-pub async fn count_for_user(pool: &PgPool, user_id: Uuid) -> Result<i64, sqlx::Error> {
-    let row: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_one(pool)
-            .await?;
-    Ok(row.0)
+    Ok(result.rows_affected())
 }

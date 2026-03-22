@@ -387,7 +387,10 @@ pub async fn apple_callback(
         &state.config.apple_jwks_url,
     )
     .await
-    .map_err(|_| ApiError::Unauthorized)?;
+    .map_err(|e| {
+        tracing::warn!(error = %e, "Apple identity token verification failed");
+        ApiError::Unauthorized
+    })?;
 
     let email = apple_user.email.as_deref();
     let username = email
@@ -432,7 +435,10 @@ pub async fn link_auth(
                 &state.config.apple_jwks_url,
             )
             .await
-            .map_err(|_| ApiError::Unauthorized)?;
+            .map_err(|e| {
+                tracing::warn!(error = %e, "Apple identity token verification failed during link");
+                ApiError::Unauthorized
+            })?;
 
             // Check that this Apple sub isn't already linked to a DIFFERENT user.
             match user_auth_methods::find_by_provider_subject(
@@ -470,8 +476,10 @@ pub async fn link_auth(
                 .as_deref()
                 .ok_or_else(|| ApiError::BadRequest("password required for local".into()))?;
 
-            if password.is_empty() {
-                return Err(ApiError::BadRequest("password must not be empty".into()));
+            if password.len() < 8 {
+                return Err(ApiError::BadRequest(
+                    "password must be at least 8 characters".into(),
+                ));
             }
 
             let hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)
@@ -511,6 +519,11 @@ pub async fn link_auth(
                 Err(e) => return Err(ApiError::Internal(e.to_string())),
             }
         }
+        "google" => {
+            return Err(ApiError::BadRequest(
+                "Google account linking is not yet supported; use Google Sign-In to create your account instead".into(),
+            ));
+        }
         other => {
             return Err(ApiError::BadRequest(format!(
                 "unsupported provider: {other}"
@@ -531,19 +544,16 @@ pub async fn unlink_auth(
     auth_user: AuthUser,
     Path(provider): Path<String>,
 ) -> Result<Response, ApiError> {
-    let count = user_auth_methods::count_for_user(&state.pool, auth_user.id)
-        .await
-        .map_err(ApiError::from)?;
+    let rows_deleted =
+        user_auth_methods::delete_if_not_last(&state.pool, auth_user.id, &provider)
+            .await
+            .map_err(ApiError::from)?;
 
-    if count <= 1 {
+    if rows_deleted == 0 {
         return Err(ApiError::BadRequest(
             "cannot remove your only login method".into(),
         ));
     }
-
-    user_auth_methods::delete(&state.pool, auth_user.id, &provider)
-        .await
-        .map_err(ApiError::from)?;
 
     let methods = user_auth_methods::list_for_user(&state.pool, auth_user.id)
         .await
