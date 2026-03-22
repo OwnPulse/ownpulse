@@ -92,4 +92,61 @@ mod tests {
         let result = decode_access_token(&token, secret);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn alg_none_rejected() {
+        // Manually construct a token with {"alg":"none","typ":"JWT"} header
+        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+
+        let header = URL_SAFE_NO_PAD.encode(r#"{"alg":"none","typ":"JWT"}"#);
+        let now = chrono::Utc::now().timestamp();
+        let user_id = Uuid::new_v4();
+        let payload = URL_SAFE_NO_PAD.encode(
+            format!(
+                r#"{{"sub":"{}","role":"admin","exp":{},"iat":{}}}"#,
+                user_id,
+                now + 3600,
+                now
+            ),
+        );
+        let token = format!("{}.{}.", header, payload); // empty signature
+
+        let result = decode_access_token(&token, "any-secret");
+        assert!(result.is_err(), "alg:none token must be rejected");
+    }
+
+    #[test]
+    fn wrong_algorithm_rejected() {
+        // A token signed with HS384 must be rejected because only HS256 is allowed
+        use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+
+        let user_id = Uuid::new_v4();
+        let now = chrono::Utc::now().timestamp();
+        let claims = Claims {
+            sub: user_id,
+            role: "user".to_string(),
+            exp: now + 3600,
+            iat: now,
+        };
+
+        // Encode with HS384 (not HS256)
+        let token = encode(
+            &Header::new(Algorithm::HS384),
+            &claims,
+            &EncodingKey::from_secret(b"test-secret"),
+        )
+        .unwrap();
+
+        let result = decode_access_token(&token, "test-secret");
+        assert!(result.is_err(), "HS384 token must be rejected when HS256 is expected");
+    }
+
+    #[test]
+    fn role_admin_roundtrips() {
+        let user_id = Uuid::new_v4();
+        let secret = "test-secret-at-least-32-bytes-long";
+        let token = encode_access_token(user_id, "admin", secret, 3600).unwrap();
+        let claims = decode_access_token(&token, secret).unwrap();
+        assert_eq!(claims.role, "admin");
+    }
 }
