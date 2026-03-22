@@ -16,6 +16,7 @@ final class AppDependencies {
     let anchorStore: AnchorStore
     let syncEngine: SyncEngine
     let syncScheduler: SyncScheduler
+    let adminService: AdminService
 
     init(
         keychainService: KeychainServiceProtocol? = nil,
@@ -48,5 +49,7 @@ final class AppDependencies {
         )
 
         self.syncScheduler = SyncScheduler()
+
+        self.adminService = AdminService(networkClient: network)
     }
 }

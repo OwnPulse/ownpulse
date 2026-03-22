@@ -7,6 +7,7 @@ enum JWTDecoder {
     struct Payload {
         let sub: String
         let exp: Date
+        let role: String?
     }
 
     static func decode(_ token: String) -> Payload? {
@@ -30,7 +31,9 @@ enum JWTDecoder {
             return nil
         }
 
-        return Payload(sub: sub, exp: Date(timeIntervalSince1970: exp))
+        let role = json["role"] as? String
+
+        return Payload(sub: sub, exp: Date(timeIntervalSince1970: exp), role: role)
     }
 
     static func isExpired(_ token: String, buffer: TimeInterval = 60) -> Bool {

@@ -8,6 +8,18 @@ struct SettingsView: View {
     @State private var showLogoutConfirmation = false
     @State private var hkAuthorized = false
 
+    private var isAdmin: Bool {
+        guard let tokenData = try? dependencies.keychainService.load(
+            key: AuthService.accessTokenKey
+        ),
+            let token = String(data: tokenData, encoding: .utf8),
+            let payload = JWTDecoder.decode(token)
+        else {
+            return false
+        }
+        return payload.role == "admin"
+    }
+
     var body: some View {
         List {
             Section("HealthKit") {
@@ -27,6 +39,15 @@ struct SettingsView: View {
                         }
                     }
                     .accessibilityIdentifier("requestHKAccessButton")
+                }
+            }
+
+            if isAdmin {
+                Section("Administration") {
+                    NavigationLink("User Management") {
+                        AdminView()
+                    }
+                    .accessibilityIdentifier("userManagementLink")
                 }
             }
 
