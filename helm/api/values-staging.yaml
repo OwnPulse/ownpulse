@@ -1,11 +1,20 @@
-# Staging overrides — Tailscale-only, no public ingress.
+# Staging overrides — Tailscale-only via ingress-nginx.
+# DNS resolves to server's Tailscale IP (CGNAT range, not publicly routable).
 ingress:
-  enabled: false
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-dns01
+
+  host: api.staging.ownpulse.health
+  tls:
+    enabled: true
+    secretName: staging-api-tls
 
 configmap:
   RUST_LOG: "debug"
   DATA_REGION: "us"
-  WEB_ORIGIN: "https://ownpulse-us.zorse-snake.ts.net:8445"
+  WEB_ORIGIN: "https://app.staging.ownpulse.health"
 
 secret:
   name: ownpulse-staging-api-secrets
