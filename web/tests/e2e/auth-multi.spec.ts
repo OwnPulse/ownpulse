@@ -9,12 +9,20 @@ import { expect, test } from "@playwright/test";
 // If route guards are added in the future, a beforeEach that sets an auth
 // cookie/token via page.context().addCookies() or storageState will be needed.
 
-function mockSettingsApis(page: import("@playwright/test").Page) {
-  return Promise.all([
-    page.route("**/api/v1/source-preferences", (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
-    ),
-  ]);
+async function mockSettingsApis(page: import("@playwright/test").Page) {
+  // Mock auth refresh to simulate an authenticated session.
+  // The JWT payload must have sub/role so the auth store accepts it.
+  const fakeJwt = `eyJhbGciOiJIUzI1NiJ9.${btoa(JSON.stringify({ sub: "00000000-0000-0000-0000-000000000001", role: "user", exp: 9999999999 }))}.fake`;
+  await page.route("**/api/v1/auth/refresh", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ access_token: fakeJwt, token_type: "bearer", expires_in: 3600 }),
+    }),
+  );
+  await page.route("**/api/v1/source-preferences", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
 }
 
 test.describe("Apple Sign-In button", () => {
