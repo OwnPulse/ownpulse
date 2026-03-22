@@ -42,6 +42,7 @@ Reference as: `uses: OwnPulse/gh-actions/<action-name>@v1`
 - react-frontend
 - swift-ios
 - userdocs
+- test-review
 
 **Review agents** (read-only, no worktree needed):
 - feature-plan
