@@ -45,8 +45,7 @@ pub async fn find_or_create_google_user(
     display_name: Option<&str>,
 ) -> Result<UserRow, sqlx::Error> {
     // 1. Look up by stable subject (preferred — doesn't change if user changes email)
-    match crate::db::user_auth_methods::find_by_provider_subject(pool, "google", google_sub).await
-    {
+    match crate::db::user_auth_methods::find_by_provider_subject(pool, "google", google_sub).await {
         Ok(user) => return Ok(user),
         Err(sqlx::Error::RowNotFound) => {}
         Err(e) => return Err(e),

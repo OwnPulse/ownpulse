@@ -7,7 +7,7 @@
 //! JWT signature, issuer, audience, and expiry. JWKS responses are
 //! cached in memory for one hour to avoid hitting Apple on every login.
 
-use jsonwebtoken::{decode, decode_header, Algorithm, DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::{Deserialize, Serialize};
 use std::sync::LazyLock;
 use tokio::sync::RwLock;
@@ -62,10 +62,7 @@ static JWKS_CACHE: LazyLock<RwLock<Option<CachedJwks>>> = LazyLock::new(|| RwLoc
 const JWKS_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(3600);
 
 /// Fetch the JWKS from Apple (or return the cached version if still fresh).
-async fn fetch_jwks(
-    client: &reqwest::Client,
-    jwks_url: &str,
-) -> Result<JwkSet, String> {
+async fn fetch_jwks(client: &reqwest::Client, jwks_url: &str) -> Result<JwkSet, String> {
     // Try read lock first — fast path.
     {
         let cache = JWKS_CACHE.read().await;
@@ -112,10 +109,7 @@ async fn fetch_jwks(
 
 /// Fetch JWKS from the remote endpoint, bypassing the cache entirely.
 /// Used when the cached JWKS does not contain a matching `kid` (key rotation).
-async fn fetch_jwks_fresh(
-    client: &reqwest::Client,
-    jwks_url: &str,
-) -> Result<JwkSet, String> {
+async fn fetch_jwks_fresh(client: &reqwest::Client, jwks_url: &str) -> Result<JwkSet, String> {
     let mut cache = JWKS_CACHE.write().await;
 
     let response = client

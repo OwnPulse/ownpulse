@@ -97,9 +97,7 @@ pub async fn setup() -> TestApp {
 /// Spin up an ephemeral Postgres and build a TestApp using the provided config overrides.
 /// `config_fn` receives a mutable reference to the default config so callers can patch
 /// fields like `apple_client_id` or `apple_jwks_url` without repeating the whole struct.
-pub async fn setup_with_config(
-    config_fn: impl FnOnce(&mut api::config::Config),
-) -> TestApp {
+pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config)) -> TestApp {
     let container = Postgres::default()
         .with_tag("16-alpine")
         .start()

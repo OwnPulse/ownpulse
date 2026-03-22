@@ -4,15 +4,15 @@
 //! Integration tests for multi-auth: Apple Sign-In, account linking, and unlinking.
 
 use axum::body::Body;
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
 use http::Request;
 use http_body_util::BodyExt;
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+use rsa::RsaPrivateKey;
 use rsa::pkcs1::EncodeRsaPrivateKey;
 use rsa::traits::PublicKeyParts;
-use rsa::RsaPrivateKey;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use crate::common;
@@ -74,8 +74,7 @@ fn make_apple_id_token(
     let der = private_key
         .to_pkcs1_der()
         .expect("failed to encode private key to DER");
-    let encoding_key =
-        EncodingKey::from_rsa_der(der.as_bytes());
+    let encoding_key = EncodingKey::from_rsa_der(der.as_bytes());
 
     let now = chrono::Utc::now().timestamp() as u64;
     let claims = AppleClaims {
@@ -188,11 +187,7 @@ async fn test_apple_callback_creates_user() {
         .await
         .unwrap();
 
-    assert_eq!(
-        response.status(),
-        200,
-        "apple callback should return 200"
-    );
+    assert_eq!(response.status(), 200, "apple callback should return 200");
 }
 
 #[tokio::test]
@@ -272,8 +267,7 @@ async fn test_apple_callback_web_no_refresh_in_body() {
     })
     .await;
 
-    let id_token =
-        make_apple_id_token(&private_key, kid, "apple-sub-web", client_id, None);
+    let id_token = make_apple_id_token(&private_key, kid, "apple-sub-web", client_id, None);
 
     let response = test_app
         .app
@@ -320,7 +314,13 @@ async fn test_apple_callback_existing_user_returns_same_user() {
     .await;
 
     let make_token = || {
-        make_apple_id_token(&private_key, kid, apple_sub, client_id, Some("idempotent@example.com"))
+        make_apple_id_token(
+            &private_key,
+            kid,
+            apple_sub,
+            client_id,
+            Some("idempotent@example.com"),
+        )
     };
 
     // First call — creates the user
@@ -352,16 +352,12 @@ async fn test_apple_callback_existing_user_returns_same_user() {
     let token2 = j2["access_token"].as_str().unwrap().to_string();
 
     // Decode both tokens and check they have the same user_id
-    let claims1 = api::auth::jwt::decode_access_token(
-        &token1,
-        "test-jwt-secret-at-least-32-bytes-long",
-    )
-    .unwrap();
-    let claims2 = api::auth::jwt::decode_access_token(
-        &token2,
-        "test-jwt-secret-at-least-32-bytes-long",
-    )
-    .unwrap();
+    let claims1 =
+        api::auth::jwt::decode_access_token(&token1, "test-jwt-secret-at-least-32-bytes-long")
+            .unwrap();
+    let claims2 =
+        api::auth::jwt::decode_access_token(&token2, "test-jwt-secret-at-least-32-bytes-long")
+            .unwrap();
 
     assert_eq!(
         claims1.sub, claims2.sub,
@@ -417,8 +413,13 @@ async fn test_link_apple_to_google_user() {
 
     // Link their Apple account
     let apple_sub = "apple-sub-link-001";
-    let id_token =
-        make_apple_id_token(&private_key, kid, apple_sub, client_id, Some("link@example.com"));
+    let id_token = make_apple_id_token(
+        &private_key,
+        kid,
+        apple_sub,
+        client_id,
+        Some("link@example.com"),
+    );
 
     let response = test_app
         .app
@@ -513,32 +514,25 @@ async fn test_unlink_last_method_rejected() {
     // Ensure there is only ONE auth method (local, from create_test_user).
     // The migration populates user_auth_methods from existing users; there may
     // already be a row from insert. Let's count to be sure.
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&test_app.pool)
-    .await
-    .unwrap();
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&test_app.pool)
+        .await
+        .unwrap();
 
     // If count is already 1, attempt to unlink should fail.
     // If for some reason count > 1, delete extras so we test the guard.
     if count.0 > 1 {
-        sqlx::query(
-            "DELETE FROM user_auth_methods WHERE user_id = $1 AND provider != 'local'",
-        )
-        .bind(user_id)
-        .execute(&test_app.pool)
-        .await
-        .unwrap();
+        sqlx::query("DELETE FROM user_auth_methods WHERE user_id = $1 AND provider != 'local'")
+            .bind(user_id)
+            .execute(&test_app.pool)
+            .await
+            .unwrap();
     }
 
     let response = test_app
         .app
-        .oneshot(auth_delete(
-            "/api/v1/auth/link/local",
-            &token,
-        ))
+        .oneshot(auth_delete("/api/v1/auth/link/local", &token))
         .await
         .unwrap();
 
@@ -585,14 +579,16 @@ async fn test_unlink_success() {
     .unwrap();
 
     // Verify we have at least 2 methods before unlinking.
-    let before: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&test_app.pool)
-    .await
-    .unwrap();
-    assert!(before.0 >= 2, "expected at least 2 auth methods before unlink");
+    let before: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&test_app.pool)
+            .await
+            .unwrap();
+    assert!(
+        before.0 >= 2,
+        "expected at least 2 auth methods before unlink"
+    );
 
     // Unlink google.
     let response = test_app
@@ -618,18 +614,12 @@ async fn test_unlink_success() {
     );
 
     // Verify count decreased.
-    let after: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&test_app.pool)
-    .await
-    .unwrap();
-    assert_eq!(
-        after.0,
-        before.0 - 1,
-        "method count should decrease by 1"
-    );
+    let after: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&test_app.pool)
+        .await
+        .unwrap();
+    assert_eq!(after.0, before.0 - 1, "method count should decrease by 1");
 }
 
 #[tokio::test]
@@ -1017,10 +1007,7 @@ async fn test_apple_callback_jwks_malformed_json_returns_401() {
     let mock_server = wiremock::MockServer::start().await;
     wiremock::Mock::given(wiremock::matchers::method("GET"))
         .and(wiremock::matchers::path("/auth/keys"))
-        .respond_with(
-            wiremock::ResponseTemplate::new(200)
-                .set_body_string("this is not json"),
-        )
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_string("this is not json"))
         .mount(&mock_server)
         .await;
 
@@ -1220,11 +1207,7 @@ async fn test_apple_callback_unknown_platform_returns_400() {
         .await
         .unwrap();
 
-    assert_eq!(
-        response.status(),
-        400,
-        "unknown platform should return 400"
-    );
+    assert_eq!(response.status(), 400, "unknown platform should return 400");
 }
 
 // ---------------------------------------------------------------------------
@@ -1271,13 +1254,11 @@ async fn test_unlink_nonexistent_provider_with_single_method_returns_404() {
     let (user_id, token) = common::create_test_user(&test_app).await;
 
     // Ensure there is exactly 1 auth method.
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&test_app.pool)
-    .await
-    .unwrap();
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&test_app.pool)
+        .await
+        .unwrap();
     assert_eq!(count.0, 1, "user should have exactly 1 auth method");
 
     // Try to unlink 'apple' which the user doesn't have.

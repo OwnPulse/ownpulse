@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use axum::extract::{Path, Query, State};
-use axum::http::header::{HeaderMap, SET_COOKIE};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
+use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
+use axum::http::header::{HeaderMap, SET_COOKIE};
+use axum::response::{IntoResponse, Redirect, Response};
 use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::auth::extractor::AuthUser;
 use crate::AppState;
+use crate::auth::extractor::AuthUser;
 use crate::auth::jwt::encode_access_token;
 use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
 use crate::db::refresh_tokens;
@@ -435,10 +435,9 @@ pub async fn apple_callback(
         .map(sanitize_username)
         .unwrap_or_else(|| format!("user-{}", &Uuid::new_v4().to_string()[..8]));
 
-    let user =
-        users::find_or_create_apple_user(&state.pool, &apple_user.sub, email, &username)
-            .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let user = users::find_or_create_apple_user(&state.pool, &apple_user.sub, email, &username)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let is_web = body.platform == "web";
     issue_tokens_response(&state, user.id, &user.role, is_web).await
@@ -457,11 +456,8 @@ pub async fn link_auth(
                 .as_deref()
                 .ok_or_else(|| ApiError::BadRequest("id_token required for apple".into()))?;
 
-            let client_id = state
-                .config
-                .apple_client_id
-                .as_deref()
-                .ok_or_else(|| {
+            let client_id =
+                state.config.apple_client_id.as_deref().ok_or_else(|| {
                     ApiError::Internal("APPLE_CLIENT_ID not configured".to_string())
                 })?;
 
@@ -478,12 +474,8 @@ pub async fn link_auth(
             })?;
 
             // Check that this Apple sub isn't already linked to a DIFFERENT user.
-            match user_auth_methods::find_by_provider_subject(
-                &state.pool,
-                "apple",
-                &apple_user.sub,
-            )
-            .await
+            match user_auth_methods::find_by_provider_subject(&state.pool, "apple", &apple_user.sub)
+                .await
             {
                 Ok(existing) if existing.id != auth_user.id => {
                     return Err(ApiError::Conflict(
@@ -581,10 +573,9 @@ pub async fn unlink_auth(
     auth_user: AuthUser,
     Path(provider): Path<String>,
 ) -> Result<Response, ApiError> {
-    let rows_deleted =
-        user_auth_methods::delete_if_not_last(&state.pool, auth_user.id, &provider)
-            .await
-            .map_err(ApiError::from)?;
+    let rows_deleted = user_auth_methods::delete_if_not_last(&state.pool, auth_user.id, &provider)
+        .await
+        .map_err(ApiError::from)?;
 
     if rows_deleted == 0 {
         // Distinguish "last method" from "provider not linked":
@@ -748,8 +739,8 @@ async fn issue_tokens_response(
 
     let raw_refresh = generate_refresh_token();
     let refresh_hash = hash_refresh_token(&raw_refresh, &state.config.jwt_secret);
-    let expires_at = Utc::now()
-        + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
+    let expires_at =
+        Utc::now() + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
 
     refresh_tokens::insert(&state.pool, user_id, &refresh_hash, expires_at)
         .await
