@@ -80,15 +80,15 @@ jobs:
               return;
             }
 
-            // Auto-trigger: require all services built for the triggering commit.
-            // This prevents deploying stale images when builds finish at different
-            // times. Each workflow_run completion re-evaluates; the last one to
-            // finish will find all three ready and proceed.
+            // Auto-trigger: use the triggering SHA for services that built it,
+            // and fall back to each service's latest successful build on main
+            // for services not affected by this commit.
             const targetSha = context.payload.workflow_run.head_sha;
             core.info(`Resolving tags for commit ${targetSha}`);
 
             for (const svc of services) {
-              const runs = await github.rest.actions.listWorkflowRuns({
+              // Try the triggering SHA first
+              let runs = await github.rest.actions.listWorkflowRuns({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 workflow_id: svc.workflow,
@@ -97,17 +97,32 @@ jobs:
                 head_sha: targetSha,
                 per_page: 1,
               });
+              if (runs.data.total_count > 0) {
+                core.setOutput(svc.name, targetSha);
+                core.info(`${svc.name}: built at ${targetSha}`);
+                continue;
+              }
+
+              // Fall back to latest successful build on main
+              runs = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: svc.workflow,
+                branch: 'main',
+                status: 'success',
+                per_page: 1,
+              });
               if (runs.data.total_count === 0) {
-                core.info(`${svc.name}: no successful build yet for ${targetSha}, skipping deploy`);
-                core.setOutput('ready', 'false');
+                core.setFailed(`No successful ${svc.workflow} run found on main`);
                 return;
               }
-              core.setOutput(svc.name, targetSha);
-              core.info(`${svc.name}: ready (${targetSha})`);
+              const fallbackSha = runs.data.workflow_runs[0].head_sha;
+              core.setOutput(svc.name, fallbackSha);
+              core.info(`${svc.name}: using latest build (${fallbackSha})`);
             }
 
             core.setOutput('ready', 'true');
-            core.info('All services ready, proceeding with deploy');
+            core.info('All services resolved, proceeding with deploy');
 
   # ---------------------------------------------------------------------------
   # Staging
