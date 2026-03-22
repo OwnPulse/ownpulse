@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useParams, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { Link, useParams } from "react-router-dom";
 import { friendsApi } from "../api/friends";
 
 const cardStyle: React.CSSProperties = {
@@ -73,7 +73,7 @@ export default function FriendView() {
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["friend-data", friendId],
-    queryFn: () => friendsApi.getFriendData(friendId!),
+    queryFn: () => friendsApi.getFriendData(friendId as string),
     enabled: !!friendId,
   });
 
@@ -108,11 +108,7 @@ export default function FriendView() {
       </div>
       <h1>Friend Data</h1>
 
-      {!hasData && (
-        <p style={{ color: "var(--color-text-muted)" }}>
-          No shared data available.
-        </p>
-      )}
+      {!hasData && <p style={{ color: "var(--color-text-muted)" }}>No shared data available.</p>}
 
       {checkins.length > 0 && (
         <section style={cardStyle}>
@@ -129,8 +125,8 @@ export default function FriendView() {
               </tr>
             </thead>
             <tbody>
-              {checkins.map((c, i) => (
-                <tr key={i}>
+              {checkins.map((c) => (
+                <tr key={c.date ?? crypto.randomUUID()}>
                   <td style={tdStyle}>{c.date ?? "-"}</td>
                   <td style={tdStyle}>{c.energy ?? "-"}</td>
                   <td style={tdStyle}>{c.mood ?? "-"}</td>
@@ -158,8 +154,8 @@ export default function FriendView() {
               </tr>
             </thead>
             <tbody>
-              {healthRecords.map((r, i) => (
-                <tr key={i}>
+              {healthRecords.map((r) => (
+                <tr key={`${r.record_type}-${r.recorded_at}`}>
                   <td style={tdStyle}>{r.record_type ?? "-"}</td>
                   <td style={tdStyle}>{r.value ?? "-"}</td>
                   <td style={tdStyle}>{r.unit ?? "-"}</td>
@@ -185,8 +181,8 @@ export default function FriendView() {
               </tr>
             </thead>
             <tbody>
-              {interventions.map((r, i) => (
-                <tr key={i}>
+              {interventions.map((r) => (
+                <tr key={`${r.substance}-${r.taken_at}`}>
                   <td style={tdStyle}>{r.substance ?? "-"}</td>
                   <td style={tdStyle}>{r.dose ?? "-"}</td>
                   <td style={tdStyle}>{r.unit ?? "-"}</td>
@@ -210,8 +206,8 @@ export default function FriendView() {
               </tr>
             </thead>
             <tbody>
-              {observations.map((r, i) => (
-                <tr key={i}>
+              {observations.map((r) => (
+                <tr key={`${r.type}-${r.name}-${r.recorded_at}`}>
                   <td style={tdStyle}>{r.type ?? "-"}</td>
                   <td style={tdStyle}>{r.name ?? "-"}</td>
                   <td style={tdStyle}>{r.recorded_at ?? "-"}</td>
@@ -235,8 +231,8 @@ export default function FriendView() {
               </tr>
             </thead>
             <tbody>
-              {labResults.map((r, i) => (
-                <tr key={i}>
+              {labResults.map((r) => (
+                <tr key={`${r.marker}-${r.collected_at}`}>
                   <td style={tdStyle}>{r.marker ?? "-"}</td>
                   <td style={tdStyle}>{r.value ?? "-"}</td>
                   <td style={tdStyle}>{r.unit ?? "-"}</td>

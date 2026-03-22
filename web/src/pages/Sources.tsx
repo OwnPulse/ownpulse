@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { integrationsApi } from "../api/integrations";
 
 export default function Sources() {
@@ -25,9 +25,7 @@ export default function Sources() {
 
       {integrations.isLoading && <p>Loading integrations...</p>}
       {integrations.isError && <p>Error loading integrations.</p>}
-      {integrations.data && integrations.data.length === 0 && (
-        <p>No integrations configured.</p>
-      )}
+      {integrations.data && integrations.data.length === 0 && <p>No integrations configured.</p>}
       {integrations.data && (
         <ul style={{ listStyle: "none", padding: 0 }}>
           {integrations.data.map((integration) => (
@@ -56,9 +54,8 @@ export default function Sources() {
               )}
               {integration.connected && (
                 <button
-                  onClick={() =>
-                    disconnectMutation.mutate(integration.source)
-                  }
+                  type="button"
+                  onClick={() => disconnectMutation.mutate(integration.source)}
                   disabled={disconnectMutation.isPending}
                 >
                   Disconnect

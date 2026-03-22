@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { labsApi, CreateLabResult } from "../../api/labs";
+import { useState } from "react";
+import { type CreateLabResult, labsApi } from "../../api/labs";
 
 export default function LabResultForm() {
   const queryClient = useQueryClient();
@@ -58,21 +58,13 @@ export default function LabResultForm() {
       <div>
         <label>
           Lab Name
-          <input
-            value={labName}
-            onChange={(e) => setLabName(e.target.value)}
-            required
-          />
+          <input value={labName} onChange={(e) => setLabName(e.target.value)} required />
         </label>
       </div>
       <div>
         <label>
           Marker
-          <input
-            value={marker}
-            onChange={(e) => setMarker(e.target.value)}
-            required
-          />
+          <input value={marker} onChange={(e) => setMarker(e.target.value)} required />
         </label>
       </div>
       <div>
@@ -90,11 +82,7 @@ export default function LabResultForm() {
       <div>
         <label>
           Unit
-          <input
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            required
-          />
+          <input value={unit} onChange={(e) => setUnit(e.target.value)} required />
         </label>
       </div>
       <div>
@@ -122,9 +110,7 @@ export default function LabResultForm() {
       <button type="submit" disabled={mutation.isPending}>
         {mutation.isPending ? "Saving..." : "Save Lab Result"}
       </button>
-      {mutation.isError && (
-        <p style={{ color: "red" }}>Error: {mutation.error.message}</p>
-      )}
+      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
       {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
     </form>
   );

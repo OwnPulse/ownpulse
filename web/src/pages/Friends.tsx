@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { friendsApi, FriendShare, DATA_TYPES } from "../api/friends";
+import { DATA_TYPES, type FriendShare, friendsApi } from "../api/friends";
 
 const cardStyle: React.CSSProperties = {
   background: "var(--color-surface)",
@@ -46,8 +46,7 @@ function DataTypePills({ types }: { types: string[] }) {
   return (
     <span>
       {types.map((t) => {
-        const label =
-          DATA_TYPES.find((dt) => dt.value === t)?.label ?? t;
+        const label = DATA_TYPES.find((dt) => dt.value === t)?.label ?? t;
         return (
           <span key={t} style={pillStyle}>
             {label}
@@ -61,9 +60,7 @@ function DataTypePills({ types }: { types: string[] }) {
 export default function Friends() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([
-    "checkins",
-  ]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(["checkins"]);
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,11 +75,7 @@ export default function Friends() {
   });
 
   const createShare = useMutation({
-    mutationFn: () =>
-      friendsApi.createShare(
-        email.trim() || null,
-        selectedTypes,
-      ),
+    mutationFn: () => friendsApi.createShare(email.trim() || null, selectedTypes),
     onSuccess: (share: FriendShare) => {
       setError(null);
       if (share.invite_token) {
@@ -116,9 +109,7 @@ export default function Friends() {
 
   const toggleType = (value: string) => {
     setSelectedTypes((prev) =>
-      prev.includes(value)
-        ? prev.filter((v) => v !== value)
-        : [...prev, value],
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
     );
   };
 
@@ -167,7 +158,12 @@ export default function Friends() {
             {DATA_TYPES.map((dt) => (
               <label
                 key={dt.value}
-                style={{ display: "flex", alignItems: "center", gap: "0.25rem", fontSize: "0.8125rem" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.25rem",
+                  fontSize: "0.8125rem",
+                }}
               >
                 <input
                   type="checkbox"
@@ -181,6 +177,7 @@ export default function Friends() {
         </div>
 
         <button
+          type="button"
           style={btnPrimary}
           onClick={() => createShare.mutate()}
           disabled={createShare.isPending || selectedTypes.length === 0}
@@ -189,7 +186,9 @@ export default function Friends() {
         </button>
 
         {error && (
-          <p style={{ color: "var(--color-error, red)", marginTop: "0.5rem", fontSize: "0.875rem" }}>
+          <p
+            style={{ color: "var(--color-error, red)", marginTop: "0.5rem", fontSize: "0.875rem" }}
+          >
             {error}
           </p>
         )}
@@ -221,7 +220,7 @@ export default function Friends() {
                   fontSize: "0.8125rem",
                 }}
               />
-              <button style={btnStyle} onClick={() => copyToClipboard(inviteLink)}>
+              <button type="button" style={btnStyle} onClick={() => copyToClipboard(inviteLink)}>
                 Copy
               </button>
             </div>
@@ -251,9 +250,7 @@ export default function Friends() {
               }}
             >
               <div>
-                <strong>
-                  {share.friend_email ?? "Invite link: pending"}
-                </strong>
+                <strong>{share.friend_email ?? "Invite link: pending"}</strong>
                 <div style={{ marginTop: "0.25rem" }}>
                   <DataTypePills types={share.data_types} />
                 </div>
@@ -261,6 +258,7 @@ export default function Friends() {
               <div style={{ display: "flex", gap: "0.375rem" }}>
                 {share.invite_token && !share.friend_id && (
                   <button
+                    type="button"
                     style={btnStyle}
                     onClick={() =>
                       copyToClipboard(
@@ -272,6 +270,7 @@ export default function Friends() {
                   </button>
                 )}
                 <button
+                  type="button"
                   style={{ ...btnStyle, color: "var(--color-error, red)" }}
                   onClick={() => revokeShare.mutate(share.id)}
                   disabled={revokeShare.isPending}
@@ -315,6 +314,7 @@ export default function Friends() {
                 {share.status === "pending" ? (
                   <>
                     <button
+                      type="button"
                       style={btnPrimary}
                       onClick={() => acceptShare.mutate(share.id)}
                       disabled={acceptShare.isPending}
@@ -322,6 +322,7 @@ export default function Friends() {
                       Accept
                     </button>
                     <button
+                      type="button"
                       style={{ ...btnStyle, color: "var(--color-error, red)" }}
                       onClick={() => revokeShare.mutate(share.id)}
                       disabled={revokeShare.isPending}

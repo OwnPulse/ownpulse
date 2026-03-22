@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAuthStore } from "../../src/store/auth";
 
 describe("api client", () => {
@@ -26,7 +26,7 @@ describe("api client", () => {
 
     expect(mockFetch).toHaveBeenCalledOnce();
     const [, options] = mockFetch.mock.calls[0];
-    expect(options.headers["Authorization"]).toBe("Bearer my-jwt");
+    expect(options.headers.Authorization).toBe("Bearer my-jwt");
 
     vi.unstubAllGlobals();
   });
@@ -60,9 +60,7 @@ describe("api client", () => {
 
     const { api } = await import("../../src/api/client");
 
-    await expect(api.get("/api/v1/broken")).rejects.toThrow(
-      "Internal Server Error",
-    );
+    await expect(api.get("/api/v1/broken")).rejects.toThrow("Internal Server Error");
 
     vi.unstubAllGlobals();
   });

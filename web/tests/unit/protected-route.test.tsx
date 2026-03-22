@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { useAuthStore } from "../../src/store/auth";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProtectedRoute from "../../src/components/ProtectedRoute";
+import { useAuthStore } from "../../src/store/auth";
 
 vi.mock("../../src/hooks/useAuth", () => ({
   useAuth: () => ({ loading: false }),
