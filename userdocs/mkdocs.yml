@@ -32,6 +32,7 @@ nav:
   - Data Export: export.md
   - Sleep Tracking: sleep.md
   - Privacy & Security: privacy.md
+  - User Management & Invites: admin.md
   - Settings & Account: settings.md
 
 markdown_extensions:
