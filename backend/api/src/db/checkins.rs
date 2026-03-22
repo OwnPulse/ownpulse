@@ -53,11 +53,7 @@ pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<CheckinRow>, sqlx:
 }
 
 /// Get a single check-in by id, scoped to user.
-pub async fn get_by_id(
-    pool: &PgPool,
-    user_id: Uuid,
-    id: Uuid,
-) -> Result<CheckinRow, sqlx::Error> {
+pub async fn get_by_id(pool: &PgPool, user_id: Uuid, id: Uuid) -> Result<CheckinRow, sqlx::Error> {
     sqlx::query_as::<_, CheckinRow>(
         "SELECT id, user_id, date, energy, mood, focus, recovery, libido,
                 notes, created_at

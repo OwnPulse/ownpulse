@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::Json;
 use serde::Serialize;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::crypto;
 use crate::db::integration_tokens as db;
 use crate::error::ApiError;
-use crate::AppState;
 
 #[derive(Serialize)]
 pub struct IntegrationStatus {
@@ -32,8 +32,7 @@ pub async fn list(
         .map(|k| crypto::parse_encryption_key(k))
         .transpose()
         .map_err(|e| ApiError::Internal(format!("bad previous encryption key config: {e}")))?;
-    let tokens =
-        db::list_for_user(&state.pool, user_id, &key, prev_key.as_ref()).await?;
+    let tokens = db::list_for_user(&state.pool, user_id, &key, prev_key.as_ref()).await?;
     let statuses = tokens
         .into_iter()
         .map(|t| IntegrationStatus {

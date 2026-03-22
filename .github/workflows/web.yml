@@ -37,6 +37,8 @@ jobs:
 
       - run: npx tsc --noEmit
 
+      # TODO: Add `npx biome check src/ tests/` here after existing violations are fixed
+
       - name: Run tests with coverage
         run: |
           npx vitest run --coverage 2>&1 | tee coverage-output.txt

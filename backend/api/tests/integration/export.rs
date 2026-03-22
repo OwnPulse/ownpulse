@@ -106,5 +106,8 @@ async fn test_export_csv() {
         csv_body.lines().next().unwrap_or("")
     );
     // Should have at least header + 1 data row
-    assert!(csv_body.lines().count() >= 2, "CSV should have at least 2 lines");
+    assert!(
+        csv_body.lines().count() >= 2,
+        "CSV should have at least 2 lines"
+    );
 }
