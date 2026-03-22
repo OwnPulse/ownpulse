@@ -407,14 +407,16 @@ async fn accept_by_token_nulls_invite_token() {
         .unwrap();
     assert_eq!(resp.status(), 200);
 
-    // Verify invite_token is NULL in the DB
-    let row: (Option<String>,) =
-        sqlx::query_as("SELECT invite_token FROM friend_shares WHERE id = $1")
-            .bind(Uuid::parse_str(share_id).unwrap())
-            .fetch_one(&app.pool)
-            .await
-            .unwrap();
+    // Verify invite_token and invite_expires_at are NULL in the DB
+    let row: (Option<String>, Option<chrono::DateTime<chrono::Utc>>) = sqlx::query_as(
+        "SELECT invite_token, invite_expires_at FROM friend_shares WHERE id = $1",
+    )
+    .bind(Uuid::parse_str(share_id).unwrap())
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
     assert!(row.0.is_none(), "invite_token should be NULL after acceptance");
+    assert!(row.1.is_none(), "invite_expires_at should be NULL after acceptance");
 }
 
 #[tokio::test]
