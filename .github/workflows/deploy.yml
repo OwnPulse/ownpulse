@@ -29,6 +29,7 @@ jobs:
       api-tag: ${{ steps.tags.outputs.api }}
       web-tag: ${{ steps.tags.outputs.web }}
       userdocs-tag: ${{ steps.tags.outputs.userdocs }}
+      ready: ${{ steps.tags.outputs.ready }}
     steps:
       - name: Resolve per-service image tags
         id: tags
@@ -39,16 +40,23 @@ jobs:
           script: |
             const inputSha = process.env.INPUT_SHA;
 
-            // If manual dispatch with explicit SHA, use it for all services
+            // Manual dispatch with explicit SHA — use it for all services
             if (inputSha) {
               core.info(`Manual override: using ${inputSha} for all services`);
               core.setOutput('api', inputSha);
               core.setOutput('web', inputSha);
               core.setOutput('userdocs', inputSha);
+              core.setOutput('ready', 'true');
               return;
             }
 
-            // Otherwise, find each service's latest successful build on main
+            // Auto-trigger: require all services built for the triggering commit.
+            // This prevents deploying stale images when builds finish at different
+            // times. Each workflow_run completion re-evaluates; the last one to
+            // finish will find all three ready and proceed.
+            const targetSha = context.payload.workflow_run.head_sha;
+            core.info(`Resolving tags for commit ${targetSha}`);
+
             const services = [
               { name: 'api', workflow: 'backend.yml' },
               { name: 'web', workflow: 'web.yml' },
@@ -62,16 +70,20 @@ jobs:
                 workflow_id: svc.workflow,
                 branch: 'main',
                 status: 'success',
+                head_sha: targetSha,
                 per_page: 1,
               });
               if (runs.data.total_count === 0) {
-                core.setFailed(`No successful ${svc.workflow} run found on main`);
+                core.info(`${svc.name}: no successful build yet for ${targetSha}, skipping deploy`);
+                core.setOutput('ready', 'false');
                 return;
               }
-              const sha = runs.data.workflow_runs[0].head_sha;
-              core.setOutput(svc.name, sha);
-              core.info(`${svc.name}: ${sha} (from ${svc.workflow})`);
+              core.setOutput(svc.name, targetSha);
+              core.info(`${svc.name}: ready (${targetSha})`);
             }
+
+            core.setOutput('ready', 'true');
+            core.info('All services ready, proceeding with deploy');
 
   # ---------------------------------------------------------------------------
   # Staging
@@ -79,6 +91,7 @@ jobs:
 
   staging-infra:
     needs: resolve-tags
+    if: needs.resolve-tags.outputs.ready == 'true'
     runs-on: arc-runner-set
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
