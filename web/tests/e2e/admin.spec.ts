@@ -39,9 +39,7 @@ const mockInvites = [
 ];
 
 function adminJwt(): string {
-  const payload = btoa(
-    JSON.stringify({ sub: "u1", role: "admin", exp: 9999999999 }),
-  );
+  const payload = btoa(JSON.stringify({ sub: "u1", role: "admin", exp: 9999999999 }));
   return `eyJhbGciOiJIUzI1NiJ9.${payload}.fake`;
 }
 

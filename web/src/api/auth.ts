@@ -33,11 +33,7 @@ export async function refreshToken(): Promise<boolean> {
   }
 }
 
-export async function register(
-  email: string,
-  password: string,
-  inviteCode: string,
-): Promise<void> {
+export async function register(email: string, password: string, inviteCode: string): Promise<void> {
   const data = await api.post<TokenResponse>("/api/v1/auth/register", {
     email,
     password,
