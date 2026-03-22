@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::interventions as db;
 use crate::error::ApiError;
 use crate::models::intervention::{CreateIntervention, InterventionQuery, InterventionRow};
-use crate::AppState;
 
 /// POST /interventions — no substance name validation per project rules.
 pub async fn create(

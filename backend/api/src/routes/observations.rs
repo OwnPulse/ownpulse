@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::observations as db;
 use crate::error::ApiError;
 use crate::models::observation::{
-    is_valid_observation_type, CreateObservation, ObservationQuery, ObservationRow,
+    CreateObservation, ObservationQuery, ObservationRow, is_valid_observation_type,
 };
-use crate::AppState;
 
 /// POST /observations — validates observation type before insert.
 pub async fn create(

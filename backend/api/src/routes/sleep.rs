@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use chrono::{NaiveTime, TimeZone, Utc};
 use serde_json::json;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::observations as db;
 use crate::error::ApiError;
 use crate::models::observation::CreateObservation;
 use crate::models::sleep::{CreateSleep, SleepQuery, SleepResponse};
-use crate::AppState;
 
 const SLEEP_TYPE: &str = "sleep";
 
@@ -32,9 +32,9 @@ pub async fn create(
             .and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap());
         Utc.from_utc_datetime(&midnight)
     });
-    let end_time = body.sleep_end.or_else(|| {
-        Some(start_time + chrono::Duration::minutes(i64::from(body.duration_minutes)))
-    });
+    let end_time = body
+        .sleep_end
+        .or_else(|| Some(start_time + chrono::Duration::minutes(i64::from(body.duration_minutes))));
 
     // Pack all sleep-specific fields into the JSONB value.
     let value = json!({
@@ -59,7 +59,10 @@ pub async fn create(
     };
 
     let row = db::insert(&state.pool, user_id, &obs).await?;
-    Ok((StatusCode::CREATED, Json(SleepResponse::from_observation(row))))
+    Ok((
+        StatusCode::CREATED,
+        Json(SleepResponse::from_observation(row)),
+    ))
 }
 
 /// GET /sleep — list sleep observations with optional date range.
@@ -68,14 +71,9 @@ pub async fn list(
     AuthUser { id: user_id, .. }: AuthUser,
     Query(query): Query<SleepQuery>,
 ) -> Result<Json<Vec<SleepResponse>>, ApiError> {
-    let rows = db::list_by_type_with_date_range(
-        &state.pool,
-        user_id,
-        SLEEP_TYPE,
-        query.start,
-        query.end,
-    )
-    .await?;
+    let rows =
+        db::list_by_type_with_date_range(&state.pool, user_id, SLEEP_TYPE, query.start, query.end)
+            .await?;
 
     let records: Vec<SleepResponse> = rows
         .into_iter()

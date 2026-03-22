@@ -40,6 +40,9 @@ final class AuthService: AuthServiceProtocol {
     private var authSession: ASWebAuthenticationSession?
     private let presentationContext = AuthPresentationContext()
 
+    /// Ephemeral PKCE code verifier — held in memory only for the duration of a login attempt.
+    private var codeVerifier: String?
+
     nonisolated static let accessTokenKey = "access_token"
     nonisolated static let refreshTokenKey = "refresh_token"
 
@@ -81,13 +84,12 @@ final class AuthService: AuthServiceProtocol {
             self.authSession = session
 
             let started = session.start()
-            logger.info("ASWebAuthenticationSession.start() returned: \(started)")
             if !started {
                 logger.error("Google OAuth session failed to start")
             }
         }
 
-        try processCallback(url: callbackURL)
+        try await processCallback(url: callbackURL)
     }
 
     func loginWithApple() async throws {
@@ -135,10 +137,12 @@ final class AuthService: AuthServiceProtocol {
     }
 
     func handleCallback(url: URL) {
-        do {
-            try processCallback(url: url)
-        } catch {
-            logger.error("handleCallback failed: \(error.localizedDescription, privacy: .public)")
+        Task {
+            do {
+                try await processCallback(url: url)
+            } catch {
+                logger.error("handleCallback failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -148,27 +152,63 @@ final class AuthService: AuthServiceProtocol {
         isAuthenticated = false
     }
 
-    private func processCallback(url: URL) throws {
+    /// Extracts the authorization code from Google's redirect, then calls the backend
+    /// with the stored code_verifier so the backend can complete the PKCE exchange.
+    private func processCallback(url: URL) async throws {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-              let token = components.queryItems?.first(where: { $0.name == "token" })?.value,
-              let refreshToken = components.queryItems?.first(where: { $0.name == "refresh_token" })?.value
+              let code = components.queryItems?.first(where: { $0.name == "code" })?.value
         else {
             throw AuthError.invalidCallback
         }
 
+        guard let verifier = codeVerifier else {
+            throw AuthError.missingCodeVerifier
+        }
+        // Clear the verifier immediately — single use.
+        codeVerifier = nil
+
+        var backendComponents = URLComponents(
+            url: AppConfig.apiBaseURL.appendingPathComponent(Endpoints.authGoogleCallback),
+            resolvingAgainstBaseURL: false
+        )!
+        backendComponents.queryItems = [
+            URLQueryItem(name: "code", value: code),
+            URLQueryItem(name: "code_verifier", value: verifier),
+        ]
+
+        guard let callbackURL = backendComponents.url else {
+            throw AuthError.invalidCallback
+        }
+
+        var request = URLRequest(url: callbackURL)
+        request.httpMethod = "GET"
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw AuthError.callbackFailed
+        }
+
+        let decoder = JSONDecoder()
+        let authResponse = try decoder.decode(AuthCallbackResponse.self, from: data)
+
         try keychainService.save(
             key: Self.accessTokenKey,
-            data: Data(token.utf8)
+            data: Data(authResponse.token.utf8)
         )
         try keychainService.save(
             key: Self.refreshTokenKey,
-            data: Data(refreshToken.utf8)
+            data: Data(authResponse.refreshToken.utf8)
         )
 
         isAuthenticated = true
     }
 
     private func buildGoogleAuthURL() throws -> URL {
+        let verifier = PKCEHelper.generateCodeVerifier()
+        codeVerifier = verifier
+        let challenge = PKCEHelper.codeChallenge(from: verifier)
+
         guard var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth") else {
             throw AuthError.urlConstructionFailed
         }
@@ -177,7 +217,8 @@ final class AuthService: AuthServiceProtocol {
             URLQueryItem(name: "redirect_uri", value: AppConfig.googleRedirectURI),
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "scope", value: "openid email"),
-            URLQueryItem(name: "state", value: "ios"),
+            URLQueryItem(name: "code_challenge", value: challenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
         ]
         guard let url = components.url else {
             throw AuthError.urlConstructionFailed
@@ -188,6 +229,8 @@ final class AuthService: AuthServiceProtocol {
 
 enum AuthError: Error {
     case invalidCallback
+    case missingCodeVerifier
+    case callbackFailed
     case tokenStorageFailed
     case urlConstructionFailed
 }

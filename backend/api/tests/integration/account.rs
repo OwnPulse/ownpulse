@@ -14,20 +14,15 @@ async fn test_get_account() {
 
     let response = app
         .app
-        .oneshot(common::auth_request(
-            "GET",
-            "/api/v1/account",
-            &token,
-            None,
-        ))
+        .oneshot(common::auth_request("GET", "/api/v1/account", &token, None))
         .await
         .unwrap();
 
     assert_eq!(response.status(), 200);
 
     let json = common::body_json(response).await;
-    assert!(json["username"].is_string());
-    assert!(!json["username"].as_str().unwrap().is_empty());
+    assert!(json["email"].is_string());
+    assert!(!json["email"].as_str().unwrap().is_empty());
     assert_eq!(json["auth_provider"], "local");
 }
 
@@ -55,12 +50,7 @@ async fn test_delete_account() {
     // so the auth extractor or the handler will return an error.
     let get_resp = app
         .app
-        .oneshot(common::auth_request(
-            "GET",
-            "/api/v1/account",
-            &token,
-            None,
-        ))
+        .oneshot(common::auth_request("GET", "/api/v1/account", &token, None))
         .await
         .unwrap();
     // Could be 401 (extractor fails) or 404 (user not found) — either means gone

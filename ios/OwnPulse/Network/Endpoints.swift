@@ -5,6 +5,7 @@ import Foundation
 
 enum Endpoints {
     static let authAppleCallback = "/api/v1/auth/apple/callback"
+    static let authGoogleCallback = "/api/v1/auth/google/callback"
     static let authLogin = "/api/v1/auth/login"
     static let authLink = "/api/v1/auth/link"
     static let authMethods = "/api/v1/auth/methods"
@@ -12,4 +13,6 @@ enum Endpoints {
     static let healthKitSync = "/api/v1/healthkit/sync"
     static let healthKitWriteQueue = "/api/v1/healthkit/write-queue"
     static let healthKitConfirm = "/api/v1/healthkit/confirm"
+    static let adminUsers = "/api/v1/admin/users"
+    static let adminInvites = "/api/v1/admin/invites"
 }

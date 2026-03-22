@@ -67,9 +67,7 @@ pub async fn fetch_events(
                 .text()
                 .await
                 .unwrap_or_else(|_| "unreadable body".into());
-            return Err(format!(
-                "calendar events returned {status}: {body}"
-            ));
+            return Err(format!("calendar events returned {status}: {body}"));
         }
 
         let page: CalendarEventsResponse = response

@@ -15,6 +15,16 @@ struct TokenResponse: Codable, Sendable {
     }
 }
 
+struct AuthCallbackResponse: Codable, Sendable {
+    let token: String
+    let refreshToken: String
+
+    enum CodingKeys: String, CodingKey {
+        case token
+        case refreshToken = "refresh_token"
+    }
+}
+
 struct RefreshRequest: Codable, Sendable {
     let refreshToken: String
 

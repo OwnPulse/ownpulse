@@ -22,6 +22,11 @@ pub struct GoogleUserInfo {
 }
 
 /// Exchange an authorization code for tokens via Google's OAuth2 token endpoint.
+///
+/// When `code_verifier` is `Some`, it is included in the request body for
+/// PKCE flows (RFC 7636). Google verifies it against the `code_challenge`
+/// that was sent in the original authorization request. For web flows where
+/// CSRF is handled via the `oauth_state` cookie, pass `None`.
 pub async fn exchange_code_for_tokens(
     client: &reqwest::Client,
     client_id: &str,
@@ -29,16 +34,21 @@ pub async fn exchange_code_for_tokens(
     redirect_uri: &str,
     code: &str,
     token_url: &str,
+    code_verifier: Option<&str>,
 ) -> Result<GoogleTokenResponse, String> {
+    let mut params = vec![
+        ("grant_type", "authorization_code"),
+        ("client_id", client_id),
+        ("client_secret", client_secret),
+        ("redirect_uri", redirect_uri),
+        ("code", code),
+    ];
+    if let Some(verifier) = code_verifier {
+        params.push(("code_verifier", verifier));
+    }
     let response = client
         .post(token_url)
-        .form(&[
-            ("grant_type", "authorization_code"),
-            ("client_id", client_id),
-            ("client_secret", client_secret),
-            ("redirect_uri", redirect_uri),
-            ("code", code),
-        ])
+        .form(&params)
         .send()
         .await
         .map_err(|e| format!("token exchange request failed: {e}"))?;
@@ -49,9 +59,7 @@ pub async fn exchange_code_for_tokens(
             .text()
             .await
             .unwrap_or_else(|_| "unreadable body".into());
-        return Err(format!(
-            "token exchange returned {status}: {body}"
-        ));
+        return Err(format!("token exchange returned {status}: {body}"));
     }
 
     response

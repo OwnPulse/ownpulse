@@ -73,6 +73,24 @@ kubectl get pods -n ownpulse
 
 Open `https://app.yourdomain.com` in your browser and create your account.
 
+## Configuration
+
+### Environment variables
+
+The following environment variables can be set on the API deployment to customize behavior. Set them via `--set env.VARIABLE_NAME=value` when running `helm upgrade`, or add them to a values file.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REQUIRE_INVITE` | `true` | When `true`, new users must provide a valid invite code to register. Set to `false` for open signups. |
+
+When `REQUIRE_INVITE` is `true` (the default), only users with a valid invite code can create an account. An admin creates invite codes from the admin panel and shares them with people they want to grant access. See the [User Management](https://docs.ownpulse.health/admin/) guide for details.
+
+To allow anyone to sign up without an invite code:
+
+```bash
+helm upgrade api helm/api -n ownpulse --set env.REQUIRE_INVITE=false
+```
+
 ## Backups
 
 Set up a daily PostgreSQL backup:
