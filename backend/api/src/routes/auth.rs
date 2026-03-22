@@ -18,6 +18,17 @@ use crate::error::ApiError;
 use crate::models::user::{LoginRequest, RefreshRequest, TokenResponse};
 use crate::AppState;
 
+/// Return `"; Secure"` when the web origin uses HTTPS, empty string otherwise.
+/// This lets cookies work over plain HTTP during local development while
+/// remaining secure in production.
+fn secure_attr(config: &crate::config::Config) -> &'static str {
+    if config.web_origin.starts_with("https://") {
+        "; Secure"
+    } else {
+        ""
+    }
+}
+
 /// POST /auth/login — username + password authentication.
 pub async fn login(
     State(state): State<AppState>,
@@ -122,8 +133,10 @@ pub async fn logout(
         }
     }
 
-    let clear_cookie =
-        "refresh_token=; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=0";
+    let secure = secure_attr(&state.config);
+    let clear_cookie = format!(
+        "refresh_token=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
+    );
 
     let mut response = StatusCode::NO_CONTENT.into_response();
     response.headers_mut().insert(
@@ -162,9 +175,9 @@ pub async fn google_login(State(state): State<AppState>) -> Result<Response, Api
         urlencoding::encode(&csrf_state),
     );
 
+    let secure = secure_attr(&state.config);
     let state_cookie = format!(
-        "oauth_state={}; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=600",
-        csrf_state
+        "oauth_state={csrf_state}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600"
     );
 
     let mut response = Redirect::to(&auth_url).into_response();
@@ -288,8 +301,10 @@ pub async fn google_callback(
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     // Clear the oauth_state cookie
-    let clear_state_cookie =
-        "oauth_state=; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age=0";
+    let secure = secure_attr(&state.config);
+    let clear_state_cookie = format!(
+        "oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
+    );
 
     if is_ios {
         // iOS: redirect to custom scheme with tokens in the fragment
@@ -308,12 +323,12 @@ pub async fn google_callback(
     } else {
         // Web: set tokens as httpOnly cookies and redirect without tokens in URL
         let access_cookie = format!(
-            "access_token={}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age={}",
-            access_token, state.config.jwt_expiry_seconds
+            "access_token={access_token}; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age={}",
+            state.config.jwt_expiry_seconds
         );
         let refresh_cookie = format!(
-            "refresh_token={}; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
-            raw_token, state.config.refresh_token_expiry_seconds
+            "refresh_token={raw_token}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
+            state.config.refresh_token_expiry_seconds
         );
 
         let redirect_url = format!("{}/?auth=success", state.config.web_origin);
@@ -380,9 +395,10 @@ async fn issue_tokens(state: &AppState, user_id: Uuid, role: &str) -> Result<Res
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
+    let secure = secure_attr(&state.config);
     let cookie = format!(
-        "refresh_token={}; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
-        raw_refresh, state.config.refresh_token_expiry_seconds
+        "refresh_token={raw_refresh}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
+        state.config.refresh_token_expiry_seconds
     );
 
     let token_response = TokenResponse {
@@ -427,9 +443,10 @@ async fn issue_tokens_with_family(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
+    let secure = secure_attr(&state.config);
     let cookie = format!(
-        "refresh_token={}; HttpOnly; Secure; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
-        raw_refresh, state.config.refresh_token_expiry_seconds
+        "refresh_token={raw_refresh}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
+        state.config.refresh_token_expiry_seconds
     );
 
     let token_response = TokenResponse {
