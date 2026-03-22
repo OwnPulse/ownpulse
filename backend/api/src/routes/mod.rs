@@ -6,9 +6,12 @@
 //! Each sub-module defines handlers for one route group.
 
 pub mod account;
+pub mod admin;
 pub mod audit;
 pub mod auth;
 pub mod checkins;
+pub mod dashboard;
+pub mod friends;
 pub mod export;
 pub mod health_records;
 pub mod healthkit;
@@ -21,7 +24,7 @@ pub mod source_preferences;
 pub mod waitlist;
 
 use axum::{
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 
@@ -112,4 +115,18 @@ fn base_routes() -> Router<AppState> {
         // Integrations
         .route("/integrations", get(integrations::list))
         .route("/integrations/:source", delete(integrations::disconnect))
+        // Dashboard
+        .route("/dashboard/summary", get(dashboard::summary))
+        // Admin
+        .route("/admin/users", get(admin::list_users))
+        .route("/admin/users/:id/role", patch(admin::update_role))
+        // Friend sharing
+        .route("/friends/shares", post(friends::create_share))
+        .route("/friends/shares/outgoing", get(friends::list_outgoing))
+        .route("/friends/shares/incoming", get(friends::list_incoming))
+        .route("/friends/shares/accept-link", post(friends::accept_link))
+        .route("/friends/shares/:id/accept", post(friends::accept_share))
+        .route("/friends/shares/:id", delete(friends::revoke_share))
+        .route("/friends/shares/:id/permissions", patch(friends::update_permissions))
+        .route("/friends/:friend_id/data", get(friends::get_friend_data))
 }

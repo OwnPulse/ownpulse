@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
-                data_region, federation_id, created_at
+                role, data_region, federation_id, created_at
          FROM users WHERE id = $1",
     )
     .bind(id)
@@ -21,7 +21,7 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error>
 pub async fn find_by_username(pool: &PgPool, username: &str) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
-                data_region, federation_id, created_at
+                role, data_region, federation_id, created_at
          FROM users WHERE username = $1",
     )
     .bind(username)
@@ -47,10 +47,42 @@ pub async fn find_or_create_google_user(
     .await
 }
 
+/// List all users ordered by creation date.
+pub async fn list_all_users(pool: &PgPool) -> Result<Vec<UserRow>, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "SELECT id, username, password_hash, auth_provider, email,
+                role, data_region, federation_id, created_at
+         FROM users ORDER BY created_at",
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// Update a user's role.
+pub async fn update_user_role(
+    pool: &PgPool,
+    user_id: Uuid,
+    role: &str,
+) -> Result<UserRow, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "UPDATE users SET role = $2 WHERE id = $1
+         RETURNING id, username, password_hash, auth_provider, email,
+                   role, data_region, federation_id, created_at",
+    )
+    .bind(user_id)
+    .bind(role)
+    .fetch_one(pool)
+    .await
+}
+
 /// Delete a user and all their data from child tables, then the user row.
 pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
+    sqlx::query("DELETE FROM friend_shares WHERE owner_id = $1 OR friend_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM export_jobs WHERE user_id = $1")
         .bind(user_id)
         .execute(&mut *tx)

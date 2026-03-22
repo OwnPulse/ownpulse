@@ -12,7 +12,7 @@ use crate::AppState;
 /// GET /account/audit-log — return the caller's last 100 audit log entries.
 pub async fn list_audit_log(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Json<Vec<AuditEntry>>, ApiError> {
     let entries = audit::list_for_user(&state.pool, user_id)
         .await

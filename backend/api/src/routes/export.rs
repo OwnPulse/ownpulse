@@ -13,7 +13,7 @@ use crate::AppState;
 /// GET /export/json — streaming JSON export of all user data.
 pub async fn export_json(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Response, ApiError> {
     let body = crate::export::json::stream_json_export(&state.pool, user_id)
         .await
@@ -45,7 +45,7 @@ pub async fn export_json(
 /// GET /export/csv — streaming CSV export of all user data.
 pub async fn export_csv(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Response, ApiError> {
     let body = crate::export::csv::stream_csv_export(&state.pool, user_id)
         .await

@@ -15,7 +15,7 @@ use crate::AppState;
 /// GET /account — return the current user's profile.
 pub async fn get_account(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Json<UserResponse>, ApiError> {
     let user = users::find_by_id(&state.pool, user_id).await?;
     Ok(Json(UserResponse::from(user)))
@@ -24,7 +24,7 @@ pub async fn get_account(
 /// DELETE /account — permanently delete the user and all their data.
 pub async fn delete_account(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<StatusCode, ApiError> {
     // Write the audit entry synchronously before deleting the user so that the
     // record is committed regardless of whether the caller's connection closes

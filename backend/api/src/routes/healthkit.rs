@@ -17,7 +17,7 @@ use crate::AppState;
 /// Forces source="healthkit" on every record. Never enqueues write-back.
 pub async fn bulk_insert(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<HealthKitBulkInsert>,
 ) -> Result<(StatusCode, Json<Vec<HealthRecordRow>>), ApiError> {
     let mut inserted = Vec::with_capacity(body.records.len());
@@ -57,7 +57,7 @@ pub async fn bulk_insert(
 /// GET /healthkit/write-queue — pending items for the iOS client to write to HealthKit.
 pub async fn write_queue(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Json<Vec<HealthKitWriteQueueRow>>, ApiError> {
     let rows = db::get_pending(&state.pool, user_id).await?;
     Ok(Json(rows))
@@ -66,7 +66,7 @@ pub async fn write_queue(
 /// POST /healthkit/confirm — confirm that items have been written to HealthKit.
 pub async fn confirm(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<HealthKitConfirm>,
 ) -> Result<StatusCode, ApiError> {
     db::confirm(&state.pool, user_id, &body.ids).await?;

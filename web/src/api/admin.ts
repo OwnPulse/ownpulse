@@ -3,7 +3,7 @@
 
 import { api } from "./client";
 
-export interface UserAccount {
+export interface AdminUser {
   id: string;
   username: string;
   auth_provider: string;
@@ -13,7 +13,8 @@ export interface UserAccount {
   created_at: string;
 }
 
-export const accountApi = {
-  get: () => api.get<UserAccount>("/api/v1/account"),
-  delete: () => api.delete<void>("/api/v1/account"),
+export const adminApi = {
+  listUsers: () => api.get<AdminUser[]>("/api/v1/admin/users"),
+  updateRole: (userId: string, role: string) =>
+    api.patch<AdminUser>(`/api/v1/admin/users/${userId}/role`, { role }),
 };

@@ -15,7 +15,7 @@ use crate::AppState;
 /// POST /labs
 pub async fn create(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<CreateLabResult>,
 ) -> Result<(StatusCode, Json<LabResultRow>), ApiError> {
     let row = db::insert(&state.pool, user_id, &body).await?;
@@ -25,7 +25,7 @@ pub async fn create(
 /// GET /labs
 pub async fn list(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Query(_query): Query<LabResultQuery>,
 ) -> Result<Json<Vec<LabResultRow>>, ApiError> {
     let rows = db::list(&state.pool, user_id).await?;
@@ -35,7 +35,7 @@ pub async fn list(
 /// GET /labs/:id
 pub async fn get(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<LabResultRow>, ApiError> {
     let row = db::get_by_id(&state.pool, user_id, id).await?;
@@ -45,7 +45,7 @@ pub async fn get(
 /// DELETE /labs/:id
 pub async fn delete(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     db::delete(&state.pool, user_id, id).await?;

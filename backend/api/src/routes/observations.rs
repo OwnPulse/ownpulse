@@ -17,7 +17,7 @@ use crate::AppState;
 /// POST /observations — validates observation type before insert.
 pub async fn create(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<CreateObservation>,
 ) -> Result<(StatusCode, Json<ObservationRow>), ApiError> {
     if !is_valid_observation_type(&body.obs_type) {
@@ -34,7 +34,7 @@ pub async fn create(
 /// GET /observations
 pub async fn list(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Query(query): Query<ObservationQuery>,
 ) -> Result<Json<Vec<ObservationRow>>, ApiError> {
     let rows = db::list(&state.pool, user_id, query.obs_type.as_deref()).await?;
@@ -44,7 +44,7 @@ pub async fn list(
 /// GET /observations/:id
 pub async fn get(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ObservationRow>, ApiError> {
     let row = db::get_by_id(&state.pool, user_id, id).await?;
@@ -54,7 +54,7 @@ pub async fn get(
 /// DELETE /observations/:id
 pub async fn delete(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     db::delete(&state.pool, user_id, id).await?;

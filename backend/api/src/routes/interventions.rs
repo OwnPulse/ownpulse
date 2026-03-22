@@ -15,7 +15,7 @@ use crate::AppState;
 /// POST /interventions — no substance name validation per project rules.
 pub async fn create(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<CreateIntervention>,
 ) -> Result<(StatusCode, Json<InterventionRow>), ApiError> {
     let row = db::insert(&state.pool, user_id, &body).await?;
@@ -25,7 +25,7 @@ pub async fn create(
 /// GET /interventions
 pub async fn list(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Query(query): Query<InterventionQuery>,
 ) -> Result<Json<Vec<InterventionRow>>, ApiError> {
     let rows = db::list(&state.pool, user_id, query.start, query.end).await?;
@@ -35,7 +35,7 @@ pub async fn list(
 /// GET /interventions/:id
 pub async fn get(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<InterventionRow>, ApiError> {
     let row = db::get_by_id(&state.pool, user_id, id).await?;
@@ -45,7 +45,7 @@ pub async fn get(
 /// DELETE /interventions/:id
 pub async fn delete(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     db::delete(&state.pool, user_id, id).await?;

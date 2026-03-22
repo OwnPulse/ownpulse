@@ -8,6 +8,7 @@ use uuid::Uuid;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub sub: Uuid,
+    pub role: String,
     pub exp: i64,
     pub iat: i64,
 }
@@ -15,12 +16,14 @@ pub struct Claims {
 /// Create a signed JWT access token for the given user.
 pub fn encode_access_token(
     user_id: Uuid,
+    role: &str,
     secret: &str,
     expiry_seconds: u64,
 ) -> Result<String, jsonwebtoken::errors::Error> {
     let now = chrono::Utc::now().timestamp();
     let claims = Claims {
         sub: user_id,
+        role: role.to_string(),
         exp: now + expiry_seconds as i64,
         iat: now,
     };
@@ -54,15 +57,16 @@ mod tests {
     fn roundtrip_encode_decode() {
         let user_id = Uuid::new_v4();
         let secret = "test-secret-at-least-32-bytes-long";
-        let token = encode_access_token(user_id, secret, 3600).unwrap();
+        let token = encode_access_token(user_id, "user", secret, 3600).unwrap();
         let claims = decode_access_token(&token, secret).unwrap();
         assert_eq!(claims.sub, user_id);
+        assert_eq!(claims.role, "user");
     }
 
     #[test]
     fn wrong_secret_fails() {
         let user_id = Uuid::new_v4();
-        let token = encode_access_token(user_id, "correct-secret", 3600).unwrap();
+        let token = encode_access_token(user_id, "user", "correct-secret", 3600).unwrap();
         let result = decode_access_token(&token, "wrong-secret");
         assert!(result.is_err());
     }
@@ -75,6 +79,7 @@ mod tests {
         let now = chrono::Utc::now().timestamp();
         let claims = Claims {
             sub: user_id,
+            role: "user".to_string(),
             exp: now - 3600,
             iat: now - 7200,
         };

@@ -21,7 +21,7 @@ pub struct IntegrationStatus {
 /// GET /integrations — list all integrations and their connection status.
 pub async fn list(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Json<Vec<IntegrationStatus>>, ApiError> {
     let key = crypto::parse_encryption_key(&state.config.encryption_key)
         .map_err(|e| ApiError::Internal(format!("bad encryption key config: {e}")))?;
@@ -47,7 +47,7 @@ pub async fn list(
 /// DELETE /integrations/:source — disconnect an integration by removing its tokens.
 pub async fn disconnect(
     State(state): State<AppState>,
-    AuthUser(user_id): AuthUser,
+    AuthUser { id: user_id, .. }: AuthUser,
     Path(source): Path<String>,
 ) -> Result<StatusCode, ApiError> {
     db::delete(&state.pool, user_id, &source).await?;
