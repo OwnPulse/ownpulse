@@ -209,10 +209,14 @@ pub async fn google_login(State(state): State<AppState>) -> Result<Response, Api
 #[derive(Deserialize)]
 pub struct GoogleCallbackQuery {
     pub code: String,
-    /// CSRF state parameter — validated against the `oauth_state` cookie.
-    /// When set to `"ios"`, redirect to `ownpulse://auth#token=...` instead of
-    /// the web origin. The iOS app passes `state=ios` in the OAuth URL.
+    /// CSRF state parameter — validated against the `oauth_state` cookie in web flows.
+    /// Not required when `code_verifier` is present (PKCE flow).
     pub state: Option<String>,
+    /// PKCE code verifier (RFC 7636) — native app flows send this instead of relying
+    /// on a CSRF cookie. Google validates it against the `code_challenge` sent during
+    /// authorization. When present, the `oauth_state` cookie check is skipped because
+    /// possession of the verifier proves the caller initiated the flow.
+    pub code_verifier: Option<String>,
 }
 
 /// GET /auth/google/callback?code=...&state=... — exchange authorization code,
@@ -222,7 +226,19 @@ pub async fn google_callback(
     headers: HeaderMap,
     Query(query): Query<GoogleCallbackQuery>,
 ) -> Result<Response, ApiError> {
-    // --- CSRF state validation ---
+    // --- CSRF / PKCE validation ---
+    //
+    // Two mutually exclusive flows are supported:
+    //
+    // 1. PKCE (native app): the client sends `code_verifier`; Google will
+    //    validate it against the `code_challenge` that was included in the
+    //    original authorization URL. No CSRF cookie is needed because
+    //    possession of the verifier cryptographically proves the caller
+    //    initiated the flow (RFC 7636 §4.6).
+    //
+    // 2. Web (browser): no `code_verifier`; we validate the `state` parameter
+    //    against the short-lived httpOnly `oauth_state` cookie set by
+    //    `google_login`. This is the standard OAuth 2.0 CSRF mitigation.
     let oauth_state_cookie = headers
         .get(axum::http::header::COOKIE)
         .and_then(|v| v.to_str().ok())
@@ -234,11 +250,8 @@ pub async fn google_callback(
                 .map(|s| s.to_string())
         });
 
-    // iOS uses state=ios and doesn't go through our google_login endpoint,
-    // so it won't have the CSRF cookie. For web flows, validate CSRF state.
-    let is_ios = query.state.as_deref() == Some("ios");
-
-    if !is_ios {
+    if query.code_verifier.is_none() {
+        // Web flow — validate state parameter against the CSRF cookie.
         let expected_state = oauth_state_cookie
             .as_deref()
             .ok_or_else(|| ApiError::BadRequest("missing oauth_state cookie".into()))?;
@@ -250,6 +263,8 @@ pub async fn google_callback(
             return Err(ApiError::BadRequest("OAuth state mismatch".into()));
         }
     }
+    // PKCE flow — no cookie check here; Google validates the verifier during
+    // token exchange and will reject the request if it does not match.
 
     let client_id = state
         .config
@@ -274,6 +289,7 @@ pub async fn google_callback(
         redirect_uri,
         &query.code,
         &state.config.google_token_url,
+        query.code_verifier.as_deref(),
     )
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -326,8 +342,10 @@ pub async fn google_callback(
         "oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
     );
 
-    if is_ios {
-        // iOS: redirect to custom scheme with tokens in the fragment
+    if query.code_verifier.is_some() {
+        // Native app (PKCE flow): redirect to the custom URI scheme with tokens
+        // in the URL fragment so the app can extract them from the redirect.
+        // The app stores these tokens in the Keychain, never in cookies.
         let redirect_url = format!(
             "ownpulse://auth#token={}&refresh_token={}",
             access_token, raw_token
@@ -341,7 +359,7 @@ pub async fn google_callback(
         );
         Ok(response)
     } else {
-        // Web: set tokens as httpOnly cookies and redirect without tokens in URL
+        // Web flow: set tokens as httpOnly cookies and redirect without tokens in URL.
         let access_cookie = format!(
             "access_token={access_token}; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age={}",
             state.config.jwt_expiry_seconds
