@@ -9,7 +9,7 @@ struct LoginView: View {
 
     @State private var username = ""
     @State private var password = ""
-    @State private var isLoading = false
+    @State private var loadingMethod: LoginMethod?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -31,26 +31,32 @@ struct LoginView: View {
                 Spacer(minLength: 32)
 
                 VStack(spacing: 12) {
-                    SignInWithAppleButton(.signIn) { request in
-                        request.requestedScopes = [.email]
-                    } onCompletion: { _ in
-                        // Completion handled inside AuthService.loginWithApple()
-                        // which performs the full flow including the backend call.
-                        // This closure fires only for the native button interaction;
-                        // we trigger the full flow via the task below.
-                    }
-                    .signInWithAppleButtonStyle(.black)
-                    .frame(height: 50)
-                    .accessibilityIdentifier("appleSignInButton")
-                    .onTapGesture {
+                    Button {
                         performLogin(.apple)
+                    } label: {
+                        HStack(spacing: 6) {
+                            if loadingMethod == .apple {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: "apple.logo")
+                            }
+                            Text("Sign in with Apple")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(.black)
+                        .foregroundStyle(.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
+                    .disabled(loadingMethod != nil)
+                    .accessibilityIdentifier("appleSignInButton")
 
                     Button {
                         performLogin(.google)
                     } label: {
                         HStack {
-                            if isLoading {
+                            if loadingMethod == .google {
                                 ProgressView()
                                     .tint(.white)
                             }
@@ -62,7 +68,7 @@ struct LoginView: View {
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
-                    .disabled(isLoading)
+                    .disabled(loadingMethod != nil)
                     .accessibilityIdentifier("googleSignInButton")
                 }
 
@@ -85,7 +91,7 @@ struct LoginView: View {
                         performLogin(.password)
                     } label: {
                         Group {
-                            if isLoading {
+                            if loadingMethod == .password {
                                 ProgressView()
                                     .tint(.white)
                             } else {
@@ -98,7 +104,7 @@ struct LoginView: View {
                         .foregroundStyle(.background)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                     }
-                    .disabled(isLoading || username.isEmpty || password.isEmpty)
+                    .disabled(loadingMethod != nil || username.isEmpty || password.isEmpty)
                     .accessibilityIdentifier("passwordSignInButton")
                 }
 
@@ -123,8 +129,8 @@ struct LoginView: View {
     }
 
     private func performLogin(_ method: LoginMethod) {
-        guard !isLoading else { return }
-        isLoading = true
+        guard loadingMethod == nil else { return }
+        loadingMethod = method
         errorMessage = nil
 
         Task {
@@ -139,11 +145,12 @@ struct LoginView: View {
                         username: username,
                         password: password
                     )
+                    password = ""
                 }
             } catch {
                 errorMessage = error.localizedDescription
             }
-            isLoading = false
+            loadingMethod = nil
         }
     }
 

@@ -29,43 +29,6 @@ private class AuthPresentationContext: NSObject, ASWebAuthenticationPresentation
     }
 }
 
-/// Wraps ASAuthorizationController delegate callbacks in a CheckedContinuation.
-private final class AppleAuthDelegate: NSObject, ASAuthorizationControllerDelegate, Sendable {
-    private let continuation: CheckedContinuation<ASAuthorization, Error>
-
-    init(continuation: CheckedContinuation<ASAuthorization, Error>) {
-        self.continuation = continuation
-    }
-
-    func authorizationController(
-        controller: ASAuthorizationController,
-        didCompleteWithAuthorization authorization: ASAuthorization
-    ) {
-        continuation.resume(returning: authorization)
-    }
-
-    func authorizationController(
-        controller: ASAuthorizationController,
-        didCompleteWithError error: Error
-    ) {
-        logger.error("Apple Sign-In error: \(error.localizedDescription, privacy: .public)")
-        continuation.resume(throwing: error)
-    }
-}
-
-/// Provides a window anchor for ASAuthorizationController.
-private class ApplePresentationContext: NSObject,
-    ASAuthorizationControllerPresentationContextProviding
-{
-    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = scene.windows.first else {
-            return ASPresentationAnchor()
-        }
-        return window
-    }
-}
-
 @Observable
 @MainActor
 final class AuthService: AuthServiceProtocol {
@@ -76,7 +39,6 @@ final class AuthService: AuthServiceProtocol {
     private var authContinuation: CheckedContinuation<URL, Error>?
     private var authSession: ASWebAuthenticationSession?
     private let presentationContext = AuthPresentationContext()
-    private let applePresentationContext = ApplePresentationContext()
 
     nonisolated static let accessTokenKey = "access_token"
     nonisolated static let refreshTokenKey = "refresh_token"
@@ -131,14 +93,9 @@ final class AuthService: AuthServiceProtocol {
     func loginWithApple() async throws {
         logger.info("Starting Apple Sign-In flow")
 
-        let provider = ASAuthorizationAppleIDProvider()
-        let request = provider.createRequest()
-        request.requestedScopes = [.email]
+        let credential = try await AppleAuthHelper.performAppleAuth()
 
-        let authorization = try await performAppleAuth(request: request)
-
-        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-              let idTokenData = credential.identityToken,
+        guard let idTokenData = credential.identityToken,
               let idToken = String(data: idTokenData, encoding: .utf8) else {
             logger.error("Apple Sign-In: invalid credential or missing identity token")
             throw AuthError.invalidCallback
@@ -191,24 +148,6 @@ final class AuthService: AuthServiceProtocol {
         isAuthenticated = false
     }
 
-    private func performAppleAuth(request: ASAuthorizationAppleIDRequest) async throws -> ASAuthorization {
-        try await withCheckedThrowingContinuation { continuation in
-            let controller = ASAuthorizationController(authorizationRequests: [request])
-            let delegate = AppleAuthDelegate(continuation: continuation)
-            // Keep delegate alive for the duration of the auth flow by associating it with
-            // the controller via objc associated objects.
-            objc_setAssociatedObject(
-                controller,
-                &appleAuthDelegateKey,
-                delegate,
-                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
-            )
-            controller.delegate = delegate
-            controller.presentationContextProvider = self.applePresentationContext
-            controller.performRequests()
-        }
-    }
-
     private func processCallback(url: URL) throws {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let token = components.queryItems?.first(where: { $0.name == "token" })?.value,
@@ -241,9 +180,6 @@ final class AuthService: AuthServiceProtocol {
         return components.url!
     }
 }
-
-/// Key for storing the Apple auth delegate as an associated object on ASAuthorizationController.
-private var appleAuthDelegateKey: UInt8 = 0
 
 enum AuthError: Error {
     case invalidCallback

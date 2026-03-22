@@ -13,13 +13,12 @@ private final class SettingsViewModel {
     var authMethods: [AuthMethod] = []
     var isLoadingMethods = false
     var linkError: String?
+    var linkInfo: String?
 
     private let networkClient: NetworkClientProtocol
-    private let authService: AuthServiceProtocol
 
-    init(networkClient: NetworkClientProtocol, authService: AuthServiceProtocol) {
+    init(networkClient: NetworkClientProtocol) {
         self.networkClient = networkClient
-        self.authService = authService
     }
 
     func loadAuthMethods() async {
@@ -32,12 +31,14 @@ private final class SettingsViewModel {
             )
         } catch {
             logger.error("Failed to load auth methods: \(error.localizedDescription, privacy: .public)")
+            linkError = "Failed to load linked accounts"
         }
         isLoadingMethods = false
     }
 
     func unlinkMethod(_ provider: String) async {
         linkError = nil
+        linkInfo = nil
         do {
             let _: [AuthMethod] = try await networkClient.request(
                 method: "DELETE",
@@ -53,27 +54,11 @@ private final class SettingsViewModel {
 
     func linkApple() async {
         linkError = nil
+        linkInfo = nil
         do {
-            let provider = ASAuthorizationAppleIDProvider()
-            let request = provider.createRequest()
-            request.requestedScopes = [.email]
+            let credential = try await AppleAuthHelper.performAppleAuth()
 
-            let authorization = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<ASAuthorization, Error>) in
-                let controller = ASAuthorizationController(authorizationRequests: [request])
-                let delegate = LinkAppleDelegate(continuation: continuation)
-                objc_setAssociatedObject(
-                    controller,
-                    &linkAppleDelegateKey,
-                    delegate,
-                    .OBJC_ASSOCIATION_RETAIN_NONATOMIC
-                )
-                controller.delegate = delegate
-                controller.presentationContextProvider = linkApplePresentationContext
-                controller.performRequests()
-            }
-
-            guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
-                  let idTokenData = credential.identityToken,
+            guard let idTokenData = credential.identityToken,
                   let idToken = String(data: idTokenData, encoding: .utf8) else {
                 throw AuthError.invalidCallback
             }
@@ -91,55 +76,11 @@ private final class SettingsViewModel {
         }
     }
 
-    func linkGoogle() async {
+    func linkGoogle() {
         linkError = nil
-        // Google linking opens the same OAuth flow as login. The backend links the
-        // authenticated Google account to the current user session.
-        // This shares the same ASWebAuthenticationSession flow as the login path.
-        // For MVP, redirect users to the web dashboard to link Google accounts,
-        // since the link endpoint requires an id_token from a completed OAuth flow.
-        linkError = "To link a Google account, use the web dashboard."
+        linkInfo = "To link a Google account, use the web dashboard."
     }
 }
-
-// MARK: - Apple Link Helpers
-
-private final class LinkAppleDelegate: NSObject, ASAuthorizationControllerDelegate, Sendable {
-    private let continuation: CheckedContinuation<ASAuthorization, Error>
-
-    init(continuation: CheckedContinuation<ASAuthorization, Error>) {
-        self.continuation = continuation
-    }
-
-    func authorizationController(
-        controller: ASAuthorizationController,
-        didCompleteWithAuthorization authorization: ASAuthorization
-    ) {
-        continuation.resume(returning: authorization)
-    }
-
-    func authorizationController(
-        controller: ASAuthorizationController,
-        didCompleteWithError error: Error
-    ) {
-        continuation.resume(throwing: error)
-    }
-}
-
-private class LinkApplePresentationContext: NSObject,
-    ASAuthorizationControllerPresentationContextProviding
-{
-    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = scene.windows.first else {
-            return ASPresentationAnchor()
-        }
-        return window
-    }
-}
-
-private var linkAppleDelegateKey: UInt8 = 0
-private let linkApplePresentationContext = LinkApplePresentationContext()
 
 // MARK: - SettingsView
 
@@ -192,8 +133,7 @@ struct SettingsView: View {
             hkAuthorized = dependencies.healthKitProvider.isAuthorized()
             if viewModel == nil {
                 viewModel = SettingsViewModel(
-                    networkClient: dependencies.networkClient,
-                    authService: dependencies.authService
+                    networkClient: dependencies.networkClient
                 )
             }
             Task { await viewModel?.loadAuthMethods() }
@@ -242,13 +182,13 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("linkAppleButton")
                 }
+            }
 
-                if !vm.authMethods.contains(where: { $0.provider == "google" }) {
-                    Button("Link Google Account") {
-                        Task { await vm.linkGoogle() }
-                    }
-                    .accessibilityIdentifier("linkGoogleButton")
-                }
+            if let info = vm.linkInfo {
+                Text(info)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("linkInfo")
             }
 
             if let error = vm.linkError {
