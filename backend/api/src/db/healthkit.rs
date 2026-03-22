@@ -26,11 +26,7 @@ pub async fn get_pending(
 }
 
 /// Mark entries as confirmed (written to HealthKit). Returns the number of rows updated.
-pub async fn confirm(
-    pool: &PgPool,
-    user_id: Uuid,
-    ids: &[Uuid],
-) -> Result<u64, sqlx::Error> {
+pub async fn confirm(pool: &PgPool, user_id: Uuid, ids: &[Uuid]) -> Result<u64, sqlx::Error> {
     let result = sqlx::query(
         "UPDATE healthkit_write_queue
          SET confirmed_at = now()

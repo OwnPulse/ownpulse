@@ -46,7 +46,8 @@ async fn test_export_creates_audit_entry() {
     let entries = common::body_json(log_resp).await;
     let arr = entries.as_array().expect("audit-log should be an array");
     assert!(
-        arr.iter().any(|e| e["action"] == "export" && e["resource_type"] == "json"),
+        arr.iter()
+            .any(|e| e["action"] == "export" && e["resource_type"] == "json"),
         "expected an export/json audit entry, got: {arr:?}"
     );
 }
@@ -87,7 +88,8 @@ async fn test_csv_export_creates_audit_entry() {
     let entries = common::body_json(log_resp).await;
     let arr = entries.as_array().expect("audit-log should be an array");
     assert!(
-        arr.iter().any(|e| e["action"] == "export" && e["resource_type"] == "csv"),
+        arr.iter()
+            .any(|e| e["action"] == "export" && e["resource_type"] == "csv"),
         "expected an export/csv audit entry, got: {arr:?}"
     );
 }

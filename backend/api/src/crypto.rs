@@ -110,8 +110,9 @@ fn decrypt_raw(ciphertext_hex: &str, key: &[u8; 32]) -> Result<String, CryptoErr
         .decrypt(nonce, ciphertext)
         .map_err(|_| CryptoError::DecryptionFailed)?;
 
-    String::from_utf8(plaintext)
-        .map_err(|_| CryptoError::InvalidCiphertext("decrypted data is not valid UTF-8".to_string()))
+    String::from_utf8(plaintext).map_err(|_| {
+        CryptoError::InvalidCiphertext("decrypted data is not valid UTF-8".to_string())
+    })
 }
 
 #[cfg(test)]
@@ -119,17 +120,13 @@ mod tests {
     use super::*;
 
     fn test_key() -> [u8; 32] {
-        parse_encryption_key(
-            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        )
-        .unwrap()
+        parse_encryption_key("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+            .unwrap()
     }
 
     fn alt_key() -> [u8; 32] {
-        parse_encryption_key(
-            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
-        )
-        .unwrap()
+        parse_encryption_key("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+            .unwrap()
     }
 
     // --- existing tests (updated to new decrypt signature) ---

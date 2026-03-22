@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import CheckinForm from "../../src/components/forms/CheckinForm";
 
 const mockUpsert = vi.fn();
@@ -40,9 +40,7 @@ describe("CheckinForm", () => {
     expect(screen.getByLabelText(/recovery/i)).toBeDefined();
     expect(screen.getByLabelText(/libido/i)).toBeDefined();
     expect(screen.getByLabelText(/notes/i)).toBeDefined();
-    expect(
-      screen.getByRole("button", { name: /save check-in/i }),
-    ).toBeDefined();
+    expect(screen.getByRole("button", { name: /save check-in/i })).toBeDefined();
   });
 
   it("submits correct data", async () => {
@@ -79,9 +77,7 @@ describe("CheckinForm", () => {
     fireInputChange(focusSlider, "6");
 
     // Submit
-    await user.click(
-      screen.getByRole("button", { name: /save check-in/i }),
-    );
+    await user.click(screen.getByRole("button", { name: /save check-in/i }));
 
     await waitFor(() => {
       expect(mockUpsert).toHaveBeenCalledOnce();
@@ -102,7 +98,9 @@ function fireInputChange(el: HTMLElement, value: string) {
   const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
     HTMLInputElement.prototype,
     "value",
-  )!.set!;
-  nativeInputValueSetter.call(el, value);
+  )?.set;
+  if (nativeInputValueSetter) {
+    nativeInputValueSetter.call(el, value);
+  }
   el.dispatchEvent(new Event("change", { bubbles: true }));
 }

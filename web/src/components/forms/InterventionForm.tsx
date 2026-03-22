@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import {
-  interventionsApi,
-  CreateIntervention,
-} from "../../api/interventions";
+import { useState } from "react";
+import { type CreateIntervention, interventionsApi } from "../../api/interventions";
 
 export default function InterventionForm() {
   const queryClient = useQueryClient();
@@ -50,11 +47,7 @@ export default function InterventionForm() {
       <div>
         <label>
           Substance
-          <input
-            value={substance}
-            onChange={(e) => setSubstance(e.target.value)}
-            required
-          />
+          <input value={substance} onChange={(e) => setSubstance(e.target.value)} required />
         </label>
       </div>
       <div>
@@ -72,21 +65,13 @@ export default function InterventionForm() {
       <div>
         <label>
           Unit
-          <input
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            required
-          />
+          <input value={unit} onChange={(e) => setUnit(e.target.value)} required />
         </label>
       </div>
       <div>
         <label>
           Route
-          <input
-            value={route}
-            onChange={(e) => setRoute(e.target.value)}
-            required
-          />
+          <input value={route} onChange={(e) => setRoute(e.target.value)} required />
         </label>
       </div>
       <div>
@@ -102,11 +87,7 @@ export default function InterventionForm() {
       </div>
       <div>
         <label>
-          <input
-            type="checkbox"
-            checked={fasted}
-            onChange={(e) => setFasted(e.target.checked)}
-          />
+          <input type="checkbox" checked={fasted} onChange={(e) => setFasted(e.target.checked)} />
           Fasted
         </label>
       </div>
@@ -119,9 +100,7 @@ export default function InterventionForm() {
       <button type="submit" disabled={mutation.isPending}>
         {mutation.isPending ? "Saving..." : "Save Intervention"}
       </button>
-      {mutation.isError && (
-        <p style={{ color: "red" }}>Error: {mutation.error.message}</p>
-      )}
+      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
       {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
     </form>
   );

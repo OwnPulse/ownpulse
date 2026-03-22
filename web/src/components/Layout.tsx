@@ -2,8 +2,8 @@
 // Copyright (C) OwnPulse Contributors
 
 import { Link, Outlet } from "react-router-dom";
-import { useAuthStore } from "../store/auth";
 import { logout } from "../api/auth";
+import { useAuthStore } from "../store/auth";
 
 const navStyle: React.CSSProperties = {
   display: "flex",
@@ -53,7 +53,9 @@ export default function Layout() {
           </Link>
         )}
         <div style={{ marginLeft: "auto" }}>
-          <button onClick={handleLogout}>Logout</button>
+          <button type="button" onClick={handleLogout}>
+            Logout
+          </button>
         </div>
       </nav>
       <Outlet />

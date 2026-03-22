@@ -4,7 +4,7 @@
 use axum::body::Body;
 use http::Request;
 use http_body_util::BodyExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use crate::common;
@@ -21,12 +21,7 @@ fn waitlist_request(body: &Value) -> Request<Body> {
 
 /// Helper: collect the response body into a parsed JSON value.
 async fn body_json(response: axum::response::Response) -> Value {
-    let bytes = response
-        .into_body()
-        .collect()
-        .await
-        .unwrap()
-        .to_bytes();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
 }
 
@@ -121,7 +116,9 @@ async fn test_signup_with_name() {
 
     let response = test_app
         .app
-        .oneshot(waitlist_request(&json!({"email": "a@b.com", "name": "Alice"})))
+        .oneshot(waitlist_request(
+            &json!({"email": "a@b.com", "name": "Alice"}),
+        ))
         .await
         .unwrap();
 

@@ -46,7 +46,14 @@ export default function Dashboard() {
 
   return (
     <main style={{ padding: "1.5rem", fontFamily: "var(--font-family)" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "1.5rem",
+        }}
+      >
         <h1 style={{ margin: 0, fontSize: "1.5rem", color: "var(--color-text)" }}>Dashboard</h1>
         <Link
           to="/entry"
@@ -81,7 +88,9 @@ export default function Dashboard() {
         ) : (
           <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
             No check-in yet today.{" "}
-            <Link to="/entry" style={{ color: "var(--color-primary)" }}>Log one now</Link>
+            <Link to="/entry" style={{ color: "var(--color-primary)" }}>
+              Log one now
+            </Link>
           </p>
         )}
       </div>
@@ -105,8 +114,11 @@ export default function Dashboard() {
       {data.pending_friend_shares > 0 && (
         <div style={{ ...cardStyle, marginBottom: "1.5rem", borderColor: "var(--color-primary)" }}>
           <p style={{ margin: 0 }}>
-            You have <strong>{data.pending_friend_shares}</strong> pending share request{data.pending_friend_shares > 1 ? "s" : ""}.{" "}
-            <Link to="/friends" style={{ color: "var(--color-primary)" }}>View</Link>
+            You have <strong>{data.pending_friend_shares}</strong> pending share request
+            {data.pending_friend_shares > 1 ? "s" : ""}.{" "}
+            <Link to="/friends" style={{ color: "var(--color-primary)" }}>
+              View
+            </Link>
           </p>
         </div>
       )}
@@ -115,7 +127,8 @@ export default function Dashboard() {
       {data.latest_lab_date && (
         <div style={cardStyle}>
           <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: "0.875rem" }}>
-            Latest lab results: <strong style={{ color: "var(--color-text)" }}>{data.latest_lab_date}</strong>
+            Latest lab results:{" "}
+            <strong style={{ color: "var(--color-text)" }}>{data.latest_lab_date}</strong>
           </p>
         </div>
       )}

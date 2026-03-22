@@ -11,8 +11,8 @@ pub mod audit;
 pub mod auth;
 pub mod checkins;
 pub mod dashboard;
-pub mod friends;
 pub mod export;
+pub mod friends;
 pub mod health_records;
 pub mod healthkit;
 pub mod integrations;
@@ -24,8 +24,8 @@ pub mod source_preferences;
 pub mod waitlist;
 
 use axum::{
-    routing::{delete, get, patch, post},
     Router,
+    routing::{delete, get, patch, post},
 };
 
 use crate::AppState;
@@ -44,7 +44,7 @@ fn auth_routes() -> Router<AppState> {
 /// Mounted under `/api/v1` by `build_app`.
 pub fn api_routes() -> Router<AppState> {
     use tower_governor::{
-        governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor, GovernorLayer,
+        GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
     };
 
     // 5 requests per 60 seconds per IP on auth endpoints.
@@ -137,6 +137,9 @@ fn base_routes() -> Router<AppState> {
         .route("/friends/shares/accept-link", post(friends::accept_link))
         .route("/friends/shares/:id/accept", post(friends::accept_share))
         .route("/friends/shares/:id", delete(friends::revoke_share))
-        .route("/friends/shares/:id/permissions", patch(friends::update_permissions))
+        .route(
+            "/friends/shares/:id/permissions",
+            patch(friends::update_permissions),
+        )
         .route("/friends/:friend_id/data", get(friends::get_friend_data))
 }

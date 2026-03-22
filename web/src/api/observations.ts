@@ -28,7 +28,6 @@ export const observationsApi = {
     return api.get<Observation[]>(`/api/v1/observations${qs}`);
   },
   get: (id: string) => api.get<Observation>(`/api/v1/observations/${id}`),
-  create: (data: CreateObservation) =>
-    api.post<Observation>("/api/v1/observations", data),
+  create: (data: CreateObservation) => api.post<Observation>("/api/v1/observations", data),
   delete: (id: string) => api.delete<void>(`/api/v1/observations/${id}`),
 };

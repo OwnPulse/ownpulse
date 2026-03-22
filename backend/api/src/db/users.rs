@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
-                role, data_region, federation_id, created_at
+                role, data_region, federation_id, status, created_at
          FROM users WHERE id = $1",
     )
     .bind(id)
@@ -21,7 +21,7 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error>
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
-                role, data_region, federation_id, created_at
+                role, data_region, federation_id, status, created_at
          FROM users WHERE LOWER(email) = LOWER($1)",
     )
     .bind(email)
@@ -77,7 +77,7 @@ pub async fn find_or_create_google_user(
         "INSERT INTO users (username, email, auth_provider)
          VALUES ($1, $2, 'google')
          RETURNING id, username, password_hash, auth_provider, email,
-                   role, data_region, federation_id, created_at",
+                   role, data_region, federation_id, status, created_at",
     )
     .bind(display_name)
     .bind(email)
@@ -144,7 +144,7 @@ pub async fn find_or_create_apple_user(
         "INSERT INTO users (username, email, auth_provider)
          VALUES ($1, $2, 'apple')
          RETURNING id, username, password_hash, auth_provider, email,
-                   role, data_region, federation_id, created_at",
+                   role, data_region, federation_id, status, created_at",
     )
     .bind(username)
     .bind(email)
@@ -169,7 +169,7 @@ pub async fn find_or_create_apple_user(
 pub async fn list_all_users(pool: &PgPool) -> Result<Vec<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
-                role, data_region, federation_id, created_at
+                role, data_region, federation_id, status, created_at
          FROM users ORDER BY created_at",
     )
     .fetch_all(pool)
@@ -185,7 +185,7 @@ pub async fn update_user_role(
     sqlx::query_as::<_, UserRow>(
         "UPDATE users SET role = $2 WHERE id = $1
          RETURNING id, username, password_hash, auth_provider, email,
-                   role, data_region, federation_id, created_at",
+                   role, data_region, federation_id, status, created_at",
     )
     .bind(user_id)
     .bind(role)

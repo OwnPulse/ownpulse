@@ -16,7 +16,9 @@ async fn main() -> anyhow::Result<()> {
         Some("--health-check") => health_check().await,
         Some("--migrate-only") => migrate_only().await,
         Some(unknown) => {
-            anyhow::bail!("unknown argument: {unknown}. Use --health-check, --migrate-only, or no arguments to start the server");
+            anyhow::bail!(
+                "unknown argument: {unknown}. Use --health-check, --migrate-only, or no arguments to start the server"
+            );
         }
         None => run_server().await,
     }

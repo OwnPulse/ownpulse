@@ -16,6 +16,7 @@ pub struct UserRow {
     pub role: String,
     pub data_region: String,
     pub federation_id: Option<String>,
+    pub status: String,
     pub created_at: DateTime<Utc>,
 }
 

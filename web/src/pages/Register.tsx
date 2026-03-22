@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useState } from "react";
-import { useSearchParams, useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { register } from "../api/auth";
 
 export default function Register() {
@@ -19,14 +19,40 @@ export default function Register() {
 
   if (!inviteFromUrl && !inviteCode) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "var(--color-bg)" }}>
-        <main style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)", padding: "2rem", maxWidth: "400px", width: "100%" }}>
-          <h1 style={{ fontSize: "1.25rem", color: "var(--color-text)", marginBottom: "1rem" }}>Sign Up</h1>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "100vh",
+          background: "var(--color-bg)",
+        }}
+      >
+        <main
+          style={{
+            background: "var(--color-surface)",
+            borderRadius: "var(--radius-md)",
+            border: "1px solid var(--color-border)",
+            padding: "2rem",
+            maxWidth: "400px",
+            width: "100%",
+          }}
+        >
+          <h1 style={{ fontSize: "1.25rem", color: "var(--color-text)", marginBottom: "1rem" }}>
+            Sign Up
+          </h1>
           <p style={{ color: "var(--color-text-muted)", marginBottom: "1.5rem" }}>
             You need an invite code to sign up. Ask an admin for one.
           </p>
           <div style={{ textAlign: "center" }}>
-            <Link to="/login" style={{ color: "var(--color-primary)", textDecoration: "none", fontSize: "0.875rem" }}>
+            <Link
+              to="/login"
+              style={{
+                color: "var(--color-primary)",
+                textDecoration: "none",
+                fontSize: "0.875rem",
+              }}
+            >
               Already have an account? Sign in
             </Link>
           </div>
@@ -58,54 +84,209 @@ export default function Register() {
   };
 
   return (
-    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", background: "var(--color-bg)" }}>
-      <main style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", border: "1px solid var(--color-border)", padding: "2rem", maxWidth: "400px", width: "100%" }}>
-        <h1 style={{ fontSize: "1.25rem", color: "var(--color-text)", marginBottom: "1.5rem" }}>Create Account</h1>
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        minHeight: "100vh",
+        background: "var(--color-bg)",
+      }}
+    >
+      <main
+        style={{
+          background: "var(--color-surface)",
+          borderRadius: "var(--radius-md)",
+          border: "1px solid var(--color-border)",
+          padding: "2rem",
+          maxWidth: "400px",
+          width: "100%",
+        }}
+      >
+        <h1 style={{ fontSize: "1.25rem", color: "var(--color-text)", marginBottom: "1.5rem" }}>
+          Create Account
+        </h1>
 
         <a
           href={`/api/v1/auth/google/login?invite_code=${encodeURIComponent(inviteCode)}`}
           style={{
-            display: "flex", alignItems: "center", justifyContent: "center", gap: "0.5rem",
-            padding: "0.625rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)",
-            background: "var(--color-surface)", color: "var(--color-text)", textDecoration: "none",
-            fontSize: "0.875rem", fontFamily: "var(--font-family)", marginBottom: "1.5rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            padding: "0.625rem",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--color-border)",
+            background: "var(--color-surface)",
+            color: "var(--color-text)",
+            textDecoration: "none",
+            fontSize: "0.875rem",
+            fontFamily: "var(--font-family)",
+            marginBottom: "1.5rem",
           }}
         >
           Sign up with Google
         </a>
 
-        <div style={{ textAlign: "center", color: "var(--color-text-muted)", fontSize: "0.8125rem", marginBottom: "1.5rem" }}>or</div>
+        <div
+          style={{
+            textAlign: "center",
+            color: "var(--color-text-muted)",
+            fontSize: "0.8125rem",
+            marginBottom: "1.5rem",
+          }}
+        >
+          or
+        </div>
 
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", fontSize: "0.8125rem", color: "var(--color-text-muted)", marginBottom: "0.25rem" }}>Invite Code</label>
-            <input type="text" value={inviteCode} onChange={(e) => setInviteCode(e.target.value)} required
-              style={{ width: "100%", padding: "0.5rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", fontSize: "0.875rem", fontFamily: "monospace", boxSizing: "border-box" }} />
+            <label
+              htmlFor="register-invite"
+              style={{
+                display: "block",
+                fontSize: "0.8125rem",
+                color: "var(--color-text-muted)",
+                marginBottom: "0.25rem",
+              }}
+            >
+              Invite Code
+            </label>
+            <input
+              id="register-invite"
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              required
+              style={{
+                width: "100%",
+                padding: "0.5rem",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+                fontSize: "0.875rem",
+                fontFamily: "monospace",
+                boxSizing: "border-box",
+              }}
+            />
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", fontSize: "0.8125rem", color: "var(--color-text-muted)", marginBottom: "0.25rem" }}>Username</label>
-            <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} required autoComplete="username"
-              style={{ width: "100%", padding: "0.5rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", fontSize: "0.875rem", boxSizing: "border-box" }} />
+            <label
+              htmlFor="register-username"
+              style={{
+                display: "block",
+                fontSize: "0.8125rem",
+                color: "var(--color-text-muted)",
+                marginBottom: "0.25rem",
+              }}
+            >
+              Username
+            </label>
+            <input
+              id="register-username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              autoComplete="username"
+              style={{
+                width: "100%",
+                padding: "0.5rem",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+                fontSize: "0.875rem",
+                boxSizing: "border-box",
+              }}
+            />
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", fontSize: "0.8125rem", color: "var(--color-text-muted)", marginBottom: "0.25rem" }}>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="new-password"
-              style={{ width: "100%", padding: "0.5rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", fontSize: "0.875rem", boxSizing: "border-box" }} />
+            <label
+              htmlFor="register-password"
+              style={{
+                display: "block",
+                fontSize: "0.8125rem",
+                color: "var(--color-text-muted)",
+                marginBottom: "0.25rem",
+              }}
+            >
+              Password
+            </label>
+            <input
+              id="register-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+              style={{
+                width: "100%",
+                padding: "0.5rem",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+                fontSize: "0.875rem",
+                boxSizing: "border-box",
+              }}
+            />
           </div>
           <div style={{ marginBottom: "1rem" }}>
-            <label style={{ display: "block", fontSize: "0.8125rem", color: "var(--color-text-muted)", marginBottom: "0.25rem" }}>Confirm Password</label>
-            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required autoComplete="new-password"
-              style={{ width: "100%", padding: "0.5rem", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", fontSize: "0.875rem", boxSizing: "border-box" }} />
+            <label
+              htmlFor="register-confirm-password"
+              style={{
+                display: "block",
+                fontSize: "0.8125rem",
+                color: "var(--color-text-muted)",
+                marginBottom: "0.25rem",
+              }}
+            >
+              Confirm Password
+            </label>
+            <input
+              id="register-confirm-password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              autoComplete="new-password"
+              style={{
+                width: "100%",
+                padding: "0.5rem",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+                fontSize: "0.875rem",
+                boxSizing: "border-box",
+              }}
+            />
           </div>
-          {error && <div style={{ color: "var(--color-error)", fontSize: "0.8125rem", marginBottom: "1rem" }}>{error}</div>}
-          <button type="submit" disabled={submitting}
-            style={{ width: "100%", padding: "0.625rem", borderRadius: "var(--radius-sm)", background: "var(--color-primary)", color: "#fff", border: "none", fontSize: "0.875rem", fontFamily: "var(--font-family)", cursor: "pointer" }}>
+          {error && (
+            <div
+              style={{ color: "var(--color-error)", fontSize: "0.8125rem", marginBottom: "1rem" }}
+            >
+              {error}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={submitting}
+            style={{
+              width: "100%",
+              padding: "0.625rem",
+              borderRadius: "var(--radius-sm)",
+              background: "var(--color-primary)",
+              color: "#fff",
+              border: "none",
+              fontSize: "0.875rem",
+              fontFamily: "var(--font-family)",
+              cursor: "pointer",
+            }}
+          >
             {submitting ? "Creating account\u2026" : "Create Account"}
           </button>
         </form>
 
         <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
-          <Link to="/login" style={{ color: "var(--color-primary)", textDecoration: "none", fontSize: "0.875rem" }}>
+          <Link
+            to="/login"
+            style={{ color: "var(--color-primary)", textDecoration: "none", fontSize: "0.875rem" }}
+          >
             Already have an account? Sign in
           </Link>
         </div>

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
 use tracing::{info, warn};
@@ -24,10 +24,7 @@ pub async fn signup(
     let email = body.email.trim().to_lowercase();
 
     if email.is_empty() || !email.contains('@') {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({"ok": false})),
-        );
+        return (StatusCode::BAD_REQUEST, Json(json!({"ok": false})));
     }
 
     let result = sqlx::query(

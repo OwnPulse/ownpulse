@@ -11,6 +11,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::auth::extractor::AuthUser;
+use crate::AppState;
 use crate::auth::jwt::encode_access_token;
 use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
 use crate::db::refresh_tokens;
@@ -21,7 +22,6 @@ use crate::models::user::{
     AppleCallbackRequest, AuthMethodRow, LinkAuthRequest, LoginRequest, RefreshRequest,
     TokenResponse, TokenResponseWithRefresh,
 };
-use crate::AppState;
 
 /// Return `"; Secure"` when the web origin uses HTTPS, empty string otherwise.
 /// This lets cookies work over plain HTTP during local development while
@@ -155,9 +155,8 @@ pub async fn logout(
     }
 
     let secure = secure_attr(&state.config);
-    let clear_cookie = format!(
-        "refresh_token=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
-    );
+    let clear_cookie =
+        format!("refresh_token=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
 
     let mut response = StatusCode::NO_CONTENT.into_response();
     response.headers_mut().insert(
@@ -307,13 +306,7 @@ pub async fn google_callback(
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let display_name = sanitize_username(
-        google_user
-            .email
-            .split('@')
-            .next()
-            .unwrap_or("user"),
-    );
+    let display_name = sanitize_username(google_user.email.split('@').next().unwrap_or("user"));
 
     let user = users::find_or_create_google_user(
         &state.pool,
@@ -327,8 +320,8 @@ pub async fn google_callback(
     // Issue tokens
     let raw_token = generate_refresh_token();
     let token_hash = hash_refresh_token(&raw_token, &state.config.jwt_secret);
-    let expires_at = Utc::now()
-        + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
+    let expires_at =
+        Utc::now() + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
 
     refresh_tokens::insert(&state.pool, user.id, &token_hash, expires_at)
         .await
@@ -344,9 +337,8 @@ pub async fn google_callback(
 
     // Clear the oauth_state cookie
     let secure = secure_attr(&state.config);
-    let clear_state_cookie = format!(
-        "oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
-    );
+    let clear_state_cookie =
+        format!("oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
 
     if query.code_verifier.is_some() {
         // Native app (PKCE flow): redirect to the custom URI scheme with tokens
@@ -659,8 +651,8 @@ async fn issue_tokens(state: &AppState, user_id: Uuid, role: &str) -> Result<Res
 
     let raw_refresh = generate_refresh_token();
     let refresh_hash = hash_refresh_token(&raw_refresh, &state.config.jwt_secret);
-    let expires_at = Utc::now()
-        + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
+    let expires_at =
+        Utc::now() + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
 
     refresh_tokens::insert(&state.pool, user_id, &refresh_hash, expires_at)
         .await
@@ -707,8 +699,8 @@ async fn issue_tokens_with_family(
 
     let raw_refresh = generate_refresh_token();
     let refresh_hash = hash_refresh_token(&raw_refresh, &state.config.jwt_secret);
-    let expires_at = Utc::now()
-        + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
+    let expires_at =
+        Utc::now() + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
 
     refresh_tokens::insert_with_family(&state.pool, user_id, &refresh_hash, expires_at, family_id)
         .await

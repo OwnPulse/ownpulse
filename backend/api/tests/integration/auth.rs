@@ -4,19 +4,14 @@
 use axum::body::Body;
 use http::Request;
 use http_body_util::BodyExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use crate::common;
 
 /// Helper: collect the response body into a parsed JSON value.
 async fn body_json(response: axum::response::Response) -> Value {
-    let bytes = response
-        .into_body()
-        .collect()
-        .await
-        .unwrap()
-        .to_bytes();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
 }
 
@@ -90,7 +85,10 @@ async fn test_login_with_valid_credentials() {
 
     // Verify Set-Cookie header contains refresh_token
     let cookie_value = extract_refresh_cookie(&response);
-    assert!(!cookie_value.is_empty(), "refresh_token cookie should not be empty");
+    assert!(
+        !cookie_value.is_empty(),
+        "refresh_token cookie should not be empty"
+    );
 
     let json = body_json(response).await;
     assert!(json["access_token"].is_string());
@@ -165,7 +163,10 @@ async fn test_refresh_token_rotation() {
     // Verify we got a new access token and a new refresh cookie
     let new_refresh = extract_refresh_cookie(&refresh_response);
     assert!(!new_refresh.is_empty());
-    assert_ne!(refresh_token, new_refresh, "refresh token should be rotated");
+    assert_ne!(
+        refresh_token, new_refresh,
+        "refresh token should be rotated"
+    );
 
     let json = body_json(refresh_response).await;
     assert!(json["access_token"].is_string());
@@ -651,11 +652,9 @@ async fn test_login_returns_decodable_jwt() {
     let access_token = json["access_token"].as_str().unwrap();
 
     // Decode the JWT using the same secret as the test config
-    let claims = api::auth::jwt::decode_access_token(
-        access_token,
-        "test-jwt-secret-at-least-32-bytes-long",
-    )
-    .expect("JWT should decode successfully");
+    let claims =
+        api::auth::jwt::decode_access_token(access_token, "test-jwt-secret-at-least-32-bytes-long")
+            .expect("JWT should decode successfully");
 
     assert_eq!(claims.sub, user_id);
     assert!(claims.exp > chrono::Utc::now().timestamp());
@@ -695,7 +694,10 @@ async fn test_rotated_refresh_token_returns_401() {
 
     assert_eq!(refresh_response.status(), 200);
     let new_refresh_token = extract_refresh_cookie(&refresh_response);
-    assert_ne!(old_refresh_token, new_refresh_token, "token should have rotated");
+    assert_ne!(
+        old_refresh_token, new_refresh_token,
+        "token should have rotated"
+    );
 
     // Step 3: Present the OLD (already-rotated) refresh token — should be rejected
     let replay_response = test_app

@@ -59,9 +59,7 @@ pub async fn exchange_code_for_tokens(
             .text()
             .await
             .unwrap_or_else(|_| "unreadable body".into());
-        return Err(format!(
-            "token exchange returned {status}: {body}"
-        ));
+        return Err(format!("token exchange returned {status}: {body}"));
     }
 
     response

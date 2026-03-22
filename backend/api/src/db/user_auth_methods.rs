@@ -15,7 +15,7 @@ pub async fn find_by_provider_subject(
 ) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
-                u.role, u.data_region, u.federation_id, u.created_at
+                u.role, u.data_region, u.federation_id, u.status, u.created_at
          FROM users u
          JOIN user_auth_methods m ON m.user_id = u.id
          WHERE m.provider = $1 AND m.provider_subject = $2",
@@ -34,7 +34,7 @@ pub async fn find_by_provider_email(
 ) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
-                u.role, u.data_region, u.federation_id, u.created_at
+                u.role, u.data_region, u.federation_id, u.status, u.created_at
          FROM users u
          JOIN user_auth_methods m ON m.user_id = u.id
          WHERE m.provider = $1 AND m.email = $2",

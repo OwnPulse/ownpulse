@@ -2,8 +2,8 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useEffect, useState } from "react";
-import { useAuthStore } from "../store/auth";
 import { refreshToken } from "../api/auth";
+import { useAuthStore } from "../store/auth";
 
 export function useAuth(): { loading: boolean } {
   const [loading, setLoading] = useState(true);
@@ -18,11 +18,7 @@ export function useAuth(): { loading: boolean } {
 
         if (token) {
           login(token);
-          window.history.replaceState(
-            {},
-            document.title,
-            window.location.pathname,
-          );
+          window.history.replaceState({}, document.title, window.location.pathname);
         } else if (!isAuthenticated) {
           await refreshToken();
         }
@@ -32,9 +28,7 @@ export function useAuth(): { loading: boolean } {
     }
 
     init();
-    // Run only on mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAuthenticated, login]);
 
   return { loading };
 }
