@@ -40,12 +40,42 @@ jobs:
           script: |
             const inputSha = process.env.INPUT_SHA;
 
+            const services = [
+              { name: 'api', workflow: 'backend.yml' },
+              { name: 'web', workflow: 'web.yml' },
+              { name: 'userdocs', workflow: 'userdocs.yml' },
+            ];
+
             // Manual dispatch with explicit SHA — use it for all services
             if (inputSha) {
               core.info(`Manual override: using ${inputSha} for all services`);
-              core.setOutput('api', inputSha);
-              core.setOutput('web', inputSha);
-              core.setOutput('userdocs', inputSha);
+              for (const svc of services) {
+                core.setOutput(svc.name, inputSha);
+              }
+              core.setOutput('ready', 'true');
+              return;
+            }
+
+            // Manual dispatch without SHA — use each service's latest successful build
+            if (context.eventName === 'workflow_dispatch') {
+              core.info('Manual dispatch: resolving latest successful build per service');
+              for (const svc of services) {
+                const runs = await github.rest.actions.listWorkflowRuns({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  workflow_id: svc.workflow,
+                  branch: 'main',
+                  status: 'success',
+                  per_page: 1,
+                });
+                if (runs.data.total_count === 0) {
+                  core.setFailed(`No successful ${svc.workflow} run found on main`);
+                  return;
+                }
+                const sha = runs.data.workflow_runs[0].head_sha;
+                core.setOutput(svc.name, sha);
+                core.info(`${svc.name}: ${sha}`);
+              }
               core.setOutput('ready', 'true');
               return;
             }
@@ -56,12 +86,6 @@ jobs:
             // finish will find all three ready and proceed.
             const targetSha = context.payload.workflow_run.head_sha;
             core.info(`Resolving tags for commit ${targetSha}`);
-
-            const services = [
-              { name: 'api', workflow: 'backend.yml' },
-              { name: 'web', workflow: 'web.yml' },
-              { name: 'userdocs', workflow: 'userdocs.yml' },
-            ];
 
             for (const svc of services) {
               const runs = await github.rest.actions.listWorkflowRuns({
