@@ -169,7 +169,7 @@ If it's a new structured measurement with a HealthKit mapping:
 
 ```bash
 # Start infrastructure
-docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:16
+docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:17
 
 # Backend
 export DATABASE_URL=postgres://postgres:dev@localhost:5432/health

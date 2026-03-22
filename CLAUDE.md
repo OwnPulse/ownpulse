@@ -211,7 +211,7 @@ Before inserting any `health_record`, query for existing records within 60 secon
 
 ## Schema Conventions
 
-- Postgres 16
+- Postgres 17
 - All migrations in `db/migrations/`, numbered: `0001_init.sql`
 - **Never edit existing migrations** — add new ones
 - All PKs: `UUID`, `gen_random_uuid()`
@@ -450,7 +450,7 @@ cd db && sqlx migrate run
 
 ```bash
 # Postgres only via Docker (no full cluster)
-docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:16
+docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:17
 export DATABASE_URL=postgres://postgres:dev@localhost:5432/ownpulse
 cd db && sqlx migrate run
 cd backend && cargo sqlx prepare --workspace

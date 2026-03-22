@@ -6,7 +6,7 @@ OwnPulse is three services behind one REST API, deployed on Kubernetes (k3s).
 
 | Service | Stack | Deployment | URL pattern |
 |---------|-------|------------|-------------|
-| **Backend API** | Rust + Axum + SQLx + Postgres 16 | Rust binary container | `api.<domain>` |
+| **Backend API** | Rust + Axum + SQLx + Postgres 17 | Rust binary container | `api.<domain>` |
 | **Web frontend** | React + Vite + TypeScript + unovis | nginx container serving static build | `app.<domain>` |
 | **iOS app** | Swift 6 + SwiftUI + HealthKit | App Store / TestFlight | native device |
 
@@ -18,7 +18,7 @@ All three consume the same REST API with JWT authentication. The web and iOS cli
 HealthKit  <──>  iOS app  ──>  Backend API  <──  Web frontend
                                     │
                                     ▼
-                              PostgreSQL 16
+                              PostgreSQL 17
 ```
 
 - The iOS app reads from and writes to HealthKit (bidirectional sync, see [healthkit-sync.md](healthkit-sync.md)).

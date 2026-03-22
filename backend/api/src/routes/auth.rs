@@ -105,20 +105,20 @@ pub async fn logout(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    if let Some(cookie_header) = headers
+    if let Some(token_value) = headers
         .get(axum::http::header::COOKIE)
         .and_then(|v| v.to_str().ok())
+        .and_then(|cookie_header| {
+            cookie_header
+                .split(';')
+                .filter_map(|c| c.trim().strip_prefix("refresh_token="))
+                .next()
+        })
     {
-        if let Some(token_value) = cookie_header
-            .split(';')
-            .filter_map(|c| c.trim().strip_prefix("refresh_token="))
-            .next()
-        {
-            let token_hash = hash_refresh_token(token_value, &state.config.jwt_secret);
-            // On logout, revoke the entire family to invalidate all related tokens
-            if let Ok(row) = refresh_tokens::find_by_hash(&state.pool, &token_hash).await {
-                let _ = refresh_tokens::delete_family(&state.pool, row.family_id).await;
-            }
+        let token_hash = hash_refresh_token(token_value, &state.config.jwt_secret);
+        // On logout, revoke the entire family to invalidate all related tokens
+        if let Ok(row) = refresh_tokens::find_by_hash(&state.pool, &token_hash).await {
+            let _ = refresh_tokens::delete_family(&state.pool, row.family_id).await;
         }
     }
 

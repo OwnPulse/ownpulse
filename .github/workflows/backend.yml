@@ -32,7 +32,7 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:16
+        image: postgres:17
         env:
           POSTGRES_USER: ownpulse
           POSTGRES_PASSWORD: ownpulse
@@ -119,6 +119,7 @@ jobs:
 
       - uses: OwnPulse/gh-actions/docker-build-push@v1
         with:
-          context: backend
+          context: .
+          file: backend/Dockerfile
           image-name: ownpulse-api
           tag: ${{ github.sha }}

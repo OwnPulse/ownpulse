@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 pub mod auth;
+pub mod migrate;
 pub mod config;
 pub mod crypto;
 pub mod db;
