@@ -19,10 +19,7 @@ use crate::models::observation::ObservationRow;
 /// Fetches health_records, interventions, daily_checkins, lab_results, and
 /// observations, then serialises the combined payload into a single JSON
 /// document wrapped in `Body::from_stream`.
-pub async fn stream_json_export(
-    pool: &PgPool,
-    user_id: Uuid,
-) -> Result<Body, sqlx::Error> {
+pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sqlx::Error> {
     let health_records = sqlx::query_as::<_, HealthRecordRow>(
         "SELECT id, user_id, source, record_type, value, unit, start_time, \
          end_time, metadata, source_id, source_instance, duplicate_of, \
@@ -80,12 +77,11 @@ pub async fn stream_json_export(
         "observations": observations,
     });
 
-    let json_bytes = serde_json::to_vec(&payload)
-        .expect("serialization of export payload should not fail");
+    let json_bytes =
+        serde_json::to_vec(&payload).expect("serialization of export payload should not fail");
 
-    let stream = futures::stream::once(async move {
-        Ok::<Bytes, std::io::Error>(Bytes::from(json_bytes))
-    });
+    let stream =
+        futures::stream::once(async move { Ok::<Bytes, std::io::Error>(Bytes::from(json_bytes)) });
 
     Ok(Body::from_stream(stream))
 }

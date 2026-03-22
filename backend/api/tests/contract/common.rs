@@ -1,28 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use axum::Router;
-use axum::body::Body;
-use http::Request;
-use http_body_util::BodyExt;
-use serde_json::Value;
+//! Shared setup for contract tests. Spins up testcontainers Postgres and
+//! starts the Axum server on a random TCP port so the Pact verifier can
+//! make real HTTP requests against it.
+
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use testcontainers::ImageExt;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
-use uuid::Uuid;
 
-/// Holds the Axum app, database pool, and the container handle (which keeps
-/// the ephemeral Postgres alive for the lifetime of the test).
-pub struct TestApp {
-    pub app: Router,
+/// Holds the running server address, database pool, and the container handle.
+pub struct ContractTestApp {
+    pub port: u16,
     pub pool: PgPool,
-    // The container is kept alive by holding this handle; dropping it stops Postgres.
+    // Kept alive so the container isn't dropped.
     pub _container: testcontainers::ContainerAsync<Postgres>,
 }
 
-/// Build a test-friendly config with defaults suitable for integration tests.
+/// Build a test-friendly config.
 fn test_config(database_url: &str) -> api::config::Config {
     api::config::Config {
         database_url: database_url.to_string(),
@@ -49,12 +46,12 @@ fn test_config(database_url: &str) -> api::config::Config {
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
         encryption_key_previous: None,
+        require_invite: false,
     }
 }
 
-/// Spin up an ephemeral Postgres via testcontainers, run all migrations, and
-/// return a ready-to-use [`TestApp`].
-pub async fn setup() -> TestApp {
+/// Spin up Postgres, run migrations, start the Axum server on a random port.
+pub async fn setup() -> ContractTestApp {
     let container = Postgres::default()
         .with_tag("16-alpine")
         .start()
@@ -85,69 +82,26 @@ pub async fn setup() -> TestApp {
 
     let app = api::build_app_without_metrics(state);
 
-    TestApp {
-        app,
+    // Bind to port 0 to get a random available port
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("failed to bind random port");
+    let port = listener.local_addr().unwrap().port();
+
+    // Spawn the server in the background
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("server error");
+    });
+
+    ContractTestApp {
+        port,
         pool,
         _container: container,
     }
 }
 
-/// Insert a test user and return (user_id, jwt_token).
-pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
-    let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash failed");
-    let row: (Uuid,) = sqlx::query_as(
-        "INSERT INTO users (email, password_hash, auth_provider) VALUES ($1, $2, 'local') RETURNING id",
-    )
-    .bind(format!("testuser-{}@example.com", Uuid::new_v4()))
-    .bind(&hash)
-    .fetch_one(&app.pool)
-    .await
-    .expect("failed to insert test user");
-
-    let token = api::auth::jwt::encode_access_token(
-        row.0,
-        "user",
-        "test-jwt-secret-at-least-32-bytes-long",
-        3600,
-    )
-    .expect("failed to encode JWT");
-
-    (row.0, token)
-}
-
-/// Build an authenticated HTTP request.
-pub fn auth_request(method: &str, uri: &str, token: &str, body: Option<&Value>) -> Request<Body> {
-    let mut builder = Request::builder()
-        .method(method)
-        .uri(uri)
-        .header("authorization", format!("Bearer {token}"));
-
-    if body.is_some() {
-        builder = builder.header("content-type", "application/json");
-    }
-
-    let body = match body {
-        Some(v) => Body::from(serde_json::to_string(v).unwrap()),
-        None => Body::empty(),
-    };
-
-    builder.body(body).unwrap()
-}
-
-/// Collect the response body into a parsed JSON value.
-pub async fn body_json(response: axum::response::Response) -> Value {
-    let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    serde_json::from_slice(&bytes).unwrap()
-}
-
-/// Collect the response body into a string.
-pub async fn body_string(response: axum::response::Response) -> String {
-    let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    String::from_utf8(bytes.to_vec()).unwrap()
-}
-
 /// Read every SQL migration file from `db/migrations/` and execute them in
-/// filename order. Uses raw_sql to support multi-statement migrations.
+/// filename order.
 async fn run_migrations(pool: &PgPool) {
     let migrations_dir =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../db/migrations");

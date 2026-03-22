@@ -127,11 +127,7 @@ pub async fn accept_by_token(
 
 /// Revoke or decline a share. Owner → 'revoked', friend → 'declined'.
 /// Note: `revoked_at` is set for both cases (doubles as `ended_at`).
-pub async fn revoke_share(
-    pool: &PgPool,
-    share_id: Uuid,
-    user_id: Uuid,
-) -> Result<(), sqlx::Error> {
+pub async fn revoke_share(pool: &PgPool, share_id: Uuid, user_id: Uuid) -> Result<(), sqlx::Error> {
     let result = sqlx::query(
         "UPDATE friend_shares
          SET status = CASE WHEN owner_id = $2 THEN 'revoked' ELSE 'declined' END,

@@ -54,9 +54,40 @@ For Swift:
 
 ## Code Style
 
-- **Rust:** `cargo clippy -- -D warnings` must pass. Use `thiserror` for errors, `tracing` for logging.
+- **Rust:** `cargo fmt --check` and `cargo clippy -- -D warnings` must pass. Use `thiserror` for errors, `tracing` for logging.
 - **TypeScript:** strict mode. No `any` types.
 - **Swift:** Swift 6 concurrency. No third-party dependencies except GRDB.
+
+## Developer Tooling
+
+### Pre-commit hooks (optional but recommended)
+
+Install the [pre-commit](https://pre-commit.com/) framework, then enable hooks:
+
+```bash
+pip install pre-commit   # or: brew install pre-commit
+pre-commit install
+```
+
+This runs formatting and lint checks automatically before each commit:
+- `cargo fmt --check` for Rust files
+- `biome check` for web frontend files
+- `tsc --noEmit` for TypeScript type checking
+- General checks: trailing whitespace, EOF fixer, merge conflict markers, YAML/JSON syntax
+
+Pre-commit hooks are optional -- CI is the authoritative gate. But they catch issues before you push.
+
+### Web linting and formatting
+
+The web frontend uses [Biome](https://biomejs.dev/) for linting and formatting:
+
+```bash
+cd web
+npm run lint          # check for issues
+npm run lint:fix      # auto-fix issues
+npm run format        # format all files
+npm run format:check  # check formatting without writing
+```
 
 ## Getting Help
 

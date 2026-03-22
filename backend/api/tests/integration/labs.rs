@@ -68,12 +68,7 @@ async fn test_list_lab_results() {
 
     let list_resp = app
         .app
-        .oneshot(common::auth_request(
-            "GET",
-            "/api/v1/labs",
-            &token,
-            None,
-        ))
+        .oneshot(common::auth_request("GET", "/api/v1/labs", &token, None))
         .await
         .unwrap();
 

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use axum::extract::State;
 use axum::Json;
+use axum::extract::State;
 use serde::Serialize;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::error::ApiError;
-use crate::AppState;
 
 #[derive(Serialize)]
 pub struct DashboardSummary {

@@ -2,7 +2,6 @@
 // Copyright (C) OwnPulse Contributors
 
 pub mod auth;
-pub mod migrate;
 pub mod config;
 pub mod crypto;
 pub mod db;
@@ -10,13 +9,14 @@ pub mod error;
 pub mod export;
 pub mod integrations;
 pub mod jobs;
+pub mod migrate;
 pub mod models;
 pub mod routes;
 pub mod stats;
 
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::http::{HeaderValue, Method};
-use axum::{routing::get, Json, Router};
+use axum::{Json, Router, routing::get};
 use axum_prometheus::PrometheusMetricLayer;
 use config::Config;
 use serde_json::json;
@@ -64,10 +64,13 @@ pub fn build_app(state: AppState) -> Router {
 
     // Spawn internal metrics server on port 9090
     tokio::spawn(async move {
-        let metrics_app = Router::new().route("/metrics", get(move || {
-            let h = metric_handle.clone();
-            async move { h.render() }
-        }));
+        let metrics_app = Router::new().route(
+            "/metrics",
+            get(move || {
+                let h = metric_handle.clone();
+                async move { h.render() }
+            }),
+        );
 
         let listener = tokio::net::TcpListener::bind("0.0.0.0:9090")
             .await

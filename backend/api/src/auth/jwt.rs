@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -96,19 +96,17 @@ mod tests {
     #[test]
     fn alg_none_rejected() {
         // Manually construct a token with {"alg":"none","typ":"JWT"} header
-        use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+        use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 
         let header = URL_SAFE_NO_PAD.encode(r#"{"alg":"none","typ":"JWT"}"#);
         let now = chrono::Utc::now().timestamp();
         let user_id = Uuid::new_v4();
-        let payload = URL_SAFE_NO_PAD.encode(
-            format!(
-                r#"{{"sub":"{}","role":"admin","exp":{},"iat":{}}}"#,
-                user_id,
-                now + 3600,
-                now
-            ),
-        );
+        let payload = URL_SAFE_NO_PAD.encode(format!(
+            r#"{{"sub":"{}","role":"admin","exp":{},"iat":{}}}"#,
+            user_id,
+            now + 3600,
+            now
+        ));
         let token = format!("{}.{}.", header, payload); // empty signature
 
         let result = decode_access_token(&token, "any-secret");
@@ -118,7 +116,7 @@ mod tests {
     #[test]
     fn wrong_algorithm_rejected() {
         // A token signed with HS384 must be rejected because only HS256 is allowed
-        use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+        use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 
         let user_id = Uuid::new_v4();
         let now = chrono::Utc::now().timestamp();
@@ -138,7 +136,10 @@ mod tests {
         .unwrap();
 
         let result = decode_access_token(&token, "test-secret");
-        assert!(result.is_err(), "HS384 token must be rejected when HS256 is expected");
+        assert!(
+            result.is_err(),
+            "HS384 token must be rejected when HS256 is expected"
+        );
     }
 
     #[test]

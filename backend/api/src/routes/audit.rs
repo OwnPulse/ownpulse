@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use axum::extract::State;
 use axum::Json;
+use axum::extract::State;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::audit::{self, AuditEntry};
 use crate::error::ApiError;
-use crate::AppState;
 
 /// GET /account/audit-log — return the caller's last 100 audit log entries.
 pub async fn list_audit_log(

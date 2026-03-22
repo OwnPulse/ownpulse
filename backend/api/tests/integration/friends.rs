@@ -92,10 +92,8 @@ async fn create_link_share(
 async fn accept_share_succeeds_for_invited_friend() {
     let app = common::setup().await;
     let friend_email = unique_email("friend");
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
-    let (_friend_id, friend_token) =
-        create_test_user_with_email(&app, &friend_email).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_friend_id, friend_token) = create_test_user_with_email(&app, &friend_email).await;
 
     let share = create_direct_share(&app, &owner_token, &friend_email, &["checkins"]).await;
     let share_id = share["id"].as_str().unwrap();
@@ -119,10 +117,8 @@ async fn accept_share_succeeds_for_invited_friend() {
 async fn accept_share_rejects_uninvited_user() {
     let app = common::setup().await;
     let friend_email = unique_email("friend");
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
-    let (_friend_id, _friend_token) =
-        create_test_user_with_email(&app, &friend_email).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_friend_id, _friend_token) = create_test_user_with_email(&app, &friend_email).await;
     let (_stranger_id, stranger_token) =
         create_test_user_with_email(&app, &unique_email("stranger")).await;
 
@@ -147,10 +143,8 @@ async fn accept_share_rejects_uninvited_user() {
 #[tokio::test]
 async fn accept_share_rejects_for_link_share() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
-    let (_user_id, user_token) =
-        create_test_user_with_email(&app, &unique_email("user")).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_user_id, user_token) = create_test_user_with_email(&app, &unique_email("user")).await;
 
     // Create a link share (no friend_email → friend_id is NULL)
     let share = create_link_share(&app, &owner_token, &["checkins"]).await;
@@ -181,10 +175,8 @@ async fn accept_share_rejects_for_link_share() {
 async fn revoke_by_owner_sets_revoked_status() {
     let app = common::setup().await;
     let friend_email = unique_email("friend");
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
-    let (_friend_id, friend_token) =
-        create_test_user_with_email(&app, &friend_email).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_friend_id, friend_token) = create_test_user_with_email(&app, &friend_email).await;
 
     let share = create_direct_share(&app, &owner_token, &friend_email, &["checkins"]).await;
     let share_id = share["id"].as_str().unwrap();
@@ -216,12 +208,11 @@ async fn revoke_by_owner_sets_revoked_status() {
     assert_eq!(resp.status(), 204);
 
     // Verify status in DB
-    let row: (String,) =
-        sqlx::query_as("SELECT status FROM friend_shares WHERE id = $1")
-            .bind(Uuid::parse_str(share_id).unwrap())
-            .fetch_one(&app.pool)
-            .await
-            .unwrap();
+    let row: (String,) = sqlx::query_as("SELECT status FROM friend_shares WHERE id = $1")
+        .bind(Uuid::parse_str(share_id).unwrap())
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
     assert_eq!(row.0, "revoked");
 }
 
@@ -229,10 +220,8 @@ async fn revoke_by_owner_sets_revoked_status() {
 async fn revoke_by_friend_sets_declined_status() {
     let app = common::setup().await;
     let friend_email = unique_email("friend");
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
-    let (_friend_id, friend_token) =
-        create_test_user_with_email(&app, &friend_email).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_friend_id, friend_token) = create_test_user_with_email(&app, &friend_email).await;
 
     let share = create_direct_share(&app, &owner_token, &friend_email, &["checkins"]).await;
     let share_id = share["id"].as_str().unwrap();
@@ -264,12 +253,11 @@ async fn revoke_by_friend_sets_declined_status() {
     assert_eq!(resp.status(), 204);
 
     // Verify status in DB
-    let row: (String,) =
-        sqlx::query_as("SELECT status FROM friend_shares WHERE id = $1")
-            .bind(Uuid::parse_str(share_id).unwrap())
-            .fetch_one(&app.pool)
-            .await
-            .unwrap();
+    let row: (String,) = sqlx::query_as("SELECT status FROM friend_shares WHERE id = $1")
+        .bind(Uuid::parse_str(share_id).unwrap())
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
     assert_eq!(row.0, "declined");
 }
 
@@ -277,10 +265,8 @@ async fn revoke_by_friend_sets_declined_status() {
 async fn revoke_rejects_unrelated_user() {
     let app = common::setup().await;
     let friend_email = unique_email("friend");
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
-    let (_friend_id, friend_token) =
-        create_test_user_with_email(&app, &friend_email).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_friend_id, friend_token) = create_test_user_with_email(&app, &friend_email).await;
     let (_stranger_id, stranger_token) =
         create_test_user_with_email(&app, &unique_email("stranger")).await;
 
@@ -323,10 +309,8 @@ async fn revoke_rejects_unrelated_user() {
 async fn list_incoming_strips_invite_token() {
     let app = common::setup().await;
     let friend_email = unique_email("friend");
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
-    let (_friend_id, friend_token) =
-        create_test_user_with_email(&app, &friend_email).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_friend_id, friend_token) = create_test_user_with_email(&app, &friend_email).await;
 
     create_direct_share(&app, &owner_token, &friend_email, &["checkins"]).await;
 
@@ -352,8 +336,7 @@ async fn list_incoming_strips_invite_token() {
 #[tokio::test]
 async fn list_outgoing_preserves_invite_token_for_owner() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
 
     create_link_share(&app, &owner_token, &["checkins"]).await;
 
@@ -383,8 +366,7 @@ async fn list_outgoing_preserves_invite_token_for_owner() {
 #[tokio::test]
 async fn accept_by_token_nulls_invite_token() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
     let (_friend_id, friend_token) =
         create_test_user_with_email(&app, &unique_email("friend")).await;
 
@@ -408,26 +390,29 @@ async fn accept_by_token_nulls_invite_token() {
     assert_eq!(resp.status(), 200);
 
     // Verify invite_token and invite_expires_at are NULL in the DB
-    let row: (Option<String>, Option<chrono::DateTime<chrono::Utc>>) = sqlx::query_as(
-        "SELECT invite_token, invite_expires_at FROM friend_shares WHERE id = $1",
-    )
-    .bind(Uuid::parse_str(share_id).unwrap())
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
-    assert!(row.0.is_none(), "invite_token should be NULL after acceptance");
-    assert!(row.1.is_none(), "invite_expires_at should be NULL after acceptance");
+    let row: (Option<String>, Option<chrono::DateTime<chrono::Utc>>) =
+        sqlx::query_as("SELECT invite_token, invite_expires_at FROM friend_shares WHERE id = $1")
+            .bind(Uuid::parse_str(share_id).unwrap())
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert!(
+        row.0.is_none(),
+        "invite_token should be NULL after acceptance"
+    );
+    assert!(
+        row.1.is_none(),
+        "invite_expires_at should be NULL after acceptance"
+    );
 }
 
 #[tokio::test]
 async fn accept_by_token_rejects_reused_token() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
     let (_friend_id, friend_token) =
         create_test_user_with_email(&app, &unique_email("friend")).await;
-    let (_other_id, other_token) =
-        create_test_user_with_email(&app, &unique_email("other")).await;
+    let (_other_id, other_token) = create_test_user_with_email(&app, &unique_email("other")).await;
 
     let share = create_link_share(&app, &owner_token, &["checkins"]).await;
     let token = share["invite_token"].as_str().unwrap().to_string();

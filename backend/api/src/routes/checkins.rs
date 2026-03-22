@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::checkins as db;
 use crate::error::ApiError;
 use crate::models::checkin::{CheckinQuery, CheckinRow, UpsertCheckin};
-use crate::AppState;
 
 fn validate_score(value: Option<i32>, field: &str) -> Result<(), ApiError> {
     if let Some(v) = value
