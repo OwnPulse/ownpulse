@@ -105,6 +105,11 @@ impl ProviderStateExecutor for StateExecutor {
         _setup: bool,
         _client: Option<&reqwest::Client>,
     ) -> anyhow::Result<HashMap<String, Value>> {
+        // Skip teardown calls — we don't need to undo state between interactions.
+        if !_setup {
+            return Ok(HashMap::new());
+        }
+
         let state_name = &provider_state.name;
         let mut result = HashMap::new();
 
@@ -129,6 +134,26 @@ impl ProviderStateExecutor for StateExecutor {
 
                 // Seed data so admin list endpoints return non-empty arrays.
                 seed_admin_data(&self.pool).await;
+            }
+            "a user with auth methods exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "sleep records exist" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_sleep_record(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "the server is running" => {
+                // No setup needed — the server is already running.
             }
             _ => {
                 tracing::warn!("unhandled provider state: {state_name}");
@@ -163,13 +188,20 @@ async fn create_test_user(pool: &sqlx::PgPool, jwt_secret: &str) -> (Uuid, Strin
 
 async fn create_admin_user(pool: &sqlx::PgPool, jwt_secret: &str) -> (Uuid, String) {
     let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash");
-    let uid = Uuid::new_v4();
+    // Fixed UUID matching the iOS contract's expected admin user in list response.
+    let admin_id: Uuid = "550e8400-e29b-41d4-a716-446655440000"
+        .parse()
+        .expect("valid UUID");
+
     let row: (Uuid,) = sqlx::query_as(
-        "INSERT INTO users (email, username, password_hash, auth_provider, role) \
-         VALUES ($1, $2, $3, 'local', 'admin') RETURNING id",
+        "INSERT INTO users (id, email, username, password_hash, auth_provider, role) \
+         VALUES ($1, $2, $3, $4, 'local', 'admin') \
+         ON CONFLICT (id) DO UPDATE SET role = 'admin' \
+         RETURNING id",
     )
-    .bind(format!("contract-admin-{}@example.com", uid))
-    .bind(format!("admin-{}", &uid.to_string()[..8]))
+    .bind(admin_id)
+    .bind("admin@example.com")
+    .bind("admin")
     .bind(&hash)
     .fetch_one(pool)
     .await
@@ -181,34 +213,78 @@ async fn create_admin_user(pool: &sqlx::PgPool, jwt_secret: &str) -> (Uuid, Stri
     (row.0, token)
 }
 
-/// Seed data needed for admin list endpoints so they return non-empty arrays.
+/// Create the target user and invite code referenced by hardcoded UUIDs in iOS
+/// contract request paths.
 async fn seed_admin_data(pool: &sqlx::PgPool) {
-    // Seed a second user so GET /admin/users returns at least one entry.
+    let target_user_id: Uuid = "550e8400-e29b-41d4-a716-446655440001"
+        .parse()
+        .expect("valid UUID");
     let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash");
+
+    // Target user for PATCH …/role, PATCH …/status, DELETE …/users/:id
     sqlx::query(
-        "INSERT INTO users (email, username, password_hash, auth_provider, role) \
-         VALUES ($1, $2, $3, 'google', 'user') \
-         ON CONFLICT DO NOTHING",
+        "INSERT INTO users (id, email, username, password_hash, auth_provider, role) \
+         VALUES ($1, $2, $3, $4, 'google', 'user') \
+         ON CONFLICT (id) DO NOTHING",
     )
-    .bind(format!("seeded-user-{}@example.com", Uuid::new_v4()))
-    .bind(format!("seeded-{}", &Uuid::new_v4().to_string()[..8]))
+    .bind(target_user_id)
+    .bind("testuser@example.com")
+    .bind("testuser")
     .bind(&hash)
     .execute(pool)
     .await
-    .expect("seed user for admin list");
+    .expect("insert target user for admin interactions");
 
-    // Seed an invite code so GET /admin/invites returns at least one entry.
-    sqlx::query(
-        "INSERT INTO invite_codes (code, label, max_uses, use_count, created_by) \
-         SELECT $1, $2, $3, $4, id FROM users WHERE role = 'admin' LIMIT 1",
+    // Invite code for DELETE /admin/invites/660e8400-…-440000 (only if table exists).
+    let table_exists: (bool,) = sqlx::query_as(
+        "SELECT EXISTS (
+            SELECT FROM information_schema.tables
+            WHERE table_name = 'invite_codes'
+        )",
     )
-    .bind(format!("SEED{}", &Uuid::new_v4().to_string()[..8]))
-    .bind("Seeded invite")
-    .bind(10_i32)
-    .bind(0_i32)
+    .fetch_one(pool)
+    .await
+    .expect("check invite_codes table");
+
+    if table_exists.0 {
+        let invite_id: Uuid = "660e8400-e29b-41d4-a716-446655440000"
+            .parse()
+            .expect("valid UUID");
+        sqlx::query(
+            "INSERT INTO invite_codes (id, code, label, max_uses, use_count) \
+             VALUES ($1, 'ABC123DEF456', 'Friends', 10, 3) \
+             ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(invite_id)
+        .execute(pool)
+        .await
+        .expect("insert invite code for admin interactions");
+    }
+}
+
+/// Seed a sleep observation so the web contract's `GET /api/v1/sleep` returns
+/// a non-empty array.  Sleep records are stored in the `observations` table
+/// with `type = 'sleep'`.
+async fn seed_sleep_record(pool: &sqlx::PgPool, user_id: Uuid) {
+    let value = serde_json::json!({
+        "duration_minutes": 480,
+        "deep_minutes": 90,
+        "light_minutes": 210,
+        "rem_minutes": 120,
+        "awake_minutes": 60,
+        "score": 82,
+        "date": "2026-03-10",
+    });
+
+    sqlx::query(
+        "INSERT INTO observations (user_id, type, name, start_time, end_time, value, source) \
+         VALUES ($1, 'sleep', 'sleep', '2026-03-09T23:00:00Z', '2026-03-10T07:00:00Z', $2, 'manual')",
+    )
+    .bind(user_id)
+    .bind(&value)
     .execute(pool)
     .await
-    .expect("seed invite code for admin list");
+    .expect("seed sleep observation");
 }
 
 /// Resolve the path to `pact/contracts/` relative to the workspace root.

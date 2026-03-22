@@ -14,6 +14,7 @@ pub struct UserRow {
     pub auth_provider: String,
     pub email: String,
     pub role: String,
+    pub status: String,
     pub data_region: String,
     pub federation_id: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -26,6 +27,7 @@ pub struct UserResponse {
     pub auth_provider: String,
     pub email: String,
     pub role: String,
+    pub status: String,
     pub data_region: String,
     pub created_at: DateTime<Utc>,
 }
@@ -38,6 +40,7 @@ impl From<UserRow> for UserResponse {
             auth_provider: row.auth_provider,
             email: row.email,
             role: row.role,
+            status: row.status,
             data_region: row.data_region,
             created_at: row.created_at,
         }
