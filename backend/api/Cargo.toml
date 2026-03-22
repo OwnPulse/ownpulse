@@ -43,3 +43,6 @@ tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
 http = "1"
 hyper = "1"
+rsa = { version = "0.9", features = ["sha2"] }
+rand = "0.8"
+base64 = "0.22"

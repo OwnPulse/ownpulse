@@ -311,6 +311,8 @@ async fn test_google_callback_ios_redirects_to_custom_scheme() {
         google_redirect_uri: Some("http://localhost/callback".to_string()),
         google_token_url: format!("{}/token", mock_server.uri()),
         google_userinfo_url: format!("{}/userinfo", mock_server.uri()),
+        apple_client_id: None,
+        apple_jwks_url: api::config::default_apple_jwks_url(),
         garmin_client_id: None,
         garmin_client_secret: None,
         oura_client_id: None,
@@ -412,6 +414,8 @@ async fn test_google_callback_web_redirects_with_cookies() {
         google_redirect_uri: Some("http://localhost/callback".to_string()),
         google_token_url: format!("{}/token", mock_server.uri()),
         google_userinfo_url: format!("{}/userinfo", mock_server.uri()),
+        apple_client_id: None,
+        apple_jwks_url: api::config::default_apple_jwks_url(),
         garmin_client_id: None,
         garmin_client_secret: None,
         oura_client_id: None,
@@ -444,7 +448,7 @@ async fn test_google_callback_web_redirects_with_cookies() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!(
+                .uri(format!(
                     "/api/v1/auth/google/callback?code=test-auth-code&state={}",
                     csrf_state
                 ))
@@ -508,6 +512,8 @@ async fn test_google_callback_rejects_mismatched_csrf_state() {
         google_redirect_uri: Some("http://localhost/callback".to_string()),
         google_token_url: "https://oauth2.googleapis.com/token".to_string(),
         google_userinfo_url: "https://www.googleapis.com/oauth2/v3/userinfo".to_string(),
+        apple_client_id: None,
+        apple_jwks_url: api::config::default_apple_jwks_url(),
         garmin_client_id: None,
         garmin_client_secret: None,
         oura_client_id: None,

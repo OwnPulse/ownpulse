@@ -16,4 +16,5 @@ pub mod lab_results;
 pub mod observations;
 pub mod refresh_tokens;
 pub mod source_preferences;
+pub mod user_auth_methods;
 pub mod users;

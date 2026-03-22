@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::header::{HeaderMap, SET_COOKIE};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
@@ -10,12 +10,17 @@ use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
 
+use crate::auth::extractor::AuthUser;
 use crate::auth::jwt::encode_access_token;
 use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
 use crate::db::refresh_tokens;
+use crate::db::user_auth_methods;
 use crate::db::users;
 use crate::error::ApiError;
-use crate::models::user::{LoginRequest, RefreshRequest, TokenResponse};
+use crate::models::user::{
+    AppleCallbackRequest, AuthMethodRow, LinkAuthRequest, LoginRequest, RefreshRequest,
+    TokenResponse, TokenResponseWithRefresh,
+};
 use crate::AppState;
 
 /// Return `"; Secure"` when the web origin uses HTTPS, empty string otherwise.
@@ -278,9 +283,14 @@ pub async fn google_callback(
             .unwrap_or("user"),
     );
 
-    let user = users::find_or_create_google_user(&state.pool, &google_user.email, &username)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let user = users::find_or_create_google_user(
+        &state.pool,
+        &google_user.sub,
+        &google_user.email,
+        &username,
+    )
+    .await
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     // Issue tokens
     let raw_token = generate_refresh_token();
@@ -354,6 +364,203 @@ pub async fn google_callback(
         );
         Ok(response)
     }
+}
+
+/// POST /auth/apple/callback — verify Apple id_token and issue tokens.
+///
+/// For iOS clients (`platform != "web"`) the refresh token is included in the
+/// JSON body. For web clients it is set as an httpOnly cookie only.
+pub async fn apple_callback(
+    State(state): State<AppState>,
+    Json(body): Json<AppleCallbackRequest>,
+) -> Result<Response, ApiError> {
+    let client_id = state
+        .config
+        .apple_client_id
+        .as_deref()
+        .ok_or_else(|| ApiError::Internal("APPLE_CLIENT_ID not configured".to_string()))?;
+
+    let apple_user = crate::integrations::apple::verify_identity_token(
+        &state.http_client,
+        &body.id_token,
+        client_id,
+        &state.config.apple_jwks_url,
+    )
+    .await
+    .map_err(|_| ApiError::Unauthorized)?;
+
+    let email = apple_user.email.as_deref();
+    let username = email
+        .and_then(|e| e.split('@').next())
+        .map(sanitize_username)
+        .unwrap_or_else(|| format!("user-{}", &Uuid::new_v4().to_string()[..8]));
+
+    let user =
+        users::find_or_create_apple_user(&state.pool, &apple_user.sub, email, &username)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let is_web = body.platform == "web";
+    issue_tokens_response(&state, user.id, &user.role, is_web).await
+}
+
+/// POST /auth/link — link a new auth provider to the authenticated user's account.
+pub async fn link_auth(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Json(body): Json<LinkAuthRequest>,
+) -> Result<Response, ApiError> {
+    match body.provider.as_str() {
+        "apple" => {
+            let id_token = body
+                .id_token
+                .as_deref()
+                .ok_or_else(|| ApiError::BadRequest("id_token required for apple".into()))?;
+
+            let client_id = state
+                .config
+                .apple_client_id
+                .as_deref()
+                .ok_or_else(|| {
+                    ApiError::Internal("APPLE_CLIENT_ID not configured".to_string())
+                })?;
+
+            let apple_user = crate::integrations::apple::verify_identity_token(
+                &state.http_client,
+                id_token,
+                client_id,
+                &state.config.apple_jwks_url,
+            )
+            .await
+            .map_err(|_| ApiError::Unauthorized)?;
+
+            // Check that this Apple sub isn't already linked to a DIFFERENT user.
+            match user_auth_methods::find_by_provider_subject(
+                &state.pool,
+                "apple",
+                &apple_user.sub,
+            )
+            .await
+            {
+                Ok(existing) if existing.id != auth_user.id => {
+                    return Err(ApiError::Conflict(
+                        "this Apple account is already linked to another user".into(),
+                    ));
+                }
+                Ok(_) => {
+                    // Already linked to this user — idempotent, fall through to return list.
+                }
+                Err(sqlx::Error::RowNotFound) => {
+                    user_auth_methods::insert(
+                        &state.pool,
+                        auth_user.id,
+                        "apple",
+                        Some(&apple_user.sub),
+                        apple_user.email.as_deref(),
+                    )
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                }
+                Err(e) => return Err(ApiError::Internal(e.to_string())),
+            }
+        }
+        "local" => {
+            let password = body
+                .password
+                .as_deref()
+                .ok_or_else(|| ApiError::BadRequest("password required for local".into()))?;
+
+            if password.is_empty() {
+                return Err(ApiError::BadRequest("password must not be empty".into()));
+            }
+
+            let hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            // local uses user_id as provider_subject
+            match user_auth_methods::find_by_provider_subject(
+                &state.pool,
+                "local",
+                &auth_user.id.to_string(),
+            )
+            .await
+            {
+                Ok(_) => {
+                    // Already linked — idempotent.
+                }
+                Err(sqlx::Error::RowNotFound) => {
+                    let mut tx = state.pool.begin().await.map_err(ApiError::from)?;
+                    sqlx::query("UPDATE users SET password_hash = $1 WHERE id = $2")
+                        .bind(&hash)
+                        .bind(auth_user.id)
+                        .execute(&mut *tx)
+                        .await
+                        .map_err(ApiError::from)?;
+                    sqlx::query(
+                        "INSERT INTO user_auth_methods (user_id, provider, provider_subject)
+                         VALUES ($1, 'local', $2)
+                         ON CONFLICT DO NOTHING",
+                    )
+                    .bind(auth_user.id)
+                    .bind(auth_user.id.to_string())
+                    .execute(&mut *tx)
+                    .await
+                    .map_err(ApiError::from)?;
+                    tx.commit().await.map_err(ApiError::from)?;
+                }
+                Err(e) => return Err(ApiError::Internal(e.to_string())),
+            }
+        }
+        other => {
+            return Err(ApiError::BadRequest(format!(
+                "unsupported provider: {other}"
+            )));
+        }
+    }
+
+    let methods = user_auth_methods::list_for_user(&state.pool, auth_user.id)
+        .await
+        .map_err(ApiError::from)?;
+
+    Ok((StatusCode::OK, Json(methods)).into_response())
+}
+
+/// DELETE /auth/link/:provider — unlink an auth provider from the user's account.
+pub async fn unlink_auth(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+    Path(provider): Path<String>,
+) -> Result<Response, ApiError> {
+    let count = user_auth_methods::count_for_user(&state.pool, auth_user.id)
+        .await
+        .map_err(ApiError::from)?;
+
+    if count <= 1 {
+        return Err(ApiError::BadRequest(
+            "cannot remove your only login method".into(),
+        ));
+    }
+
+    user_auth_methods::delete(&state.pool, auth_user.id, &provider)
+        .await
+        .map_err(ApiError::from)?;
+
+    let methods = user_auth_methods::list_for_user(&state.pool, auth_user.id)
+        .await
+        .map_err(ApiError::from)?;
+
+    Ok((StatusCode::OK, Json(methods)).into_response())
+}
+
+/// GET /auth/methods — list all auth methods linked to the current user.
+pub async fn list_auth_methods(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+) -> Result<Json<Vec<AuthMethodRow>>, ApiError> {
+    let methods = user_auth_methods::list_for_user(&state.pool, auth_user.id)
+        .await
+        .map_err(ApiError::from)?;
+    Ok(Json(methods))
 }
 
 /// Sanitize a username derived from an email local part.
@@ -456,6 +663,68 @@ async fn issue_tokens_with_family(
     };
 
     let mut response = (StatusCode::OK, Json(token_response)).into_response();
+    response.headers_mut().insert(
+        SET_COOKIE,
+        cookie
+            .parse()
+            .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
+    );
+    Ok(response)
+}
+
+/// Issue tokens and return the response appropriate for the platform.
+///
+/// For web clients: refresh token in httpOnly cookie only.
+/// For iOS / non-web clients: refresh token in JSON body + httpOnly cookie.
+async fn issue_tokens_response(
+    state: &AppState,
+    user_id: Uuid,
+    role: &str,
+    is_web: bool,
+) -> Result<Response, ApiError> {
+    let access_token = encode_access_token(
+        user_id,
+        role,
+        &state.config.jwt_secret,
+        state.config.jwt_expiry_seconds,
+    )
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let raw_refresh = generate_refresh_token();
+    let refresh_hash = hash_refresh_token(&raw_refresh, &state.config.jwt_secret);
+    let expires_at = Utc::now()
+        + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
+
+    refresh_tokens::insert(&state.pool, user_id, &refresh_hash, expires_at)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let secure = secure_attr(&state.config);
+    let cookie = format!(
+        "refresh_token={raw_refresh}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
+        state.config.refresh_token_expiry_seconds
+    );
+
+    let mut response = if is_web {
+        // Web: return access token in body, refresh token in cookie only.
+        let token_response = TokenResponse {
+            access_token,
+            token_type: "Bearer".to_string(),
+            expires_in: state.config.jwt_expiry_seconds,
+        };
+        (StatusCode::OK, Json(token_response)).into_response()
+    } else {
+        // iOS: include refresh token in JSON body so the client can store it
+        // in the Keychain without relying on cookies.
+        let token_response = TokenResponseWithRefresh {
+            access_token,
+            refresh_token: raw_refresh,
+            token_type: "Bearer".to_string(),
+            expires_in: state.config.jwt_expiry_seconds,
+        };
+        (StatusCode::OK, Json(token_response)).into_response()
+    };
+
     response.headers_mut().insert(
         SET_COOKIE,
         cookie

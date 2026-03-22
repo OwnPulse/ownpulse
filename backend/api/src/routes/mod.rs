@@ -37,6 +37,7 @@ fn auth_routes() -> Router<AppState> {
         .route("/auth/logout", post(auth::logout))
         .route("/auth/google/login", get(auth::google_login))
         .route("/auth/google/callback", get(auth::google_callback))
+        .route("/auth/apple/callback", post(auth::apple_callback))
 }
 
 /// Build the versioned API router with rate limiting on auth endpoints.
@@ -125,6 +126,10 @@ fn base_routes() -> Router<AppState> {
         // Admin
         .route("/admin/users", get(admin::list_users))
         .route("/admin/users/:id/role", patch(admin::update_role))
+        // Auth methods (authenticated)
+        .route("/auth/methods", get(auth::list_auth_methods))
+        .route("/auth/link", post(auth::link_auth))
+        .route("/auth/link/:provider", delete(auth::unlink_auth))
         // Friend sharing
         .route("/friends/shares", post(friends::create_share))
         .route("/friends/shares/outgoing", get(friends::list_outgoing))
