@@ -150,7 +150,7 @@ jobs:
           helm upgrade --install postgres-staging helm/postgres
           -n ownpulse-staging
           -f helm/postgres/values-staging.yaml
-          --atomic --timeout 120s
+          --force-conflicts --rollback-on-failure --timeout 120s
 
   staging-services:
     needs: [resolve-tags, staging-infra]
@@ -263,7 +263,7 @@ jobs:
           fi
 
       - name: Deploy Postgres (idempotent)
-        run: helm upgrade --install postgres helm/postgres -n ownpulse --atomic --timeout 120s
+        run: helm upgrade --install postgres helm/postgres -n ownpulse --force-conflicts --rollback-on-failure --timeout 120s
 
   production-services:
     needs: [resolve-tags, production-infra]
