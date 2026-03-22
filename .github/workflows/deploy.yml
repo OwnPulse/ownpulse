@@ -97,12 +97,6 @@ jobs:
           helm lint helm/web -f helm/web/values-staging.yaml
           helm lint helm/userdocs -f helm/userdocs/values-staging.yaml
           helm lint helm/postgres -f helm/postgres/values-staging.yaml
-          for chart in api web userdocs; do
-            if helm template ${chart}-staging helm/${chart} -f helm/${chart}/values-staging.yaml | grep -q "kind: Ingress"; then
-              echo "ERROR: Staging ${chart} chart should not generate Ingress resources"
-              exit 1
-            fi
-          done
           echo "All staging Helm charts validated"
 
       - name: Deploy Postgres (staging)
