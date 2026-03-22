@@ -48,13 +48,14 @@ fn test_config(database_url: &str) -> api::config::Config {
         encryption_key_previous: None,
         apple_client_id: None,
         apple_jwks_url: "https://appleid.apple.com/auth/keys".to_string(),
+        require_invite: false,
     }
 }
 
 /// Spin up Postgres, run migrations, start the Axum server on a random port.
 pub async fn setup() -> ContractTestApp {
     let container = Postgres::default()
-        .with_tag("16-alpine")
+        .with_tag("17-alpine")
         .start()
         .await
         .expect("failed to start postgres container");

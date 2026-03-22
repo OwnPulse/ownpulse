@@ -51,6 +51,7 @@ fn test_config(database_url: &str) -> api::config::Config {
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
         encryption_key_previous: None,
+        require_invite: false,
     }
 }
 
@@ -58,7 +59,7 @@ fn test_config(database_url: &str) -> api::config::Config {
 /// return a ready-to-use [`TestApp`].
 pub async fn setup() -> TestApp {
     let container = Postgres::default()
-        .with_tag("16-alpine")
+        .with_tag("17-alpine")
         .start()
         .await
         .expect("failed to start postgres container");
