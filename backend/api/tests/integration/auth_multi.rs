@@ -786,7 +786,7 @@ async fn test_link_local_to_social_user() {
         .clone()
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": user_row.0, "password": "securepassword123"}),
+            &json!({"email": user_row.0, "password": "securepassword123"}),
         ))
         .await
         .unwrap();

@@ -429,15 +429,29 @@ pub async fn apple_callback(
         ApiError::Unauthorized
     })?;
 
-    let email = apple_user.email.as_deref();
+    // Apple may not provide an email (e.g. private relay, or after first sign-in).
+    // Generate a placeholder email if needed since the users table requires one.
+    let placeholder_email;
+    let email = match apple_user.email.as_deref() {
+        Some(e) => e,
+        None => {
+            placeholder_email = format!(
+                "{}@privaterelay.appleid.com",
+                &apple_user.sub[..8.min(apple_user.sub.len())]
+            );
+            &placeholder_email
+        }
+    };
     let username = email
-        .and_then(|e| e.split('@').next())
+        .split('@')
+        .next()
         .map(sanitize_username)
         .unwrap_or_else(|| format!("user-{}", &Uuid::new_v4().to_string()[..8]));
 
-    let user = users::find_or_create_apple_user(&state.pool, &apple_user.sub, email, &username)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let user =
+        users::find_or_create_apple_user(&state.pool, &apple_user.sub, Some(email), &username)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let is_web = body.platform == "web";
     issue_tokens_response(&state, user.id, &user.role, is_web).await
