@@ -4,19 +4,14 @@
 use axum::body::Body;
 use http::Request;
 use http_body_util::BodyExt;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tower::ServiceExt;
 
 use crate::common;
 
 /// Helper: collect the response body into a parsed JSON value.
 async fn body_json(response: axum::response::Response) -> Value {
-    let bytes = response
-        .into_body()
-        .collect()
-        .await
-        .unwrap()
-        .to_bytes();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
 }
 
@@ -41,12 +36,12 @@ fn post_with_cookie(uri: &str, cookie: &str) -> Request<Body> {
 }
 
 /// Helper: insert a local user into the database with a bcrypt-hashed password.
-async fn insert_test_user(pool: &sqlx::PgPool, username: &str, password: &str) -> uuid::Uuid {
+async fn insert_test_user(pool: &sqlx::PgPool, email: &str, password: &str) -> uuid::Uuid {
     let hash = bcrypt::hash(password, 4).expect("bcrypt hash failed");
     let row: (uuid::Uuid,) = sqlx::query_as(
-        "INSERT INTO users (username, password_hash, auth_provider) VALUES ($1, $2, 'local') RETURNING id",
+        "INSERT INTO users (email, password_hash, auth_provider) VALUES ($1, $2, 'local') RETURNING id",
     )
-    .bind(username)
+    .bind(email)
     .bind(&hash)
     .fetch_one(pool)
     .await
@@ -75,13 +70,13 @@ fn extract_refresh_cookie(response: &axum::response::Response) -> String {
 #[tokio::test]
 async fn test_login_with_valid_credentials() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "alice", "correctpassword").await;
+    insert_test_user(&test_app.pool, "alice@example.com", "correctpassword").await;
 
     let response = test_app
         .app
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "alice", "password": "correctpassword"}),
+            &json!({"email": "alice@example.com", "password": "correctpassword"}),
         ))
         .await
         .unwrap();
@@ -90,7 +85,10 @@ async fn test_login_with_valid_credentials() {
 
     // Verify Set-Cookie header contains refresh_token
     let cookie_value = extract_refresh_cookie(&response);
-    assert!(!cookie_value.is_empty(), "refresh_token cookie should not be empty");
+    assert!(
+        !cookie_value.is_empty(),
+        "refresh_token cookie should not be empty"
+    );
 
     let json = body_json(response).await;
     assert!(json["access_token"].is_string());
@@ -101,13 +99,13 @@ async fn test_login_with_valid_credentials() {
 #[tokio::test]
 async fn test_login_with_wrong_password() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "bob", "realpassword").await;
+    insert_test_user(&test_app.pool, "bob@example.com", "realpassword").await;
 
     let response = test_app
         .app
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "bob", "password": "wrongpassword"}),
+            &json!({"email": "bob@example.com", "password": "wrongpassword"}),
         ))
         .await
         .unwrap();
@@ -123,7 +121,7 @@ async fn test_login_with_nonexistent_user() {
         .app
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "nobody", "password": "whatever"}),
+            &json!({"email": "nobody@example.com", "password": "whatever"}),
         ))
         .await
         .unwrap();
@@ -134,7 +132,7 @@ async fn test_login_with_nonexistent_user() {
 #[tokio::test]
 async fn test_refresh_token_rotation() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "carol", "mypassword").await;
+    insert_test_user(&test_app.pool, "carol@example.com", "mypassword").await;
 
     // Login to get the refresh cookie
     let login_response = test_app
@@ -142,7 +140,7 @@ async fn test_refresh_token_rotation() {
         .clone()
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "carol", "password": "mypassword"}),
+            &json!({"email": "carol@example.com", "password": "mypassword"}),
         ))
         .await
         .unwrap();
@@ -165,7 +163,10 @@ async fn test_refresh_token_rotation() {
     // Verify we got a new access token and a new refresh cookie
     let new_refresh = extract_refresh_cookie(&refresh_response);
     assert!(!new_refresh.is_empty());
-    assert_ne!(refresh_token, new_refresh, "refresh token should be rotated");
+    assert_ne!(
+        refresh_token, new_refresh,
+        "refresh token should be rotated"
+    );
 
     let json = body_json(refresh_response).await;
     assert!(json["access_token"].is_string());
@@ -194,7 +195,7 @@ async fn test_refresh_with_no_cookie() {
 #[tokio::test]
 async fn test_logout_clears_refresh_token() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "dave", "secret123").await;
+    insert_test_user(&test_app.pool, "dave@example.com", "secret123").await;
 
     // Login
     let login_response = test_app
@@ -202,7 +203,7 @@ async fn test_logout_clears_refresh_token() {
         .clone()
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "dave", "password": "secret123"}),
+            &json!({"email": "dave@example.com", "password": "secret123"}),
         ))
         .await
         .unwrap();
@@ -239,7 +240,7 @@ async fn test_logout_clears_refresh_token() {
 #[tokio::test]
 async fn test_refresh_with_json_body() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "frank", "bodyrefresh").await;
+    insert_test_user(&test_app.pool, "frank@example.com", "bodyrefresh").await;
 
     // Login to get a refresh token
     let login_response = test_app
@@ -247,7 +248,7 @@ async fn test_refresh_with_json_body() {
         .clone()
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "frank", "password": "bodyrefresh"}),
+            &json!({"email": "frank@example.com", "password": "bodyrefresh"}),
         ))
         .await
         .unwrap();
@@ -273,8 +274,39 @@ async fn test_refresh_with_json_body() {
     assert_eq!(json["token_type"], "Bearer");
 }
 
+/// Build a Config pointing Google endpoints at the given WireMock server URI,
+/// sharing the pool from the outer TestApp.
+fn google_config(mock_uri: &str) -> api::config::Config {
+    api::config::Config {
+        database_url: "unused".to_string(),
+        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
+        jwt_expiry_seconds: 3600,
+        refresh_token_expiry_seconds: 2_592_000,
+        google_client_id: Some("test-client-id".to_string()),
+        google_client_secret: Some("test-client-secret".to_string()),
+        google_redirect_uri: Some("http://localhost/callback".to_string()),
+        google_token_url: format!("{mock_uri}/token"),
+        google_userinfo_url: format!("{mock_uri}/userinfo"),
+        garmin_client_id: None,
+        garmin_client_secret: None,
+        oura_client_id: None,
+        oura_client_secret: None,
+        dexcom_client_id: None,
+        dexcom_client_secret: None,
+        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+        encryption_key_previous: None,
+        storage_path: None,
+        app_user: None,
+        app_password_hash: None,
+        data_region: "us".to_string(),
+        web_origin: "http://localhost:5173".to_string(),
+        rust_log: "info".to_string(),
+    }
+}
+
 #[tokio::test]
-async fn test_google_callback_ios_redirects_to_custom_scheme() {
+async fn test_google_callback_pkce_redirects_to_custom_scheme() {
     let test_app = common::setup().await;
 
     // Start WireMock for Google token exchange + userinfo
@@ -300,48 +332,19 @@ async fn test_google_callback_ios_redirects_to_custom_scheme() {
         .mount(&mock_server)
         .await;
 
-    // Build a test app with Google config pointing to WireMock
-    let config = api::config::Config {
-        database_url: "unused".to_string(),
-        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
-        jwt_expiry_seconds: 3600,
-        refresh_token_expiry_seconds: 2_592_000,
-        google_client_id: Some("test-client-id".to_string()),
-        google_client_secret: Some("test-client-secret".to_string()),
-        google_redirect_uri: Some("http://localhost/callback".to_string()),
-        google_token_url: format!("{}/token", mock_server.uri()),
-        google_userinfo_url: format!("{}/userinfo", mock_server.uri()),
-        garmin_client_id: None,
-        garmin_client_secret: None,
-        oura_client_id: None,
-        oura_client_secret: None,
-        dexcom_client_id: None,
-        dexcom_client_secret: None,
-        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
-            .to_string(),
-        encryption_key_previous: None,
-        storage_path: None,
-        app_user: None,
-        app_password_hash: None,
-        data_region: "us".to_string(),
-        web_origin: "http://localhost:5173".to_string(),
-        rust_log: "info".to_string(),
-    };
-
     let state = api::AppState {
         pool: test_app.pool.clone(),
-        config,
+        config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
     };
-
     let app = api::build_app_without_metrics(state);
 
-    // Call the callback with state=ios (iOS bypasses CSRF)
+    // Native app PKCE flow: sends code_verifier, no CSRF cookie needed.
     let response = app
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/api/v1/auth/google/callback?code=test-auth-code&state=ios")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -376,6 +379,129 @@ async fn test_google_callback_ios_redirects_to_custom_scheme() {
     );
 }
 
+/// Regression: the old `state=ios` bypass must no longer skip CSRF validation.
+/// A request with `state=ios` but no `code_verifier` is treated as a web flow
+/// and rejected because no `oauth_state` cookie is present.
+#[tokio::test]
+async fn test_google_callback_state_ios_no_longer_bypasses_csrf() {
+    let test_app = common::setup().await;
+
+    let config = api::config::Config {
+        database_url: "unused".to_string(),
+        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
+        jwt_expiry_seconds: 3600,
+        refresh_token_expiry_seconds: 2_592_000,
+        google_client_id: Some("test-client-id".to_string()),
+        google_client_secret: Some("test-client-secret".to_string()),
+        google_redirect_uri: Some("http://localhost/callback".to_string()),
+        // Point at a URL that should never be reached — CSRF check fires first.
+        google_token_url: "http://127.0.0.1:0/token".to_string(),
+        google_userinfo_url: "http://127.0.0.1:0/userinfo".to_string(),
+        garmin_client_id: None,
+        garmin_client_secret: None,
+        oura_client_id: None,
+        oura_client_secret: None,
+        dexcom_client_id: None,
+        dexcom_client_secret: None,
+        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+        encryption_key_previous: None,
+        storage_path: None,
+        app_user: None,
+        app_password_hash: None,
+        data_region: "us".to_string(),
+        web_origin: "http://localhost:5173".to_string(),
+        rust_log: "info".to_string(),
+    };
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    // state=ios without code_verifier — the bypass has been removed.
+    // The handler treats this as a web flow and rejects it: no oauth_state cookie.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code&state=ios")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        400,
+        "state=ios without code_verifier should no longer bypass CSRF — expected 400, got {}",
+        response.status()
+    );
+}
+
+/// A callback with neither `code_verifier` nor a valid `oauth_state` cookie
+/// must be rejected before any token exchange occurs.
+#[tokio::test]
+async fn test_google_callback_no_verifier_no_cookie_returns_400() {
+    let test_app = common::setup().await;
+
+    let config = api::config::Config {
+        database_url: "unused".to_string(),
+        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
+        jwt_expiry_seconds: 3600,
+        refresh_token_expiry_seconds: 2_592_000,
+        google_client_id: Some("test-client-id".to_string()),
+        google_client_secret: Some("test-client-secret".to_string()),
+        google_redirect_uri: Some("http://localhost/callback".to_string()),
+        // Point at a URL that should never be reached — CSRF check fires first.
+        google_token_url: "http://127.0.0.1:0/token".to_string(),
+        google_userinfo_url: "http://127.0.0.1:0/userinfo".to_string(),
+        garmin_client_id: None,
+        garmin_client_secret: None,
+        oura_client_id: None,
+        oura_client_secret: None,
+        dexcom_client_id: None,
+        dexcom_client_secret: None,
+        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+        encryption_key_previous: None,
+        storage_path: None,
+        app_user: None,
+        app_password_hash: None,
+        data_region: "us".to_string(),
+        web_origin: "http://localhost:5173".to_string(),
+        rust_log: "info".to_string(),
+    };
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    // No code_verifier, no oauth_state cookie — must be rejected.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code&state=some-state")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        400,
+        "callback without code_verifier and without oauth_state cookie should return 400"
+    );
+}
+
 #[tokio::test]
 async fn test_google_callback_web_redirects_with_cookies() {
     let test_app = common::setup().await;
@@ -402,36 +528,9 @@ async fn test_google_callback_web_redirects_with_cookies() {
         .mount(&mock_server)
         .await;
 
-    let config = api::config::Config {
-        database_url: "unused".to_string(),
-        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
-        jwt_expiry_seconds: 3600,
-        refresh_token_expiry_seconds: 2_592_000,
-        google_client_id: Some("test-client-id".to_string()),
-        google_client_secret: Some("test-client-secret".to_string()),
-        google_redirect_uri: Some("http://localhost/callback".to_string()),
-        google_token_url: format!("{}/token", mock_server.uri()),
-        google_userinfo_url: format!("{}/userinfo", mock_server.uri()),
-        garmin_client_id: None,
-        garmin_client_secret: None,
-        oura_client_id: None,
-        oura_client_secret: None,
-        dexcom_client_id: None,
-        dexcom_client_secret: None,
-        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
-            .to_string(),
-        encryption_key_previous: None,
-        storage_path: None,
-        app_user: None,
-        app_password_hash: None,
-        data_region: "us".to_string(),
-        web_origin: "http://localhost:5173".to_string(),
-        rust_log: "info".to_string(),
-    };
-
     let state = api::AppState {
         pool: test_app.pool.clone(),
-        config,
+        config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
     };
 
@@ -498,36 +597,11 @@ async fn test_google_callback_web_redirects_with_cookies() {
 async fn test_google_callback_rejects_mismatched_csrf_state() {
     let test_app = common::setup().await;
 
-    let config = api::config::Config {
-        database_url: "unused".to_string(),
-        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
-        jwt_expiry_seconds: 3600,
-        refresh_token_expiry_seconds: 2_592_000,
-        google_client_id: Some("test-client-id".to_string()),
-        google_client_secret: Some("test-client-secret".to_string()),
-        google_redirect_uri: Some("http://localhost/callback".to_string()),
-        google_token_url: "https://oauth2.googleapis.com/token".to_string(),
-        google_userinfo_url: "https://www.googleapis.com/oauth2/v3/userinfo".to_string(),
-        garmin_client_id: None,
-        garmin_client_secret: None,
-        oura_client_id: None,
-        oura_client_secret: None,
-        dexcom_client_id: None,
-        dexcom_client_secret: None,
-        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
-            .to_string(),
-        encryption_key_previous: None,
-        storage_path: None,
-        app_user: None,
-        app_password_hash: None,
-        data_region: "us".to_string(),
-        web_origin: "http://localhost:5173".to_string(),
-        rust_log: "info".to_string(),
-    };
-
+    // Point token URL at a port-0 address — the handler must reject before
+    // it ever makes a network call.
     let state = api::AppState {
         pool: test_app.pool.clone(),
-        config,
+        config: google_config("http://127.0.0.1:0"),
         http_client: reqwest::Client::new(),
     };
 
@@ -556,13 +630,13 @@ async fn test_google_callback_rejects_mismatched_csrf_state() {
 #[tokio::test]
 async fn test_login_returns_decodable_jwt() {
     let test_app = common::setup().await;
-    let user_id = insert_test_user(&test_app.pool, "eve", "jwttest").await;
+    let user_id = insert_test_user(&test_app.pool, "eve@example.com", "jwttest").await;
 
     let response = test_app
         .app
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "eve", "password": "jwttest"}),
+            &json!({"email": "eve@example.com", "password": "jwttest"}),
         ))
         .await
         .unwrap();
@@ -572,11 +646,9 @@ async fn test_login_returns_decodable_jwt() {
     let access_token = json["access_token"].as_str().unwrap();
 
     // Decode the JWT using the same secret as the test config
-    let claims = api::auth::jwt::decode_access_token(
-        access_token,
-        "test-jwt-secret-at-least-32-bytes-long",
-    )
-    .expect("JWT should decode successfully");
+    let claims =
+        api::auth::jwt::decode_access_token(access_token, "test-jwt-secret-at-least-32-bytes-long")
+            .expect("JWT should decode successfully");
 
     assert_eq!(claims.sub, user_id);
     assert!(claims.exp > chrono::Utc::now().timestamp());
@@ -587,7 +659,7 @@ async fn test_login_returns_decodable_jwt() {
 #[tokio::test]
 async fn test_rotated_refresh_token_returns_401() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "grace", "replaytest").await;
+    insert_test_user(&test_app.pool, "grace@example.com", "replaytest").await;
 
     // Step 1: Login to get the initial refresh token
     let login_response = test_app
@@ -595,7 +667,7 @@ async fn test_rotated_refresh_token_returns_401() {
         .clone()
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "grace", "password": "replaytest"}),
+            &json!({"email": "grace@example.com", "password": "replaytest"}),
         ))
         .await
         .unwrap();
@@ -616,7 +688,10 @@ async fn test_rotated_refresh_token_returns_401() {
 
     assert_eq!(refresh_response.status(), 200);
     let new_refresh_token = extract_refresh_cookie(&refresh_response);
-    assert_ne!(old_refresh_token, new_refresh_token, "token should have rotated");
+    assert_ne!(
+        old_refresh_token, new_refresh_token,
+        "token should have rotated"
+    );
 
     // Step 3: Present the OLD (already-rotated) refresh token — should be rejected
     let replay_response = test_app

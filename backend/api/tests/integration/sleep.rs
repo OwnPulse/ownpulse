@@ -108,12 +108,7 @@ async fn test_list_sleep_records() {
 
     let list_resp = app
         .app
-        .oneshot(common::auth_request(
-            "GET",
-            "/api/v1/sleep",
-            &token,
-            None,
-        ))
+        .oneshot(common::auth_request("GET", "/api/v1/sleep", &token, None))
         .await
         .unwrap();
 
@@ -162,10 +157,7 @@ async fn test_list_sleep_records_with_date_filter() {
         .app
         .oneshot(common::auth_request(
             "GET",
-            &format!(
-                "/api/v1/sleep?start={}&end={}",
-                ten_days_ago, filter_end
-            ),
+            &format!("/api/v1/sleep?start={}&end={}", ten_days_ago, filter_end),
             &token,
             None,
         ))

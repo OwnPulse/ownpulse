@@ -9,10 +9,10 @@ use uuid::Uuid;
 #[derive(FromRow)]
 pub struct UserRow {
     pub id: Uuid,
-    pub username: String,
+    pub username: Option<String>,
     pub password_hash: Option<String>,
     pub auth_provider: String,
-    pub email: Option<String>,
+    pub email: String,
     pub role: String,
     pub data_region: String,
     pub federation_id: Option<String>,
@@ -22,9 +22,9 @@ pub struct UserRow {
 #[derive(Serialize)]
 pub struct UserResponse {
     pub id: Uuid,
-    pub username: String,
+    pub username: Option<String>,
     pub auth_provider: String,
-    pub email: Option<String>,
+    pub email: String,
     pub role: String,
     pub data_region: String,
     pub created_at: DateTime<Utc>,
@@ -46,7 +46,7 @@ impl From<UserRow> for UserResponse {
 
 #[derive(Deserialize)]
 pub struct LoginRequest {
-    pub username: String,
+    pub email: String,
     pub password: String,
 }
 

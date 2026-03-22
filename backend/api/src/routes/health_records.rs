@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db;
 use crate::db::health_records as db_hr;
 use crate::db::healthkit as db_healthkit;
 use crate::error::ApiError;
 use crate::models::health_record::{CreateHealthRecord, HealthRecordQuery, HealthRecordRow};
-use crate::AppState;
 
 /// POST /health-records
 pub async fn create(
@@ -103,15 +103,9 @@ pub async fn delete(
         // Fire-and-forget: audit log insert must not block or fail the response.
         let pool = state.pool.clone();
         tokio::spawn(async move {
-            if let Err(e) = db::audit::log_access(
-                &pool,
-                user_id,
-                "delete",
-                "health_record",
-                Some(id),
-                None,
-            )
-            .await
+            if let Err(e) =
+                db::audit::log_access(&pool, user_id, "delete", "health_record", Some(id), None)
+                    .await
             {
                 tracing::warn!(error = %e, user_id = %user_id, record_id = %id, "audit log insert failed");
             }

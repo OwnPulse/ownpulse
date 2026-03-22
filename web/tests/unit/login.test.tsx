@@ -23,14 +23,14 @@ describe("Login", () => {
     mockLogin.mockReset();
   });
 
-  it("renders username/password inputs, Google link, and Apple link", () => {
+  it("renders email/password inputs, Google link, and Apple link", () => {
     render(
       <MemoryRouter>
         <Login />
       </MemoryRouter>,
     );
 
-    expect(screen.getByLabelText(/username/i)).toBeDefined();
+    expect(screen.getByLabelText(/email/i)).toBeDefined();
     expect(screen.getByLabelText(/password/i)).toBeDefined();
     expect(screen.getByText(/sign in with google/i)).toBeDefined();
     expect(screen.getByText(/sign in with apple/i)).toBeDefined();
@@ -46,13 +46,13 @@ describe("Login", () => {
     );
 
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/username/i), "testuser");
+    await user.type(screen.getByLabelText(/email/i), "test@example.com");
     await user.type(screen.getByLabelText(/password/i), "wrongpassword");
     await user.click(screen.getByRole("button", { name: /sign in/i }));
 
     await waitFor(() => {
       expect(
-        screen.getByText(/invalid username or password/i),
+        screen.getByText(/invalid email or password/i),
       ).toBeDefined();
     });
   });

@@ -5,10 +5,10 @@ use axum::extract::State;
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::{IntoResponse, Response};
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db;
 use crate::error::ApiError;
-use crate::AppState;
 
 /// GET /export/json — streaming JSON export of all user data.
 pub async fn export_json(
@@ -22,9 +22,7 @@ pub async fn export_json(
     // Fire-and-forget: audit log insert must not block or fail the response.
     let pool = state.pool.clone();
     tokio::spawn(async move {
-        if let Err(e) =
-            db::audit::log_access(&pool, user_id, "export", "json", None, None).await
-        {
+        if let Err(e) = db::audit::log_access(&pool, user_id, "export", "json", None, None).await {
             tracing::warn!(error = %e, user_id = %user_id, "audit log insert failed");
         }
     });
@@ -54,9 +52,7 @@ pub async fn export_csv(
     // Fire-and-forget: audit log insert must not block or fail the response.
     let pool = state.pool.clone();
     tokio::spawn(async move {
-        if let Err(e) =
-            db::audit::log_access(&pool, user_id, "export", "csv", None, None).await
-        {
+        if let Err(e) = db::audit::log_access(&pool, user_id, "export", "csv", None, None).await {
             tracing::warn!(error = %e, user_id = %user_id, "audit log insert failed");
         }
     });

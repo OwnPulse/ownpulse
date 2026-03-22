@@ -8,20 +8,22 @@ use uuid::Uuid;
 use crate::models::friend_share::{FriendShareResponse, FriendShareRow};
 
 #[derive(sqlx::FromRow)]
-struct ShareWithUsername {
+struct ShareWithEmail {
     id: Uuid,
     owner_id: Uuid,
     friend_id: Option<Uuid>,
     status: String,
     invite_token: Option<String>,
     #[allow(dead_code)]
+    // invite_expires_at is fetched for completeness but not exposed in responses
     invite_expires_at: Option<DateTime<Utc>>,
     created_at: DateTime<Utc>,
     accepted_at: Option<DateTime<Utc>>,
     #[allow(dead_code)]
+    // revoked_at is fetched for completeness but not exposed in responses
     revoked_at: Option<DateTime<Utc>>,
-    // joined field — owner or friend username depending on query direction
-    peer_username: Option<String>,
+    // joined field — owner or friend email depending on query direction
+    peer_email: Option<String>,
 }
 
 #[derive(sqlx::FromRow)]
@@ -84,9 +86,9 @@ pub async fn accept_share(
 ) -> Result<(), sqlx::Error> {
     let result = sqlx::query(
         "UPDATE friend_shares
-         SET status = 'accepted', friend_id = $2, accepted_at = now()
+         SET status = 'accepted', accepted_at = now()
          WHERE id = $1
-           AND (friend_id = $2 OR friend_id IS NULL)
+           AND friend_id = $2
            AND status = 'pending'",
     )
     .bind(share_id)
@@ -108,7 +110,8 @@ pub async fn accept_by_token(
 ) -> Result<FriendShareRow, sqlx::Error> {
     sqlx::query_as::<_, FriendShareRow>(
         "UPDATE friend_shares
-         SET status = 'accepted', friend_id = $2, accepted_at = now()
+         SET status = 'accepted', friend_id = $2, accepted_at = now(),
+             invite_token = NULL, invite_expires_at = NULL
          WHERE invite_token = $1
            AND status = 'pending'
            AND (invite_expires_at IS NULL OR invite_expires_at > now())
@@ -122,18 +125,16 @@ pub async fn accept_by_token(
     .await
 }
 
-/// Revoke or decline a share. Either party can revoke.
-pub async fn revoke_share(
-    pool: &PgPool,
-    share_id: Uuid,
-    user_id: Uuid,
-) -> Result<(), sqlx::Error> {
+/// Revoke or decline a share. Owner → 'revoked', friend → 'declined'.
+/// Note: `revoked_at` is set for both cases (doubles as `ended_at`).
+pub async fn revoke_share(pool: &PgPool, share_id: Uuid, user_id: Uuid) -> Result<(), sqlx::Error> {
     let result = sqlx::query(
         "UPDATE friend_shares
-         SET status = 'revoked', revoked_at = now()
+         SET status = CASE WHEN owner_id = $2 THEN 'revoked' ELSE 'declined' END,
+             revoked_at = now()
          WHERE id = $1
            AND (owner_id = $2 OR friend_id = $2)
-           AND status != 'revoked'",
+           AND status NOT IN ('revoked', 'declined')",
     )
     .bind(share_id)
     .bind(user_id)
@@ -151,13 +152,13 @@ pub async fn list_outgoing(
     pool: &PgPool,
     owner_id: Uuid,
 ) -> Result<Vec<FriendShareResponse>, sqlx::Error> {
-    let shares = sqlx::query_as::<_, ShareWithUsername>(
+    let shares = sqlx::query_as::<_, ShareWithEmail>(
         "SELECT fs.id, fs.owner_id, fs.friend_id, fs.status, fs.invite_token,
                 fs.invite_expires_at, fs.created_at, fs.accepted_at, fs.revoked_at,
-                u.username AS peer_username
+                u.email AS peer_email
          FROM friend_shares fs
          LEFT JOIN users u ON u.id = fs.friend_id
-         WHERE fs.owner_id = $1 AND fs.status != 'revoked'
+         WHERE fs.owner_id = $1 AND fs.status NOT IN ('revoked', 'declined')
          ORDER BY fs.created_at DESC",
     )
     .bind(owner_id)
@@ -172,13 +173,13 @@ pub async fn list_incoming(
     pool: &PgPool,
     friend_id: Uuid,
 ) -> Result<Vec<FriendShareResponse>, sqlx::Error> {
-    let shares = sqlx::query_as::<_, ShareWithUsername>(
+    let shares = sqlx::query_as::<_, ShareWithEmail>(
         "SELECT fs.id, fs.owner_id, fs.friend_id, fs.status, fs.invite_token,
                 fs.invite_expires_at, fs.created_at, fs.accepted_at, fs.revoked_at,
-                u.username AS peer_username
+                u.email AS peer_email
          FROM friend_shares fs
          LEFT JOIN users u ON u.id = fs.owner_id
-         WHERE fs.friend_id = $1 AND fs.status != 'revoked'
+         WHERE fs.friend_id = $1 AND fs.status NOT IN ('revoked', 'declined')
          ORDER BY fs.created_at DESC",
     )
     .bind(friend_id)
@@ -223,7 +224,7 @@ pub async fn get_share(pool: &PgPool, share_id: Uuid) -> Result<FriendShareRow, 
 /// Helper: fetch permissions for a set of share IDs and build FriendShareResponse list.
 async fn build_responses(
     pool: &PgPool,
-    shares: Vec<ShareWithUsername>,
+    shares: Vec<ShareWithEmail>,
     is_outgoing: bool,
     user_id: Uuid,
 ) -> Result<Vec<FriendShareResponse>, sqlx::Error> {
@@ -247,14 +248,14 @@ async fn build_responses(
         perm_map.entry(p.share_id).or_default().push(p.data_type);
     }
 
-    // We need to look up the current user's username for the "own" side.
-    // For outgoing: owner_username = current user, friend_username = peer_username
-    // For incoming: owner_username = peer_username, friend_username = current user
-    let user_row = sqlx::query_as::<_, (String,)>("SELECT username FROM users WHERE id = $1")
+    // We need to look up the current user's email for the "own" side.
+    // For outgoing: owner_email = current user, friend_email = peer_email
+    // For incoming: owner_email = peer_email, friend_email = current user
+    let user_row = sqlx::query_as::<_, (String,)>("SELECT email FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(pool)
         .await?;
-    let my_username = user_row.0;
+    let my_email = user_row.0;
 
     let responses = shares
         .into_iter()
@@ -264,9 +265,9 @@ async fn build_responses(
                 FriendShareResponse {
                     id: s.id,
                     owner_id: s.owner_id,
-                    owner_username: my_username.clone(),
+                    owner_email: my_email.clone(),
                     friend_id: s.friend_id,
-                    friend_username: s.peer_username,
+                    friend_email: s.peer_email,
                     status: s.status,
                     invite_token: s.invite_token,
                     data_types,
@@ -277,11 +278,11 @@ async fn build_responses(
                 FriendShareResponse {
                     id: s.id,
                     owner_id: s.owner_id,
-                    owner_username: s.peer_username.unwrap_or_default(),
+                    owner_email: s.peer_email.unwrap_or_default(),
                     friend_id: s.friend_id,
-                    friend_username: Some(my_username.clone()),
+                    friend_email: Some(my_email.clone()),
                     status: s.status,
-                    invite_token: s.invite_token,
+                    invite_token: None, // never expose token to recipient
                     data_types,
                     created_at: s.created_at,
                     accepted_at: s.accepted_at,

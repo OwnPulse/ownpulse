@@ -10,7 +10,16 @@ After authorization, you are redirected back to OwnPulse and logged in immediate
 
 ## Username and password
 
-For instances that do not use Google OAuth, the instance administrator creates your account and provides your credentials. Enter your username and password on the login screen and tap **Sign in**.
+Enter your username and password on the login screen and tap **Sign in**.
+
+## Registering a new account
+
+If you have an invite link, open it in your browser. The registration page loads with the invite code pre-filled. Choose a username and password, or tap **Sign in with Google** to register with your Google account.
+
+If you have an invite code but not a link, go to the registration page manually and enter the code along with your chosen username and password.
+
+!!! note "Invite codes"
+    Most OwnPulse instances require an invite code to register. Ask your instance administrator for one. See [User Management & Invites](admin.md) for more on how invite codes work.
 
 ## Sessions and tokens
 

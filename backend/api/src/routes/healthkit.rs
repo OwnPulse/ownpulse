@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::Json;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::health_records as db_hr;
 use crate::db::healthkit as db;
 use crate::error::ApiError;
 use crate::models::health_record::HealthRecordRow;
 use crate::models::healthkit::{HealthKitBulkInsert, HealthKitConfirm, HealthKitWriteQueueRow};
-use crate::AppState;
 
 /// POST /healthkit/sync — bulk insert health records from HealthKit.
 /// Forces source="healthkit" on every record. Never enqueues write-back.

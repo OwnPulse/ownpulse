@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import { useAuth } from "../hooks/useAuth";
 import { login } from "../api/auth";
@@ -11,7 +11,7 @@ import styles from "./Login.module.css";
 export default function Login() {
   const { loading } = useAuth();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -29,9 +29,9 @@ export default function Login() {
     setError("");
     setSubmitting(true);
     try {
-      await login(username, password);
+      await login(email, password);
     } catch {
-      setError("Invalid username or password.");
+      setError("Invalid email or password.");
     } finally {
       setSubmitting(false);
     }
@@ -66,15 +66,15 @@ export default function Login() {
 
         <form onSubmit={handleSubmit}>
           <div className={styles.field}>
-            <label className={styles.label} htmlFor="username">Username</label>
+            <label className={styles.label} htmlFor="email">Email</label>
             <input
-              id="username"
+              id="email"
               className={styles.input}
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
-              autoComplete="username"
+              autoComplete="email"
             />
           </div>
           <div className={styles.field}>
@@ -94,6 +94,12 @@ export default function Login() {
             {submitting ? "Signing in\u2026" : "Sign In"}
           </button>
         </form>
+
+        <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+          <Link to="/register" style={{ color: "var(--color-primary)", textDecoration: "none", fontSize: "0.875rem" }}>
+            Have an invite code? Sign up
+          </Link>
+        </div>
       </main>
     </div>
   );

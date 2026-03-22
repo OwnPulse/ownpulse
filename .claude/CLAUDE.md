@@ -46,6 +46,7 @@ Reference as: `uses: OwnPulse/gh-actions/<action-name>@v1`
 **Review agents** (read-only, no worktree needed):
 - feature-plan
 - code-review
+- test-review
 - security-review
 - principles-guardian
 - arch-review

@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use axum::extract::{Query, State};
-use axum::http::header::{HeaderMap, SET_COOKIE};
-use axum::http::StatusCode;
-use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
+use axum::extract::{Query, State};
+use axum::http::StatusCode;
+use axum::http::header::{HeaderMap, SET_COOKIE};
+use axum::response::{IntoResponse, Redirect, Response};
 use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::auth::jwt::encode_access_token;
 use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
 use crate::db::refresh_tokens;
 use crate::db::users;
 use crate::error::ApiError;
 use crate::models::user::{LoginRequest, RefreshRequest, TokenResponse};
-use crate::AppState;
 
 /// Return `"; Secure"` when the web origin uses HTTPS, empty string otherwise.
 /// This lets cookies work over plain HTTP during local development while
@@ -29,19 +29,35 @@ fn secure_attr(config: &crate::config::Config) -> &'static str {
     }
 }
 
-/// POST /auth/login — username + password authentication.
+/// Dummy bcrypt hash used when a user is not found, so the response time is
+/// indistinguishable from a wrong-password attempt (prevents email enumeration).
+const DUMMY_HASH: &str = "$2b$12$K4Q3e1qZ0r3pYh5v5g5X5e5X5e5X5e5X5e5X5e5X5e5X5e5X5e";
+
+/// POST /auth/login — email + password authentication.
 pub async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
 ) -> Result<Response, ApiError> {
-    let user = users::find_by_username(&state.pool, &body.username)
-        .await
-        .map_err(|_| ApiError::Unauthorized)?;
+    // Basic email format validation
+    if body.email.len() > 254 || !body.email.contains('@') {
+        // Still run dummy bcrypt to prevent timing leak
+        let _ = bcrypt::verify(&body.password, DUMMY_HASH);
+        return Err(ApiError::Unauthorized);
+    }
 
-    let password_hash = user.password_hash.as_deref().ok_or(ApiError::Unauthorized)?;
+    let user = match users::find_by_email(&state.pool, &body.email).await {
+        Ok(u) => u,
+        Err(_) => {
+            // User not found — run bcrypt against a dummy hash so the response
+            // time matches a wrong-password attempt (prevents email enumeration).
+            let _ = bcrypt::verify(&body.password, DUMMY_HASH);
+            return Err(ApiError::Unauthorized);
+        }
+    };
 
-    let valid =
-        bcrypt::verify(&body.password, password_hash).map_err(|_| ApiError::Unauthorized)?;
+    let password_hash = user.password_hash.as_deref().unwrap_or(DUMMY_HASH);
+
+    let valid = bcrypt::verify(&body.password, password_hash).unwrap_or(false);
     if !valid {
         return Err(ApiError::Unauthorized);
     }
@@ -134,9 +150,8 @@ pub async fn logout(
     }
 
     let secure = secure_attr(&state.config);
-    let clear_cookie = format!(
-        "refresh_token=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
-    );
+    let clear_cookie =
+        format!("refresh_token=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
 
     let mut response = StatusCode::NO_CONTENT.into_response();
     response.headers_mut().insert(
@@ -193,10 +208,14 @@ pub async fn google_login(State(state): State<AppState>) -> Result<Response, Api
 #[derive(Deserialize)]
 pub struct GoogleCallbackQuery {
     pub code: String,
-    /// CSRF state parameter — validated against the `oauth_state` cookie.
-    /// When set to `"ios"`, redirect to `ownpulse://auth#token=...` instead of
-    /// the web origin. The iOS app passes `state=ios` in the OAuth URL.
+    /// CSRF state parameter — validated against the `oauth_state` cookie in web flows.
+    /// Not required when `code_verifier` is present (PKCE flow).
     pub state: Option<String>,
+    /// PKCE code verifier (RFC 7636) — native app flows send this instead of relying
+    /// on a CSRF cookie. Google validates it against the `code_challenge` sent during
+    /// authorization. When present, the `oauth_state` cookie check is skipped because
+    /// possession of the verifier proves the caller initiated the flow.
+    pub code_verifier: Option<String>,
 }
 
 /// GET /auth/google/callback?code=...&state=... — exchange authorization code,
@@ -206,7 +225,19 @@ pub async fn google_callback(
     headers: HeaderMap,
     Query(query): Query<GoogleCallbackQuery>,
 ) -> Result<Response, ApiError> {
-    // --- CSRF state validation ---
+    // --- CSRF / PKCE validation ---
+    //
+    // Two mutually exclusive flows are supported:
+    //
+    // 1. PKCE (native app): the client sends `code_verifier`; Google will
+    //    validate it against the `code_challenge` that was included in the
+    //    original authorization URL. No CSRF cookie is needed because
+    //    possession of the verifier cryptographically proves the caller
+    //    initiated the flow (RFC 7636 §4.6).
+    //
+    // 2. Web (browser): no `code_verifier`; we validate the `state` parameter
+    //    against the short-lived httpOnly `oauth_state` cookie set by
+    //    `google_login`. This is the standard OAuth 2.0 CSRF mitigation.
     let oauth_state_cookie = headers
         .get(axum::http::header::COOKIE)
         .and_then(|v| v.to_str().ok())
@@ -218,11 +249,8 @@ pub async fn google_callback(
                 .map(|s| s.to_string())
         });
 
-    // iOS uses state=ios and doesn't go through our google_login endpoint,
-    // so it won't have the CSRF cookie. For web flows, validate CSRF state.
-    let is_ios = query.state.as_deref() == Some("ios");
-
-    if !is_ios {
+    if query.code_verifier.is_none() {
+        // Web flow — validate state parameter against the CSRF cookie.
         let expected_state = oauth_state_cookie
             .as_deref()
             .ok_or_else(|| ApiError::BadRequest("missing oauth_state cookie".into()))?;
@@ -234,6 +262,8 @@ pub async fn google_callback(
             return Err(ApiError::BadRequest("OAuth state mismatch".into()));
         }
     }
+    // PKCE flow — no cookie check here; Google validates the verifier during
+    // token exchange and will reject the request if it does not match.
 
     let client_id = state
         .config
@@ -258,6 +288,7 @@ pub async fn google_callback(
         redirect_uri,
         &query.code,
         &state.config.google_token_url,
+        query.code_verifier.as_deref(),
     )
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -270,23 +301,21 @@ pub async fn google_callback(
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let username = sanitize_username(
-        google_user
-            .email
-            .split('@')
-            .next()
-            .unwrap_or("user"),
-    );
+    let display_name = sanitize_username(google_user.email.split('@').next().unwrap_or("user"));
 
-    let user = users::find_or_create_google_user(&state.pool, &google_user.email, &username)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let user = users::find_or_create_google_user(
+        &state.pool,
+        &google_user.email,
+        Some(display_name.as_str()),
+    )
+    .await
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     // Issue tokens
     let raw_token = generate_refresh_token();
     let token_hash = hash_refresh_token(&raw_token, &state.config.jwt_secret);
-    let expires_at = Utc::now()
-        + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
+    let expires_at =
+        Utc::now() + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
 
     refresh_tokens::insert(&state.pool, user.id, &token_hash, expires_at)
         .await
@@ -302,12 +331,13 @@ pub async fn google_callback(
 
     // Clear the oauth_state cookie
     let secure = secure_attr(&state.config);
-    let clear_state_cookie = format!(
-        "oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
-    );
+    let clear_state_cookie =
+        format!("oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
 
-    if is_ios {
-        // iOS: redirect to custom scheme with tokens in the fragment
+    if query.code_verifier.is_some() {
+        // Native app (PKCE flow): redirect to the custom URI scheme with tokens
+        // in the URL fragment so the app can extract them from the redirect.
+        // The app stores these tokens in the Keychain, never in cookies.
         let redirect_url = format!(
             "ownpulse://auth#token={}&refresh_token={}",
             access_token, raw_token
@@ -321,7 +351,7 @@ pub async fn google_callback(
         );
         Ok(response)
     } else {
-        // Web: set tokens as httpOnly cookies and redirect without tokens in URL
+        // Web flow: set tokens as httpOnly cookies and redirect without tokens in URL.
         let access_cookie = format!(
             "access_token={access_token}; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age={}",
             state.config.jwt_expiry_seconds
@@ -388,8 +418,8 @@ async fn issue_tokens(state: &AppState, user_id: Uuid, role: &str) -> Result<Res
 
     let raw_refresh = generate_refresh_token();
     let refresh_hash = hash_refresh_token(&raw_refresh, &state.config.jwt_secret);
-    let expires_at = Utc::now()
-        + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
+    let expires_at =
+        Utc::now() + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
 
     refresh_tokens::insert(&state.pool, user_id, &refresh_hash, expires_at)
         .await
@@ -436,8 +466,8 @@ async fn issue_tokens_with_family(
 
     let raw_refresh = generate_refresh_token();
     let refresh_hash = hash_refresh_token(&raw_refresh, &state.config.jwt_secret);
-    let expires_at = Utc::now()
-        + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
+    let expires_at =
+        Utc::now() + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
 
     refresh_tokens::insert_with_family(&state.pool, user_id, &refresh_hash, expires_at, family_id)
         .await

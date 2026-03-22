@@ -14,10 +14,7 @@ use crate::models::health_record::HealthRecordRow;
 ///
 /// The CSV includes a header row followed by one row per health record:
 /// `id,source,record_type,value,unit,start_time,end_time`
-pub async fn stream_csv_export(
-    pool: &PgPool,
-    user_id: Uuid,
-) -> Result<Body, sqlx::Error> {
+pub async fn stream_csv_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sqlx::Error> {
     let records = sqlx::query_as::<_, HealthRecordRow>(
         "SELECT id, user_id, source, record_type, value, unit, start_time, \
          end_time, metadata, source_id, source_instance, duplicate_of, \
@@ -43,9 +40,8 @@ pub async fn stream_csv_export(
         ));
     }
 
-    let stream = futures::stream::once(async move {
-        Ok::<Bytes, std::io::Error>(Bytes::from(csv))
-    });
+    let stream =
+        futures::stream::once(async move { Ok::<Bytes, std::io::Error>(Bytes::from(csv)) });
 
     Ok(Body::from_stream(stream))
 }
