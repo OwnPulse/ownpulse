@@ -16,6 +16,7 @@ pub struct UserRow {
     pub role: String,
     pub data_region: String,
     pub federation_id: Option<String>,
+    pub status: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -27,6 +28,7 @@ pub struct UserResponse {
     pub email: String,
     pub role: String,
     pub data_region: String,
+    pub status: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -39,9 +41,20 @@ impl From<UserRow> for UserResponse {
             email: row.email,
             role: row.role,
             data_region: row.data_region,
+            status: row.status,
             created_at: row.created_at,
         }
     }
+}
+
+#[derive(Deserialize)]
+pub struct RegisterRequest {
+    pub email: String,
+    pub password: String,
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub invite_code: Option<String>,
 }
 
 #[derive(Deserialize)]

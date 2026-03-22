@@ -5,25 +5,22 @@ use crate::models::user::UserRow;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+/// Column list shared by all user queries. Keep in sync with `UserRow`.
+const USER_COLUMNS: &str = "id, username, password_hash, auth_provider, email, role, data_region, federation_id, status, created_at";
+
 /// Find a user by primary key.
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error> {
-    sqlx::query_as::<_, UserRow>(
-        "SELECT id, username, password_hash, auth_provider, email,
-                role, data_region, federation_id, created_at
-         FROM users WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(pool)
-    .await
+    sqlx::query_as::<_, UserRow>(&format!("SELECT {USER_COLUMNS} FROM users WHERE id = $1"))
+        .bind(id)
+        .fetch_one(pool)
+        .await
 }
 
 /// Find a user by email address.
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<UserRow, sqlx::Error> {
-    sqlx::query_as::<_, UserRow>(
-        "SELECT id, username, password_hash, auth_provider, email,
-                role, data_region, federation_id, created_at
-         FROM users WHERE LOWER(email) = LOWER($1)",
-    )
+    sqlx::query_as::<_, UserRow>(&format!(
+        "SELECT {USER_COLUMNS} FROM users WHERE LOWER(email) = LOWER($1)"
+    ))
     .bind(email)
     .fetch_one(pool)
     .await
@@ -50,13 +47,30 @@ pub async fn find_or_create_google_user(
     .await
 }
 
+/// Create a local user with email and password.
+pub async fn create_user_with_password(
+    pool: &PgPool,
+    email: &str,
+    username: Option<&str>,
+    password_hash: &str,
+) -> Result<UserRow, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "INSERT INTO users (email, username, password_hash, auth_provider)
+         VALUES (LOWER($1), $2, $3, 'local')
+         RETURNING *",
+    )
+    .bind(email)
+    .bind(username)
+    .bind(password_hash)
+    .fetch_one(pool)
+    .await
+}
+
 /// List all users ordered by creation date.
 pub async fn list_all_users(pool: &PgPool) -> Result<Vec<UserRow>, sqlx::Error> {
-    sqlx::query_as::<_, UserRow>(
-        "SELECT id, username, password_hash, auth_provider, email,
-                role, data_region, federation_id, created_at
-         FROM users ORDER BY created_at",
-    )
+    sqlx::query_as::<_, UserRow>(&format!(
+        "SELECT {USER_COLUMNS} FROM users ORDER BY created_at"
+    ))
     .fetch_all(pool)
     .await
 }
@@ -67,13 +81,26 @@ pub async fn update_user_role(
     user_id: Uuid,
     role: &str,
 ) -> Result<UserRow, sqlx::Error> {
-    sqlx::query_as::<_, UserRow>(
-        "UPDATE users SET role = $2 WHERE id = $1
-         RETURNING id, username, password_hash, auth_provider, email,
-                   role, data_region, federation_id, created_at",
-    )
+    sqlx::query_as::<_, UserRow>(&format!(
+        "UPDATE users SET role = $2 WHERE id = $1 RETURNING {USER_COLUMNS}"
+    ))
     .bind(user_id)
     .bind(role)
+    .fetch_one(pool)
+    .await
+}
+
+/// Update a user's status (active/disabled).
+pub async fn update_user_status(
+    pool: &PgPool,
+    user_id: Uuid,
+    status: &str,
+) -> Result<UserRow, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(&format!(
+        "UPDATE users SET status = $2 WHERE id = $1 RETURNING {USER_COLUMNS}"
+    ))
+    .bind(user_id)
+    .bind(status)
     .fetch_one(pool)
     .await
 }
@@ -82,6 +109,10 @@ pub async fn update_user_role(
 pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
+    sqlx::query("DELETE FROM invite_codes WHERE created_by = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM friend_shares WHERE owner_id = $1 OR friend_id = $1")
         .bind(user_id)
         .execute(&mut *tx)

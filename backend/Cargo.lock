@@ -101,6 +101,7 @@ dependencies = [
  "jsonwebtoken",
  "metrics 0.24.3",
  "metrics-exporter-prometheus 0.16.2",
+ "rand 0.8.5",
  "reqwest",
  "rstest",
  "serde",

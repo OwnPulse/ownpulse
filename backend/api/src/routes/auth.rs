@@ -13,10 +13,9 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::auth::jwt::encode_access_token;
 use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
-use crate::db::refresh_tokens;
-use crate::db::users;
+use crate::db::{invites, refresh_tokens, users};
 use crate::error::ApiError;
-use crate::models::user::{LoginRequest, RefreshRequest, TokenResponse};
+use crate::models::user::{LoginRequest, RefreshRequest, RegisterRequest, TokenResponse};
 
 /// Return `"; Secure"` when the web origin uses HTTPS, empty string otherwise.
 /// This lets cookies work over plain HTTP during local development while
@@ -61,6 +60,54 @@ pub async fn login(
     if !valid {
         return Err(ApiError::Unauthorized);
     }
+
+    issue_tokens(&state, user.id, &user.role).await
+}
+
+/// POST /auth/register — create a new account with email + password.
+pub async fn register(
+    State(state): State<AppState>,
+    Json(body): Json<RegisterRequest>,
+) -> Result<Response, ApiError> {
+    // Basic email format validation
+    if body.email.len() > 254 || !body.email.contains('@') {
+        return Err(ApiError::BadRequest("invalid email".to_string()));
+    }
+
+    if body.password.len() < 8 {
+        return Err(ApiError::BadRequest(
+            "password must be at least 8 characters".to_string(),
+        ));
+    }
+
+    // Validate invite code if required
+    if state.config.require_invite {
+        let code = body
+            .invite_code
+            .as_deref()
+            .ok_or_else(|| ApiError::BadRequest("invite code is required".to_string()))?;
+
+        let invite = invites::find_valid_code(&state.pool, code)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?
+            .ok_or_else(|| ApiError::BadRequest("invalid or expired invite code".to_string()))?;
+
+        // Claim the invite (atomic increment)
+        invites::claim_invite_code_tx(&state.pool, invite.id)
+            .await
+            .map_err(|_| ApiError::BadRequest("invite code is no longer valid".to_string()))?;
+    }
+
+    let password_hash =
+        bcrypt::hash(&body.password, 12).map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let user = users::create_user_with_password(
+        &state.pool,
+        &body.email,
+        body.username.as_deref(),
+        &password_hash,
+    )
+    .await?;
 
     issue_tokens(&state, user.id, &user.role).await
 }
@@ -163,8 +210,17 @@ pub async fn logout(
     Ok(response)
 }
 
+#[derive(Deserialize)]
+pub struct GoogleLoginQuery {
+    #[serde(default)]
+    pub invite_code: Option<String>,
+}
+
 /// GET /auth/google/login — generate OAuth authorization URL with CSRF state.
-pub async fn google_login(State(state): State<AppState>) -> Result<Response, ApiError> {
+pub async fn google_login(
+    State(state): State<AppState>,
+    Query(params): Query<GoogleLoginQuery>,
+) -> Result<Response, ApiError> {
     let client_id = state
         .config
         .google_client_id
@@ -202,6 +258,21 @@ pub async fn google_login(State(state): State<AppState>) -> Result<Response, Api
             .parse()
             .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
     );
+
+    // If an invite code was provided, store it in a short-lived cookie so the
+    // callback can read it when creating a new user.
+    if let Some(ref invite_code) = params.invite_code {
+        let invite_cookie = format!(
+            "invite_code={invite_code}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600"
+        );
+        response.headers_mut().append(
+            SET_COOKIE,
+            invite_cookie
+                .parse()
+                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
+        );
+    }
+
     Ok(response)
 }
 
@@ -302,6 +373,37 @@ pub async fn google_callback(
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let display_name = sanitize_username(google_user.email.split('@').next().unwrap_or("user"));
+
+    // Check if user already exists — only new users need an invite code
+    let existing_user = users::find_by_email(&state.pool, &google_user.email).await;
+    let is_new_user = existing_user.is_err();
+
+    if is_new_user && state.config.require_invite {
+        // Read invite code from cookie
+        let invite_code_cookie = headers
+            .get(axum::http::header::COOKIE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|cookies| {
+                cookies
+                    .split(';')
+                    .filter_map(|c| c.trim().strip_prefix("invite_code="))
+                    .next()
+                    .map(|s| s.to_string())
+            });
+
+        let code = invite_code_cookie.ok_or_else(|| {
+            ApiError::BadRequest("invite code is required for new users".to_string())
+        })?;
+
+        let invite = invites::find_valid_code(&state.pool, &code)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?
+            .ok_or_else(|| ApiError::BadRequest("invalid or expired invite code".to_string()))?;
+
+        invites::claim_invite_code_tx(&state.pool, invite.id)
+            .await
+            .map_err(|_| ApiError::BadRequest("invite code is no longer valid".to_string()))?;
+    }
 
     let user = users::find_or_create_google_user(
         &state.pool,

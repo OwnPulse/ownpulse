@@ -71,6 +71,9 @@ pub struct Config {
 
     #[serde(default = "default_rust_log")]
     pub rust_log: String,
+
+    #[serde(default = "default_require_invite")]
+    pub require_invite: bool,
 }
 
 fn default_jwt_secret() -> String {
@@ -107,6 +110,10 @@ fn default_google_userinfo_url() -> String {
 
 fn default_rust_log() -> String {
     "info".to_string()
+}
+
+fn default_require_invite() -> bool {
+    true
 }
 
 impl Config {
@@ -171,6 +178,7 @@ mod tests {
             data_region: default_data_region(),
             web_origin: default_web_origin(),
             rust_log: default_rust_log(),
+            require_invite: default_require_invite(),
         }
     }
 

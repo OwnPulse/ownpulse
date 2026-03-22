@@ -49,6 +49,53 @@ fn test_config(database_url: &str) -> api::config::Config {
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
         encryption_key_previous: None,
+        require_invite: false,
+    }
+}
+
+/// Build a test-friendly config with invite requirement enabled.
+pub fn test_config_with_invites(database_url: &str) -> api::config::Config {
+    let mut config = test_config(database_url);
+    config.require_invite = true;
+    config
+}
+
+/// Spin up a test app with invite requirement enabled.
+pub async fn setup_with_invites() -> TestApp {
+    let container = Postgres::default()
+        .with_tag("16-alpine")
+        .start()
+        .await
+        .expect("failed to start postgres container");
+
+    let host_port = container
+        .get_host_port_ipv4(5432)
+        .await
+        .expect("failed to get mapped port");
+
+    let database_url = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await
+        .expect("failed to connect to testcontainers postgres");
+
+    run_migrations(&pool).await;
+
+    let config = test_config_with_invites(&database_url);
+    let state = api::AppState {
+        pool: pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+    };
+
+    let app = api::build_app_without_metrics(state);
+
+    TestApp {
+        app,
+        pool,
+        _container: container,
     }
 }
 
@@ -107,6 +154,29 @@ pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
     let token = api::auth::jwt::encode_access_token(
         row.0,
         "user",
+        "test-jwt-secret-at-least-32-bytes-long",
+        3600,
+    )
+    .expect("failed to encode JWT");
+
+    (row.0, token)
+}
+
+/// Insert an admin test user and return (user_id, jwt_token).
+pub async fn create_admin_user(app: &TestApp) -> (Uuid, String) {
+    let hash = bcrypt::hash("adminpassword", 4).expect("bcrypt hash failed");
+    let row: (Uuid,) = sqlx::query_as(
+        "INSERT INTO users (email, password_hash, auth_provider, role) VALUES ($1, $2, 'local', 'admin') RETURNING id",
+    )
+    .bind(format!("admin-{}@example.com", Uuid::new_v4()))
+    .bind(&hash)
+    .fetch_one(&app.pool)
+    .await
+    .expect("failed to insert admin user");
+
+    let token = api::auth::jwt::encode_access_token(
+        row.0,
+        "admin",
         "test-jwt-secret-at-least-32-bytes-long",
         3600,
     )
