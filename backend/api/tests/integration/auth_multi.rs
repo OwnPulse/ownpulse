@@ -775,7 +775,7 @@ async fn test_link_local_to_social_user() {
 
     // Verify the user can log in with password.
     // First, get the username.
-    let user_row: (String,) = sqlx::query_as("SELECT username FROM users WHERE id = (SELECT user_id FROM user_auth_methods WHERE provider = 'apple' AND provider_subject = $1)")
+    let user_row: (String,) = sqlx::query_as("SELECT email FROM users WHERE id = (SELECT user_id FROM user_auth_methods WHERE provider = 'apple' AND provider_subject = $1)")
         .bind(apple_sub)
         .fetch_one(&test_app.pool)
         .await
