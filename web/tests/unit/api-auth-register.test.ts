@@ -45,8 +45,9 @@ describe("register API", () => {
 
   it("register throws on 400 (invalid invite code)", async () => {
     server.use(
-      http.post("/api/v1/auth/register", () =>
-        new HttpResponse("Invalid invite code", { status: 400 }),
+      http.post(
+        "/api/v1/auth/register",
+        () => new HttpResponse("Invalid invite code", { status: 400 }),
       ),
     );
 
@@ -61,8 +62,9 @@ describe("register API", () => {
 
   it("register throws on 409 (duplicate email)", async () => {
     server.use(
-      http.post("/api/v1/auth/register", () =>
-        new HttpResponse("Email already registered", { status: 409 }),
+      http.post(
+        "/api/v1/auth/register",
+        () => new HttpResponse("Email already registered", { status: 409 }),
       ),
     );
 

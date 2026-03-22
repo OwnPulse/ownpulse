@@ -225,10 +225,7 @@ describe("adminApi", () => {
 
     it("throws on 401 and triggers logout", async () => {
       server.use(
-        http.get(
-          "/api/v1/admin/invites",
-          () => new HttpResponse("Unauthorized", { status: 401 }),
-        ),
+        http.get("/api/v1/admin/invites", () => new HttpResponse("Unauthorized", { status: 401 })),
       );
 
       const { adminApi } = await import("../../src/api/admin");
@@ -292,10 +289,7 @@ describe("adminApi", () => {
 
     it("throws on 401 and triggers logout", async () => {
       server.use(
-        http.post(
-          "/api/v1/admin/invites",
-          () => new HttpResponse("Unauthorized", { status: 401 }),
-        ),
+        http.post("/api/v1/admin/invites", () => new HttpResponse("Unauthorized", { status: 401 })),
       );
 
       const { adminApi } = await import("../../src/api/admin");
@@ -306,10 +300,7 @@ describe("adminApi", () => {
 
     it("throws ApiError on 500", async () => {
       server.use(
-        http.post(
-          "/api/v1/admin/invites",
-          () => new HttpResponse("Server error", { status: 500 }),
-        ),
+        http.post("/api/v1/admin/invites", () => new HttpResponse("Server error", { status: 500 })),
       );
 
       const { adminApi } = await import("../../src/api/admin");
