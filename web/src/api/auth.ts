@@ -48,3 +48,34 @@ export async function logout(): Promise<void> {
     useAuthStore.getState().logout();
   }
 }
+
+export async function loginWithApple(idToken: string): Promise<void> {
+  await api.post("/api/v1/auth/apple/callback", {
+    id_token: idToken,
+    platform: "web",
+  });
+  // Backend sets cookies; caller handles redirect/token refresh
+}
+
+export interface AuthMethod {
+  id: string;
+  provider: string;
+  email: string | null;
+  created_at: string;
+}
+
+export async function getAuthMethods(): Promise<AuthMethod[]> {
+  return api.get<AuthMethod[]>("/api/v1/auth/methods");
+}
+
+export async function linkAuth(body: {
+  provider: string;
+  id_token?: string;
+  password?: string;
+}): Promise<AuthMethod[]> {
+  return api.post<AuthMethod[]>("/api/v1/auth/link", body);
+}
+
+export async function unlinkAuth(provider: string): Promise<AuthMethod[]> {
+  return api.delete<AuthMethod[]>(`/api/v1/auth/link/${provider}`);
+}

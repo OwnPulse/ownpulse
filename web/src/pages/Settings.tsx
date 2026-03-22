@@ -2,11 +2,57 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { exportJson, exportCsv } from "../api/export";
 import { sourcePreferencesApi } from "../api/source-preferences";
 import { accountApi } from "../api/account";
-import { logout } from "../api/auth";
+import { logout, getAuthMethods, unlinkAuth } from "../api/auth";
+
+function LinkedAccounts() {
+  const queryClient = useQueryClient();
+
+  const { data: methods, isLoading, isError } = useQuery({
+    queryKey: ["authMethods"],
+    queryFn: getAuthMethods,
+  });
+
+  const unlinkMutation = useMutation({
+    mutationFn: (provider: string) => unlinkAuth(provider),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(["authMethods"], updated);
+    },
+  });
+
+  return (
+    <section style={{ marginTop: "2rem" }}>
+      <h2>Linked Accounts</h2>
+      {isLoading && <p>Loading...</p>}
+      {isError && <p>Error loading linked accounts.</p>}
+      {methods && methods.length === 0 && <p>No linked accounts.</p>}
+      {methods && methods.length > 0 && (
+        <ul style={{ listStyle: "none", padding: 0 }}>
+          {methods.map((method) => (
+            <li
+              key={method.id}
+              style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}
+            >
+              <strong style={{ textTransform: "capitalize" }}>{method.provider}</strong>
+              {method.email && <span style={{ color: "var(--color-text-muted)" }}>{method.email}</span>}
+              {methods.length > 1 && (
+                <button
+                  onClick={() => unlinkMutation.mutate(method.provider)}
+                  disabled={unlinkMutation.isPending}
+                >
+                  Unlink
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 export default function Settings() {
   const [exporting, setExporting] = useState(false);
@@ -79,6 +125,8 @@ export default function Settings() {
           </ul>
         )}
       </section>
+
+      <LinkedAccounts />
 
       <section style={{ marginTop: "2rem" }}>
         <h2>Danger Zone</h2>

@@ -60,6 +60,30 @@
   border-color: var(--color-text-muted);
 }
 
+.appleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.9375rem;
+  font-family: var(--font-family);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.appleBtn:hover {
+  background: var(--color-bg);
+  border-color: var(--color-text-muted);
+}
+
 .divider {
   display: flex;
   align-items: center;

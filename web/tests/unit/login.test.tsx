@@ -23,7 +23,7 @@ describe("Login", () => {
     mockLogin.mockReset();
   });
 
-  it("renders username/password inputs and Google link", () => {
+  it("renders username/password inputs, Google link, and Apple link", () => {
     render(
       <MemoryRouter>
         <Login />
@@ -33,6 +33,7 @@ describe("Login", () => {
     expect(screen.getByLabelText(/username/i)).toBeDefined();
     expect(screen.getByLabelText(/password/i)).toBeDefined();
     expect(screen.getByText(/sign in with google/i)).toBeDefined();
+    expect(screen.getByText(/sign in with apple/i)).toBeDefined();
   });
 
   it("shows error on failed login", async () => {
