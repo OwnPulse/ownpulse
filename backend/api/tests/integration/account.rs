@@ -26,8 +26,8 @@ async fn test_get_account() {
     assert_eq!(response.status(), 200);
 
     let json = common::body_json(response).await;
-    assert!(json["username"].is_string());
-    assert!(!json["username"].as_str().unwrap().is_empty());
+    assert!(json["email"].is_string());
+    assert!(!json["email"].as_str().unwrap().is_empty());
     assert_eq!(json["auth_provider"], "local");
 }
 

@@ -11,11 +11,11 @@ export interface TokenResponse {
 }
 
 export async function login(
-  username: string,
+  email: string,
   password: string,
 ): Promise<void> {
   const data = await api.post<TokenResponse>("/api/v1/auth/login", {
-    username,
+    email,
     password,
   });
   useAuthStore.getState().login(data.access_token);

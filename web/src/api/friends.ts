@@ -6,9 +6,9 @@ import { api } from "./client";
 export interface FriendShare {
   id: string;
   owner_id: string;
-  owner_username: string;
+  owner_email: string;
   friend_id: string | null;
-  friend_username: string | null;
+  friend_email: string | null;
   status: string;
   invite_token: string | null;
   data_types: string[];
@@ -19,9 +19,9 @@ export interface FriendShare {
 export const friendsApi = {
   listOutgoing: () => api.get<FriendShare[]>("/api/v1/friends/shares/outgoing"),
   listIncoming: () => api.get<FriendShare[]>("/api/v1/friends/shares/incoming"),
-  createShare: (friendUsername: string | null, dataTypes: string[]) =>
+  createShare: (friendEmail: string | null, dataTypes: string[]) =>
     api.post<FriendShare>("/api/v1/friends/shares", {
-      friend_username: friendUsername,
+      friend_email: friendEmail,
       data_types: dataTypes,
     }),
   acceptShare: (shareId: string) =>

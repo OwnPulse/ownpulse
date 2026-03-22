@@ -60,7 +60,7 @@ function DataTypePills({ types }: { types: string[] }) {
 
 export default function Friends() {
   const queryClient = useQueryClient();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([
     "checkins",
   ]);
@@ -80,7 +80,7 @@ export default function Friends() {
   const createShare = useMutation({
     mutationFn: () =>
       friendsApi.createShare(
-        username.trim() || null,
+        email.trim() || null,
         selectedTypes,
       ),
     onSuccess: (share: FriendShare) => {
@@ -90,7 +90,7 @@ export default function Friends() {
         setInviteLink(link);
       } else {
         setInviteLink(null);
-        setUsername("");
+        setEmail("");
       }
       queryClient.invalidateQueries({ queryKey: ["friends"] });
     },
@@ -135,17 +135,17 @@ export default function Friends() {
         <h2 style={{ marginTop: 0 }}>Share Data</h2>
         <div style={{ marginBottom: "0.75rem" }}>
           <label
-            htmlFor="friend-username"
+            htmlFor="friend-email"
             style={{ display: "block", marginBottom: "0.25rem", fontSize: "0.875rem" }}
           >
-            Friend&apos;s username (leave blank for invite link)
+            Friend&apos;s email (leave blank for invite link)
           </label>
           <input
-            id="friend-username"
-            type="text"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            placeholder="username"
+            id="friend-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="friend@example.com"
             style={{
               padding: "0.375rem 0.5rem",
               borderRadius: "var(--radius-sm)",
@@ -252,7 +252,7 @@ export default function Friends() {
             >
               <div>
                 <strong>
-                  {share.friend_username ?? "Invite link: pending"}
+                  {share.friend_email ?? "Invite link: pending"}
                 </strong>
                 <div style={{ marginTop: "0.25rem" }}>
                   <DataTypePills types={share.data_types} />
@@ -306,7 +306,7 @@ export default function Friends() {
               }}
             >
               <div>
-                <strong>{share.owner_username}</strong>
+                <strong>{share.owner_email}</strong>
                 <div style={{ marginTop: "0.25rem" }}>
                   <DataTypePills types={share.data_types} />
                 </div>

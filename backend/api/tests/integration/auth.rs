@@ -41,12 +41,12 @@ fn post_with_cookie(uri: &str, cookie: &str) -> Request<Body> {
 }
 
 /// Helper: insert a local user into the database with a bcrypt-hashed password.
-async fn insert_test_user(pool: &sqlx::PgPool, username: &str, password: &str) -> uuid::Uuid {
+async fn insert_test_user(pool: &sqlx::PgPool, email: &str, password: &str) -> uuid::Uuid {
     let hash = bcrypt::hash(password, 4).expect("bcrypt hash failed");
     let row: (uuid::Uuid,) = sqlx::query_as(
-        "INSERT INTO users (username, password_hash, auth_provider) VALUES ($1, $2, 'local') RETURNING id",
+        "INSERT INTO users (email, password_hash, auth_provider) VALUES ($1, $2, 'local') RETURNING id",
     )
-    .bind(username)
+    .bind(email)
     .bind(&hash)
     .fetch_one(pool)
     .await
@@ -75,13 +75,13 @@ fn extract_refresh_cookie(response: &axum::response::Response) -> String {
 #[tokio::test]
 async fn test_login_with_valid_credentials() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "alice", "correctpassword").await;
+    insert_test_user(&test_app.pool, "alice@example.com", "correctpassword").await;
 
     let response = test_app
         .app
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "alice", "password": "correctpassword"}),
+            &json!({"email": "alice@example.com", "password": "correctpassword"}),
         ))
         .await
         .unwrap();
@@ -101,13 +101,13 @@ async fn test_login_with_valid_credentials() {
 #[tokio::test]
 async fn test_login_with_wrong_password() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "bob", "realpassword").await;
+    insert_test_user(&test_app.pool, "bob@example.com", "realpassword").await;
 
     let response = test_app
         .app
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "bob", "password": "wrongpassword"}),
+            &json!({"email": "bob@example.com", "password": "wrongpassword"}),
         ))
         .await
         .unwrap();
@@ -123,7 +123,7 @@ async fn test_login_with_nonexistent_user() {
         .app
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "nobody", "password": "whatever"}),
+            &json!({"email": "nobody@example.com", "password": "whatever"}),
         ))
         .await
         .unwrap();
@@ -134,7 +134,7 @@ async fn test_login_with_nonexistent_user() {
 #[tokio::test]
 async fn test_refresh_token_rotation() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "carol", "mypassword").await;
+    insert_test_user(&test_app.pool, "carol@example.com", "mypassword").await;
 
     // Login to get the refresh cookie
     let login_response = test_app
@@ -142,7 +142,7 @@ async fn test_refresh_token_rotation() {
         .clone()
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "carol", "password": "mypassword"}),
+            &json!({"email": "carol@example.com", "password": "mypassword"}),
         ))
         .await
         .unwrap();
@@ -194,7 +194,7 @@ async fn test_refresh_with_no_cookie() {
 #[tokio::test]
 async fn test_logout_clears_refresh_token() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "dave", "secret123").await;
+    insert_test_user(&test_app.pool, "dave@example.com", "secret123").await;
 
     // Login
     let login_response = test_app
@@ -202,7 +202,7 @@ async fn test_logout_clears_refresh_token() {
         .clone()
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "dave", "password": "secret123"}),
+            &json!({"email": "dave@example.com", "password": "secret123"}),
         ))
         .await
         .unwrap();
@@ -239,7 +239,7 @@ async fn test_logout_clears_refresh_token() {
 #[tokio::test]
 async fn test_refresh_with_json_body() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "frank", "bodyrefresh").await;
+    insert_test_user(&test_app.pool, "frank@example.com", "bodyrefresh").await;
 
     // Login to get a refresh token
     let login_response = test_app
@@ -247,7 +247,7 @@ async fn test_refresh_with_json_body() {
         .clone()
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "frank", "password": "bodyrefresh"}),
+            &json!({"email": "frank@example.com", "password": "bodyrefresh"}),
         ))
         .await
         .unwrap();
@@ -556,13 +556,13 @@ async fn test_google_callback_rejects_mismatched_csrf_state() {
 #[tokio::test]
 async fn test_login_returns_decodable_jwt() {
     let test_app = common::setup().await;
-    let user_id = insert_test_user(&test_app.pool, "eve", "jwttest").await;
+    let user_id = insert_test_user(&test_app.pool, "eve@example.com", "jwttest").await;
 
     let response = test_app
         .app
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "eve", "password": "jwttest"}),
+            &json!({"email": "eve@example.com", "password": "jwttest"}),
         ))
         .await
         .unwrap();
@@ -587,7 +587,7 @@ async fn test_login_returns_decodable_jwt() {
 #[tokio::test]
 async fn test_rotated_refresh_token_returns_401() {
     let test_app = common::setup().await;
-    insert_test_user(&test_app.pool, "grace", "replaytest").await;
+    insert_test_user(&test_app.pool, "grace@example.com", "replaytest").await;
 
     // Step 1: Login to get the initial refresh token
     let login_response = test_app
@@ -595,7 +595,7 @@ async fn test_rotated_refresh_token_returns_401() {
         .clone()
         .oneshot(post_json(
             "/api/v1/auth/login",
-            &json!({"username": "grace", "password": "replaytest"}),
+            &json!({"email": "grace@example.com", "password": "replaytest"}),
         ))
         .await
         .unwrap();

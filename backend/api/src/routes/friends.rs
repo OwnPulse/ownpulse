@@ -49,8 +49,8 @@ pub async fn create_share(
 ) -> Result<(StatusCode, Json<FriendShareResponse>), ApiError> {
     validate_data_types(&body.data_types)?;
 
-    let (friend_id, invite_token, invite_expires_at) = if let Some(ref username) = body.friend_username {
-        let friend = db::users::find_by_username(&state.pool, username).await?;
+    let (friend_id, invite_token, invite_expires_at) = if let Some(ref email) = body.friend_email {
+        let friend = db::users::find_by_email(&state.pool, email).await?;
         if friend.id == user_id {
             return Err(ApiError::BadRequest(
                 "cannot share with yourself".to_string(),
@@ -75,16 +75,16 @@ pub async fn create_share(
     db::friend_shares::set_permissions(&state.pool, share.id, &body.data_types).await?;
 
     // Build response
-    let friend_username = body.friend_username.clone();
+    let friend_email = body.friend_email.clone();
 
     let owner = db::users::find_by_id(&state.pool, user_id).await?;
 
     let response = FriendShareResponse {
         id: share.id,
         owner_id: share.owner_id,
-        owner_username: owner.username,
+        owner_email: owner.email,
         friend_id: share.friend_id,
-        friend_username,
+        friend_email,
         status: share.status,
         invite_token: share.invite_token,
         data_types: body.data_types,
