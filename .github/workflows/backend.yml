@@ -10,6 +10,7 @@ on:
       - "backend/**"
       - "db/**"
       - "schema/**"
+      - "pact/**"
       - ".github/workflows/backend.yml"
   pull_request:
     branches: [main]
@@ -17,6 +18,7 @@ on:
       - "backend/**"
       - "db/**"
       - "schema/**"
+      - "pact/**"
       - ".github/workflows/backend.yml"
 
 permissions:
@@ -69,6 +71,9 @@ jobs:
       - run: cargo clippy -- -D warnings
 
       - run: cargo sqlx prepare --workspace --check
+
+      - name: Run contract tests (Pact verification)
+        run: cargo test --test contract
 
       - name: Run tests with coverage
         run: |
