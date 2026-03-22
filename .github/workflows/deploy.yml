@@ -99,14 +99,21 @@ jobs:
           helm lint helm/postgres -f helm/postgres/values-staging.yaml
           echo "All staging Helm charts validated"
 
+      - name: Clean up stuck Postgres release (staging)
+        run: |
+          STATUS=$(helm status postgres-staging -n ownpulse-staging -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "not-found")
+          if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
+            echo "postgres-staging is stuck in $STATUS, rolling back"
+            helm rollback postgres-staging -n ownpulse-staging 2>/dev/null || \
+              helm uninstall postgres-staging -n ownpulse-staging 2>/dev/null || true
+          fi
+
       - name: Deploy Postgres (staging)
         run: >
           helm upgrade --install postgres-staging helm/postgres
           -n ownpulse-staging
           -f helm/postgres/values-staging.yaml
-
-      - name: Wait for Postgres ready
-        run: kubectl rollout status statefulset/postgres-staging-ownpulse-postgres -n ownpulse-staging --timeout=120s
+          --atomic --timeout 120s
 
   staging-services:
     needs: [resolve-tags, staging-infra]
@@ -209,11 +216,17 @@ jobs:
       - name: Install Helm
         uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
 
-      - name: Deploy Postgres (idempotent)
-        run: helm upgrade --install postgres helm/postgres -n ownpulse
+      - name: Clean up stuck Postgres release (production)
+        run: |
+          STATUS=$(helm status postgres -n ownpulse -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "not-found")
+          if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
+            echo "postgres is stuck in $STATUS, rolling back"
+            helm rollback postgres -n ownpulse 2>/dev/null || \
+              helm uninstall postgres -n ownpulse 2>/dev/null || true
+          fi
 
-      - name: Wait for Postgres ready
-        run: kubectl rollout status statefulset/postgres-ownpulse-postgres -n ownpulse --timeout=120s
+      - name: Deploy Postgres (idempotent)
+        run: helm upgrade --install postgres helm/postgres -n ownpulse --atomic --timeout 120s
 
   production-services:
     needs: [resolve-tags, production-infra]
