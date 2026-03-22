@@ -29,12 +29,12 @@ fn secure_attr(config: &crate::config::Config) -> &'static str {
     }
 }
 
-/// POST /auth/login — username + password authentication.
+/// POST /auth/login — email + password authentication.
 pub async fn login(
     State(state): State<AppState>,
     Json(body): Json<LoginRequest>,
 ) -> Result<Response, ApiError> {
-    let user = users::find_by_username(&state.pool, &body.username)
+    let user = users::find_by_email(&state.pool, &body.email)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
 
@@ -270,7 +270,7 @@ pub async fn google_callback(
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let username = sanitize_username(
+    let display_name = sanitize_username(
         google_user
             .email
             .split('@')
@@ -278,9 +278,13 @@ pub async fn google_callback(
             .unwrap_or("user"),
     );
 
-    let user = users::find_or_create_google_user(&state.pool, &google_user.email, &username)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let user = users::find_or_create_google_user(
+        &state.pool,
+        &google_user.email,
+        Some(display_name.as_str()),
+    )
+    .await
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     // Issue tokens
     let raw_token = generate_refresh_token();

@@ -23,9 +23,9 @@ pub struct FriendShareRow {
 pub struct FriendShareResponse {
     pub id: Uuid,
     pub owner_id: Uuid,
-    pub owner_username: String,
+    pub owner_email: String,
     pub friend_id: Option<Uuid>,
-    pub friend_username: Option<String>,
+    pub friend_email: Option<String>,
     pub status: String,
     pub invite_token: Option<String>,
     pub data_types: Vec<String>,
@@ -35,8 +35,8 @@ pub struct FriendShareResponse {
 
 #[derive(Deserialize)]
 pub struct CreateShareRequest {
-    /// If provided, share directly with this user. If absent, generate invite link.
-    pub friend_username: Option<String>,
+    /// If provided, share directly with this user by email. If absent, generate invite link.
+    pub friend_email: Option<String>,
     pub data_types: Vec<String>,
 }
 

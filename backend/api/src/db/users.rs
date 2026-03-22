@@ -17,32 +17,35 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error>
     .await
 }
 
-/// Find a user by username.
-pub async fn find_by_username(pool: &PgPool, username: &str) -> Result<UserRow, sqlx::Error> {
+/// Find a user by email address.
+pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
                 role, data_region, federation_id, created_at
-         FROM users WHERE username = $1",
+         FROM users WHERE email = $1",
     )
-    .bind(username)
+    .bind(email)
     .fetch_one(pool)
     .await
 }
 
 /// Look up a Google-authenticated user by email, creating one if none exists.
+///
+/// `display_name` is an optional human-readable name derived from the email
+/// local part; it is stored in the nullable `username` column.
 pub async fn find_or_create_google_user(
     pool: &PgPool,
     email: &str,
-    username: &str,
+    display_name: Option<&str>,
 ) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
-        "INSERT INTO users (username, email, auth_provider)
+        "INSERT INTO users (email, username, auth_provider)
          VALUES ($1, $2, 'google')
-         ON CONFLICT (email, auth_provider) DO UPDATE SET email = EXCLUDED.email
+         ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
          RETURNING *",
     )
-    .bind(username)
     .bind(email)
+    .bind(display_name)
     .fetch_one(pool)
     .await
 }
