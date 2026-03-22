@@ -13,11 +13,6 @@ on:
       - ".github/workflows/backend.yml"
   pull_request:
     branches: [main]
-    paths:
-      - "backend/**"
-      - "db/**"
-      - "schema/**"
-      - ".github/workflows/backend.yml"
 
 permissions:
   contents: write
@@ -25,7 +20,26 @@ permissions:
   packages: write
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36  # v3.0.2
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+              - 'db/**'
+              - 'schema/**'
+              - '.github/workflows/backend.yml'
+
   test:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -111,6 +125,19 @@ jobs:
           percentage: ${{ steps.coverage.outputs.percentage }}
           label: backend coverage
           badge-file: backend-coverage.json
+
+  result:
+    if: always()
+    needs: [changes, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check result
+        run: |
+          if [[ "${{ needs.test.result }}" == "failure" ]]; then
+            echo "Backend tests failed"
+            exit 1
+          fi
+          echo "Backend gate passed (test result: ${{ needs.test.result }})"
 
   build:
     if: github.ref == 'refs/heads/main'
