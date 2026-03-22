@@ -77,6 +77,19 @@
   border-color: #1a1a1a;
 }
 
+@media (prefers-color-scheme: dark) {
+  .appleBtn {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+  }
+
+  .appleBtn:hover {
+    background: #e5e5e5;
+    border-color: #e5e5e5;
+  }
+}
+
 .divider {
   display: flex;
   align-items: center;

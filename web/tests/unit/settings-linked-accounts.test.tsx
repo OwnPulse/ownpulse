@@ -1,39 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, afterAll, afterEach, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { setupServer } from "msw/node";
+import { http, HttpResponse } from "msw";
+import { useAuthStore } from "../../src/store/auth";
+import type { AuthMethod } from "../../src/api/auth";
 
-// --- mocks ---
+const TOKEN = "test-jwt";
 
-const mockGetAuthMethods = vi.fn();
-const mockUnlinkAuth = vi.fn();
-const mockExportJson = vi.fn();
-const mockExportCsv = vi.fn();
-const mockSourcePreferencesApi = { list: vi.fn().mockResolvedValue([]) };
-const mockAccountApi = { delete: vi.fn() };
-const mockLogout = vi.fn();
+const TWO_METHODS: AuthMethod[] = [
+  { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+  { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
+];
 
-vi.mock("../../src/api/auth", () => ({
-  getAuthMethods: (...args: unknown[]) => mockGetAuthMethods(...args),
-  unlinkAuth: (...args: unknown[]) => mockUnlinkAuth(...args),
-  logout: (...args: unknown[]) => mockLogout(...args),
-}));
+const ONE_METHOD: AuthMethod[] = [
+  { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+];
 
-vi.mock("../../src/api/export", () => ({
-  exportJson: (...args: unknown[]) => mockExportJson(...args),
-  exportCsv: (...args: unknown[]) => mockExportCsv(...args),
-}));
+const server = setupServer(
+  // Default: return empty arrays for endpoints the Settings page queries
+  http.get("/api/v1/source-preferences", () => HttpResponse.json([])),
+);
 
-vi.mock("../../src/api/source-preferences", () => ({
-  sourcePreferencesApi: mockSourcePreferencesApi,
-}));
-
-vi.mock("../../src/api/account", () => ({
-  accountApi: mockAccountApi,
-}));
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 
 function wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({
@@ -42,7 +37,6 @@ function wrapper({ children }: { children: React.ReactNode }) {
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 }
 
-// Lazy import to pick up mocks
 async function renderSettings() {
   const { default: Settings } = await import("../../src/pages/Settings");
   return render(<Settings />, { wrapper });
@@ -50,30 +44,27 @@ async function renderSettings() {
 
 describe("Settings — Linked Accounts", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockSourcePreferencesApi.list.mockResolvedValue([]);
+    useAuthStore.setState({ token: TOKEN, isAuthenticated: true });
   });
 
   it("shows linked accounts list", async () => {
-    mockGetAuthMethods.mockResolvedValue([
-      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
-      { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
-    ]);
+    server.use(
+      http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)),
+    );
 
     await renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText("google")).toBeDefined();
-      expect(screen.getByText("apple")).toBeDefined();
+      expect(screen.getByText("Google")).toBeDefined();
+      expect(screen.getByText("Apple")).toBeDefined();
       expect(screen.getByText("user@example.com")).toBeDefined();
     });
   });
 
   it("shows Unlink buttons only when more than one method exists", async () => {
-    mockGetAuthMethods.mockResolvedValue([
-      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
-      { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
-    ]);
+    server.use(
+      http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)),
+    );
 
     await renderSettings();
 
@@ -84,28 +75,29 @@ describe("Settings — Linked Accounts", () => {
   });
 
   it("hides Unlink button when only one method exists", async () => {
-    mockGetAuthMethods.mockResolvedValue([
-      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
-    ]);
+    server.use(
+      http.get("/api/v1/auth/methods", () => HttpResponse.json(ONE_METHOD)),
+    );
 
     await renderSettings();
 
     await waitFor(() => {
-      expect(screen.getByText("google")).toBeDefined();
+      expect(screen.getByText("Google")).toBeDefined();
     });
     expect(screen.queryByRole("button", { name: /unlink/i })).toBeNull();
   });
 
   it("calls unlinkAuth when Unlink is clicked and confirmed", async () => {
-    mockGetAuthMethods.mockResolvedValue([
-      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
-      { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
-    ]);
-    mockUnlinkAuth.mockResolvedValue([
-      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
-    ]);
+    let capturedProvider: string | undefined;
 
-    // Accept the confirmation dialog
+    server.use(
+      http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)),
+      http.delete("/api/v1/auth/link/:provider", ({ params }) => {
+        capturedProvider = params["provider"] as string;
+        return HttpResponse.json(ONE_METHOD);
+      }),
+    );
+
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
     await renderSettings();
@@ -118,16 +110,20 @@ describe("Settings — Linked Accounts", () => {
     await user.click(screen.getByRole("button", { name: /unlink google/i }));
 
     await waitFor(() => {
-      expect(mockUnlinkAuth).toHaveBeenCalledOnce();
-      expect(mockUnlinkAuth).toHaveBeenCalledWith("google");
+      expect(capturedProvider).toBe("google");
     });
   });
 
   it("does not unlink when confirmation is cancelled", async () => {
-    mockGetAuthMethods.mockResolvedValue([
-      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
-      { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
-    ]);
+    let unlinkCalled = false;
+
+    server.use(
+      http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)),
+      http.delete("/api/v1/auth/link/:provider", () => {
+        unlinkCalled = true;
+        return HttpResponse.json(ONE_METHOD);
+      }),
+    );
 
     vi.spyOn(window, "confirm").mockReturnValue(false);
 
@@ -140,15 +136,16 @@ describe("Settings — Linked Accounts", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /unlink google/i }));
 
-    expect(mockUnlinkAuth).not.toHaveBeenCalled();
+    expect(unlinkCalled).toBe(false);
   });
 
   it("shows error message when unlink fails", async () => {
-    mockGetAuthMethods.mockResolvedValue([
-      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
-      { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
-    ]);
-    mockUnlinkAuth.mockRejectedValue(new Error("Server error"));
+    server.use(
+      http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)),
+      http.delete("/api/v1/auth/link/:provider", () =>
+        new HttpResponse("Server error", { status: 500 }),
+      ),
+    );
 
     vi.spyOn(window, "confirm").mockReturnValue(true);
 

@@ -8,6 +8,16 @@ import { sourcePreferencesApi } from "../api/source-preferences";
 import { accountApi } from "../api/account";
 import { logout, getAuthMethods, unlinkAuth } from "../api/auth";
 
+const PROVIDER_NAMES: Record<string, string> = {
+  google: "Google",
+  apple: "Apple",
+  local: "Password",
+};
+
+function providerDisplayName(provider: string): string {
+  return PROVIDER_NAMES[provider] ?? provider;
+}
+
 function LinkedAccounts() {
   const queryClient = useQueryClient();
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
@@ -49,7 +59,7 @@ function LinkedAccounts() {
               key={method.id}
               style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}
             >
-              <strong style={{ textTransform: "capitalize" }}>{method.provider}</strong>
+              <strong>{providerDisplayName(method.provider)}</strong>
               {method.email && <span style={{ color: "var(--color-text-muted)" }}>{method.email}</span>}
               {methods.length > 1 && (
                 <button
