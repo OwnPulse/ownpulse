@@ -58,7 +58,7 @@ helm install web helm/web -n ownpulse --set domain=yourdomain.com
 > **Note:** A public Helm chart repository will be available in a future release. For now, deploy directly from the cloned repo.
 
 This deploys:
-- PostgreSQL 16
+- PostgreSQL 17
 - OwnPulse API (Rust binary)
 - OwnPulse web frontend (nginx)
 - Ingress controller with TLS via Let's Encrypt

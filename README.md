@@ -28,7 +28,7 @@ Minimum requirements: Linux VPS with 2 GB RAM. See [docs/guides/self-hosting.md]
 
 ```bash
 # Backend (Rust)
-docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:16
+docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:17
 export DATABASE_URL=postgres://postgres:dev@localhost:5432/ownpulse
 cd db && sqlx migrate run
 cd backend && cargo test

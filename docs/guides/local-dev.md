@@ -54,7 +54,7 @@ Run Postgres in Docker, services directly on your machine. Use this for day-to-d
 
 ```bash
 # Start Postgres
-docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:16
+docker run -d -e POSTGRES_PASSWORD=dev -p 5432:5432 --name pg postgres:17
 
 # Run migrations
 export DATABASE_URL=postgres://postgres:dev@localhost:5432/ownpulse

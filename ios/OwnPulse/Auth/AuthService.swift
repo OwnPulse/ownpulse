@@ -4,6 +4,9 @@
 import AuthenticationServices
 import Foundation
 import Observation
+import os
+
+private let logger = Logger(subsystem: "health.ownpulse.app", category: "auth")
 
 @MainActor
 protocol AuthServiceProtocol: Sendable {
@@ -11,6 +14,17 @@ protocol AuthServiceProtocol: Sendable {
     func login() async throws
     func logout() async
     func handleCallback(url: URL)
+}
+
+/// Provides a window anchor for ASWebAuthenticationSession.
+private class AuthPresentationContext: NSObject, ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first else {
+            return ASPresentationAnchor()
+        }
+        return window
+    }
 }
 
 @Observable
@@ -22,6 +36,7 @@ final class AuthService: AuthServiceProtocol {
     private let keychainService: KeychainServiceProtocol
     private var authContinuation: CheckedContinuation<URL, Error>?
     private var authSession: ASWebAuthenticationSession?
+    private let presentationContext = AuthPresentationContext()
 
     nonisolated static let accessTokenKey = "access_token"
     nonisolated static let refreshTokenKey = "refresh_token"
@@ -40,6 +55,7 @@ final class AuthService: AuthServiceProtocol {
 
     func login() async throws {
         let authURL = buildGoogleAuthURL()
+        logger.info("Starting OAuth flow. URL: \(authURL.absoluteString, privacy: .public)")
 
         let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             self.authContinuation = continuation
@@ -50,16 +66,23 @@ final class AuthService: AuthServiceProtocol {
             ) { [weak self] url, error in
                 self?.authSession = nil
                 if let error {
+                    logger.error("OAuth error: \(error.localizedDescription, privacy: .public)")
                     continuation.resume(throwing: error)
                 } else if let url {
+                    logger.info("OAuth callback URL: \(url.absoluteString, privacy: .public)")
                     continuation.resume(returning: url)
                 }
             }
 
             session.prefersEphemeralWebBrowserSession = false
-            // Keep a strong reference so the session isn't deallocated
+            session.presentationContextProvider = self.presentationContext
             self.authSession = session
-            session.start()
+
+            let started = session.start()
+            logger.info("ASWebAuthenticationSession.start() returned: \(started)")
+            if !started {
+                logger.error("Session failed to start")
+            }
         }
 
         try processCallback(url: callbackURL)
@@ -69,7 +92,7 @@ final class AuthService: AuthServiceProtocol {
         do {
             try processCallback(url: url)
         } catch {
-            // Callback handling failed — user remains unauthenticated
+            logger.error("handleCallback failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
