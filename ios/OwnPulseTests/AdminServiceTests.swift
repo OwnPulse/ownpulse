@@ -213,6 +213,278 @@ struct AdminServiceTests {
     }
 }
 
+// MARK: - AdminService Error Path Tests
+
+@Suite("AdminService error paths", .serialized)
+@MainActor
+struct AdminServiceErrorTests {
+    private let mockClient = AdminMockNetworkClient()
+
+    // MARK: - Network failure tests
+
+    @Test("listUsers propagates network error")
+    func listUsersNetworkError() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw URLError(.notConnectedToInternet)
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: URLError.self) {
+            _ = try await service.listUsers()
+        }
+    }
+
+    @Test("updateRole propagates network error")
+    func updateRoleNetworkError() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw URLError(.timedOut)
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: URLError.self) {
+            _ = try await service.updateRole(userId: "user-1", role: "user")
+        }
+    }
+
+    @Test("updateStatus propagates network error")
+    func updateStatusNetworkError() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw URLError(.networkConnectionLost)
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: URLError.self) {
+            _ = try await service.updateStatus(userId: "user-1", status: "disabled")
+        }
+    }
+
+    @Test("deleteUser propagates network error")
+    func deleteUserNetworkError() async {
+        mockClient.requestNoContentHandler = { _, _, _ in
+            throw URLError(.notConnectedToInternet)
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: URLError.self) {
+            try await service.deleteUser(userId: "user-1")
+        }
+    }
+
+    @Test("listInvites propagates network error")
+    func listInvitesNetworkError() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw URLError(.cannotFindHost)
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: URLError.self) {
+            _ = try await service.listInvites()
+        }
+    }
+
+    @Test("createInvite propagates network error")
+    func createInviteNetworkError() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw URLError(.timedOut)
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: URLError.self) {
+            _ = try await service.createInvite(
+                label: "Team", maxUses: 5, expiresInHours: 24
+            )
+        }
+    }
+
+    @Test("revokeInvite propagates network error")
+    func revokeInviteNetworkError() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw URLError(.networkConnectionLost)
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: URLError.self) {
+            _ = try await service.revokeInvite(id: "inv-1")
+        }
+    }
+
+    // MARK: - 401 Unauthorized tests
+
+    @Test("listUsers throws on 401 unauthorized")
+    func listUsersUnauthorized() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.listUsers()
+        }
+    }
+
+    @Test("updateRole throws on 401 unauthorized")
+    func updateRoleUnauthorized() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.updateRole(userId: "user-1", role: "admin")
+        }
+    }
+
+    @Test("updateStatus throws on 401 unauthorized")
+    func updateStatusUnauthorized() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.updateStatus(userId: "user-1", status: "active")
+        }
+    }
+
+    @Test("deleteUser throws on 401 unauthorized")
+    func deleteUserUnauthorized() async {
+        mockClient.requestNoContentHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            try await service.deleteUser(userId: "user-1")
+        }
+    }
+
+    @Test("listInvites throws on 401 unauthorized")
+    func listInvitesUnauthorized() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.listInvites()
+        }
+    }
+
+    @Test("createInvite throws on 401 unauthorized")
+    func createInviteUnauthorized() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.createInvite(
+                label: nil, maxUses: nil, expiresInHours: nil
+            )
+        }
+    }
+
+    @Test("revokeInvite throws on 401 unauthorized")
+    func revokeInviteUnauthorized() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.revokeInvite(id: "inv-1")
+        }
+    }
+
+    // MARK: - 403 Forbidden tests
+
+    @Test("listUsers throws on 403 forbidden")
+    func listUsersForbidden() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 403, body: "Forbidden")
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.listUsers()
+        }
+    }
+
+    @Test("updateRole throws on 403 forbidden")
+    func updateRoleForbidden() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 403, body: "Forbidden")
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.updateRole(userId: "user-1", role: "admin")
+        }
+    }
+
+    @Test("updateStatus throws on 403 forbidden")
+    func updateStatusForbidden() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 403, body: "Forbidden")
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.updateStatus(userId: "user-1", status: "active")
+        }
+    }
+
+    @Test("deleteUser throws on 403 forbidden")
+    func deleteUserForbidden() async {
+        mockClient.requestNoContentHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 403, body: "Forbidden")
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            try await service.deleteUser(userId: "user-1")
+        }
+    }
+
+    @Test("listInvites throws on 403 forbidden")
+    func listInvitesForbidden() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 403, body: "Forbidden")
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.listInvites()
+        }
+    }
+
+    @Test("createInvite throws on 403 forbidden")
+    func createInviteForbidden() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 403, body: "Forbidden")
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.createInvite(
+                label: "Team", maxUses: 5, expiresInHours: 24
+            )
+        }
+    }
+
+    @Test("revokeInvite throws on 403 forbidden")
+    func revokeInviteForbidden() async {
+        mockClient.requestHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 403, body: "Forbidden")
+        }
+
+        let service = AdminService(networkClient: mockClient)
+        await #expect(throws: NetworkError.self) {
+            _ = try await service.revokeInvite(id: "inv-1")
+        }
+    }
+}
+
 // MARK: - InviteCode.isActive Tests
 
 @Suite("InviteCode.isActive")

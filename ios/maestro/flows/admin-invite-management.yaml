@@ -1,0 +1,79 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: admin invite management.
+# Requires an authenticated admin session with backend running.
+appId: health.ownpulse.app
+---
+- launchApp
+
+# Navigate to Settings tab
+- tapOn:
+    text: "Settings"
+
+# Navigate to User Management (admin section)
+- assertVisible:
+    id: "userManagementLink"
+- tapOn:
+    id: "userManagementLink"
+
+# Wait for admin view to load
+- assertVisible:
+    text: "User Management"
+    timeout: 5000
+
+# Tap the create invite button
+- assertVisible:
+    id: "createInviteButton"
+- tapOn:
+    id: "createInviteButton"
+
+# Fill in invite details on the create invite sheet
+- assertVisible:
+    id: "inviteLabelField"
+- tapOn:
+    id: "inviteLabelField"
+- inputText: "E2E Test Invite"
+
+# Confirm creation
+- assertVisible:
+    id: "confirmCreateInvite"
+- tapOn:
+    id: "confirmCreateInvite"
+
+# Verify the invite was created and the code is displayed
+- assertVisible:
+    id: "createdInviteCode"
+    timeout: 5000
+
+# Share invite link button should be visible
+- assertVisible:
+    id: "shareInviteLink"
+
+# Dismiss the creation sheet
+- tapOn:
+    id: "doneCreateInvite"
+
+# Verify we are back on the admin view and the invite list is visible
+- assertVisible:
+    text: "User Management"
+    timeout: 3000
+
+# The newly created invite should appear in the Invites section
+- assertVisible:
+    text: "E2E Test Invite"
+    timeout: 3000
+
+# Revoke the invite by swiping on it
+- swipe:
+    id: "inviteRow_*"
+    direction: "LEFT"
+
+# Tap the Revoke button that appears from the swipe action
+- tapOn:
+    text: "Revoke"
+
+# Verify the invite now shows as Revoked
+- assertVisible:
+    text: "Revoked"
+    timeout: 3000

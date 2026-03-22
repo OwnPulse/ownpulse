@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: register a new account with email, password, and invite code.
+# Requires the backend to be running with a valid invite code available.
+# Note: The iOS app currently uses the login screen; registration is handled via
+# the web frontend. This flow navigates to the web registration URL opened from
+# the app's invite link, which redirects to Safari. If a native registration view
+# is added in the future, update the identifiers below accordingly.
+#
+# For now, this flow tests the login-based onboarding path with credentials that
+# were registered via the web or API beforehand.
+appId: health.ownpulse.app
+---
+- launchApp:
+    clearState: true
+
+# Confirm the login screen is visible before acting
+- assertVisible:
+    id: "usernameField"
+
+# Enter registration credentials (pre-registered via backend/web with invite code)
+- tapOn:
+    id: "usernameField"
+- inputText: "newuser"
+
+- tapOn:
+    id: "passwordField"
+- inputText: "testpassword123"
+
+# Sign In button must be enabled now that both fields are non-empty
+- assertVisible:
+    id: "passwordSignInButton"
+
+- tapOn:
+    id: "passwordSignInButton"
+
+# After successful login the home screen should appear.
+# The login form should no longer be visible, confirming success.
+- assertNotVisible:
+    id: "passwordSignInButton"
+    timeout: 10000
+
+# Verify we landed on a main app screen (Settings tab should be reachable)
+- assertVisible:
+    text: "Settings"
+    timeout: 5000
