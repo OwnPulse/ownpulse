@@ -22,7 +22,7 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<UserRow, sqlx::
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
                 role, data_region, federation_id, created_at
-         FROM users WHERE email = $1",
+         FROM users WHERE LOWER(email) = LOWER($1)",
     )
     .bind(email)
     .fetch_one(pool)
@@ -40,8 +40,8 @@ pub async fn find_or_create_google_user(
 ) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "INSERT INTO users (email, username, auth_provider)
-         VALUES ($1, $2, 'google')
-         ON CONFLICT (email) DO UPDATE SET email = EXCLUDED.email
+         VALUES (LOWER($1), $2, 'google')
+         ON CONFLICT (LOWER(email)) DO UPDATE SET email = EXCLUDED.email
          RETURNING *",
     )
     .bind(email)
