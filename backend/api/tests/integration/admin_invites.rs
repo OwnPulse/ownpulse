@@ -985,7 +985,7 @@ async fn test_invite_claim_recorded_on_registration() {
         c.require_invite = true;
     })
     .await;
-    let (_admin_id, admin_token) = common::common::create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
 
     // Create an invite code
     let response = app
