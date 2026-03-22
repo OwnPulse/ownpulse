@@ -273,8 +273,39 @@ async fn test_refresh_with_json_body() {
     assert_eq!(json["token_type"], "Bearer");
 }
 
+/// Build a Config pointing Google endpoints at the given WireMock server URI,
+/// sharing the pool from the outer TestApp.
+fn google_config(mock_uri: &str) -> api::config::Config {
+    api::config::Config {
+        database_url: "unused".to_string(),
+        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
+        jwt_expiry_seconds: 3600,
+        refresh_token_expiry_seconds: 2_592_000,
+        google_client_id: Some("test-client-id".to_string()),
+        google_client_secret: Some("test-client-secret".to_string()),
+        google_redirect_uri: Some("http://localhost/callback".to_string()),
+        google_token_url: format!("{mock_uri}/token"),
+        google_userinfo_url: format!("{mock_uri}/userinfo"),
+        garmin_client_id: None,
+        garmin_client_secret: None,
+        oura_client_id: None,
+        oura_client_secret: None,
+        dexcom_client_id: None,
+        dexcom_client_secret: None,
+        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+        encryption_key_previous: None,
+        storage_path: None,
+        app_user: None,
+        app_password_hash: None,
+        data_region: "us".to_string(),
+        web_origin: "http://localhost:5173".to_string(),
+        rust_log: "info".to_string(),
+    }
+}
+
 #[tokio::test]
-async fn test_google_callback_ios_redirects_to_custom_scheme() {
+async fn test_google_callback_pkce_redirects_to_custom_scheme() {
     let test_app = common::setup().await;
 
     // Start WireMock for Google token exchange + userinfo
@@ -300,48 +331,19 @@ async fn test_google_callback_ios_redirects_to_custom_scheme() {
         .mount(&mock_server)
         .await;
 
-    // Build a test app with Google config pointing to WireMock
-    let config = api::config::Config {
-        database_url: "unused".to_string(),
-        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
-        jwt_expiry_seconds: 3600,
-        refresh_token_expiry_seconds: 2_592_000,
-        google_client_id: Some("test-client-id".to_string()),
-        google_client_secret: Some("test-client-secret".to_string()),
-        google_redirect_uri: Some("http://localhost/callback".to_string()),
-        google_token_url: format!("{}/token", mock_server.uri()),
-        google_userinfo_url: format!("{}/userinfo", mock_server.uri()),
-        garmin_client_id: None,
-        garmin_client_secret: None,
-        oura_client_id: None,
-        oura_client_secret: None,
-        dexcom_client_id: None,
-        dexcom_client_secret: None,
-        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
-            .to_string(),
-        encryption_key_previous: None,
-        storage_path: None,
-        app_user: None,
-        app_password_hash: None,
-        data_region: "us".to_string(),
-        web_origin: "http://localhost:5173".to_string(),
-        rust_log: "info".to_string(),
-    };
-
     let state = api::AppState {
         pool: test_app.pool.clone(),
-        config,
+        config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
     };
-
     let app = api::build_app_without_metrics(state);
 
-    // Call the callback with state=ios (iOS bypasses CSRF)
+    // Native app PKCE flow: sends code_verifier, no CSRF cookie needed.
     let response = app
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/api/v1/auth/google/callback?code=test-auth-code&state=ios")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -376,6 +378,129 @@ async fn test_google_callback_ios_redirects_to_custom_scheme() {
     );
 }
 
+/// Regression: the old `state=ios` bypass must no longer skip CSRF validation.
+/// A request with `state=ios` but no `code_verifier` is treated as a web flow
+/// and rejected because no `oauth_state` cookie is present.
+#[tokio::test]
+async fn test_google_callback_state_ios_no_longer_bypasses_csrf() {
+    let test_app = common::setup().await;
+
+    let config = api::config::Config {
+        database_url: "unused".to_string(),
+        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
+        jwt_expiry_seconds: 3600,
+        refresh_token_expiry_seconds: 2_592_000,
+        google_client_id: Some("test-client-id".to_string()),
+        google_client_secret: Some("test-client-secret".to_string()),
+        google_redirect_uri: Some("http://localhost/callback".to_string()),
+        // Point at a URL that should never be reached — CSRF check fires first.
+        google_token_url: "http://127.0.0.1:0/token".to_string(),
+        google_userinfo_url: "http://127.0.0.1:0/userinfo".to_string(),
+        garmin_client_id: None,
+        garmin_client_secret: None,
+        oura_client_id: None,
+        oura_client_secret: None,
+        dexcom_client_id: None,
+        dexcom_client_secret: None,
+        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+        encryption_key_previous: None,
+        storage_path: None,
+        app_user: None,
+        app_password_hash: None,
+        data_region: "us".to_string(),
+        web_origin: "http://localhost:5173".to_string(),
+        rust_log: "info".to_string(),
+    };
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    // state=ios without code_verifier — the bypass has been removed.
+    // The handler treats this as a web flow and rejects it: no oauth_state cookie.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code&state=ios")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        400,
+        "state=ios without code_verifier should no longer bypass CSRF — expected 400, got {}",
+        response.status()
+    );
+}
+
+/// A callback with neither `code_verifier` nor a valid `oauth_state` cookie
+/// must be rejected before any token exchange occurs.
+#[tokio::test]
+async fn test_google_callback_no_verifier_no_cookie_returns_400() {
+    let test_app = common::setup().await;
+
+    let config = api::config::Config {
+        database_url: "unused".to_string(),
+        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
+        jwt_expiry_seconds: 3600,
+        refresh_token_expiry_seconds: 2_592_000,
+        google_client_id: Some("test-client-id".to_string()),
+        google_client_secret: Some("test-client-secret".to_string()),
+        google_redirect_uri: Some("http://localhost/callback".to_string()),
+        // Point at a URL that should never be reached — CSRF check fires first.
+        google_token_url: "http://127.0.0.1:0/token".to_string(),
+        google_userinfo_url: "http://127.0.0.1:0/userinfo".to_string(),
+        garmin_client_id: None,
+        garmin_client_secret: None,
+        oura_client_id: None,
+        oura_client_secret: None,
+        dexcom_client_id: None,
+        dexcom_client_secret: None,
+        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
+            .to_string(),
+        encryption_key_previous: None,
+        storage_path: None,
+        app_user: None,
+        app_password_hash: None,
+        data_region: "us".to_string(),
+        web_origin: "http://localhost:5173".to_string(),
+        rust_log: "info".to_string(),
+    };
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    // No code_verifier, no oauth_state cookie — must be rejected.
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code&state=some-state")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        400,
+        "callback without code_verifier and without oauth_state cookie should return 400"
+    );
+}
+
 #[tokio::test]
 async fn test_google_callback_web_redirects_with_cookies() {
     let test_app = common::setup().await;
@@ -402,36 +527,9 @@ async fn test_google_callback_web_redirects_with_cookies() {
         .mount(&mock_server)
         .await;
 
-    let config = api::config::Config {
-        database_url: "unused".to_string(),
-        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
-        jwt_expiry_seconds: 3600,
-        refresh_token_expiry_seconds: 2_592_000,
-        google_client_id: Some("test-client-id".to_string()),
-        google_client_secret: Some("test-client-secret".to_string()),
-        google_redirect_uri: Some("http://localhost/callback".to_string()),
-        google_token_url: format!("{}/token", mock_server.uri()),
-        google_userinfo_url: format!("{}/userinfo", mock_server.uri()),
-        garmin_client_id: None,
-        garmin_client_secret: None,
-        oura_client_id: None,
-        oura_client_secret: None,
-        dexcom_client_id: None,
-        dexcom_client_secret: None,
-        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
-            .to_string(),
-        encryption_key_previous: None,
-        storage_path: None,
-        app_user: None,
-        app_password_hash: None,
-        data_region: "us".to_string(),
-        web_origin: "http://localhost:5173".to_string(),
-        rust_log: "info".to_string(),
-    };
-
     let state = api::AppState {
         pool: test_app.pool.clone(),
-        config,
+        config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
     };
 
@@ -498,36 +596,11 @@ async fn test_google_callback_web_redirects_with_cookies() {
 async fn test_google_callback_rejects_mismatched_csrf_state() {
     let test_app = common::setup().await;
 
-    let config = api::config::Config {
-        database_url: "unused".to_string(),
-        jwt_secret: "test-jwt-secret-at-least-32-bytes-long".to_string(),
-        jwt_expiry_seconds: 3600,
-        refresh_token_expiry_seconds: 2_592_000,
-        google_client_id: Some("test-client-id".to_string()),
-        google_client_secret: Some("test-client-secret".to_string()),
-        google_redirect_uri: Some("http://localhost/callback".to_string()),
-        google_token_url: "https://oauth2.googleapis.com/token".to_string(),
-        google_userinfo_url: "https://www.googleapis.com/oauth2/v3/userinfo".to_string(),
-        garmin_client_id: None,
-        garmin_client_secret: None,
-        oura_client_id: None,
-        oura_client_secret: None,
-        dexcom_client_id: None,
-        dexcom_client_secret: None,
-        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
-            .to_string(),
-        encryption_key_previous: None,
-        storage_path: None,
-        app_user: None,
-        app_password_hash: None,
-        data_region: "us".to_string(),
-        web_origin: "http://localhost:5173".to_string(),
-        rust_log: "info".to_string(),
-    };
-
+    // Point token URL at a port-0 address — the handler must reject before
+    // it ever makes a network call.
     let state = api::AppState {
         pool: test_app.pool.clone(),
-        config,
+        config: google_config("http://127.0.0.1:0"),
         http_client: reqwest::Client::new(),
     };
 
