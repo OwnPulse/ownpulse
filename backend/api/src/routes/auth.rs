@@ -14,13 +14,14 @@ use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::auth::jwt::encode_access_token;
 use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
+use crate::db::invites;
 use crate::db::refresh_tokens;
 use crate::db::user_auth_methods;
 use crate::db::users;
 use crate::error::ApiError;
 use crate::models::user::{
     AppleCallbackRequest, AuthMethodRow, LinkAuthRequest, LoginRequest, RefreshRequest,
-    TokenResponse, TokenResponseWithRefresh,
+    RegisterRequest, TokenResponse, TokenResponseWithRefresh,
 };
 
 /// Return `"; Secure"` when the web origin uses HTTPS, empty string otherwise.
@@ -66,6 +67,97 @@ pub async fn login(
     if !valid {
         return Err(ApiError::Unauthorized);
     }
+
+    issue_tokens(&state, user.id, &user.role).await
+}
+
+/// POST /auth/register — create a new user with email + password.
+///
+/// When `require_invite` is true (the default), a valid invite code must be
+/// provided. The invite claim and user creation happen inside a single
+/// transaction to prevent TOCTOU races.
+pub async fn register(
+    State(state): State<AppState>,
+    Json(body): Json<RegisterRequest>,
+) -> Result<Response, ApiError> {
+    // Validate email
+    if body.email.len() > 254 || !body.email.contains('@') {
+        return Err(ApiError::BadRequest("invalid email address".into()));
+    }
+
+    // Validate password
+    if body.password.len() < 8 {
+        return Err(ApiError::BadRequest(
+            "password must be at least 8 characters".into(),
+        ));
+    }
+
+    // Hash password before starting the transaction (bcrypt is slow by design)
+    let password_hash = bcrypt::hash(&body.password, bcrypt::DEFAULT_COST)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let username = body
+        .username
+        .as_deref()
+        .map(sanitize_username)
+        .unwrap_or_else(|| sanitize_username(body.email.split('@').next().unwrap_or("user")));
+
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Validate and claim invite code if required
+    if state.config.require_invite {
+        let code = body
+            .invite_code
+            .as_deref()
+            .ok_or_else(|| ApiError::BadRequest("invite code required".into()))?;
+
+        invites::claim_invite_code_tx(&mut tx, code)
+            .await
+            .map_err(|e| match e {
+                sqlx::Error::RowNotFound => {
+                    ApiError::BadRequest("invalid or expired invite code".into())
+                }
+                other => ApiError::Internal(other.to_string()),
+            })?;
+    }
+
+    // Create the user inside the same transaction
+    let user = sqlx::query_as::<_, crate::models::user::UserRow>(
+        "INSERT INTO users (email, username, password_hash, auth_provider)
+         VALUES ($1, $2, $3, 'local')
+         RETURNING id, username, password_hash, auth_provider, email,
+                   role, data_region, federation_id, status, created_at",
+    )
+    .bind(&body.email)
+    .bind(&username)
+    .bind(&password_hash)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| match &e {
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505") => {
+            ApiError::Conflict("email already registered".into())
+        }
+        _ => ApiError::Internal(e.to_string()),
+    })?;
+
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email)
+         VALUES ($1, 'local', $2, $3)",
+    )
+    .bind(user.id)
+    .bind(user.id.to_string())
+    .bind(&body.email)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     issue_tokens(&state, user.id, &user.role).await
 }
@@ -168,8 +260,20 @@ pub async fn logout(
     Ok(response)
 }
 
+#[derive(Deserialize)]
+pub struct GoogleLoginQuery {
+    pub invite_code: Option<String>,
+}
+
 /// GET /auth/google/login — generate OAuth authorization URL with CSRF state.
-pub async fn google_login(State(state): State<AppState>) -> Result<Response, ApiError> {
+///
+/// Accepts an optional `?invite_code=` query param. When provided, the code is
+/// stored in a short-lived httpOnly cookie so the callback can use it for new
+/// user registration.
+pub async fn google_login(
+    State(state): State<AppState>,
+    Query(login_query): Query<GoogleLoginQuery>,
+) -> Result<Response, ApiError> {
     let client_id = state
         .config
         .google_client_id
@@ -207,6 +311,23 @@ pub async fn google_login(State(state): State<AppState>) -> Result<Response, Api
             .parse()
             .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
     );
+
+    // Store invite code in a short-lived cookie if provided (alphanumeric only).
+    if let Some(ref code) = login_query.invite_code
+        && !code.is_empty()
+        && code.chars().all(|c| c.is_alphanumeric())
+    {
+        let invite_cookie = format!(
+            "invite_code={code}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600"
+        );
+        response.headers_mut().append(
+            SET_COOKIE,
+            invite_cookie
+                .parse()
+                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
+        );
+    }
+
     Ok(response)
 }
 
@@ -308,6 +429,47 @@ pub async fn google_callback(
 
     let display_name = sanitize_username(google_user.email.split('@').next().unwrap_or("user"));
 
+    // Check if user already exists before potentially requiring an invite code.
+    let existing_user = users::find_by_email(&state.pool, &google_user.email).await;
+    let is_new_user = matches!(existing_user, Err(sqlx::Error::RowNotFound));
+
+    // For new users when require_invite is true, validate the invite code.
+    if is_new_user && state.config.require_invite {
+        let invite_code_cookie = headers
+            .get(axum::http::header::COOKIE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|cookies| {
+                cookies
+                    .split(';')
+                    .filter_map(|c| c.trim().strip_prefix("invite_code="))
+                    .next()
+                    .map(|s| s.to_string())
+            });
+
+        let code = invite_code_cookie.ok_or_else(|| {
+            ApiError::BadRequest("invite code required for new account registration".into())
+        })?;
+
+        let mut tx = state
+            .pool
+            .begin()
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+        invites::claim_invite_code_tx(&mut tx, &code)
+            .await
+            .map_err(|e| match e {
+                sqlx::Error::RowNotFound => {
+                    ApiError::BadRequest("invalid or expired invite code".into())
+                }
+                other => ApiError::Internal(other.to_string()),
+            })?;
+
+        tx.commit()
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+    }
+
     let user = users::find_or_create_google_user(
         &state.pool,
         &google_user.sub,
@@ -335,10 +497,12 @@ pub async fn google_callback(
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    // Clear the oauth_state cookie
+    // Clear the oauth_state and invite_code cookies
     let secure = secure_attr(&state.config);
     let clear_state_cookie =
         format!("oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
+    let clear_invite_cookie =
+        format!("invite_code=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
 
     if query.code_verifier.is_some() {
         // Native app (PKCE flow): redirect to the custom URI scheme with tokens
@@ -352,6 +516,12 @@ pub async fn google_callback(
         response.headers_mut().append(
             SET_COOKIE,
             clear_state_cookie
+                .parse()
+                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
+        );
+        response.headers_mut().append(
+            SET_COOKIE,
+            clear_invite_cookie
                 .parse()
                 .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
         );
@@ -385,6 +555,12 @@ pub async fn google_callback(
         response.headers_mut().append(
             SET_COOKIE,
             clear_state_cookie
+                .parse()
+                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
+        );
+        response.headers_mut().append(
+            SET_COOKIE,
+            clear_invite_cookie
                 .parse()
                 .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
         );

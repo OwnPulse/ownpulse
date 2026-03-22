@@ -67,6 +67,16 @@ pub struct RefreshRequest {
     pub refresh_token: String,
 }
 
+/// Request body for `POST /auth/register`.
+#[derive(Deserialize)]
+pub struct RegisterRequest {
+    pub email: String,
+    pub username: Option<String>,
+    pub password: String,
+    #[serde(default)]
+    pub invite_code: Option<String>,
+}
+
 /// A single linked auth method returned to the client.
 #[derive(Serialize, sqlx::FromRow)]
 pub struct AuthMethodRow {

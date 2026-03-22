@@ -33,6 +33,7 @@ use crate::AppState;
 fn auth_routes() -> Router<AppState> {
     Router::new()
         .route("/auth/login", post(auth::login))
+        .route("/auth/register", post(auth::register))
         .route("/auth/refresh", post(auth::refresh))
         .route("/auth/logout", post(auth::logout))
         .route("/auth/google/login", get(auth::google_login))
@@ -126,6 +127,11 @@ fn base_routes() -> Router<AppState> {
         // Admin
         .route("/admin/users", get(admin::list_users))
         .route("/admin/users/:id/role", patch(admin::update_role))
+        .route("/admin/users/:id/status", patch(admin::update_status))
+        .route("/admin/users/:id", delete(admin::delete_user))
+        .route("/admin/invites", post(admin::create_invite))
+        .route("/admin/invites", get(admin::list_invites))
+        .route("/admin/invites/:id", delete(admin::revoke_invite))
         // Auth methods (authenticated)
         .route("/auth/methods", get(auth::list_auth_methods))
         .route("/auth/link", post(auth::link_auth))
