@@ -1,12 +1,93 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { accountApi } from "../api/account";
-import { logout } from "../api/auth";
+import { getAuthMethods, logout, unlinkAuth } from "../api/auth";
 import { exportCsv, exportJson } from "../api/export";
 import { sourcePreferencesApi } from "../api/source-preferences";
+
+const PROVIDER_NAMES: Record<string, string> = {
+  google: "Google",
+  apple: "Apple",
+  local: "Password",
+};
+
+function providerDisplayName(provider: string): string {
+  return PROVIDER_NAMES[provider] ?? provider;
+}
+
+function LinkedAccounts() {
+  const queryClient = useQueryClient();
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
+
+  const {
+    data: methods,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["authMethods"],
+    queryFn: getAuthMethods,
+  });
+
+  const unlinkMutation = useMutation({
+    mutationFn: (provider: string) => unlinkAuth(provider),
+    onSuccess: (updated) => {
+      setUnlinkError(null);
+      queryClient.setQueryData(["authMethods"], updated);
+    },
+    onError: (err: Error) => {
+      setUnlinkError(err.message || "Failed to unlink account.");
+    },
+  });
+
+  const handleUnlink = (provider: string) => {
+    if (
+      !window.confirm(
+        `Unlink ${providerDisplayName(provider)}? You won't be able to log in with it anymore.`,
+      )
+    ) {
+      return;
+    }
+    unlinkMutation.mutate(provider);
+  };
+
+  return (
+    <section style={{ marginTop: "2rem" }}>
+      <h2>Linked Accounts</h2>
+      {isLoading && <p>Loading...</p>}
+      {isError && <p>Error loading linked accounts.</p>}
+      {unlinkError && <p style={{ color: "var(--color-error, red)" }}>{unlinkError}</p>}
+      {methods && methods.length === 0 && <p>No linked accounts.</p>}
+      {methods && methods.length > 0 && (
+        <ul style={{ listStyle: "none", padding: 0 }}>
+          {methods.map((method) => (
+            <li
+              key={method.id}
+              style={{ display: "flex", alignItems: "center", gap: "1rem", marginBottom: "0.5rem" }}
+            >
+              <strong>{providerDisplayName(method.provider)}</strong>
+              {method.email && (
+                <span style={{ color: "var(--color-text-muted)" }}>{method.email}</span>
+              )}
+              {methods.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleUnlink(method.provider)}
+                  disabled={unlinkMutation.isPending}
+                  aria-label={`Unlink ${method.provider}`}
+                >
+                  Unlink
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
 
 export default function Settings() {
   const [exporting, setExporting] = useState(false);
@@ -79,6 +160,8 @@ export default function Settings() {
           </ul>
         )}
       </section>
+
+      <LinkedAccounts />
 
       <section style={{ marginTop: "2rem" }}>
         <h2>Danger Zone</h2>

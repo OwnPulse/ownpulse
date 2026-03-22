@@ -23,7 +23,7 @@ describe("Login", () => {
     mockLogin.mockReset();
   });
 
-  it("renders email/password inputs and Google link", () => {
+  it("renders email/password inputs, Google link, and Apple link", () => {
     render(
       <MemoryRouter>
         <Login />
@@ -32,7 +32,15 @@ describe("Login", () => {
 
     expect(screen.getByLabelText(/email/i)).toBeDefined();
     expect(screen.getByLabelText(/password/i)).toBeDefined();
-    expect(screen.getByText(/sign in with google/i)).toBeDefined();
+
+    const googleLink = screen.getByText(/sign in with google/i);
+    expect(googleLink).toBeDefined();
+    // Bugfix: Google OAuth href was previously /callback, now correctly points to /login
+    expect(googleLink).toHaveAttribute("href", "/api/v1/auth/google/login");
+
+    const appleLink = screen.getByText(/sign in with apple/i);
+    expect(appleLink).toBeDefined();
+    expect(appleLink).toHaveAttribute("href", "/api/v1/auth/apple/login");
   });
 
   it("shows error on failed login", async () => {

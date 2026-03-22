@@ -37,7 +37,7 @@
   margin-top: 0.25rem;
 }
 
-.googleBtn {
+.socialBtn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -46,8 +46,6 @@
   padding: 0.75rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text);
   font-size: 0.9375rem;
   font-family: var(--font-family);
   cursor: pointer;
@@ -57,9 +55,41 @@
     border-color 0.15s;
 }
 
+.googleBtn {
+  composes: socialBtn;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
 .googleBtn:hover {
   background: var(--color-bg);
   border-color: var(--color-text-muted);
+}
+
+.appleBtn {
+  composes: socialBtn;
+  margin-top: 0.75rem;
+  background: #000;
+  color: #fff;
+  border-color: #000;
+}
+
+.appleBtn:hover {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+}
+
+@media (prefers-color-scheme: dark) {
+  .appleBtn {
+    background: #fff;
+    color: #000;
+    border-color: #fff;
+  }
+
+  .appleBtn:hover {
+    background: #e5e5e5;
+    border-color: #e5e5e5;
+  }
 }
 
 .divider {
