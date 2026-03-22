@@ -6,6 +6,7 @@ This directory contains all project documentation. Start with the section releva
 
 | Directory | Contents |
 |-----------|----------|
+| [product/](product/) | Target users, use cases, and user journeys. Read this to understand who we're building for. |
 | [architecture/](architecture/) | System architecture overview, data model, API reference, HealthKit sync design. |
 | [decisions/](decisions/) | Architecture Decision Records (ADRs). Numbered, append-only. Read these to understand why things are the way they are. |
 | [design/](design/) | Brand guidelines, wireframes, and design system. |
