@@ -13,5 +13,8 @@ spec:
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: ownpulse-api
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ownpulse-api-migrate
       ports:
         - port: 5432
