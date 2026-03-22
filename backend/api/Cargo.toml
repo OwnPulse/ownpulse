@@ -46,3 +46,6 @@ http = "1"
 hyper = "1"
 rsa = { version = "0.9", features = ["sha2"] }
 rand = "0.8"
+pact_verifier = "1"
+pact_models = "1"
+async-trait = "0.1"
