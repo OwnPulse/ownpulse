@@ -18,9 +18,114 @@ All endpoints require JWT authentication unless marked as public. Tokens are iss
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
 | POST | `/auth/login` | Login with username/password, returns JWT + refresh token | 1 |
+| POST | `/auth/register` | Register with invite code (see below) | 1 |
 | POST | `/auth/refresh` | Refresh token rotation (cookie) | 1 |
 | POST | `/auth/logout` | Invalidate refresh token | 1 |
+| GET | `/auth/google/login` | Google OAuth redirect (accepts optional `?invite_code=XYZ`) | 1 |
 | GET | `/auth/google/callback` | Google OAuth callback | 1 |
+
+#### `POST /auth/register`
+
+Register a new account. When the instance requires invites (`REQUIRE_INVITE=true`, the default), a valid invite code must be provided.
+
+**Request body:**
+
+```json
+{
+  "username": "string",
+  "password": "string",
+  "invite_code": "string"
+}
+```
+
+**Response:** `TokenResponse` (same shape as `/auth/login`).
+
+**Errors:**
+
+| Status | Reason |
+|--------|--------|
+| 400 | Invalid or expired invite code, or validation failure |
+| 409 | Username already taken |
+
+#### Google OAuth with invite code
+
+`GET /auth/google/login` accepts an optional `?invite_code=XYZ` query parameter. If the user does not yet have an account and invite codes are required, the invite code is validated during the OAuth callback. If no valid code is present, the callback redirects to the login page with `?error=invite_required`.
+
+### Admin -- Invite Management
+
+All admin endpoints require JWT authentication with `role = admin`.
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| POST | `/admin/invites` | Create an invite code | 1 |
+| GET | `/admin/invites` | List all invite codes | 1 |
+| DELETE | `/admin/invites/:id` | Revoke an invite code | 1 |
+
+#### `POST /admin/invites`
+
+**Request body:**
+
+```json
+{
+  "label": "string (optional)",
+  "max_uses": "number (optional)",
+  "expires_in_hours": "number (optional)"
+}
+```
+
+**Response:** `InviteCode`
+
+```json
+{
+  "id": "uuid",
+  "code": "string",
+  "label": "string | null",
+  "max_uses": "number | null",
+  "use_count": 0,
+  "expires_at": "timestamp | null",
+  "revoked_at": null,
+  "created_at": "timestamp"
+}
+```
+
+#### `GET /admin/invites`
+
+**Response:** `InviteCode[]`
+
+#### `DELETE /admin/invites/:id`
+
+Sets `revoked_at` on the invite code. Does not delete the record.
+
+**Response:** `InviteCode` (with `revoked_at` set)
+
+### Admin -- User Management
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| PATCH | `/admin/users/:id/status` | Enable or disable a user | 1 |
+| DELETE | `/admin/users/:id` | Delete a user and all their data | 1 |
+
+#### `PATCH /admin/users/:id/status`
+
+**Request body:**
+
+```json
+{
+  "status": "active | disabled"
+}
+```
+
+**Response:** `UserResponse` (includes `status` field)
+
+Disabled users are locked out immediately -- their next API request returns 403. Admins cannot disable themselves.
+
+#### `DELETE /admin/users/:id`
+
+Permanently deletes the user and cascades all associated data. Returns 204 No Content. Admins cannot delete themselves.
+
+#### Updated response types
+
+`UserResponse` now includes a `status` field (`"active"` or `"disabled"`).
 
 ### Health Records
 
