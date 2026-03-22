@@ -24,12 +24,10 @@ export const friendsApi = {
       friend_email: friendEmail,
       data_types: dataTypes,
     }),
-  acceptShare: (shareId: string) =>
-    api.post<void>(`/api/v1/friends/shares/${shareId}/accept`, {}),
+  acceptShare: (shareId: string) => api.post<void>(`/api/v1/friends/shares/${shareId}/accept`, {}),
   acceptLink: (token: string) =>
     api.post<FriendShare>("/api/v1/friends/shares/accept-link", { token }),
-  revokeShare: (shareId: string) =>
-    api.delete<void>(`/api/v1/friends/shares/${shareId}`),
+  revokeShare: (shareId: string) => api.delete<void>(`/api/v1/friends/shares/${shareId}`),
   updatePermissions: (shareId: string, dataTypes: string[]) =>
     api.patch<void>(`/api/v1/friends/shares/${shareId}/permissions`, {
       data_types: dataTypes,

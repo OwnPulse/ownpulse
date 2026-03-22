@@ -32,7 +32,6 @@ export const checkinsApi = {
     return api.get<Checkin[]>(`/api/v1/checkins${qs}`);
   },
   get: (id: string) => api.get<Checkin>(`/api/v1/checkins/${id}`),
-  upsert: (data: UpsertCheckin) =>
-    api.put<Checkin>("/api/v1/checkins", data),
+  upsert: (data: UpsertCheckin) => api.put<Checkin>("/api/v1/checkins", data),
   delete: (id: string) => api.delete<void>(`/api/v1/checkins/${id}`),
 };

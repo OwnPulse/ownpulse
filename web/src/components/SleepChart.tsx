@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { VisXYContainer, VisStackedBar, VisAxis } from "@unovis/react";
+import { VisAxis, VisStackedBar, VisXYContainer } from "@unovis/react";
 import type { SleepRecord } from "../api/sleep";
 
 interface SleepChartProps {
@@ -26,14 +26,11 @@ function xAccessor(_d: SleepRecord, i: number): number {
 
 export default function SleepChart({ data }: SleepChartProps) {
   if (data.length === 0) {
-    return (
-      <p style={{ color: "#718096" }}>No sleep data for the last 14 days.</p>
-    );
+    return <p style={{ color: "#718096" }}>No sleep data for the last 14 days.</p>;
   }
 
   const tickValues = data.map((_, i) => i);
-  const tickFormat = (tick: number | Date): string =>
-    data[Number(tick)]?.date?.slice(5) ?? "";
+  const tickFormat = (tick: number | Date): string => data[Number(tick)]?.date?.slice(5) ?? "";
 
   return (
     <div style={{ width: "100%", height: 280 }}>
@@ -51,10 +48,7 @@ export default function SleepChart({ data }: SleepChartProps) {
           tickFormat={tickFormat}
           numTicks={data.length}
         />
-        <VisAxis<SleepRecord>
-          type="y"
-          label="Minutes"
-        />
+        <VisAxis<SleepRecord> type="y" label="Minutes" />
       </VisXYContainer>
     </div>
   );

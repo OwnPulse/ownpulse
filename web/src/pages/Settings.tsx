@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { exportJson, exportCsv } from "../api/export";
-import { sourcePreferencesApi } from "../api/source-preferences";
+import { useState } from "react";
 import { accountApi } from "../api/account";
 import { logout } from "../api/auth";
+import { exportCsv, exportJson } from "../api/export";
+import { sourcePreferencesApi } from "../api/source-preferences";
 
 export default function Settings() {
   const [exporting, setExporting] = useState(false);
@@ -53,10 +53,10 @@ export default function Settings() {
         <h2>Export Data</h2>
         <p>Download all your data in open formats.</p>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          <button onClick={handleExportJson} disabled={exporting}>
+          <button type="button" onClick={handleExportJson} disabled={exporting}>
             {exporting ? "Exporting..." : "Export JSON"}
           </button>
-          <button onClick={handleExportCsv} disabled={exporting}>
+          <button type="button" onClick={handleExportCsv} disabled={exporting}>
             {exporting ? "Exporting..." : "Export CSV"}
           </button>
         </div>
@@ -83,25 +83,22 @@ export default function Settings() {
       <section style={{ marginTop: "2rem" }}>
         <h2>Danger Zone</h2>
         {!confirmDelete ? (
-          <button
-            onClick={handleDeleteAccount}
-            style={{ color: "red" }}
-          >
+          <button type="button" onClick={handleDeleteAccount} style={{ color: "red" }}>
             Delete Account
           </button>
         ) : (
           <div>
-            <p>
-              Are you sure? This will permanently delete your account and all
-              data.
-            </p>
+            <p>Are you sure? This will permanently delete your account and all data.</p>
             <button
+              type="button"
               onClick={handleDeleteAccount}
               style={{ color: "red", marginRight: "0.5rem" }}
             >
               Yes, delete my account
             </button>
-            <button onClick={() => setConfirmDelete(false)}>Cancel</button>
+            <button type="button" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </button>
           </div>
         )}
       </section>

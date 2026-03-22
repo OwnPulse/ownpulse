@@ -24,11 +24,23 @@ Exports include health records, check-ins, interventions, observations, lab resu
 
 OwnPulse logs access to sensitive operations for your records. Logged operations include data exports, account deletion, and bulk operations. The audit log is accessible via the API (`GET /account/audit-log`) and shows the last 100 entries. This log is for your reference only -- no one else has access to it.
 
+## Linked accounts
+
+You can link multiple sign-in methods to your account. Go to **Settings > Linked Accounts** to see which providers are currently connected.
+
+### Linking a new provider
+
+Tap **Link** next to the provider you want to add (Apple, Google, or password). For Apple and Google, you will be redirected to their sign-in flow. For password, you will be prompted to choose a password. Once linked, you can use any of your linked methods to sign in.
+
+### Unlinking a provider
+
+Tap **Unlink** next to the provider you want to remove. You must always have at least one sign-in method remaining -- OwnPulse will not let you unlink your last provider.
+
 ## Account management
 
 ### Changing your profile
 
-If you signed in with Google OAuth, your display name and email are pulled from your Google account. These update automatically if you change them on the Google side.
+If you signed in with Apple or Google OAuth, your display name and email are pulled from your provider account. These update automatically if you change them on the provider side.
 
 For username/password accounts, contact your instance administrator to update your email or reset your password.
 

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { observationsApi, CreateObservation } from "../../api/observations";
+import { useState } from "react";
+import { type CreateObservation, observationsApi } from "../../api/observations";
 
 const OBSERVATION_TYPES = [
   "event_instant",
@@ -93,11 +93,7 @@ export default function ObservationForm() {
       <div>
         <label>
           Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
+          <input value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
       </div>
       <div>
@@ -141,12 +137,7 @@ export default function ObservationForm() {
         <div>
           <label>
             Max
-            <input
-              type="number"
-              value={max}
-              onChange={(e) => setMax(e.target.value)}
-              required
-            />
+            <input type="number" value={max} onChange={(e) => setMax(e.target.value)} required />
           </label>
         </div>
       )}
@@ -169,11 +160,7 @@ export default function ObservationForm() {
         <div>
           <label>
             Unit
-            <input
-              value={unitVal}
-              onChange={(e) => setUnitVal(e.target.value)}
-              required
-            />
+            <input value={unitVal} onChange={(e) => setUnitVal(e.target.value)} required />
           </label>
         </div>
       )}
@@ -195,9 +182,7 @@ export default function ObservationForm() {
       <button type="submit" disabled={mutation.isPending}>
         {mutation.isPending ? "Saving..." : "Save Observation"}
       </button>
-      {mutation.isError && (
-        <p style={{ color: "red" }}>Error: {mutation.error.message}</p>
-      )}
+      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
       {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
     </form>
   );
