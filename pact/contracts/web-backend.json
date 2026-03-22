@@ -62,6 +62,66 @@
       }
     },
     {
+      "description": "a request to authenticate via Apple Sign-In callback from web",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/apple/callback",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id_token": "some-apple-id-token",
+          "platform": "web"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "access_token": "some-jwt-token",
+          "token_type": "Bearer",
+          "expires_in": 3600
+        }
+      }
+    },
+    {
+      "description": "a request to link Apple as an auth provider",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/link",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "provider": "apple",
+          "id_token": "some-apple-id-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "uuid-1",
+            "provider": "apple",
+            "email": "user@privaterelay.appleid.com",
+            "created_at": "2026-03-10T08:00:00Z"
+          },
+          {
+            "id": "uuid-2",
+            "provider": "local",
+            "email": "user@example.com",
+            "created_at": "2026-03-10T08:00:00Z"
+          }
+        ]
+      }
+    },
+    {
       "description": "a request to unlink an auth provider",
       "request": {
         "method": "DELETE",
