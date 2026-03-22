@@ -29,3 +29,6 @@ Thumbs.db
 # (cargo sqlx prepare output for compile-time query checking)
 web/coverage/
 ios/.spm-cache/
+
+# Agent symlinks (machine-local, recreated by opdev setup)
+.claude/agents/

@@ -7,8 +7,22 @@ This guide is for AI agents (Claude Code, Cursor, or similar) working on the Own
 Read these files in order before starting any task:
 
 1. `CLAUDE.md` (root) -- project philosophy, conventions, what not to do
-2. `AGENTS.md` (root) -- codebase map, workspace boundaries, parallel work rules
-3. `AGENTS.md` in the specific service directory you are working in (`backend/`, `web/`, or `ios/`)
+2. `.claude/CLAUDE.md` -- hard rules, agent inventory, team workflow
+3. `AGENTS.md` (root) -- codebase map, workspace boundaries
+4. `AGENTS.md` in the specific service directory you are working in (`backend/`, `web/`, or `ios/`)
+
+## Session Setup
+
+Use `opdev session` to create an isolated working environment:
+
+```bash
+cd ~/src/ownpulse/ownpulse
+opdev session backend-auth    # creates worktree, launches claude
+```
+
+Each session gets its own git worktree and branch. You can run multiple sessions in parallel against the same repo without conflicts.
+
+Within a session, the lead Claude instance orchestrates work by spawning specialized agents. Write agents are spawned with `isolation: "worktree"` for further isolation.
 
 ## Before Making Changes
 
@@ -31,6 +45,28 @@ Each service is independently buildable and testable. Work within one service at
 
 If you need to modify files outside your workspace, flag it in the PR description.
 
+## Agent Team Workflow
+
+For tasks touching multiple areas (backend + frontend, infra + app code):
+
+1. Break the task into parallel units that map to available agents
+2. For cross-cutting features, define the API contract first (endpoint path, request/response types, error codes)
+3. Spawn write agents with `isolation: "worktree"` — each gets an isolated git copy automatically
+4. Run review agents (code-review, security-review) on the results
+5. Fix issues or ask agents to revise before reporting done
+
+## Hard Rules
+
+These are enforced in `.claude/CLAUDE.md` and violations will be reverted:
+
+1. **Everything is IaC** — no ad-hoc kubectl, helm install, tofu apply, or SSH
+2. **No telemetry or analytics** without explicit user consent
+3. **No health data in logs** or error messages
+4. **Never skip tests** to make CI pass
+5. **Secrets in SOPS + age only**
+6. **Self-hosting must work** — no required cloud services
+7. **Stay in your lane** — don't modify files outside your assigned area without flagging it
+
 ## PR Workflow
 
 1. Create a feature branch: `git checkout -b feat/description`
@@ -41,13 +77,13 @@ If you need to modify files outside your workspace, flag it in the PR descriptio
 
 ## What Not to Do
 
-- Do not modify files outside your assigned service without flagging it
 - Do not disable or skip tests to make CI pass
 - Do not add `#[allow(dead_code)]` or `// eslint-disable` to silence warnings
 - Do not hit real external APIs in tests -- use WireMock fixtures
 - Do not assume a running database in tests -- use testcontainers
 - Do not add analytics or telemetry
 - Do not validate substance names (non-judgmental by design)
+- Do not run infrastructure commands manually -- use IaC
 
 ## Interface Contracts
 
