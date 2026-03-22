@@ -1,0 +1,39 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.exportButtons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.dangerZone {
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  margin-top: 2rem;
+}
+
+.dangerTitle {
+  color: var(--color-error);
+  margin-top: 0;
+}
+
+.linkedAccount {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.linkedAccountEmail {
+  color: var(--color-text-muted);
+}
+
+.linkedList {
+  list-style: none;
+  padding: 0;
+}
+
+.confirmActions {
+  display: flex;
+  gap: 0.5rem;
+}

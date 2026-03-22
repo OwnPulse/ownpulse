@@ -4,34 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { dashboardApi } from "../api/dashboard";
-
-const cardStyle: React.CSSProperties = {
-  background: "var(--color-surface)",
-  borderRadius: "var(--radius-md)",
-  boxShadow: "var(--shadow-sm)",
-  padding: "1.25rem",
-  border: "1px solid var(--color-border)",
-};
-
-const statGrid: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-  gap: "1rem",
-  marginBottom: "1.5rem",
-};
-
-const statValue: React.CSSProperties = {
-  fontSize: "2rem",
-  fontWeight: 700,
-  color: "var(--color-text)",
-  lineHeight: 1,
-};
-
-const statLabel: React.CSSProperties = {
-  fontSize: "0.8125rem",
-  color: "var(--color-text-muted)",
-  marginTop: "0.25rem",
-};
+import styles from "./Dashboard.module.css";
 
 export default function Dashboard() {
   const { data, isLoading, isError } = useQuery({
@@ -39,96 +12,69 @@ export default function Dashboard() {
     queryFn: dashboardApi.summary,
   });
 
-  if (isLoading) return <main style={{ padding: "1.5rem" }}>Loading...</main>;
-  if (isError || !data) return <main style={{ padding: "1.5rem" }}>Error loading dashboard.</main>;
+  if (isLoading) return <main className="op-page">Loading...</main>;
+  if (isError || !data) return <main className="op-page">Error loading dashboard.</main>;
 
   const scores = data.latest_checkin;
 
   return (
-    <main style={{ padding: "1.5rem", fontFamily: "var(--font-family)" }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: "1.5rem", color: "var(--color-text)" }}>Dashboard</h1>
-        <Link
-          to="/entry"
-          style={{
-            padding: "0.5rem 1rem",
-            background: "var(--color-primary)",
-            color: "#fff",
-            borderRadius: "var(--radius-sm)",
-            textDecoration: "none",
-            fontSize: "0.875rem",
-            fontWeight: 600,
-          }}
-        >
+    <main className="op-page">
+      <div className="op-page-header">
+        <h1>Dashboard</h1>
+        <Link to="/entry" className={`op-btn op-btn-primary ${styles.logBtn}`}>
           + Log Data
         </Link>
       </div>
 
       {/* Today's check-in */}
-      <div style={{ ...cardStyle, marginBottom: "1.5rem" }}>
-        <h2 style={{ margin: "0 0 0.75rem", fontSize: "1rem", color: "var(--color-text)" }}>
-          Today&rsquo;s Check-in
-        </h2>
+      <div className={`op-card ${styles.checkinCard}`}>
+        <h2>Today&rsquo;s Check-in</h2>
         {scores ? (
-          <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+          <div className={styles.checkinScores}>
             {(["energy", "mood", "focus", "recovery", "libido"] as const).map((key) => (
-              <div key={key} style={{ textAlign: "center" }}>
-                <div style={statValue}>{scores[key] ?? "\u2014"}</div>
-                <div style={statLabel}>{key}</div>
+              <div key={key} className={styles.scoreItem}>
+                <div className={styles.statValue}>{scores[key] ?? "\u2014"}</div>
+                <div className={styles.statLabel}>{key}</div>
               </div>
             ))}
           </div>
         ) : (
-          <p style={{ margin: 0, color: "var(--color-text-muted)" }}>
-            No check-in yet today.{" "}
-            <Link to="/entry" style={{ color: "var(--color-primary)" }}>
-              Log one now
-            </Link>
+          <p className="op-empty">
+            No check-in yet today. <Link to="/entry">Log one now</Link>
           </p>
         )}
       </div>
 
       {/* 7-day stats */}
-      <div style={statGrid}>
+      <div className={styles.statGrid}>
         {[
           { label: "Check-ins", value: data.checkin_count_7d },
           { label: "Health Records", value: data.health_record_count_7d },
           { label: "Interventions", value: data.intervention_count_7d },
           { label: "Observations", value: data.observation_count_7d },
         ].map((s) => (
-          <div key={s.label} style={cardStyle}>
-            <div style={statValue}>{s.value}</div>
-            <div style={statLabel}>{s.label} (7 days)</div>
+          <div key={s.label} className="op-card">
+            <div className={styles.statValue}>{s.value}</div>
+            <div className={styles.statLabel}>{s.label} (7 days)</div>
           </div>
         ))}
       </div>
 
       {/* Pending shares */}
       {data.pending_friend_shares > 0 && (
-        <div style={{ ...cardStyle, marginBottom: "1.5rem", borderColor: "var(--color-primary)" }}>
-          <p style={{ margin: 0 }}>
+        <div className={`op-card ${styles.alertCard}`}>
+          <p>
             You have <strong>{data.pending_friend_shares}</strong> pending share request
-            {data.pending_friend_shares > 1 ? "s" : ""}.{" "}
-            <Link to="/friends" style={{ color: "var(--color-primary)" }}>
-              View
-            </Link>
+            {data.pending_friend_shares > 1 ? "s" : ""}. <Link to="/friends">View</Link>
           </p>
         </div>
       )}
 
       {/* Latest lab */}
       {data.latest_lab_date && (
-        <div style={cardStyle}>
-          <p style={{ margin: 0, color: "var(--color-text-muted)", fontSize: "0.875rem" }}>
-            Latest lab results:{" "}
-            <strong style={{ color: "var(--color-text)" }}>{data.latest_lab_date}</strong>
+        <div className={`op-card ${styles.labCard}`}>
+          <p>
+            Latest lab results: <strong>{data.latest_lab_date}</strong>
           </p>
         </div>
       )}

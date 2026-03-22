@@ -2,14 +2,23 @@
 // Copyright (C) OwnPulse Contributors
 
 import { VisAxis, VisStackedBar, VisXYContainer } from "@unovis/react";
+import { useMemo } from "react";
 import type { SleepRecord } from "../api/sleep";
 
 interface SleepChartProps {
   data: SleepRecord[];
 }
 
-// Colors for each sleep stage bar segment (order matches y accessors)
-const STAGE_COLORS = ["#1a365d", "#63b3ed", "#805ad5", "#ed8936"];
+function getChartColors(): string[] {
+  const root = document.documentElement;
+  const style = getComputedStyle(root);
+  return [
+    style.getPropertyValue("--chart-deep").trim() || "#2d6b6b",
+    style.getPropertyValue("--chart-light").trim() || "#5aadad",
+    style.getPropertyValue("--chart-rem").trim() || "#c2654a",
+    style.getPropertyValue("--chart-awake").trim() || "#c49a3c",
+  ];
+}
 
 // Y accessors: deep, light, REM, awake — nulls become 0 for rendering
 const yAccessors = [
@@ -25,8 +34,10 @@ function xAccessor(_d: SleepRecord, i: number): number {
 }
 
 export default function SleepChart({ data }: SleepChartProps) {
+  const colors = useMemo(() => getChartColors(), []);
+
   if (data.length === 0) {
-    return <p style={{ color: "#718096" }}>No sleep data for the last 14 days.</p>;
+    return <p className="op-empty">No sleep data for the last 14 days.</p>;
   }
 
   const tickValues = data.map((_, i) => i);
@@ -38,7 +49,7 @@ export default function SleepChart({ data }: SleepChartProps) {
         <VisStackedBar<SleepRecord>
           x={xAccessor}
           y={yAccessors}
-          color={STAGE_COLORS}
+          color={colors}
           barPadding={0.2}
           roundedCorners={2}
         />

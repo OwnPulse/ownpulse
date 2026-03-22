@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CreateHealthRecord, healthRecordsApi } from "../../api/health-records";
+import forms from "./forms.module.css";
 
 export default function HealthRecordForm() {
   const queryClient = useQueryClient();
@@ -37,53 +38,77 @@ export default function HealthRecordForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label>
+    <form onSubmit={handleSubmit} className={forms.form}>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="hr-source">
           Source
-          <input value={source} onChange={(e) => setSource(e.target.value)} required />
         </label>
+        <input
+          id="hr-source"
+          value={source}
+          onChange={(e) => setSource(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="hr-type">
           Record Type
-          <input value={recordType} onChange={(e) => setRecordType(e.target.value)} required />
         </label>
+        <input
+          id="hr-type"
+          value={recordType}
+          onChange={(e) => setRecordType(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="hr-value">
           Value
-          <input
-            type="number"
-            step="any"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            required
-          />
         </label>
+        <input
+          id="hr-value"
+          type="number"
+          step="any"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="hr-unit">
           Unit
-          <input value={unit} onChange={(e) => setUnit(e.target.value)} required />
         </label>
+        <input
+          id="hr-unit"
+          value={unit}
+          onChange={(e) => setUnit(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="hr-time">
           Start Time
-          <input
-            type="datetime-local"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            required
-          />
         </label>
+        <input
+          id="hr-time"
+          type="datetime-local"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? "Saving..." : "Save Health Record"}
-      </button>
-      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
+      <div className={forms.actions}>
+        <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
+          {mutation.isPending ? "Saving..." : "Save Health Record"}
+        </button>
+      </div>
+      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
+      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
     </form>
   );
 }

@@ -1,64 +1,106 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { Link, Outlet } from "react-router-dom";
+import { useState } from "react";
+import { NavLink, Outlet } from "react-router-dom";
 import { logout } from "../api/auth";
+import { useTheme } from "../hooks/useTheme";
 import { useAuthStore } from "../store/auth";
+import styles from "./Layout.module.css";
 
-const navStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "1rem",
-  alignItems: "center",
-  padding: "0.75rem 1.5rem",
-  borderBottom: "1px solid var(--color-border)",
-};
+const THEME_LABELS = {
+  light: "Theme: Light",
+  dark: "Theme: Dark",
+  system: "Theme: System",
+} as const;
 
-const linkStyle: React.CSSProperties = {
-  textDecoration: "none",
-  color: "var(--color-text)",
-};
+const THEME_CYCLE = {
+  light: "dark",
+  dark: "system",
+  system: "light",
+} as const;
 
 export default function Layout() {
   const role = useAuthStore((s) => s.role);
+  const { theme, setTheme } = useTheme();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
     window.location.href = "/login";
   };
 
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `${styles.navLink}${isActive ? ` ${styles.navLinkActive}` : ""}`;
+
+  const closeSidebar = () => setSidebarOpen(false);
+
   return (
-    <div>
-      <nav style={navStyle}>
-        <Link to="/" style={linkStyle}>
-          Dashboard
-        </Link>
-        <Link to="/timeline" style={linkStyle}>
-          Timeline
-        </Link>
-        <Link to="/entry" style={linkStyle}>
-          Data Entry
-        </Link>
-        <Link to="/sources" style={linkStyle}>
-          Sources
-        </Link>
-        <Link to="/friends" style={linkStyle}>
-          Friends
-        </Link>
-        <Link to="/settings" style={linkStyle}>
-          Settings
-        </Link>
-        {role === "admin" && (
-          <Link to="/admin" style={linkStyle}>
-            Admin
-          </Link>
-        )}
-        <div style={{ marginLeft: "auto" }}>
-          <button type="button" onClick={handleLogout}>
+    <div className={styles.layout}>
+      <button
+        type="button"
+        className={styles.menuBtn}
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        aria-label="Toggle menu"
+      >
+        &#9776;
+      </button>
+
+      {/* biome-ignore lint: overlay click is intentional for closing sidebar */}
+      <div
+        className={`${styles.overlay}${sidebarOpen ? ` ${styles.overlayVisible}` : ""}`}
+        onClick={closeSidebar}
+      />
+
+      <aside className={`${styles.sidebar}${sidebarOpen ? ` ${styles.sidebarOpen}` : ""}`}>
+        <NavLink to="/" className={styles.wordmark} onClick={closeSidebar}>
+          <span className={styles.wordmarkOwn}>Own</span>
+          <span className={styles.wordmarkPulse}>Pulse</span>
+        </NavLink>
+
+        <nav className={styles.nav}>
+          <NavLink to="/" end className={navLinkClass} onClick={closeSidebar}>
+            Dashboard
+          </NavLink>
+          <NavLink to="/timeline" className={navLinkClass} onClick={closeSidebar}>
+            Timeline
+          </NavLink>
+          <NavLink to="/entry" className={navLinkClass} onClick={closeSidebar}>
+            Data Entry
+          </NavLink>
+          <NavLink to="/sources" className={navLinkClass} onClick={closeSidebar}>
+            Sources
+          </NavLink>
+          <NavLink to="/friends" className={navLinkClass} onClick={closeSidebar}>
+            Friends
+          </NavLink>
+          <NavLink to="/settings" className={navLinkClass} onClick={closeSidebar}>
+            Settings
+          </NavLink>
+          {role === "admin" && (
+            <NavLink to="/admin" className={navLinkClass} onClick={closeSidebar}>
+              Admin
+            </NavLink>
+          )}
+        </nav>
+
+        <div className={styles.bottom}>
+          <button
+            type="button"
+            className={styles.themeToggle}
+            onClick={() => setTheme(THEME_CYCLE[theme])}
+          >
+            {THEME_LABELS[theme]}
+          </button>
+          <button type="button" className={styles.logoutBtn} onClick={handleLogout}>
             Logout
           </button>
         </div>
-      </nav>
-      <Outlet />
+      </aside>
+
+      <main className={styles.main}>
+        <Outlet />
+      </main>
     </div>
   );
 }

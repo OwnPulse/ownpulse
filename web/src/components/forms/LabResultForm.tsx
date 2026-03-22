@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CreateLabResult, labsApi } from "../../api/labs";
+import forms from "./forms.module.css";
 
 export default function LabResultForm() {
   const queryClient = useQueryClient();
@@ -43,75 +44,103 @@ export default function LabResultForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label>
+    <form onSubmit={handleSubmit} className={forms.form}>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="lab-date">
           Panel Date
-          <input
-            type="date"
-            value={panelDate}
-            onChange={(e) => setPanelDate(e.target.value)}
-            required
-          />
         </label>
+        <input
+          id="lab-date"
+          type="date"
+          value={panelDate}
+          onChange={(e) => setPanelDate(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="lab-name">
           Lab Name
-          <input value={labName} onChange={(e) => setLabName(e.target.value)} required />
         </label>
+        <input
+          id="lab-name"
+          value={labName}
+          onChange={(e) => setLabName(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="lab-marker">
           Marker
-          <input value={marker} onChange={(e) => setMarker(e.target.value)} required />
         </label>
+        <input
+          id="lab-marker"
+          value={marker}
+          onChange={(e) => setMarker(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="lab-value">
           Value
-          <input
-            type="number"
-            step="any"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            required
-          />
         </label>
+        <input
+          id="lab-value"
+          type="number"
+          step="any"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="lab-unit">
           Unit
-          <input value={unit} onChange={(e) => setUnit(e.target.value)} required />
         </label>
+        <input
+          id="lab-unit"
+          value={unit}
+          onChange={(e) => setUnit(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="lab-ref-low">
           Reference Low
-          <input
-            type="number"
-            step="any"
-            value={referenceLow}
-            onChange={(e) => setReferenceLow(e.target.value)}
-          />
         </label>
+        <input
+          id="lab-ref-low"
+          type="number"
+          step="any"
+          value={referenceLow}
+          onChange={(e) => setReferenceLow(e.target.value)}
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="lab-ref-high">
           Reference High
-          <input
-            type="number"
-            step="any"
-            value={referenceHigh}
-            onChange={(e) => setReferenceHigh(e.target.value)}
-          />
         </label>
+        <input
+          id="lab-ref-high"
+          type="number"
+          step="any"
+          value={referenceHigh}
+          onChange={(e) => setReferenceHigh(e.target.value)}
+          className={forms.input}
+        />
       </div>
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? "Saving..." : "Save Lab Result"}
-      </button>
-      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
+      <div className={forms.actions}>
+        <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
+          {mutation.isPending ? "Saving..." : "Save Lab Result"}
+        </button>
+      </div>
+      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
+      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
     </form>
   );
 }

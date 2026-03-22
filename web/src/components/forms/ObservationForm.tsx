@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CreateObservation, observationsApi } from "../../api/observations";
+import forms from "./forms.module.css";
 
 const OBSERVATION_TYPES = [
   "event_instant",
@@ -77,113 +78,149 @@ export default function ObservationForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div>
-        <label>
+    <form onSubmit={handleSubmit} className={forms.form}>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="obs-type">
           Type
-          <select value={type} onChange={(e) => setType(e.target.value)}>
-            {OBSERVATION_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
         </label>
+        <select
+          id="obs-type"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+          className={forms.select}
+        >
+          {OBSERVATION_TYPES.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="obs-name">
           Name
-          <input value={name} onChange={(e) => setName(e.target.value)} required />
         </label>
+        <input
+          id="obs-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
-      <div>
-        <label>
+      <div className={forms.field}>
+        <label className={forms.label} htmlFor="obs-start">
           Start Time
-          <input
-            type="datetime-local"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            required
-          />
         </label>
+        <input
+          id="obs-start"
+          type="datetime-local"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+          required
+          className={forms.input}
+        />
       </div>
       {type === "event_duration" && (
-        <div>
-          <label>
+        <div className={forms.field}>
+          <label className={forms.label} htmlFor="obs-end">
             End Time
-            <input
-              type="datetime-local"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-            />
           </label>
+          <input
+            id="obs-end"
+            type="datetime-local"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
+            className={forms.input}
+          />
         </div>
       )}
       {(type === "scale" || type === "environmental") && (
-        <div>
-          <label>
+        <div className={forms.field}>
+          <label className={forms.label} htmlFor="obs-numeric">
             Numeric Value
-            <input
-              type="number"
-              step="any"
-              value={numeric}
-              onChange={(e) => setNumeric(e.target.value)}
-              required
-            />
           </label>
+          <input
+            id="obs-numeric"
+            type="number"
+            step="any"
+            value={numeric}
+            onChange={(e) => setNumeric(e.target.value)}
+            required
+            className={forms.input}
+          />
         </div>
       )}
       {type === "scale" && (
-        <div>
-          <label>
+        <div className={forms.field}>
+          <label className={forms.label} htmlFor="obs-max">
             Max
-            <input type="number" value={max} onChange={(e) => setMax(e.target.value)} required />
           </label>
+          <input
+            id="obs-max"
+            type="number"
+            value={max}
+            onChange={(e) => setMax(e.target.value)}
+            required
+            className={forms.input}
+          />
         </div>
       )}
       {type === "symptom" && (
-        <div>
-          <label>
+        <div className={forms.field}>
+          <label className={forms.label} htmlFor="obs-severity">
             Severity (1-10)
-            <input
-              type="number"
-              min="1"
-              max="10"
-              value={severity}
-              onChange={(e) => setSeverity(e.target.value)}
-              required
-            />
           </label>
+          <input
+            id="obs-severity"
+            type="number"
+            min="1"
+            max="10"
+            value={severity}
+            onChange={(e) => setSeverity(e.target.value)}
+            required
+            className={forms.input}
+          />
         </div>
       )}
       {type === "environmental" && (
-        <div>
-          <label>
+        <div className={forms.field}>
+          <label className={forms.label} htmlFor="obs-unit">
             Unit
-            <input value={unitVal} onChange={(e) => setUnitVal(e.target.value)} required />
           </label>
+          <input
+            id="obs-unit"
+            value={unitVal}
+            onChange={(e) => setUnitVal(e.target.value)}
+            required
+            className={forms.input}
+          />
         </div>
       )}
       {(type === "note" ||
         type === "event_instant" ||
         type === "event_duration" ||
         type === "context_tag") && (
-        <div>
-          <label>
+        <div className={forms.field}>
+          <label className={forms.label} htmlFor="obs-notes">
             {type === "note" ? "Text" : "Notes"}
-            <textarea
-              value={notesText}
-              onChange={(e) => setNotesText(e.target.value)}
-              required={type === "note"}
-            />
           </label>
+          <textarea
+            id="obs-notes"
+            value={notesText}
+            onChange={(e) => setNotesText(e.target.value)}
+            required={type === "note"}
+            className={forms.textarea}
+          />
         </div>
       )}
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? "Saving..." : "Save Observation"}
-      </button>
-      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
+      <div className={forms.actions}>
+        <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
+          {mutation.isPending ? "Saving..." : "Save Observation"}
+        </button>
+      </div>
+      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
+      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
     </form>
   );
 }

@@ -7,6 +7,7 @@ import { checkinsApi } from "../api/checkins";
 import { healthRecordsApi } from "../api/health-records";
 import { sleepApi } from "../api/sleep";
 import SleepChart from "../components/SleepChart";
+import styles from "./Timeline.module.css";
 
 export default function Timeline() {
   const healthRecords = useQuery({
@@ -31,44 +32,55 @@ export default function Timeline() {
   });
 
   return (
-    <main style={{ padding: "1.5rem" }}>
+    <main className="op-page">
       <h1>Timeline</h1>
 
-      <section>
+      <section className={styles.section}>
         <h2>Sleep (Last 14 Days)</h2>
         {sleepRecords.isLoading && <p>Loading...</p>}
         {sleepRecords.isError && <p>Error loading sleep records.</p>}
         {sleepRecords.data && <SleepChart data={sleepRecords.data} />}
       </section>
 
-      <section>
+      <section className={styles.section}>
         <h2>Recent Check-ins</h2>
         {checkins.isLoading && <p>Loading...</p>}
         {checkins.isError && <p>Error loading check-ins.</p>}
-        {checkins.data && checkins.data.length === 0 && <p>No check-ins yet.</p>}
+        {checkins.data && checkins.data.length === 0 && (
+          <p className="op-empty">No check-ins yet.</p>
+        )}
         {checkins.data && (
-          <ul>
+          <ul className={styles.list}>
             {checkins.data.map((c) => (
-              <li key={c.id}>
-                <strong>{c.date}</strong> — Energy: {c.energy}, Mood: {c.mood}, Focus: {c.focus},
-                Recovery: {c.recovery}, Libido: {c.libido}
-                {c.notes && ` — ${c.notes}`}
+              <li key={c.id} className={styles.listItem}>
+                <span className={styles.recordLabel}>{c.date}</span>
+                <span className={styles.recordMeta}>
+                  {" "}
+                  &mdash; Energy: {c.energy}, Mood: {c.mood}, Focus: {c.focus}, Recovery:{" "}
+                  {c.recovery}, Libido: {c.libido}
+                  {c.notes && ` \u2014 ${c.notes}`}
+                </span>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section>
+      <section className={styles.section}>
         <h2>Recent Health Records</h2>
         {healthRecords.isLoading && <p>Loading...</p>}
         {healthRecords.isError && <p>Error loading health records.</p>}
-        {healthRecords.data && healthRecords.data.length === 0 && <p>No health records yet.</p>}
+        {healthRecords.data && healthRecords.data.length === 0 && (
+          <p className="op-empty">No health records yet.</p>
+        )}
         {healthRecords.data && (
-          <ul>
+          <ul className={styles.list}>
             {healthRecords.data.map((r) => (
-              <li key={r.id}>
-                <strong>{r.record_type}</strong>: {r.value} {r.unit} ({r.source}, {r.start_time})
+              <li key={r.id} className={styles.listItem}>
+                <span className={styles.recordLabel}>{r.record_type}</span>
+                <span className={styles.recordMeta}>
+                  : {r.value} {r.unit} ({r.source}, {r.start_time})
+                </span>
               </li>
             ))}
           </ul>

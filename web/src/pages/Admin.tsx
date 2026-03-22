@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type AdminUser, adminApi, type InviteCode } from "../api/admin";
 import { useAuthStore } from "../store/auth";
+import styles from "./Admin.module.css";
 
 function decodeJwtSub(token: string | null): string | null {
   if (!token) return null;
@@ -16,55 +17,10 @@ function decodeJwtSub(token: string | null): string | null {
   }
 }
 
-const tableStyle: React.CSSProperties = {
-  width: "100%",
-  borderCollapse: "collapse",
-  fontSize: "0.875rem",
-};
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "0.75rem",
-  borderBottom: "2px solid var(--color-border)",
-  color: "var(--color-text-muted)",
-  fontWeight: 600,
-  fontSize: "0.8125rem",
-};
-const tdStyle: React.CSSProperties = {
-  padding: "0.75rem",
-  borderBottom: "1px solid var(--color-border)",
-  color: "var(--color-text)",
-};
-const sectionStyle: React.CSSProperties = {
-  background: "var(--color-surface)",
-  borderRadius: "var(--radius-md)",
-  border: "1px solid var(--color-border)",
-  overflow: "hidden",
-  marginBottom: "2rem",
-};
-const btnStyle: React.CSSProperties = {
-  padding: "0.25rem 0.5rem",
-  borderRadius: "var(--radius-sm)",
-  border: "1px solid var(--color-border)",
-  fontSize: "0.75rem",
-  fontFamily: "var(--font-family)",
-  cursor: "pointer",
-  background: "var(--color-surface)",
-};
-
 function statusBadge(status: string): React.ReactNode {
-  const color = status === "active" ? "#22c55e" : "#ef4444";
+  const isActive = status === "active";
   return (
-    <span
-      style={{
-        padding: "0.125rem 0.5rem",
-        borderRadius: "9999px",
-        fontSize: "0.75rem",
-        background: `${color}20`,
-        color,
-      }}
-    >
-      {status}
-    </span>
+    <span className={`op-badge ${isActive ? "op-badge-success" : "op-badge-error"}`}>{status}</span>
   );
 }
 
@@ -91,20 +47,20 @@ function UsersSection() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
   });
 
-  if (isLoading) return <p style={{ padding: "1rem" }}>Loading users...</p>;
-  if (isError) return <p style={{ padding: "1rem" }}>Error loading users.</p>;
+  if (isLoading) return <p>Loading users...</p>;
+  if (isError) return <p>Error loading users.</p>;
 
   return (
-    <div style={sectionStyle}>
-      <table style={tableStyle}>
+    <div className={styles.section}>
+      <table className="op-table">
         <thead>
           <tr>
-            <th style={thStyle}>Email</th>
-            <th style={thStyle}>Provider</th>
-            <th style={thStyle}>Role</th>
-            <th style={thStyle}>Status</th>
-            <th style={thStyle}>Created</th>
-            <th style={thStyle}>Actions</th>
+            <th>Email</th>
+            <th>Provider</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Created</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -112,46 +68,30 @@ function UsersSection() {
             const isSelf = u.id === currentUserId;
             return (
               <tr key={u.id}>
-                <td style={tdStyle}>
+                <td>
                   {u.email}
-                  {u.username && (
-                    <span
-                      style={{
-                        display: "block",
-                        fontSize: "0.75rem",
-                        color: "var(--color-text-muted)",
-                      }}
-                    >
-                      {u.username}
-                    </span>
-                  )}
+                  {u.username && <span className={styles.username}>{u.username}</span>}
                 </td>
-                <td style={tdStyle}>{u.auth_provider}</td>
-                <td style={tdStyle}>
+                <td>{u.auth_provider}</td>
+                <td>
                   <select
                     value={u.role}
                     disabled={isSelf}
                     onChange={(e) => roleMutation.mutate({ userId: u.id, role: e.target.value })}
-                    style={{
-                      padding: "0.25rem 0.5rem",
-                      borderRadius: "var(--radius-sm)",
-                      border: "1px solid var(--color-border)",
-                      fontSize: "0.8125rem",
-                      fontFamily: "var(--font-family)",
-                    }}
+                    className={styles.roleSelect}
                   >
                     <option value="admin">admin</option>
                     <option value="user">user</option>
                   </select>
                 </td>
-                <td style={tdStyle}>{statusBadge(u.status)}</td>
-                <td style={tdStyle}>{new Date(u.created_at).toLocaleDateString()}</td>
-                <td style={tdStyle}>
+                <td>{statusBadge(u.status)}</td>
+                <td>{new Date(u.created_at).toLocaleDateString()}</td>
+                <td>
                   {!isSelf && (
-                    <span style={{ display: "flex", gap: "0.5rem" }}>
+                    <span className={styles.actions}>
                       <button
                         type="button"
-                        style={btnStyle}
+                        className="op-btn op-btn-ghost op-btn-sm"
                         onClick={() =>
                           statusMutation.mutate({
                             userId: u.id,
@@ -163,7 +103,7 @@ function UsersSection() {
                       </button>
                       <button
                         type="button"
-                        style={{ ...btnStyle, color: "#ef4444", borderColor: "#ef4444" }}
+                        className="op-btn op-btn-danger op-btn-sm"
                         onClick={() => {
                           if (window.confirm(`Delete user ${u.email}? This cannot be undone.`))
                             deleteMutation.mutate(u.id);
@@ -234,24 +174,11 @@ function InvitesSection() {
 
   return (
     <div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1rem",
-        }}
-      >
-        <h2 style={{ fontSize: "1.25rem", color: "var(--color-text)" }}>Invites</h2>
+      <div className={styles.inviteHeader}>
+        <h2>Invites</h2>
         <button
           type="button"
-          style={{
-            ...btnStyle,
-            background: "var(--color-primary)",
-            color: "#fff",
-            border: "none",
-            padding: "0.375rem 0.75rem",
-          }}
+          className="op-btn op-btn-primary op-btn-sm"
           onClick={() => setShowForm(!showForm)}
         >
           {showForm ? "Cancel" : "Create Invite"}
@@ -259,27 +186,9 @@ function InvitesSection() {
       </div>
 
       {showForm && (
-        <form
-          onSubmit={handleCreate}
-          style={{
-            ...sectionStyle,
-            padding: "1rem",
-            display: "flex",
-            gap: "0.75rem",
-            flexWrap: "wrap",
-            alignItems: "end",
-          }}
-        >
-          <div>
-            <label
-              htmlFor="invite-label"
-              style={{
-                display: "block",
-                fontSize: "0.75rem",
-                color: "var(--color-text-muted)",
-                marginBottom: "0.25rem",
-              }}
-            >
+        <form onSubmit={handleCreate} className={styles.createForm}>
+          <div className={styles.createFormField}>
+            <label htmlFor="invite-label" className={styles.createFormLabel}>
               Label
             </label>
             <input
@@ -288,24 +197,11 @@ function InvitesSection() {
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="e.g. for Alice"
-              style={{
-                padding: "0.375rem 0.5rem",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--color-border)",
-                fontSize: "0.8125rem",
-              }}
+              className={styles.createFormInput}
             />
           </div>
-          <div>
-            <label
-              htmlFor="invite-max-uses"
-              style={{
-                display: "block",
-                fontSize: "0.75rem",
-                color: "var(--color-text-muted)",
-                marginBottom: "0.25rem",
-              }}
-            >
+          <div className={styles.createFormField}>
+            <label htmlFor="invite-max-uses" className={styles.createFormLabel}>
               Max uses
             </label>
             <input
@@ -315,25 +211,11 @@ function InvitesSection() {
               onChange={(e) => setMaxUses(e.target.value)}
               min="1"
               placeholder="unlimited"
-              style={{
-                padding: "0.375rem 0.5rem",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--color-border)",
-                fontSize: "0.8125rem",
-                width: "6rem",
-              }}
+              className={styles.createFormInputNarrow}
             />
           </div>
-          <div>
-            <label
-              htmlFor="invite-expires"
-              style={{
-                display: "block",
-                fontSize: "0.75rem",
-                color: "var(--color-text-muted)",
-                marginBottom: "0.25rem",
-              }}
-            >
+          <div className={styles.createFormField}>
+            <label htmlFor="invite-expires" className={styles.createFormLabel}>
               Expires in (hours)
             </label>
             <input
@@ -343,69 +225,57 @@ function InvitesSection() {
               onChange={(e) => setExpiresInHours(e.target.value)}
               min="1"
               placeholder="never"
-              style={{
-                padding: "0.375rem 0.5rem",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--color-border)",
-                fontSize: "0.8125rem",
-                width: "6rem",
-              }}
+              className={styles.createFormInputNarrow}
             />
           </div>
           <button
             type="submit"
             disabled={createMutation.isPending}
-            style={{
-              ...btnStyle,
-              background: "var(--color-primary)",
-              color: "#fff",
-              border: "none",
-              padding: "0.375rem 0.75rem",
-            }}
+            className="op-btn op-btn-primary op-btn-sm"
           >
             Create
           </button>
         </form>
       )}
 
-      <div style={sectionStyle}>
+      <div className={styles.section}>
         {isLoading ? (
-          <p style={{ padding: "1rem" }}>Loading invites...</p>
+          <p className={styles.loadingText}>Loading invites...</p>
         ) : (
-          <table style={tableStyle}>
+          <table className="op-table">
             <thead>
               <tr>
-                <th style={thStyle}>Code</th>
-                <th style={thStyle}>Label</th>
-                <th style={thStyle}>Uses</th>
-                <th style={thStyle}>Expires</th>
-                <th style={thStyle}>Status</th>
-                <th style={thStyle}>Actions</th>
+                <th>Code</th>
+                <th>Label</th>
+                <th>Uses</th>
+                <th>Expires</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {invites?.map((inv: InviteCode) => (
                 <tr key={inv.id}>
-                  <td style={{ ...tdStyle, fontFamily: "monospace" }}>{inv.code}</td>
-                  <td style={tdStyle}>{inv.label || "\u2014"}</td>
-                  <td style={tdStyle}>
+                  <td className={styles.codeCell}>{inv.code}</td>
+                  <td>{inv.label || "\u2014"}</td>
+                  <td>
                     {inv.use_count}/{inv.max_uses ?? "\u221E"}
                   </td>
-                  <td style={tdStyle}>
-                    {inv.expires_at ? new Date(inv.expires_at).toLocaleString() : "Never"}
-                  </td>
-                  <td style={tdStyle}>
-                    {statusBadge(inviteStatus(inv) === "Active" ? "active" : "disabled")}
-                  </td>
-                  <td style={tdStyle}>
-                    <span style={{ display: "flex", gap: "0.5rem" }}>
-                      <button type="button" style={btnStyle} onClick={() => copyUrl(inv.code)}>
+                  <td>{inv.expires_at ? new Date(inv.expires_at).toLocaleString() : "Never"}</td>
+                  <td>{statusBadge(inviteStatus(inv) === "Active" ? "active" : "disabled")}</td>
+                  <td>
+                    <span className={styles.actions}>
+                      <button
+                        type="button"
+                        className="op-btn op-btn-ghost op-btn-sm"
+                        onClick={() => copyUrl(inv.code)}
+                      >
                         {copied === inv.code ? "Copied!" : "Copy URL"}
                       </button>
                       {inviteStatus(inv) === "Active" && (
                         <button
                           type="button"
-                          style={{ ...btnStyle, color: "#ef4444" }}
+                          className="op-btn op-btn-danger op-btn-sm"
                           onClick={() => revokeMutation.mutate(inv.id)}
                         >
                           Revoke
@@ -417,10 +287,7 @@ function InvitesSection() {
               ))}
               {invites?.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={6}
-                    style={{ ...tdStyle, textAlign: "center", color: "var(--color-text-muted)" }}
-                  >
+                  <td colSpan={6} className="op-empty">
                     No invites yet.
                   </td>
                 </tr>
@@ -435,13 +302,9 @@ function InvitesSection() {
 
 export default function Admin() {
   return (
-    <main style={{ padding: "1.5rem", fontFamily: "var(--font-family)" }}>
-      <h1 style={{ fontSize: "1.5rem", color: "var(--color-text)", marginBottom: "1.5rem" }}>
-        Admin
-      </h1>
-      <h2 style={{ fontSize: "1.25rem", color: "var(--color-text)", marginBottom: "1rem" }}>
-        Users
-      </h2>
+    <main className="op-page">
+      <h1>Admin</h1>
+      <h2>Users</h2>
       <UsersSection />
       <InvitesSection />
     </main>

@@ -45,7 +45,10 @@ export default function Login() {
     <div className={styles.page}>
       <main className={styles.card}>
         <div className={styles.brand}>
-          <div className={styles.brandName}>OwnPulse</div>
+          <div className={styles.brandName}>
+            <span className={styles.brandNameOwn}>Own</span>
+            <span className={styles.brandNamePulse}>Pulse</span>
+          </div>
           <div className={styles.brandSub}>Your health data, your terms</div>
         </div>
 
@@ -115,11 +118,8 @@ export default function Login() {
           </button>
         </form>
 
-        <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
-          <Link
-            to="/register"
-            style={{ color: "var(--color-primary)", textDecoration: "none", fontSize: "0.875rem" }}
-          >
+        <div className={styles.footer}>
+          <Link to="/register" className={styles.footerLink}>
             Have an invite code? Sign up
           </Link>
         </div>
