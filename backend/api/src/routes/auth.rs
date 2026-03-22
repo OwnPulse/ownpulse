@@ -116,13 +116,13 @@ pub async fn register(
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     // Validate and claim invite code if required
-    if state.config.require_invite {
+    let claimed_invite = if state.config.require_invite {
         let code = body
             .invite_code
             .as_deref()
             .ok_or_else(|| ApiError::BadRequest("invite code required".into()))?;
 
-        invites::claim_invite_code_tx(&mut tx, code)
+        let invite = invites::claim_invite_code_tx(&mut tx, code)
             .await
             .map_err(|e| match e {
                 sqlx::Error::RowNotFound => {
@@ -130,7 +130,10 @@ pub async fn register(
                 }
                 other => ApiError::Internal(other.to_string()),
             })?;
-    }
+        Some(invite)
+    } else {
+        None
+    };
 
     // Create the user inside the same transaction
     let user = sqlx::query_as::<_, crate::models::user::UserRow>(
@@ -161,6 +164,13 @@ pub async fn register(
     .execute(&mut *tx)
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Record the invite claim audit trail
+    if let Some(invite) = claimed_invite {
+        invites::record_invite_claim(&mut tx, invite.id, user.id)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+    }
 
     tx.commit()
         .await
@@ -472,12 +482,12 @@ pub async fn google_callback(
         }
         Err(sqlx::Error::RowNotFound) => {
             // New user — claim invite if required, then create.
-            if state.config.require_invite {
+            let claimed_invite = if state.config.require_invite {
                 let code = invite_code_cookie.ok_or_else(|| {
                     ApiError::BadRequest("invite code required for new account registration".into())
                 })?;
 
-                invites::claim_invite_code_tx(&mut tx, &code)
+                let invite = invites::claim_invite_code_tx(&mut tx, &code)
                     .await
                     .map_err(|e| match e {
                         sqlx::Error::RowNotFound => {
@@ -485,7 +495,10 @@ pub async fn google_callback(
                         }
                         other => ApiError::Internal(other.to_string()),
                     })?;
-            }
+                Some(invite)
+            } else {
+                None
+            };
 
             let user = users::find_or_create_google_user_tx(
                 &mut tx,
@@ -495,6 +508,13 @@ pub async fn google_callback(
             )
             .await
             .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            // Record the invite claim audit trail
+            if let Some(invite) = claimed_invite {
+                invites::record_invite_claim(&mut tx, invite.id, user.id)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+            }
 
             tx.commit()
                 .await
@@ -663,12 +683,12 @@ pub async fn apple_callback(
         }
         Err(sqlx::Error::RowNotFound) => {
             // New user — claim invite if required, then create.
-            if state.config.require_invite {
+            let claimed_invite = if state.config.require_invite {
                 let code = body.invite_code.as_deref().ok_or_else(|| {
                     ApiError::BadRequest("invite code required for new account registration".into())
                 })?;
 
-                invites::claim_invite_code_tx(&mut tx, code)
+                let invite = invites::claim_invite_code_tx(&mut tx, code)
                     .await
                     .map_err(|e| match e {
                         sqlx::Error::RowNotFound => {
@@ -676,7 +696,10 @@ pub async fn apple_callback(
                         }
                         other => ApiError::Internal(other.to_string()),
                     })?;
-            }
+                Some(invite)
+            } else {
+                None
+            };
 
             let user = users::find_or_create_apple_user_tx(
                 &mut tx,
@@ -686,6 +709,13 @@ pub async fn apple_callback(
             )
             .await
             .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            // Record the invite claim audit trail
+            if let Some(invite) = claimed_invite {
+                invites::record_invite_claim(&mut tx, invite.id, user.id)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+            }
 
             tx.commit()
                 .await

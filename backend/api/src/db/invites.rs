@@ -31,6 +31,22 @@ pub async fn create_invite(
     .await
 }
 
+/// Record that a user claimed an invite code. Runs inside the registration
+/// transaction so the claim record is committed atomically with the user
+/// creation and invite use_count increment.
+pub async fn record_invite_claim(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    invite_code_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT INTO invite_claims (invite_code_id, user_id) VALUES ($1, $2)")
+        .bind(invite_code_id)
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
 /// Atomically claim an invite code: check validity and increment use_count in one query.
 ///
 /// Returns Ok(InviteRow) with the updated row if the code was successfully claimed,

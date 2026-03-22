@@ -996,3 +996,76 @@ async fn test_update_role_still_works() {
     let body = common::body_json(response).await;
     assert_eq!(body["role"], "admin");
 }
+
+// ─── Invite claim audit trail ────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn test_invite_claim_recorded_on_registration() {
+    let app = common::setup_with_config(|c| {
+        c.require_invite = true;
+    })
+    .await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
+
+    // Create an invite code
+    let response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/admin/invites",
+            &admin_token,
+            Some(&json!({})),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 201);
+    let invite_body = common::body_json(response).await;
+    let code = invite_body["code"].as_str().unwrap().to_string();
+    let invite_id: uuid::Uuid = invite_body["id"].as_str().unwrap().parse().unwrap();
+
+    // Register a user with the invite code
+    let email = format!("claimtest-{}@example.com", uuid::Uuid::new_v4());
+    let response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/auth/register",
+            "",
+            Some(&json!({
+                "email": email,
+                "password": "securepassword123",
+                "invite_code": code,
+            })),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200);
+
+    // Look up the newly created user's ID
+    let user_row: (uuid::Uuid,) = sqlx::query_as("SELECT id FROM users WHERE email = $1")
+        .bind(&email)
+        .fetch_one(&app.pool)
+        .await
+        .expect("user should exist after registration");
+
+    // Verify the invite_claims table has the correct record
+    let claim: (uuid::Uuid, uuid::Uuid) =
+        sqlx::query_as("SELECT invite_code_id, user_id FROM invite_claims WHERE user_id = $1")
+            .bind(user_row.0)
+            .fetch_one(&app.pool)
+            .await
+            .expect("invite_claims row should exist after registration");
+
+    assert_eq!(
+        claim.0, invite_id,
+        "invite_code_id should match the invite used"
+    );
+    assert_eq!(
+        claim.1, user_row.0,
+        "user_id should match the registered user"
+    );
+}
