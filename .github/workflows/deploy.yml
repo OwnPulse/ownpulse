@@ -68,7 +68,7 @@ jobs:
                   status: 'success',
                   per_page: 1,
                 });
-                if (runs.data.total_count === 0) {
+                if (runs.data.workflow_runs.length === 0) {
                   core.setFailed(`No successful ${svc.workflow} run found on main`);
                   return;
                 }
@@ -97,7 +97,7 @@ jobs:
                 head_sha: targetSha,
                 per_page: 1,
               });
-              if (runs.data.total_count > 0) {
+              if (runs.data.workflow_runs.length > 0) {
                 core.setOutput(svc.name, targetSha);
                 core.info(`${svc.name}: built at ${targetSha}`);
                 continue;
@@ -112,7 +112,7 @@ jobs:
                 status: 'success',
                 per_page: 1,
               });
-              if (runs.data.total_count === 0) {
+              if (runs.data.workflow_runs.length === 0) {
                 core.setFailed(`No successful ${svc.workflow} run found on main`);
                 return;
               }
