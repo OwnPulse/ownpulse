@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use axum::body::Body;
 use axum::Router;
+use axum::body::Body;
 use http::Request;
 use http_body_util::BodyExt;
 use serde_json::Value;
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
-use testcontainers::runners::AsyncRunner;
+use sqlx::postgres::PgPoolOptions;
 use testcontainers::ImageExt;
+use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
 
@@ -117,12 +117,7 @@ pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
 }
 
 /// Build an authenticated HTTP request.
-pub fn auth_request(
-    method: &str,
-    uri: &str,
-    token: &str,
-    body: Option<&Value>,
-) -> Request<Body> {
+pub fn auth_request(method: &str, uri: &str, token: &str, body: Option<&Value>) -> Request<Body> {
     let mut builder = Request::builder()
         .method(method)
         .uri(uri)
@@ -142,23 +137,13 @@ pub fn auth_request(
 
 /// Collect the response body into a parsed JSON value.
 pub async fn body_json(response: axum::response::Response) -> Value {
-    let bytes = response
-        .into_body()
-        .collect()
-        .await
-        .unwrap()
-        .to_bytes();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
 }
 
 /// Collect the response body into a string.
 pub async fn body_string(response: axum::response::Response) -> String {
-    let bytes = response
-        .into_body()
-        .collect()
-        .await
-        .unwrap()
-        .to_bytes();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
     String::from_utf8(bytes.to_vec()).unwrap()
 }
 
@@ -169,7 +154,12 @@ async fn run_migrations(pool: &PgPool) {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../db/migrations");
 
     let mut entries: Vec<_> = std::fs::read_dir(&migrations_dir)
-        .unwrap_or_else(|e| panic!("cannot read migrations dir {}: {e}", migrations_dir.display()))
+        .unwrap_or_else(|e| {
+            panic!(
+                "cannot read migrations dir {}: {e}",
+                migrations_dir.display()
+            )
+        })
         .filter_map(|entry| {
             let entry = entry.ok()?;
             let path = entry.path();

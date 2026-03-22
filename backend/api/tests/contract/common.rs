@@ -5,10 +5,10 @@
 //! starts the Axum server on a random TCP port so the Pact verifier can
 //! make real HTTP requests against it.
 
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
-use testcontainers::runners::AsyncRunner;
+use sqlx::postgres::PgPoolOptions;
 use testcontainers::ImageExt;
+use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 
 /// Holds the running server address, database pool, and the container handle.

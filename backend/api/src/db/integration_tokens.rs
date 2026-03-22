@@ -126,18 +126,12 @@ pub async fn upsert(
 }
 
 /// Delete an integration token (disconnect a source).
-pub async fn delete(
-    pool: &PgPool,
-    user_id: Uuid,
-    source: &str,
-) -> Result<bool, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM integration_tokens WHERE user_id = $1 AND source = $2",
-    )
-    .bind(user_id)
-    .bind(source)
-    .execute(pool)
-    .await?;
+pub async fn delete(pool: &PgPool, user_id: Uuid, source: &str) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM integration_tokens WHERE user_id = $1 AND source = $2")
+        .bind(user_id)
+        .bind(source)
+        .execute(pool)
+        .await?;
 
     Ok(result.rows_affected() > 0)
 }

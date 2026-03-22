@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::Json;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db;
 use crate::db::users;
 use crate::error::ApiError;
 use crate::models::user::UserResponse;
-use crate::AppState;
 
 /// GET /account — return the current user's profile.
 pub async fn get_account(
@@ -30,8 +30,15 @@ pub async fn delete_account(
     // record is committed regardless of whether the caller's connection closes
     // immediately after. The data_access_log table has no FK on user_id
     // intentionally — the log must survive account deletion.
-    if let Err(e) =
-        db::audit::log_access(&state.pool, user_id, "delete_account", "account", None, None).await
+    if let Err(e) = db::audit::log_access(
+        &state.pool,
+        user_id,
+        "delete_account",
+        "account",
+        None,
+        None,
+    )
+    .await
     {
         tracing::warn!(error = %e, user_id = %user_id, "audit log insert failed before account deletion");
     }

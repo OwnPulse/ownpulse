@@ -1,0 +1,33 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b  # v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-json
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --manifest-path backend/Cargo.toml -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: biome-check
+        name: biome check
+        entry: ./web/node_modules/.bin/biome check
+        language: system
+        files: ^web/(src|tests)/
+        pass_filenames: false
+
+      - id: tsc-check
+        name: tsc --noEmit
+        entry: ./web/node_modules/.bin/tsc --noEmit -p web/tsconfig.json
+        language: system
+        files: ^web/
+        types_or: [ts, tsx]
+        pass_filenames: false

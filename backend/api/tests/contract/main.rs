@@ -18,9 +18,9 @@ use itertools::Either;
 use pact_models::bodies::OptionalBody;
 use pact_models::v4::http_parts::HttpRequest;
 use pact_verifier::{
+    FilterInfo, PactSource, ProviderInfo, ProviderTransport, VerificationOptions,
     callback_executors::{ProviderStateExecutor, RequestFilterExecutor},
-    verify_provider_async, FilterInfo, PactSource, ProviderInfo, ProviderTransport,
-    VerificationOptions,
+    verify_provider_async,
 };
 use serde_json::Value;
 use uuid::Uuid;
@@ -207,8 +207,8 @@ async fn create_admin_user(pool: &sqlx::PgPool, jwt_secret: &str) -> (Uuid, Stri
     .await
     .expect("insert admin user");
 
-    let token = api::auth::jwt::encode_access_token(row.0, "admin", jwt_secret, 3600)
-        .expect("encode JWT");
+    let token =
+        api::auth::jwt::encode_access_token(row.0, "admin", jwt_secret, 3600).expect("encode JWT");
 
     (row.0, token)
 }

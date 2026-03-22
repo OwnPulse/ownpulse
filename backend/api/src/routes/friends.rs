@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
-use axum::Json;
 use chrono::Duration;
 use serde_json::{Map, Value};
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db;
 use crate::error::ApiError;
 use crate::models::friend_share::{
     AcceptLinkRequest, CreateShareRequest, FriendShareResponse, UpdatePermissionsRequest,
 };
-use crate::AppState;
 
 /// Mask an email for privacy: show first char + *** + domain.
 /// e.g., "tony@gmail.com" → "t***@gmail.com"
@@ -146,8 +146,7 @@ pub async fn accept_link(
     AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<AcceptLinkRequest>,
 ) -> Result<Json<Value>, ApiError> {
-    let share =
-        db::friend_shares::accept_by_token(&state.pool, &body.token, user_id).await?;
+    let share = db::friend_shares::accept_by_token(&state.pool, &body.token, user_id).await?;
 
     Ok(Json(serde_json::json!({
         "id": share.id,
@@ -207,8 +206,7 @@ pub async fn get_friend_data(
                 let items = db::checkins::list(&state.pool, friend_id).await?;
                 result.insert(
                     "checkins".to_string(),
-                    serde_json::to_value(items)
-                        .map_err(|e| ApiError::Internal(e.to_string()))?,
+                    serde_json::to_value(items).map_err(|e| ApiError::Internal(e.to_string()))?,
                 );
             }
             "health_records" => {
@@ -217,33 +215,28 @@ pub async fn get_friend_data(
                         .await?;
                 result.insert(
                     "health_records".to_string(),
-                    serde_json::to_value(items)
-                        .map_err(|e| ApiError::Internal(e.to_string()))?,
+                    serde_json::to_value(items).map_err(|e| ApiError::Internal(e.to_string()))?,
                 );
             }
             "interventions" => {
-                let items =
-                    db::interventions::list(&state.pool, friend_id, None, None).await?;
+                let items = db::interventions::list(&state.pool, friend_id, None, None).await?;
                 result.insert(
                     "interventions".to_string(),
-                    serde_json::to_value(items)
-                        .map_err(|e| ApiError::Internal(e.to_string()))?,
+                    serde_json::to_value(items).map_err(|e| ApiError::Internal(e.to_string()))?,
                 );
             }
             "observations" => {
                 let items = db::observations::list(&state.pool, friend_id, None).await?;
                 result.insert(
                     "observations".to_string(),
-                    serde_json::to_value(items)
-                        .map_err(|e| ApiError::Internal(e.to_string()))?,
+                    serde_json::to_value(items).map_err(|e| ApiError::Internal(e.to_string()))?,
                 );
             }
             "lab_results" => {
                 let items = db::lab_results::list(&state.pool, friend_id).await?;
                 result.insert(
                     "lab_results".to_string(),
-                    serde_json::to_value(items)
-                        .map_err(|e| ApiError::Internal(e.to_string()))?,
+                    serde_json::to_value(items).map_err(|e| ApiError::Internal(e.to_string()))?,
                 );
             }
             _ => {}

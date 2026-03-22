@@ -119,8 +119,7 @@ fn default_require_invite() -> bool {
 impl Config {
     /// Load configuration from environment variables.
     pub fn load() -> Self {
-        let config =
-            envy::from_env::<Config>().expect("failed to load config from environment");
+        let config = envy::from_env::<Config>().expect("failed to load config from environment");
         config.validate();
         config
     }

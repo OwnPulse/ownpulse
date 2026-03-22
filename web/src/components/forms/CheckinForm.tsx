@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { checkinsApi, UpsertCheckin } from "../../api/checkins";
+import { useState } from "react";
+import { checkinsApi, type UpsertCheckin } from "../../api/checkins";
 
 export default function CheckinForm() {
   const queryClient = useQueryClient();
@@ -47,12 +47,7 @@ export default function CheckinForm() {
       <div>
         <label>
           Date
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            required
-          />
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </label>
       </div>
       {[
@@ -84,9 +79,7 @@ export default function CheckinForm() {
       <button type="submit" disabled={mutation.isPending}>
         {mutation.isPending ? "Saving..." : "Save Check-in"}
       </button>
-      {mutation.isError && (
-        <p style={{ color: "red" }}>Error: {mutation.error.message}</p>
-      )}
+      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
       {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
     </form>
   );

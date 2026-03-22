@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { healthRecordsApi, CreateHealthRecord } from "../../api/health-records";
+import { useState } from "react";
+import { type CreateHealthRecord, healthRecordsApi } from "../../api/health-records";
 
 export default function HealthRecordForm() {
   const queryClient = useQueryClient();
@@ -41,21 +41,13 @@ export default function HealthRecordForm() {
       <div>
         <label>
           Source
-          <input
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            required
-          />
+          <input value={source} onChange={(e) => setSource(e.target.value)} required />
         </label>
       </div>
       <div>
         <label>
           Record Type
-          <input
-            value={recordType}
-            onChange={(e) => setRecordType(e.target.value)}
-            required
-          />
+          <input value={recordType} onChange={(e) => setRecordType(e.target.value)} required />
         </label>
       </div>
       <div>
@@ -73,11 +65,7 @@ export default function HealthRecordForm() {
       <div>
         <label>
           Unit
-          <input
-            value={unit}
-            onChange={(e) => setUnit(e.target.value)}
-            required
-          />
+          <input value={unit} onChange={(e) => setUnit(e.target.value)} required />
         </label>
       </div>
       <div>
@@ -94,9 +82,7 @@ export default function HealthRecordForm() {
       <button type="submit" disabled={mutation.isPending}>
         {mutation.isPending ? "Saving..." : "Save Health Record"}
       </button>
-      {mutation.isError && (
-        <p style={{ color: "red" }}>Error: {mutation.error.message}</p>
-      )}
+      {mutation.isError && <p style={{ color: "red" }}>Error: {mutation.error.message}</p>}
       {mutation.isSuccess && <p style={{ color: "green" }}>Saved!</p>}
     </form>
   );

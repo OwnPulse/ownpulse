@@ -2,17 +2,15 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useEffect, useState } from "react";
-import { useSearchParams, Link, Navigate } from "react-router-dom";
-import { useAuthStore } from "../store/auth";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { friendsApi } from "../api/friends";
+import { useAuthStore } from "../store/auth";
 
 export default function ShareAccept() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [status, setStatus] = useState<"loading" | "success" | "error">(
-    "loading",
-  );
+  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {

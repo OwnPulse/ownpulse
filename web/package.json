@@ -11,7 +11,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "lint": "biome check src/ tests/",
+    "lint:fix": "biome check --write src/ tests/",
+    "format": "biome format --write src/ tests/",
+    "format:check": "biome format src/ tests/"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.0.0",
@@ -23,6 +27,7 @@
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
     "@playwright/test": "^1.45.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.0.0",

@@ -61,11 +61,26 @@ impl SleepResponse {
             .get("duration_minutes")
             .and_then(|v| v.as_i64())
             .unwrap_or(0) as i32;
-        let deep_minutes = value.get("deep_minutes").and_then(|v| v.as_i64()).map(|v| v as i32);
-        let light_minutes = value.get("light_minutes").and_then(|v| v.as_i64()).map(|v| v as i32);
-        let rem_minutes = value.get("rem_minutes").and_then(|v| v.as_i64()).map(|v| v as i32);
-        let awake_minutes = value.get("awake_minutes").and_then(|v| v.as_i64()).map(|v| v as i32);
-        let score = value.get("score").and_then(|v| v.as_i64()).map(|v| v as i32);
+        let deep_minutes = value
+            .get("deep_minutes")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
+        let light_minutes = value
+            .get("light_minutes")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
+        let rem_minutes = value
+            .get("rem_minutes")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
+        let awake_minutes = value
+            .get("awake_minutes")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
+        let score = value
+            .get("score")
+            .and_then(|v| v.as_i64())
+            .map(|v| v as i32);
         let source_id = value
             .get("source_id")
             .and_then(|v| v.as_str())
