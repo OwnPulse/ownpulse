@@ -11,7 +11,9 @@ private let logger = Logger(subsystem: "health.ownpulse.app", category: "auth")
 @MainActor
 protocol AuthServiceProtocol: Sendable {
     var isAuthenticated: Bool { get }
-    func login() async throws
+    func loginWithGoogle() async throws
+    func loginWithApple() async throws
+    func loginWithPassword(username: String, password: String) async throws
     func logout() async
     func handleCallback(url: URL)
 }
@@ -56,9 +58,9 @@ final class AuthService: AuthServiceProtocol {
         }
     }
 
-    func login() async throws {
-        let authURL = buildGoogleAuthURL()
-        logger.info("Starting OAuth flow")
+    func loginWithGoogle() async throws {
+        let authURL = try buildGoogleAuthURL()
+        logger.info("Starting Google OAuth flow. URL: \(authURL.absoluteString, privacy: .private)")
 
         let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             self.authContinuation = continuation
@@ -69,9 +71,10 @@ final class AuthService: AuthServiceProtocol {
             ) { [weak self] url, error in
                 self?.authSession = nil
                 if let error {
-                    logger.error("OAuth error: \(error.localizedDescription, privacy: .public)")
+                    logger.error("Google OAuth error: \(error.localizedDescription, privacy: .public)")
                     continuation.resume(throwing: error)
                 } else if let url {
+                    logger.info("Google OAuth callback URL: \(url.absoluteString, privacy: .private)")
                     continuation.resume(returning: url)
                 }
             }
@@ -82,11 +85,61 @@ final class AuthService: AuthServiceProtocol {
 
             let started = session.start()
             if !started {
-                logger.error("ASWebAuthenticationSession failed to start")
+                logger.error("Google OAuth session failed to start")
             }
         }
 
         try await processCallback(url: callbackURL)
+    }
+
+    func loginWithApple() async throws {
+        logger.info("Starting Apple Sign-In flow")
+
+        let credential = try await AppleAuthHelper.performAppleAuth()
+
+        guard let idTokenData = credential.identityToken,
+              let idToken = String(data: idTokenData, encoding: .utf8) else {
+            logger.error("Apple Sign-In: invalid credential or missing identity token")
+            throw AuthError.invalidCallback
+        }
+
+        try await processAppleCredential(idToken: idToken)
+    }
+
+    /// Testable portion of Apple Sign-In: sends the identity token to the backend,
+    /// stores the returned tokens, and sets `isAuthenticated`.
+    func processAppleCredential(idToken: String) async throws {
+        logger.info("Apple Sign-In: received identity token, calling backend")
+
+        let body = AppleCallbackRequest(idToken: idToken, platform: "ios")
+        let response: TokenResponseWithRefresh = try await networkClient.request(
+            method: "POST",
+            path: Endpoints.authAppleCallback,
+            body: body
+        )
+
+        try keychainService.save(key: Self.accessTokenKey, data: Data(response.accessToken.utf8))
+        try keychainService.save(key: Self.refreshTokenKey, data: Data(response.refreshToken.utf8))
+        isAuthenticated = true
+        logger.info("Apple Sign-In: authentication successful")
+    }
+
+    func loginWithPassword(username: String, password: String) async throws {
+        logger.info("Starting password login for user: \(username, privacy: .private)")
+
+        let body = LoginRequest(username: username, password: password)
+        let response: TokenResponse = try await networkClient.request(
+            method: "POST",
+            path: Endpoints.authLogin,
+            body: body
+        )
+
+        try keychainService.save(key: Self.accessTokenKey, data: Data(response.accessToken.utf8))
+        // Note: password login returns access_token only in the JSON body; refresh token is
+        // set as an httpOnly cookie which iOS cannot read. Only the access token is stored.
+        // Users will need to re-authenticate when the token expires (acceptable for MVP).
+        isAuthenticated = true
+        logger.info("Password login: authentication successful")
     }
 
     func handleCallback(url: URL) {
@@ -157,12 +210,14 @@ final class AuthService: AuthServiceProtocol {
         isAuthenticated = true
     }
 
-    private func buildGoogleAuthURL() -> URL {
+    private func buildGoogleAuthURL() throws -> URL {
         let verifier = PKCEHelper.generateCodeVerifier()
         codeVerifier = verifier
         let challenge = PKCEHelper.codeChallenge(from: verifier)
 
-        var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")!
+        guard var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth") else {
+            throw AuthError.urlConstructionFailed
+        }
         components.queryItems = [
             URLQueryItem(name: "client_id", value: AppConfig.googleClientID),
             URLQueryItem(name: "redirect_uri", value: AppConfig.googleRedirectURI),
@@ -171,7 +226,10 @@ final class AuthService: AuthServiceProtocol {
             URLQueryItem(name: "code_challenge", value: challenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
         ]
-        return components.url!
+        guard let url = components.url else {
+            throw AuthError.urlConstructionFailed
+        }
+        return url
     }
 }
 
@@ -180,4 +238,5 @@ enum AuthError: Error {
     case missingCodeVerifier
     case callbackFailed
     case tokenStorageFailed
+    case urlConstructionFailed
 }

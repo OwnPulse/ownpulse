@@ -5,9 +5,10 @@ import Foundation
 import Testing
 @testable import OwnPulse
 
-// MARK: - Mock NetworkClient for Admin tests
+// MARK: - Mock for Admin tests (throws instead of fatalError for missing handler)
 
-private final class MockNetworkClient: NetworkClientProtocol, @unchecked Sendable {
+@MainActor
+private final class AdminMockNetworkClient: NetworkClientProtocol, @unchecked Sendable {
     var requestHandler: ((String, String, (any Encodable & Sendable)?) throws -> Any)?
     var requestNoContentHandler: ((String, String, (any Encodable & Sendable)?) throws -> Void)?
 
@@ -39,9 +40,10 @@ private final class MockNetworkClient: NetworkClientProtocol, @unchecked Sendabl
 
 // MARK: - AdminService Tests
 
-@Suite("AdminService")
+@Suite("AdminService", .serialized)
+@MainActor
 struct AdminServiceTests {
-    private let mockClient = MockNetworkClient()
+    private let mockClient = AdminMockNetworkClient()
 
     @Test("listUsers calls GET on admin users endpoint")
     func listUsers() async throws {
