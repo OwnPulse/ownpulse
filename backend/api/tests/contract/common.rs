@@ -46,7 +46,8 @@ fn test_config(database_url: &str) -> api::config::Config {
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
         encryption_key_previous: None,
-        require_invite: false,
+        apple_client_id: None,
+        apple_jwks_url: "https://appleid.apple.com/auth/keys".to_string(),
     }
 }
 

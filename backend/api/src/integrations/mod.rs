@@ -6,5 +6,6 @@
 //! One module per data source. All clients are designed for WireMock
 //! compatibility in tests — they accept a base URL parameter.
 
+pub mod apple;
 pub mod google;
 pub mod google_calendar;

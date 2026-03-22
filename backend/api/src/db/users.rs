@@ -9,7 +9,7 @@ use uuid::Uuid;
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
-                role, data_region, federation_id, created_at
+                role, data_region, federation_id, status, created_at
          FROM users WHERE id = $1",
     )
     .bind(id)
@@ -21,7 +21,7 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error>
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
-                role, data_region, federation_id, created_at
+                role, data_region, federation_id, status, created_at
          FROM users WHERE LOWER(email) = LOWER($1)",
     )
     .bind(email)
@@ -29,32 +29,146 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<UserRow, sqlx::
     .await
 }
 
-/// Look up a Google-authenticated user by email, creating one if none exists.
+/// Look up a Google-authenticated user, creating one if none exists.
 ///
 /// `display_name` is an optional human-readable name derived from the email
 /// local part; it is stored in the nullable `username` column.
+///
+/// Lookup order:
+/// 1. `user_auth_methods` by `(provider='google', provider_subject=google_sub)`
+/// 2. `user_auth_methods` by `(provider='google', email=email)` (legacy rows without sub)
+/// 3. Create a new user and insert an auth method row.
 pub async fn find_or_create_google_user(
     pool: &PgPool,
+    google_sub: &str,
     email: &str,
     display_name: Option<&str>,
 ) -> Result<UserRow, sqlx::Error> {
-    sqlx::query_as::<_, UserRow>(
-        "INSERT INTO users (email, username, auth_provider)
-         VALUES (LOWER($1), $2, 'google')
-         ON CONFLICT (LOWER(email)) DO UPDATE SET email = EXCLUDED.email
-         RETURNING *",
+    // 1. Look up by stable subject (preferred — doesn't change if user changes email)
+    match crate::db::user_auth_methods::find_by_provider_subject(pool, "google", google_sub).await {
+        Ok(user) => return Ok(user),
+        Err(sqlx::Error::RowNotFound) => {}
+        Err(e) => return Err(e),
+    }
+
+    // 2. Look up by email (handles migrated rows that have no subject yet)
+    match crate::db::user_auth_methods::find_by_provider_email(pool, "google", email).await {
+        Ok(user) => {
+            // Backfill the missing provider_subject so future lookups use the faster path.
+            sqlx::query(
+                "UPDATE user_auth_methods SET provider_subject = $1
+                 WHERE user_id = $2 AND provider = 'google' AND provider_subject IS NULL",
+            )
+            .bind(google_sub)
+            .bind(user.id)
+            .execute(pool)
+            .await?;
+            return Ok(user);
+        }
+        Err(sqlx::Error::RowNotFound) => {}
+        Err(e) => return Err(e),
+    }
+
+    // 3. Create a new user and auth method row inside a transaction.
+    let mut tx = pool.begin().await?;
+
+    let user = sqlx::query_as::<_, UserRow>(
+        "INSERT INTO users (username, email, auth_provider)
+         VALUES ($1, $2, 'google')
+         RETURNING id, username, password_hash, auth_provider, email,
+                   role, data_region, federation_id, status, created_at",
     )
-    .bind(email)
     .bind(display_name)
-    .fetch_one(pool)
-    .await
+    .bind(email)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email)
+         VALUES ($1, 'google', $2, $3)",
+    )
+    .bind(user.id)
+    .bind(google_sub)
+    .bind(email)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(user)
+}
+
+/// Look up an Apple-authenticated user, creating one if none exists.
+///
+/// Lookup order:
+/// 1. `user_auth_methods` by `(provider='apple', provider_subject=apple_sub)`
+/// 2. `user_auth_methods` by `(provider='apple', email=email)` if email is present
+/// 3. Create a new user and insert an auth method row.
+pub async fn find_or_create_apple_user(
+    pool: &PgPool,
+    apple_sub: &str,
+    email: Option<&str>,
+    username: &str,
+) -> Result<UserRow, sqlx::Error> {
+    // 1. Look up by Apple subject
+    match crate::db::user_auth_methods::find_by_provider_subject(pool, "apple", apple_sub).await {
+        Ok(user) => return Ok(user),
+        Err(sqlx::Error::RowNotFound) => {}
+        Err(e) => return Err(e),
+    }
+
+    // 2. Look up by email (only when Apple provided one)
+    if let Some(em) = email {
+        match crate::db::user_auth_methods::find_by_provider_email(pool, "apple", em).await {
+            Ok(user) => {
+                // Backfill subject
+                sqlx::query(
+                    "UPDATE user_auth_methods SET provider_subject = $1
+                     WHERE user_id = $2 AND provider = 'apple' AND provider_subject IS NULL",
+                )
+                .bind(apple_sub)
+                .bind(user.id)
+                .execute(pool)
+                .await?;
+                return Ok(user);
+            }
+            Err(sqlx::Error::RowNotFound) => {}
+            Err(e) => return Err(e),
+        }
+    }
+
+    // 3. Create new user and auth method row.
+    let mut tx = pool.begin().await?;
+
+    let user = sqlx::query_as::<_, UserRow>(
+        "INSERT INTO users (username, email, auth_provider)
+         VALUES ($1, $2, 'apple')
+         RETURNING id, username, password_hash, auth_provider, email,
+                   role, data_region, federation_id, status, created_at",
+    )
+    .bind(username)
+    .bind(email)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email)
+         VALUES ($1, 'apple', $2, $3)",
+    )
+    .bind(user.id)
+    .bind(apple_sub)
+    .bind(email)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(user)
 }
 
 /// List all users ordered by creation date.
 pub async fn list_all_users(pool: &PgPool) -> Result<Vec<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(
         "SELECT id, username, password_hash, auth_provider, email,
-                role, data_region, federation_id, created_at
+                role, data_region, federation_id, status, created_at
          FROM users ORDER BY created_at",
     )
     .fetch_all(pool)
@@ -70,7 +184,7 @@ pub async fn update_user_role(
     sqlx::query_as::<_, UserRow>(
         "UPDATE users SET role = $2 WHERE id = $1
          RETURNING id, username, password_hash, auth_provider, email,
-                   role, data_region, federation_id, created_at",
+                   role, data_region, federation_id, status, created_at",
     )
     .bind(user_id)
     .bind(role)
@@ -95,6 +209,10 @@ pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error
         .execute(&mut *tx)
         .await?;
     sqlx::query("DELETE FROM refresh_tokens WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("DELETE FROM user_auth_methods WHERE user_id = $1")
         .bind(user_id)
         .execute(&mut *tx)
         .await?;

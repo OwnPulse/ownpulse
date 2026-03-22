@@ -32,6 +32,13 @@ pub struct Config {
     #[serde(default = "default_google_userinfo_url")]
     pub google_userinfo_url: String,
 
+    /// Apple Sign-In client ID (also called "Service ID" for web or the app bundle ID for iOS).
+    #[serde(default)]
+    pub apple_client_id: Option<String>,
+    /// Apple JWKS endpoint — overridable for tests.
+    #[serde(default = "default_apple_jwks_url")]
+    pub apple_jwks_url: String,
+
     #[serde(default)]
     pub garmin_client_id: Option<String>,
     #[serde(default)]
@@ -105,6 +112,10 @@ fn default_google_userinfo_url() -> String {
     "https://www.googleapis.com/oauth2/v3/userinfo".to_string()
 }
 
+pub fn default_apple_jwks_url() -> String {
+    "https://appleid.apple.com/auth/keys".to_string()
+}
+
 fn default_rust_log() -> String {
     "info".to_string()
 }
@@ -165,6 +176,8 @@ mod tests {
             encryption_key_previous: None,
             google_token_url: default_google_token_url(),
             google_userinfo_url: default_google_userinfo_url(),
+            apple_client_id: None,
+            apple_jwks_url: default_apple_jwks_url(),
             storage_path: None,
             app_user: None,
             app_password_hash: None,

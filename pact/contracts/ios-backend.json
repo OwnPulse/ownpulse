@@ -1,6 +1,10 @@
 {
-  "consumer": { "name": "ownpulse-ios" },
-  "provider": { "name": "ownpulse-api" },
+  "consumer": {
+    "name": "ownpulse-ios"
+  },
+  "provider": {
+    "name": "ownpulse-api"
+  },
   "interactions": [
     {
       "description": "a request to refresh auth token via JSON body",
@@ -90,6 +94,109 @@
       }
     },
     {
+      "description": "a request to authenticate via Apple Sign-In callback",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/apple/callback",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id_token": "some-apple-id-token",
+          "platform": "ios"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "access_token": "some-jwt-token",
+          "refresh_token": "some-refresh-token",
+          "token_type": "Bearer",
+          "expires_in": 3600
+        }
+      }
+    },
+    {
+      "description": "a request to list linked auth methods",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/auth/methods",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "some-uuid",
+            "provider": "apple",
+            "email": "user@example.com",
+            "created_at": "2026-03-20T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to link a new auth provider",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/link",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "provider": "local",
+          "password": "securepassword123"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "some-uuid",
+            "provider": "local",
+            "email": null,
+            "created_at": "2026-03-20T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to unlink an auth provider",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/auth/link/google",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "some-uuid",
+            "provider": "apple",
+            "email": "user@example.com",
+            "created_at": "2026-03-20T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
       "description": "a request to list all users as admin",
       "request": {
         "method": "GET",
@@ -145,135 +252,11 @@
           "created_at": "2026-01-01T00:00:00Z"
         }
       }
-    },
-    {
-      "description": "a request to update a user status",
-      "request": {
-        "method": "PATCH",
-        "path": "/api/v1/admin/users/550e8400-e29b-41d4-a716-446655440001/status",
-        "headers": {
-          "Authorization": "Bearer some-admin-jwt-token",
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "status": "disabled"
-        }
-      },
-      "response": {
-        "status": 200,
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "id": "550e8400-e29b-41d4-a716-446655440001",
-          "username": "testuser",
-          "auth_provider": "google",
-          "role": "user",
-          "status": "disabled",
-          "data_region": "us",
-          "created_at": "2026-01-01T00:00:00Z"
-        }
-      }
-    },
-    {
-      "description": "a request to delete a user",
-      "request": {
-        "method": "DELETE",
-        "path": "/api/v1/admin/users/550e8400-e29b-41d4-a716-446655440001",
-        "headers": {
-          "Authorization": "Bearer some-admin-jwt-token"
-        }
-      },
-      "response": {
-        "status": 204
-      }
-    },
-    {
-      "description": "a request to list all invite codes",
-      "request": {
-        "method": "GET",
-        "path": "/api/v1/admin/invites",
-        "headers": {
-          "Authorization": "Bearer some-admin-jwt-token"
-        }
-      },
-      "response": {
-        "status": 200,
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "body": [
-          {
-            "id": "660e8400-e29b-41d4-a716-446655440000",
-            "code": "ABC123DEF456",
-            "label": "Friends",
-            "max_uses": 10,
-            "use_count": 3,
-            "expires_at": null,
-            "revoked_at": null,
-            "created_at": "2026-01-01T00:00:00Z"
-          }
-        ]
-      }
-    },
-    {
-      "description": "a request to create an invite code",
-      "request": {
-        "method": "POST",
-        "path": "/api/v1/admin/invites",
-        "headers": {
-          "Authorization": "Bearer some-admin-jwt-token",
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "label": "Team",
-          "max_uses": 5,
-          "expires_in_hours": 24
-        }
-      },
-      "response": {
-        "status": 201,
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "id": "660e8400-e29b-41d4-a716-446655440001",
-          "code": "XYZ789ABC012",
-          "label": "Team",
-          "max_uses": 5,
-          "use_count": 0,
-          "expires_at": "2026-03-22T00:00:00Z",
-          "revoked_at": null,
-          "created_at": "2026-03-21T00:00:00Z"
-        }
-      }
-    },
-    {
-      "description": "a request to revoke an invite code",
-      "request": {
-        "method": "DELETE",
-        "path": "/api/v1/admin/invites/660e8400-e29b-41d4-a716-446655440000",
-        "headers": {
-          "Authorization": "Bearer some-admin-jwt-token"
-        }
-      },
-      "response": {
-        "status": 200,
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "id": "660e8400-e29b-41d4-a716-446655440000",
-          "code": "ABC123DEF456",
-          "label": "Friends",
-          "max_uses": 10,
-          "use_count": 3,
-          "expires_at": null,
-          "revoked_at": "2026-03-21T12:00:00Z",
-          "created_at": "2026-01-01T00:00:00Z"
-        }
-      }
     }
   ],
-  "metadata": { "pactSpecification": { "version": "2.0.0" } }
+  "metadata": {
+    "pactSpecification": {
+      "version": "2.0.0"
+    }
+  }
 }

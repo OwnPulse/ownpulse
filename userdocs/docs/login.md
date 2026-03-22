@@ -1,10 +1,16 @@
 # Login & Account Setup
 
-OwnPulse supports two authentication methods. Both work on the web dashboard and the iOS app.
+OwnPulse supports three authentication methods. All work on both the web dashboard and the iOS app.
+
+## Apple Sign-In
+
+On the login screen, tap **Sign in with Apple**. You will be redirected to Apple's authentication flow. You can choose to share your real email address or use Apple's private relay address -- either works.
+
+After authorization, you are returned to OwnPulse and logged in immediately. If this is your first login, your account is created automatically.
 
 ## Google OAuth
 
-The fastest way to get started. On the login screen, tap **Sign in with Google**. You will be redirected to Google's consent screen, where you authorize OwnPulse to use your Google account for authentication. OwnPulse only requests your email and profile name -- it does not access your Google data.
+On the login screen, tap **Sign in with Google**. You will be redirected to Google's consent screen, where you authorize OwnPulse to use your Google account for authentication. OwnPulse only requests your email and profile name -- it does not access your Google data.
 
 After authorization, you are redirected back to OwnPulse and logged in immediately. If this is your first login, your account is created automatically.
 
@@ -14,7 +20,7 @@ Enter your username and password on the login screen and tap **Sign in**.
 
 ## Registering a new account
 
-If you have an invite link, open it in your browser. The registration page loads with the invite code pre-filled. Choose a username and password, or tap **Sign in with Google** to register with your Google account.
+If you have an invite link, open it in your browser. The registration page loads with the invite code pre-filled. Choose a username and password, or tap **Sign in with Apple** or **Sign in with Google** to register with your Apple or Google account.
 
 If you have an invite code but not a link, go to the registration page manually and enter the code along with your chosen username and password.
 
@@ -34,7 +40,7 @@ You can be logged in on multiple devices simultaneously. Each device maintains i
 
 ## Troubleshooting
 
-If you are stuck on the login screen after clicking **Sign in with Google**, check that your browser allows popups and redirects from your OwnPulse domain. If you are using a username/password account and cannot log in, contact your instance administrator to reset your password.
+If you are stuck on the login screen after clicking **Sign in with Apple** or **Sign in with Google**, check that your browser allows popups and redirects from your OwnPulse domain. If you are using a username/password account and cannot log in, contact your instance administrator to reset your password.
 
 ## Security notes
 
