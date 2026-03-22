@@ -208,6 +208,152 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 | GET | `/account` | Get account info | 1 |
 | DELETE | `/account` | Delete account and anonymize all data (72h) | 1 |
 
+### Friend Sharing
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| POST | `/friends/shares` | Create a new share (direct or invite link) | 1 |
+| GET | `/friends/shares/outgoing` | List shares you have created | 1 |
+| GET | `/friends/shares/incoming` | List shares others have with you | 1 |
+| POST | `/friends/shares/accept-link` | Accept a share via invite token | 1 |
+| POST | `/friends/shares/:id/accept` | Accept a direct share | 1 |
+| DELETE | `/friends/shares/:id` | Revoke (owner) or decline (friend) a share | 1 |
+| PATCH | `/friends/shares/:id/permissions` | Update data type permissions (owner only) | 1 |
+| GET | `/friends/:friend_id/data` | Get a friend's shared data | 1 |
+
+#### POST `/friends/shares`
+
+Create a new friend share. If `friend_email` is provided, the share is sent directly to that user. If omitted, an invite link is generated instead.
+
+**Request body:**
+
+```json
+{
+  "friend_email": "friend@example.com",
+  "data_types": ["checkins", "health_records"]
+}
+```
+
+- `friend_email` — optional; omit to create a link share with an invite token.
+- `data_types` — required, non-empty. Valid values: `checkins`, `health_records`, `interventions`, `observations`, `lab_results`.
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "uuid",
+  "owner_id": "uuid",
+  "owner_email": "owner@example.com",
+  "friend_id": "uuid or null",
+  "friend_email": "friend@example.com or null",
+  "status": "pending",
+  "invite_token": "uuid-token or null",
+  "data_types": ["checkins", "health_records"],
+  "created_at": "2026-03-21T00:00:00Z",
+  "accepted_at": null
+}
+```
+
+- For direct shares, `friend_id` and `friend_email` are set; `invite_token` is null.
+- For link shares, `friend_id` and `friend_email` are null; `invite_token` is set.
+- Invite tokens expire after 7 days.
+
+**Errors:** `400` if `data_types` is empty or contains invalid types. `400` if sharing with yourself.
+
+#### GET `/friends/shares/outgoing`
+
+List shares you have created. Excludes revoked and declined shares.
+
+**Response:** `200 OK` — array of share objects (same shape as create response). The `invite_token` is included for link shares you own.
+
+#### GET `/friends/shares/incoming`
+
+List shares others have created with you. Excludes revoked and declined shares.
+
+**Response:** `200 OK` — array of share objects.
+
+- `invite_token` is always stripped (not visible to recipients).
+- `owner_email` is masked (e.g., `t***@gmail.com`) for non-accepted shares to prevent email enumeration.
+
+#### POST `/friends/shares/:id/accept`
+
+Accept a pending direct share. Only the designated friend (the user whose `friend_id` matches the share) can accept.
+
+**Response:** `204 No Content`
+
+**Errors:** `404` if the share does not exist, is not pending, or the caller is not the designated friend. Link shares cannot be accepted via this endpoint.
+
+#### POST `/friends/shares/accept-link`
+
+Accept a share via invite token. Used for link shares (where no specific friend was designated).
+
+**Request body:**
+
+```json
+{
+  "token": "invite-token-uuid"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "id": "uuid",
+  "owner_id": "uuid",
+  "status": "accepted",
+  "accepted_at": "2026-03-21T00:00:00Z"
+}
+```
+
+- The invite token is NULLed after acceptance (single-use).
+- Expired tokens (older than 7 days) are rejected.
+- The owner cannot accept their own share link.
+
+**Errors:** `404` if the token is invalid, expired, or already used.
+
+#### DELETE `/friends/shares/:id`
+
+Revoke or decline a share. If the caller is the owner, status is set to `revoked`. If the caller is the friend, status is set to `declined`.
+
+**Response:** `204 No Content`
+
+**Errors:** `404` if the share does not exist, the caller is neither owner nor friend, or the share is already revoked/declined.
+
+#### PATCH `/friends/shares/:id/permissions`
+
+Update the data types shared on an existing share. Owner only.
+
+**Request body:**
+
+```json
+{
+  "data_types": ["checkins", "observations"]
+}
+```
+
+**Response:** `204 No Content`
+
+**Errors:** `400` if `data_types` is empty or contains invalid types. `403` if the caller is not the share owner.
+
+#### GET `/friends/:friend_id/data`
+
+Retrieve shared data from a friend. The `friend_id` path parameter is the data owner's user ID. Only data types permitted by an accepted share are returned.
+
+**Response:** `200 OK`
+
+```json
+{
+  "checkins": [...],
+  "health_records": [...],
+  "observations": [...]
+}
+```
+
+Only keys for permitted data types are included. Possible keys: `checkins`, `health_records`, `interventions`, `observations`, `lab_results`.
+
+**Errors:** `403` if there is no accepted share granting access to any data types.
+
 ## Planned (Phase 2+)
 
 ### Auth (Phase 2+)

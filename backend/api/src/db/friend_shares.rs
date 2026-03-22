@@ -86,9 +86,9 @@ pub async fn accept_share(
 ) -> Result<(), sqlx::Error> {
     let result = sqlx::query(
         "UPDATE friend_shares
-         SET status = 'accepted', friend_id = $2, accepted_at = now()
+         SET status = 'accepted', accepted_at = now()
          WHERE id = $1
-           AND (friend_id = $2 OR friend_id IS NULL)
+           AND friend_id = $2
            AND status = 'pending'",
     )
     .bind(share_id)
@@ -110,7 +110,8 @@ pub async fn accept_by_token(
 ) -> Result<FriendShareRow, sqlx::Error> {
     sqlx::query_as::<_, FriendShareRow>(
         "UPDATE friend_shares
-         SET status = 'accepted', friend_id = $2, accepted_at = now()
+         SET status = 'accepted', friend_id = $2, accepted_at = now(),
+             invite_token = NULL, invite_expires_at = NULL
          WHERE invite_token = $1
            AND status = 'pending'
            AND (invite_expires_at IS NULL OR invite_expires_at > now())
@@ -124,7 +125,8 @@ pub async fn accept_by_token(
     .await
 }
 
-/// Revoke or decline a share. Either party can revoke.
+/// Revoke or decline a share. Owner → 'revoked', friend → 'declined'.
+/// Note: `revoked_at` is set for both cases (doubles as `ended_at`).
 pub async fn revoke_share(
     pool: &PgPool,
     share_id: Uuid,
@@ -132,10 +134,11 @@ pub async fn revoke_share(
 ) -> Result<(), sqlx::Error> {
     let result = sqlx::query(
         "UPDATE friend_shares
-         SET status = 'revoked', revoked_at = now()
+         SET status = CASE WHEN owner_id = $2 THEN 'revoked' ELSE 'declined' END,
+             revoked_at = now()
          WHERE id = $1
            AND (owner_id = $2 OR friend_id = $2)
-           AND status != 'revoked'",
+           AND status NOT IN ('revoked', 'declined')",
     )
     .bind(share_id)
     .bind(user_id)
@@ -159,7 +162,7 @@ pub async fn list_outgoing(
                 u.email AS peer_email
          FROM friend_shares fs
          LEFT JOIN users u ON u.id = fs.friend_id
-         WHERE fs.owner_id = $1 AND fs.status != 'revoked'
+         WHERE fs.owner_id = $1 AND fs.status NOT IN ('revoked', 'declined')
          ORDER BY fs.created_at DESC",
     )
     .bind(owner_id)
@@ -180,7 +183,7 @@ pub async fn list_incoming(
                 u.email AS peer_email
          FROM friend_shares fs
          LEFT JOIN users u ON u.id = fs.owner_id
-         WHERE fs.friend_id = $1 AND fs.status != 'revoked'
+         WHERE fs.friend_id = $1 AND fs.status NOT IN ('revoked', 'declined')
          ORDER BY fs.created_at DESC",
     )
     .bind(friend_id)
@@ -283,7 +286,7 @@ async fn build_responses(
                     friend_id: s.friend_id,
                     friend_email: Some(my_email.clone()),
                     status: s.status,
-                    invite_token: s.invite_token,
+                    invite_token: None, // never expose token to recipient
                     data_types,
                     created_at: s.created_at,
                     accepted_at: s.accepted_at,
