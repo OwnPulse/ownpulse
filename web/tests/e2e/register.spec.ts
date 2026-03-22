@@ -25,7 +25,7 @@ test.describe("Registration flow", () => {
     // Mock the register endpoint to succeed
     await page.route("**/api/v1/auth/register", async (route) => {
       const body = JSON.parse(route.request().postData() || "{}");
-      expect(body.username).toBe("testuser");
+      expect(body.email).toBe("newuser@example.com");
       expect(body.password).toBe("securepassword123");
       expect(body.invite_code).toBe("TEST-CODE");
 
@@ -60,7 +60,7 @@ test.describe("Registration flow", () => {
     await expect(inviteInput).toHaveValue("TEST-CODE");
 
     // Fill in the registration form
-    await page.getByLabel(/username/i).fill("testuser");
+    await page.getByLabel(/email/i).fill("newuser@example.com");
     await page.getByLabel(/^password$/i).fill("securepassword123");
     await page.getByLabel(/confirm password/i).fill("securepassword123");
 
@@ -84,7 +84,7 @@ test.describe("Registration flow", () => {
     await page.goto("/register?invite=INVALID-CODE");
 
     // Fill in the form
-    await page.getByLabel(/username/i).fill("testuser");
+    await page.getByLabel(/email/i).fill("newuser@example.com");
     await page.getByLabel(/^password$/i).fill("securepassword123");
     await page.getByLabel(/confirm password/i).fill("securepassword123");
 
@@ -107,7 +107,7 @@ test.describe("Registration flow", () => {
   test("validates password length before submitting", async ({ page }) => {
     await page.goto("/register?invite=TEST-CODE");
 
-    await page.getByLabel(/username/i).fill("testuser");
+    await page.getByLabel(/email/i).fill("newuser@example.com");
     await page.getByLabel(/^password$/i).fill("short");
     await page.getByLabel(/confirm password/i).fill("short");
 
@@ -119,7 +119,7 @@ test.describe("Registration flow", () => {
   test("validates password confirmation match", async ({ page }) => {
     await page.goto("/register?invite=TEST-CODE");
 
-    await page.getByLabel(/username/i).fill("testuser");
+    await page.getByLabel(/email/i).fill("newuser@example.com");
     await page.getByLabel(/^password$/i).fill("securepassword123");
     await page.getByLabel(/confirm password/i).fill("differentpassword");
 

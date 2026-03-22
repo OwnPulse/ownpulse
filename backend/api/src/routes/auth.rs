@@ -525,7 +525,10 @@ pub async fn google_callback(
     };
 
     if user.status != "active" {
-        return Err(ApiError::Forbidden);
+        // Disabled users get a short-lived access token only (no refresh token,
+        // no refresh cookie). This lets them reach export and self-delete routes
+        // before the token expires — same behaviour as password login.
+        return issue_access_token_only(&state, user.id, &user.role).await;
     }
 
     // Issue tokens and build the response (shared by both invite and non-invite paths).
@@ -688,14 +691,15 @@ pub async fn apple_callback(
                     ApiError::BadRequest("invite code required for new account registration".into())
                 })?;
 
-                let invite = invites::claim_invite_code_tx(&mut tx, code)
-                    .await
-                    .map_err(|e| match e {
-                        sqlx::Error::RowNotFound => {
-                            ApiError::BadRequest("invalid or expired invite code".into())
-                        }
-                        other => ApiError::Internal(other.to_string()),
-                    })?;
+                let invite =
+                    invites::claim_invite_code_tx(&mut tx, code)
+                        .await
+                        .map_err(|e| match e {
+                            sqlx::Error::RowNotFound => {
+                                ApiError::BadRequest("invalid or expired invite code".into())
+                            }
+                            other => ApiError::Internal(other.to_string()),
+                        })?;
                 Some(invite)
             } else {
                 None
@@ -726,7 +730,10 @@ pub async fn apple_callback(
     };
 
     if user.status != "active" {
-        return Err(ApiError::Forbidden);
+        // Disabled users get a short-lived access token only (no refresh token,
+        // no refresh cookie). This lets them reach export and self-delete routes
+        // before the token expires — same behaviour as password login.
+        return issue_access_token_only(&state, user.id, &user.role).await;
     }
 
     let is_web = body.platform == "web";

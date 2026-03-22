@@ -49,9 +49,9 @@ Use the role dropdown next to a user to change their role between **admin** and 
 
 ### Disabling a user
 
-To lock someone out without deleting their data, change their status to **Disabled**. A disabled user is rejected immediately on their next request -- they cannot log in or use the API until re-enabled.
+To restrict someone's access without deleting their data, change their status to **Disabled**. A disabled user can still log in (with email/password, Google, or Apple) but receives only a short-lived access token with no refresh token. This limited access allows them to **export their data** and **delete their own account** -- they cannot access any other functionality.
 
-To re-enable a user, change their status back to **Active**. Their access is restored immediately and all their data is intact.
+To re-enable a user, change their status back to **Active**. Their full access is restored immediately and all their data is intact.
 
 !!! note "You cannot disable yourself"
     To prevent accidental lockout, admins cannot disable or delete their own account through the admin panel. Use the account deletion option in your own Settings if you want to remove your own account.
@@ -62,7 +62,7 @@ To re-enable a user, change their status back to **Active**. Their access is res
     Deleting a user permanently removes their account and all associated data. This cannot be undone.
 
 !!! note "Disable before deleting"
-    Before deleting a user, consider disabling their account first. This locks them out immediately while preserving their data, giving them time to export it. Once you are satisfied, you can proceed with deletion.
+    Before deleting a user, consider disabling their account first. This restricts their access to data export and account self-deletion only, giving them time to export their data before you proceed with deletion.
 
 To delete a user:
 
@@ -76,10 +76,13 @@ All of the user's data is permanently removed, including health records, check-i
 
 | | Disabled | Deleted |
 |---|---|---|
-| User can log in | No | No (account gone) |
+| User can log in | Yes, but with limited access (short-lived token, no refresh token) | No (account gone) |
+| Can export data | Yes | No |
+| Can delete own account | Yes | No (already gone) |
+| Can access other features | No | No |
 | Data preserved | Yes | No |
 | Reversible | Yes -- set status back to Active | No |
-| Use case | Temporary lockout, policy violation, investigate suspicious activity | User requests deletion, or permanent removal |
+| Use case | Restrict access while allowing data export and self-deletion | User requests deletion, or permanent removal |
 
 If you are unsure, disable first. You can always delete later, but you cannot undo a deletion.
 

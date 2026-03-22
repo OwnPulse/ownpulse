@@ -510,6 +510,10 @@ pub async fn update_user_status(
 pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
+    sqlx::query("DELETE FROM invite_claims WHERE invite_code_id IN (SELECT id FROM invite_codes WHERE created_by = $1)")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM invite_codes WHERE created_by = $1")
         .bind(user_id)
         .execute(&mut *tx)
