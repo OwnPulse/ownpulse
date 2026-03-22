@@ -408,6 +408,17 @@ pub async fn apple_callback(
     State(state): State<AppState>,
     Json(body): Json<AppleCallbackRequest>,
 ) -> Result<Response, ApiError> {
+    // Validate platform against known values.
+    match body.platform.as_str() {
+        "web" | "ios" => {}
+        _ => {
+            return Err(ApiError::BadRequest(format!(
+                "unknown platform: {}",
+                body.platform
+            )));
+        }
+    }
+
     let client_id = state
         .config
         .apple_client_id
@@ -589,7 +600,8 @@ pub async fn unlink_auth(
         let methods = user_auth_methods::list_for_user(&state.pool, auth_user.id)
             .await
             .map_err(ApiError::from)?;
-        if methods.len() > 1 {
+        let provider_exists = methods.iter().any(|m| m.provider == provider);
+        if !provider_exists {
             return Err(ApiError::NotFoundMsg("provider not linked".into()));
         }
         return Err(ApiError::BadRequest(

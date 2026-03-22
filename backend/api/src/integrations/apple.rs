@@ -22,8 +22,7 @@ pub struct AppleUserInfo {
 #[derive(Debug, Clone, Deserialize)]
 struct Jwk {
     kid: String,
-    /// Algorithm — Apple always uses RS256.
-    #[allow(dead_code)]
+    /// Algorithm — Apple always uses RS256; validated during verification.
     alg: String,
     n: String,
     e: String,
@@ -111,6 +110,38 @@ async fn fetch_jwks(
     Ok(jwks)
 }
 
+/// Fetch JWKS from the remote endpoint, bypassing the cache entirely.
+/// Used when the cached JWKS does not contain a matching `kid` (key rotation).
+async fn fetch_jwks_fresh(
+    client: &reqwest::Client,
+    jwks_url: &str,
+) -> Result<JwkSet, String> {
+    let mut cache = JWKS_CACHE.write().await;
+
+    let response = client
+        .get(jwks_url)
+        .send()
+        .await
+        .map_err(|e| format!("JWKS fetch failed: {e}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        return Err(format!("JWKS endpoint returned {status}"));
+    }
+
+    let jwks: JwkSet = response
+        .json()
+        .await
+        .map_err(|e| format!("failed to parse JWKS response: {e}"))?;
+
+    *cache = Some(CachedJwks {
+        jwks: jwks.clone(),
+        fetched_at: std::time::Instant::now(),
+    });
+
+    Ok(jwks)
+}
+
 /// Fetch Apple's JWKS and verify the `id_token`, returning the user's `sub`
 /// and optional `email`.
 ///
@@ -130,15 +161,29 @@ pub async fn verify_identity_token(
         decode_header(id_token).map_err(|e| format!("failed to decode token header: {e}"))?;
     let token_kid = header.kid.ok_or("id_token header is missing 'kid'")?;
 
-    // Fetch Apple's public keys (cached).
-    let jwks = fetch_jwks(client, jwks_url).await?;
+    // Fetch Apple's public keys (cached). If no matching kid is found in
+    // the cached set, force a fresh fetch once (standard JWKS client pattern
+    // for key rotation).
+    let jwk = {
+        let jwks = fetch_jwks(client, jwks_url).await?;
+        match jwks.keys.into_iter().find(|k| k.kid == token_kid) {
+            Some(k) => k,
+            None => {
+                // kid not in cache — force a fresh JWKS fetch.
+                let fresh = fetch_jwks_fresh(client, jwks_url).await?;
+                fresh
+                    .keys
+                    .into_iter()
+                    .find(|k| k.kid == token_kid)
+                    .ok_or_else(|| format!("no matching key found for kid={token_kid}"))?
+            }
+        }
+    };
 
-    // Find the matching key.
-    let jwk = jwks
-        .keys
-        .into_iter()
-        .find(|k| k.kid == token_kid)
-        .ok_or_else(|| format!("no matching key found for kid={token_kid}"))?;
+    // Validate the key algorithm is RS256 as expected.
+    if jwk.alg != "RS256" {
+        return Err(format!("unexpected JWK algorithm: {}", jwk.alg));
+    }
 
     let decoding_key = DecodingKey::from_rsa_components(&jwk.n, &jwk.e)
         .map_err(|e| format!("failed to build RSA decoding key: {e}"))?;
