@@ -1,0 +1,18 @@
+appId: health.ownpulse.app
+---
+# Verify the Google OAuth login flow launches correctly.
+# ASWebAuthenticationSession handles the browser portion and cannot be driven
+# by Maestro, so this flow asserts the app reaches the login screen and the
+# login button is present and actionable.
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "loginButton"
+- tapOn:
+    id: "loginButton"
+# After tapping, the system presents the ASWebAuthenticationSession sheet.
+# We assert the sheet appeared by waiting for the authentication cancel button
+# that iOS injects into the web auth session UI.
+- assertVisible:
+    text: "Cancel"
+    timeout: 5000

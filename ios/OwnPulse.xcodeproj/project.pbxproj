@@ -23,9 +23,11 @@
 		99270E7F933636BB3FC28C4C /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86CE06D7E9EFE8AF5DE5E74A /* LoginView.swift */; };
 		A14FC677EEF0E3ABB7D8FF54 /* MockHealthKitProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6946B4A3B390ED063952B5 /* MockHealthKitProvider.swift */; };
 		AD908556FEE7A7146DD6F315 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 649703259D6C4F6BFE3BB74D /* AuthService.swift */; };
+		B2056567585D65E67664625C /* PKCEHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E10063C58B07C0C81C01DE /* PKCEHelper.swift */; };
 		B4622CFCEFC09953CC76DFC1 /* JWTDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBDA009C4ED8F9CD421FCE93 /* JWTDecoder.swift */; };
 		BCA4D818C417FDC772EBCE4A /* OfflineQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E75554390D361CB2DC5B1694 /* OfflineQueueTests.swift */; };
 		C05D5F589E6E424566CE709E /* HealthKitTypeMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */; };
+		C0BEAECB10367E37B9ECBA54 /* PKCEHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */; };
 		CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA76F6599478222F387A59 /* Migrations.swift */; };
 		DD05735EFCA7651A0C730B6E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 06208BEB784209E228C86FC6 /* GRDB */; };
 		E0D8A7044773E3267198A68B /* JWTDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */; };
@@ -55,6 +57,7 @@
 		132911986050FB28F427C68D /* OwnPulse.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OwnPulse.entitlements; sourceTree = "<group>"; };
 		136CD56F07957B933BFC9D13 /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
 		3E28FE3D0872E6AA33C7382F /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCEHelperTests.swift; sourceTree = "<group>"; };
 		56AE0C1D31FFA50FAE6A7861 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
 		649703259D6C4F6BFE3BB74D /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		7351C0E5E3BB61A29712219B /* NetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkClient.swift; sourceTree = "<group>"; };
@@ -70,6 +73,7 @@
 		B516C3CA42E3AFBDE677B93C /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelsTests.swift; sourceTree = "<group>"; };
 		C4245A1A03B84BDF2DF58525 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
+		C7E10063C58B07C0C81C01DE /* PKCEHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCEHelper.swift; sourceTree = "<group>"; };
 		C8A4570E84623882F7ED22DF /* OwnPulse.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = OwnPulse.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		CABCE14183DE9A92A33EF20D /* OwnPulseApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnPulseApp.swift; sourceTree = "<group>"; };
 		CC06BE2CB6B1BFF56DE851A2 /* KeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainService.swift; sourceTree = "<group>"; };
@@ -157,6 +161,7 @@
 				858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */,
 				AE6946B4A3B390ED063952B5 /* MockHealthKitProvider.swift */,
 				E75554390D361CB2DC5B1694 /* OfflineQueueTests.swift */,
+				49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */,
 			);
 			path = OwnPulseTests;
 			sourceTree = "<group>";
@@ -222,6 +227,7 @@
 				649703259D6C4F6BFE3BB74D /* AuthService.swift */,
 				DBDA009C4ED8F9CD421FCE93 /* JWTDecoder.swift */,
 				CC06BE2CB6B1BFF56DE851A2 /* KeychainService.swift */,
+				C7E10063C58B07C0C81C01DE /* PKCEHelper.swift */,
 			);
 			path = Auth;
 			sourceTree = "<group>";
@@ -336,6 +342,7 @@
 				EFCC871589CB4A92769DE49F /* NetworkClient.swift in Sources */,
 				26656421C976B47BF433E327 /* OfflineQueue.swift in Sources */,
 				E2CAE946D44538FAB76B4E5C /* OwnPulseApp.swift in Sources */,
+				B2056567585D65E67664625C /* PKCEHelper.swift in Sources */,
 				82FD284E95344C2E5110ED3F /* SettingsView.swift in Sources */,
 				4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */,
 				8EA1C78D5AF3FFBC69812146 /* SyncEngine.swift in Sources */,
@@ -353,6 +360,7 @@
 				E0D8A7044773E3267198A68B /* JWTDecoderTests.swift in Sources */,
 				A14FC677EEF0E3ABB7D8FF54 /* MockHealthKitProvider.swift in Sources */,
 				BCA4D818C417FDC772EBCE4A /* OfflineQueueTests.swift in Sources */,
+				C0BEAECB10367E37B9ECBA54 /* PKCEHelperTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
