@@ -34,20 +34,9 @@ struct AuthServiceTests {
         let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
         #expect(service.isAuthenticated == false)
 
-        // We cannot call loginWithApple directly because it invokes AppleAuthHelper
-        // which requires a real ASAuthorizationController. Instead, we test the
-        // network/keychain logic by simulating what loginWithApple does internally.
-        // This is the testable portion of the flow.
-        let body = AppleCallbackRequest(idToken: "fake-id-token", platform: "ios")
-        let response: TokenResponseWithRefresh = try await mockNetwork.request(
-            method: "POST",
-            path: Endpoints.authAppleCallback,
-            body: body
-        )
+        try await service.processAppleCredential(idToken: "fake-id-token")
 
-        try mockKeychain.save(key: AuthService.accessTokenKey, data: Data(response.accessToken.utf8))
-        try mockKeychain.save(key: AuthService.refreshTokenKey, data: Data(response.refreshToken.utf8))
-
+        #expect(service.isAuthenticated == true)
         #expect(capturedBody?.idToken == "fake-id-token")
         #expect(capturedBody?.platform == "ios")
 

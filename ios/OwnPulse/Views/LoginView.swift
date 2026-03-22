@@ -51,6 +51,7 @@ final class LoginViewModel {
                     password = ""
                 }
             } catch {
+                if error is CancellationError { return }
                 errorMessage = error.localizedDescription
                 password = ""
             }

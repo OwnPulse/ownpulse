@@ -4,6 +4,7 @@
 import Foundation
 @testable import OwnPulse
 
+@MainActor
 final class MockNetworkClient: NetworkClientProtocol, @unchecked Sendable {
     var requestHandler: ((String, String, (any Encodable & Sendable)?) throws -> Any)?
     var requestNoContentHandler: ((String, String, (any Encodable & Sendable)?) throws -> Void)?

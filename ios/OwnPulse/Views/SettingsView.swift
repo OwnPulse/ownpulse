@@ -71,17 +71,23 @@ final class SettingsViewModel {
                 throw AuthError.invalidCallback
             }
 
-            let body = LinkAuthRequest(provider: "apple", idToken: idToken, password: nil)
-            let _: [AuthMethod] = try await networkClient.request(
-                method: "POST",
-                path: Endpoints.authLink,
-                body: body
-            )
-            await loadAuthMethods()
+            try await linkAppleWithToken(idToken)
         } catch {
             logger.error("Failed to link Apple: \(error.localizedDescription, privacy: .public)")
             linkError = "Failed to link Apple account: \(error.localizedDescription)"
         }
+    }
+
+    /// Testable portion of Apple account linking: posts the identity token to
+    /// the backend and reloads auth methods.
+    func linkAppleWithToken(_ idToken: String) async throws {
+        let body = LinkAuthRequest(provider: "apple", idToken: idToken, password: nil)
+        let _: [AuthMethod] = try await networkClient.request(
+            method: "POST",
+            path: Endpoints.authLink,
+            body: body
+        )
+        await loadAuthMethods()
     }
 
     func linkGoogle() {
@@ -255,7 +261,7 @@ struct SettingsView: View {
             return "applelogo"
         case "google":
             return "globe"
-        case "password":
+        case "local":
             return "key.fill"
         default:
             return "person.circle"

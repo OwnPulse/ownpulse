@@ -5,7 +5,7 @@ import Foundation
 import Testing
 @testable import OwnPulse
 
-@Suite("LoginViewModel")
+@Suite("LoginViewModel", .serialized)
 @MainActor
 struct LoginViewModelTests {
     @Test("performLogin(.apple) calls loginWithApple on auth service")

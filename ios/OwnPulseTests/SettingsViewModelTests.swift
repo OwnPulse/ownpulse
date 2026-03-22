@@ -5,7 +5,7 @@ import Foundation
 import Testing
 @testable import OwnPulse
 
-@Suite("SettingsViewModel")
+@Suite("SettingsViewModel", .serialized)
 @MainActor
 struct SettingsViewModelTests {
     private func makeMethods() -> [AuthMethod] {
@@ -108,8 +108,8 @@ struct SettingsViewModelTests {
         #expect(mock.requestCalls.isEmpty)
     }
 
-    @Test("linkApple posts to /auth/link with correct body and reloads methods")
-    func linkApplePostsAndReloads() async {
+    @Test("linkAppleWithToken posts to /auth/link with correct body and reloads methods")
+    func linkApplePostsAndReloads() async throws {
         let mock = MockNetworkClient()
         let methods = makeMethods()
 
@@ -125,22 +125,12 @@ struct SettingsViewModelTests {
 
         let vm = SettingsViewModel(networkClient: mock)
 
-        // We cannot call vm.linkApple() directly because it invokes
-        // AppleAuthHelper.performAppleAuth() which requires a real
-        // ASAuthorizationController. Instead, we test the network portion
-        // by directly calling the mock to verify request shape.
-        let body = LinkAuthRequest(provider: "apple", idToken: "test-token", password: nil)
-        let _: [AuthMethod] = try! await mock.request(
-            method: "POST",
-            path: Endpoints.authLink,
-            body: body
-        )
-        await vm.loadAuthMethods()
+        try await vm.linkAppleWithToken("test-token")
 
         #expect(capturedBody?.provider == "apple")
         #expect(capturedBody?.idToken == "test-token")
         #expect(capturedBody?.password == nil)
-        // POST + GET
+        // POST + GET (reload)
         #expect(mock.requestCalls.count == 2)
         #expect(mock.requestCalls[0].method == "POST")
         #expect(mock.requestCalls[0].path == Endpoints.authLink)

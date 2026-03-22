@@ -103,6 +103,12 @@ final class AuthService: AuthServiceProtocol {
             throw AuthError.invalidCallback
         }
 
+        try await processAppleCredential(idToken: idToken)
+    }
+
+    /// Testable portion of Apple Sign-In: sends the identity token to the backend,
+    /// stores the returned tokens, and sets `isAuthenticated`.
+    func processAppleCredential(idToken: String) async throws {
         logger.info("Apple Sign-In: received identity token, calling backend")
 
         let body = AppleCallbackRequest(idToken: idToken, platform: "ios")
