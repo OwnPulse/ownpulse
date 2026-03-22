@@ -10,6 +10,7 @@ import { logout, getAuthMethods, unlinkAuth } from "../api/auth";
 
 function LinkedAccounts() {
   const queryClient = useQueryClient();
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
 
   const { data: methods, isLoading, isError } = useQuery({
     queryKey: ["authMethods"],
@@ -19,15 +20,27 @@ function LinkedAccounts() {
   const unlinkMutation = useMutation({
     mutationFn: (provider: string) => unlinkAuth(provider),
     onSuccess: (updated) => {
+      setUnlinkError(null);
       queryClient.setQueryData(["authMethods"], updated);
     },
+    onError: (err: Error) => {
+      setUnlinkError(err.message || "Failed to unlink account.");
+    },
   });
+
+  const handleUnlink = (provider: string) => {
+    if (!window.confirm(`Unlink ${provider}? You won't be able to log in with it anymore.`)) {
+      return;
+    }
+    unlinkMutation.mutate(provider);
+  };
 
   return (
     <section style={{ marginTop: "2rem" }}>
       <h2>Linked Accounts</h2>
       {isLoading && <p>Loading...</p>}
       {isError && <p>Error loading linked accounts.</p>}
+      {unlinkError && <p style={{ color: "var(--color-error, red)" }}>{unlinkError}</p>}
       {methods && methods.length === 0 && <p>No linked accounts.</p>}
       {methods && methods.length > 0 && (
         <ul style={{ listStyle: "none", padding: 0 }}>
@@ -40,8 +53,9 @@ function LinkedAccounts() {
               {method.email && <span style={{ color: "var(--color-text-muted)" }}>{method.email}</span>}
               {methods.length > 1 && (
                 <button
-                  onClick={() => unlinkMutation.mutate(method.provider)}
+                  onClick={() => handleUnlink(method.provider)}
                   disabled={unlinkMutation.isPending}
+                  aria-label={`Unlink ${method.provider}`}
                 >
                   Unlink
                 </button>

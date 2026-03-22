@@ -96,7 +96,7 @@ describe("Settings — Linked Accounts", () => {
     expect(screen.queryByRole("button", { name: /unlink/i })).toBeNull();
   });
 
-  it("calls unlinkAuth when Unlink is clicked", async () => {
+  it("calls unlinkAuth when Unlink is clicked and confirmed", async () => {
     mockGetAuthMethods.mockResolvedValue([
       { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
       { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
@@ -105,6 +105,9 @@ describe("Settings — Linked Accounts", () => {
       { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
     ]);
 
+    // Accept the confirmation dialog
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
     await renderSettings();
 
     await waitFor(() => {
@@ -112,11 +115,54 @@ describe("Settings — Linked Accounts", () => {
     });
 
     const user = userEvent.setup();
-    // Click the first Unlink button (google or apple depending on order)
-    await user.click(screen.getAllByRole("button", { name: /unlink/i })[0]);
+    await user.click(screen.getByRole("button", { name: /unlink google/i }));
 
     await waitFor(() => {
       expect(mockUnlinkAuth).toHaveBeenCalledOnce();
+      expect(mockUnlinkAuth).toHaveBeenCalledWith("google");
+    });
+  });
+
+  it("does not unlink when confirmation is cancelled", async () => {
+    mockGetAuthMethods.mockResolvedValue([
+      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+      { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
+    ]);
+
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    await renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: /unlink/i }).length).toBe(2);
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /unlink google/i }));
+
+    expect(mockUnlinkAuth).not.toHaveBeenCalled();
+  });
+
+  it("shows error message when unlink fails", async () => {
+    mockGetAuthMethods.mockResolvedValue([
+      { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+      { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
+    ]);
+    mockUnlinkAuth.mockRejectedValue(new Error("Server error"));
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    await renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: /unlink/i }).length).toBe(2);
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /unlink google/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Server error")).toBeDefined();
     });
   });
 });
