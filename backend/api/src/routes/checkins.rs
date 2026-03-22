@@ -13,12 +13,12 @@ use crate::models::checkin::{CheckinQuery, CheckinRow, UpsertCheckin};
 use crate::AppState;
 
 fn validate_score(value: Option<i32>, field: &str) -> Result<(), ApiError> {
-    if let Some(v) = value {
-        if !(1..=10).contains(&v) {
-            return Err(ApiError::BadRequest(format!(
-                "{field} must be between 1 and 10"
-            )));
-        }
+    if let Some(v) = value
+        && !(1..=10).contains(&v)
+    {
+        return Err(ApiError::BadRequest(format!(
+            "{field} must be between 1 and 10"
+        )));
     }
     Ok(())
 }
