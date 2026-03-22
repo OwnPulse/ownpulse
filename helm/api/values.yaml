@@ -18,7 +18,7 @@ metricsPort: 9090
 
 ingress:
   enabled: true
-  className: ""
+  className: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   host: api.ownpulse.health
