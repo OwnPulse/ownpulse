@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { useAuthStore } from "../store/auth";
 import { useAuth } from "../hooks/useAuth";
 import { login } from "../api/auth";
@@ -87,6 +87,12 @@ export default function Login() {
             {submitting ? "Signing in\u2026" : "Sign In"}
           </button>
         </form>
+
+        <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+          <Link to="/register" style={{ color: "var(--color-primary)", textDecoration: "none", fontSize: "0.875rem" }}>
+            Have an invite code? Sign up
+          </Link>
+        </div>
       </main>
     </div>
   );

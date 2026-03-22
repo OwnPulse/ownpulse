@@ -36,6 +36,19 @@ export async function refreshToken(): Promise<boolean> {
   }
 }
 
+export async function register(
+  username: string,
+  password: string,
+  inviteCode: string,
+): Promise<void> {
+  const data = await api.post<TokenResponse>("/api/v1/auth/register", {
+    username,
+    password,
+    invite_code: inviteCode,
+  });
+  useAuthStore.getState().login(data.access_token);
+}
+
 export async function logout(): Promise<void> {
   try {
     const token = useAuthStore.getState().token;

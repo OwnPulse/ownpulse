@@ -19,6 +19,7 @@ import Admin from "./pages/Admin";
 import Friends from "./pages/Friends";
 import FriendView from "./pages/FriendView";
 import ShareAccept from "./pages/ShareAccept";
+import Register from "./pages/Register";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
