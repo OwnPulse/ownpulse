@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36  # v3.0.2
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d  # v4.0.1
         id: filter
         with:
           filters: |
@@ -74,7 +74,7 @@ jobs:
           components: clippy, rustfmt, llvm-tools-preview
 
       - name: Install cargo tools
-        uses: taiki-e/install-action@c12d62a803cbdfe2e7263af15f5a9548065cb4f2  # v2
+        uses: taiki-e/install-action@06203676c62f0d3c765be3f2fcfbebbcb02d09f5  # v2.69.6
         with:
           tool: cargo-llvm-cov,sqlx-cli
 
@@ -104,7 +104,7 @@ jobs:
           cargo llvm-cov --all-targets --html --output-dir coverage-html
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
         with:
           name: backend-coverage-report
           path: backend/coverage-html/
