@@ -32,7 +32,6 @@ export const labsApi = {
     return api.get<LabResult[]>(`/api/v1/labs${qs}`);
   },
   get: (id: string) => api.get<LabResult>(`/api/v1/labs/${id}`),
-  create: (data: CreateLabResult) =>
-    api.post<LabResult>("/api/v1/labs", data),
+  create: (data: CreateLabResult) => api.post<LabResult>("/api/v1/labs", data),
   delete: (id: string) => api.delete<void>(`/api/v1/labs/${id}`),
 };

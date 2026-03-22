@@ -3,18 +3,12 @@
 
 import { useState } from "react";
 import CheckinForm from "../components/forms/CheckinForm";
-import InterventionForm from "../components/forms/InterventionForm";
 import HealthRecordForm from "../components/forms/HealthRecordForm";
-import ObservationForm from "../components/forms/ObservationForm";
+import InterventionForm from "../components/forms/InterventionForm";
 import LabResultForm from "../components/forms/LabResultForm";
+import ObservationForm from "../components/forms/ObservationForm";
 
-const TABS = [
-  "Check-in",
-  "Intervention",
-  "Health Record",
-  "Observation",
-  "Lab Result",
-] as const;
+const TABS = ["Check-in", "Intervention", "Health Record", "Observation", "Lab Result"] as const;
 
 type Tab = (typeof TABS)[number];
 
@@ -43,6 +37,7 @@ export default function DataEntry() {
       <div style={tabBarStyle}>
         {TABS.map((tab) => (
           <button
+            type="button"
             key={tab}
             style={tabStyle(activeTab === tab)}
             onClick={() => setActiveTab(tab)}

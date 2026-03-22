@@ -29,7 +29,6 @@ export const healthRecordsApi = {
     return api.get<HealthRecord[]>(`/api/v1/health-records${qs}`);
   },
   get: (id: string) => api.get<HealthRecord>(`/api/v1/health-records/${id}`),
-  create: (data: CreateHealthRecord) =>
-    api.post<HealthRecord>("/api/v1/health-records", data),
+  create: (data: CreateHealthRecord) => api.post<HealthRecord>("/api/v1/health-records", data),
   delete: (id: string) => api.delete<void>(`/api/v1/health-records/${id}`),
 };

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { api } from "./client";
 import { useAuthStore } from "../store/auth";
+import { api } from "./client";
 
 export interface TokenResponse {
   access_token: string;
@@ -10,10 +10,7 @@ export interface TokenResponse {
   expires_in: number;
 }
 
-export async function login(
-  email: string,
-  password: string,
-): Promise<void> {
+export async function login(email: string, password: string): Promise<void> {
   const data = await api.post<TokenResponse>("/api/v1/auth/login", {
     email,
     password,
