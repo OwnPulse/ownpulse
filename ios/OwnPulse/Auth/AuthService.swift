@@ -11,7 +11,9 @@ private let logger = Logger(subsystem: "health.ownpulse.app", category: "auth")
 @MainActor
 protocol AuthServiceProtocol: Sendable {
     var isAuthenticated: Bool { get }
-    func login() async throws
+    func loginWithGoogle() async throws
+    func loginWithApple() async throws
+    func loginWithPassword(username: String, password: String) async throws
     func logout() async
     func handleCallback(url: URL)
 }
@@ -19,6 +21,43 @@ protocol AuthServiceProtocol: Sendable {
 /// Provides a window anchor for ASWebAuthenticationSession.
 private class AuthPresentationContext: NSObject, ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first else {
+            return ASPresentationAnchor()
+        }
+        return window
+    }
+}
+
+/// Wraps ASAuthorizationController delegate callbacks in a CheckedContinuation.
+private final class AppleAuthDelegate: NSObject, ASAuthorizationControllerDelegate, Sendable {
+    private let continuation: CheckedContinuation<ASAuthorization, Error>
+
+    init(continuation: CheckedContinuation<ASAuthorization, Error>) {
+        self.continuation = continuation
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithAuthorization authorization: ASAuthorization
+    ) {
+        continuation.resume(returning: authorization)
+    }
+
+    func authorizationController(
+        controller: ASAuthorizationController,
+        didCompleteWithError error: Error
+    ) {
+        logger.error("Apple Sign-In error: \(error.localizedDescription, privacy: .public)")
+        continuation.resume(throwing: error)
+    }
+}
+
+/// Provides a window anchor for ASAuthorizationController.
+private class ApplePresentationContext: NSObject,
+    ASAuthorizationControllerPresentationContextProviding
+{
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
         guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
               let window = scene.windows.first else {
             return ASPresentationAnchor()
@@ -37,6 +76,7 @@ final class AuthService: AuthServiceProtocol {
     private var authContinuation: CheckedContinuation<URL, Error>?
     private var authSession: ASWebAuthenticationSession?
     private let presentationContext = AuthPresentationContext()
+    private let applePresentationContext = ApplePresentationContext()
 
     nonisolated static let accessTokenKey = "access_token"
     nonisolated static let refreshTokenKey = "refresh_token"
@@ -53,9 +93,9 @@ final class AuthService: AuthServiceProtocol {
         }
     }
 
-    func login() async throws {
+    func loginWithGoogle() async throws {
         let authURL = buildGoogleAuthURL()
-        logger.info("Starting OAuth flow. URL: \(authURL.absoluteString, privacy: .public)")
+        logger.info("Starting Google OAuth flow. URL: \(authURL.absoluteString, privacy: .public)")
 
         let callbackURL = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<URL, Error>) in
             self.authContinuation = continuation
@@ -66,10 +106,10 @@ final class AuthService: AuthServiceProtocol {
             ) { [weak self] url, error in
                 self?.authSession = nil
                 if let error {
-                    logger.error("OAuth error: \(error.localizedDescription, privacy: .public)")
+                    logger.error("Google OAuth error: \(error.localizedDescription, privacy: .public)")
                     continuation.resume(throwing: error)
                 } else if let url {
-                    logger.info("OAuth callback URL: \(url.absoluteString, privacy: .public)")
+                    logger.info("Google OAuth callback URL: \(url.absoluteString, privacy: .public)")
                     continuation.resume(returning: url)
                 }
             }
@@ -81,11 +121,60 @@ final class AuthService: AuthServiceProtocol {
             let started = session.start()
             logger.info("ASWebAuthenticationSession.start() returned: \(started)")
             if !started {
-                logger.error("Session failed to start")
+                logger.error("Google OAuth session failed to start")
             }
         }
 
         try processCallback(url: callbackURL)
+    }
+
+    func loginWithApple() async throws {
+        logger.info("Starting Apple Sign-In flow")
+
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
+        request.requestedScopes = [.email]
+
+        let authorization = try await performAppleAuth(request: request)
+
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let idTokenData = credential.identityToken,
+              let idToken = String(data: idTokenData, encoding: .utf8) else {
+            logger.error("Apple Sign-In: invalid credential or missing identity token")
+            throw AuthError.invalidCallback
+        }
+
+        logger.info("Apple Sign-In: received identity token, calling backend")
+
+        let body = AppleCallbackRequest(idToken: idToken, platform: "ios")
+        let response: TokenResponseWithRefresh = try await networkClient.request(
+            method: "POST",
+            path: Endpoints.authAppleCallback,
+            body: body
+        )
+
+        try keychainService.save(key: Self.accessTokenKey, data: Data(response.accessToken.utf8))
+        try keychainService.save(key: Self.refreshTokenKey, data: Data(response.refreshToken.utf8))
+        isAuthenticated = true
+        logger.info("Apple Sign-In: authentication successful")
+    }
+
+    func loginWithPassword(username: String, password: String) async throws {
+        logger.info("Starting password login for user: \(username, privacy: .private)")
+
+        let body = LoginRequest(username: username, password: password)
+        let response: TokenResponse = try await networkClient.request(
+            method: "POST",
+            path: Endpoints.authLogin,
+            body: body
+        )
+
+        try keychainService.save(key: Self.accessTokenKey, data: Data(response.accessToken.utf8))
+        // Note: password login returns access_token only in the JSON body; refresh token is
+        // set as an httpOnly cookie which iOS cannot read. Only the access token is stored.
+        // Users will need to re-authenticate when the token expires (acceptable for MVP).
+        isAuthenticated = true
+        logger.info("Password login: authentication successful")
     }
 
     func handleCallback(url: URL) {
@@ -100,6 +189,24 @@ final class AuthService: AuthServiceProtocol {
         try? keychainService.delete(key: Self.accessTokenKey)
         try? keychainService.delete(key: Self.refreshTokenKey)
         isAuthenticated = false
+    }
+
+    private func performAppleAuth(request: ASAuthorizationAppleIDRequest) async throws -> ASAuthorization {
+        try await withCheckedThrowingContinuation { continuation in
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            let delegate = AppleAuthDelegate(continuation: continuation)
+            // Keep delegate alive for the duration of the auth flow by associating it with
+            // the controller via objc associated objects.
+            objc_setAssociatedObject(
+                controller,
+                &appleAuthDelegateKey,
+                delegate,
+                .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+            )
+            controller.delegate = delegate
+            controller.presentationContextProvider = self.applePresentationContext
+            controller.performRequests()
+        }
     }
 
     private func processCallback(url: URL) throws {
@@ -134,6 +241,9 @@ final class AuthService: AuthServiceProtocol {
         return components.url!
     }
 }
+
+/// Key for storing the Apple auth delegate as an associated object on ASAuthorizationController.
+private var appleAuthDelegateKey: UInt8 = 0
 
 enum AuthError: Error {
     case invalidCallback

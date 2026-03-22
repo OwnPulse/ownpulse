@@ -1,7 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: sign in with Google OAuth.
 appId: health.ownpulse.app
 ---
 - launchApp
 - assertVisible:
-    id: "loginButton"
+    id: "googleSignInButton"
 - tapOn:
-    id: "loginButton"
+    id: "googleSignInButton"

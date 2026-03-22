@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: view and manage linked auth methods in Settings.
+# Requires an authenticated session with at least two linked providers so that
+# the Unlink button is enabled.
+appId: health.ownpulse.app
+---
+- launchApp
+
+# Navigate to Settings from the home tab bar
+- tapOn:
+    text: "Settings"
+
+- assertVisible:
+    text: "Linked Accounts"
+
+# Linked Accounts section loads asynchronously; wait for content
+- assertNotVisible:
+    id: "linkedAccountsLoading"
+    timeout: 5000
+
+# When two providers are linked the Unlink button for each should be visible.
+# This step is conditional on the test account having google linked.
+- assertVisible:
+    id: "unlink-google"
+    optional: true
+
+# If a provider is not yet linked its Link button should appear
+- assertVisible:
+    id: "linkAppleButton"
+    optional: true
