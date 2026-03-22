@@ -12,7 +12,7 @@ export default function Register() {
   const inviteFromUrl = searchParams.get("invite") || "";
 
   const [inviteCode, setInviteCode] = useState(inviteFromUrl);
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
@@ -47,7 +47,7 @@ export default function Register() {
     }
     setSubmitting(true);
     try {
-      await register(username, password, inviteCode);
+      await register(email, password, inviteCode);
       navigate("/");
     } catch {
       setError("Registration failed. The invite code may be invalid or expired.");
@@ -85,16 +85,16 @@ export default function Register() {
             />
           </div>
           <div className="op-form-field">
-            <label htmlFor="register-username" className="op-label">
-              Username
+            <label htmlFor="register-email" className="op-label">
+              Email
             </label>
             <input
-              id="register-username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              id="register-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
-              autoComplete="username"
+              autoComplete="email"
               className="op-input"
             />
           </div>

@@ -68,6 +68,13 @@ pub async fn login(
         return Err(ApiError::Unauthorized);
     }
 
+    if user.status != "active" {
+        // Disabled users get a short-lived access token only (no refresh token,
+        // no refresh cookie). This lets them reach export and self-delete routes
+        // before the token expires.
+        return issue_access_token_only(&state, user.id, &user.role).await;
+    }
+
     issue_tokens(&state, user.id, &user.role).await
 }
 
@@ -429,57 +436,79 @@ pub async fn google_callback(
 
     let display_name = sanitize_username(google_user.email.split('@').next().unwrap_or("user"));
 
-    // Check if user already exists before potentially requiring an invite code.
-    let existing_user = users::find_by_email(&state.pool, &google_user.email).await;
-    let is_new_user = matches!(existing_user, Err(sqlx::Error::RowNotFound));
+    // Extract the invite code cookie once (used when creating new users with
+    // require_invite enabled).
+    let invite_code_cookie = headers
+        .get(axum::http::header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookies| {
+            cookies
+                .split(';')
+                .filter_map(|c| c.trim().strip_prefix("invite_code="))
+                .next()
+                .map(|s| s.to_string())
+        });
 
-    // For new users when require_invite is true, validate the invite code.
-    if is_new_user && state.config.require_invite {
-        let invite_code_cookie = headers
-            .get(axum::http::header::COOKIE)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|cookies| {
-                cookies
-                    .split(';')
-                    .filter_map(|c| c.trim().strip_prefix("invite_code="))
-                    .next()
-                    .map(|s| s.to_string())
-            });
+    // Always begin a transaction so the existence check, invite claim, and user
+    // creation are atomic — prevents TOCTOU races where a concurrent deletion
+    // between the check and creation could bypass the invite requirement.
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-        let code = invite_code_cookie.ok_or_else(|| {
-            ApiError::BadRequest("invite code required for new account registration".into())
-        })?;
+    // Check if user already exists inside the transaction.
+    let existing_user =
+        users::find_google_user_tx(&mut tx, &google_user.sub, &google_user.email).await;
 
-        let mut tx = state
-            .pool
-            .begin()
+    let user = match existing_user {
+        Ok(user) => {
+            // Existing user — no invite needed.
+            tx.commit()
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            user
+        }
+        Err(sqlx::Error::RowNotFound) => {
+            // New user — claim invite if required, then create.
+            if state.config.require_invite {
+                let code = invite_code_cookie.ok_or_else(|| {
+                    ApiError::BadRequest("invite code required for new account registration".into())
+                })?;
+
+                invites::claim_invite_code_tx(&mut tx, &code)
+                    .await
+                    .map_err(|e| match e {
+                        sqlx::Error::RowNotFound => {
+                            ApiError::BadRequest("invalid or expired invite code".into())
+                        }
+                        other => ApiError::Internal(other.to_string()),
+                    })?;
+            }
+
+            let user = users::find_or_create_google_user_tx(
+                &mut tx,
+                &google_user.sub,
+                &google_user.email,
+                Some(display_name.as_str()),
+            )
             .await
             .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-        invites::claim_invite_code_tx(&mut tx, &code)
-            .await
-            .map_err(|e| match e {
-                sqlx::Error::RowNotFound => {
-                    ApiError::BadRequest("invalid or expired invite code".into())
-                }
-                other => ApiError::Internal(other.to_string()),
-            })?;
+            tx.commit()
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            user
+        }
+        Err(e) => return Err(ApiError::Internal(e.to_string())),
+    };
 
-        tx.commit()
-            .await
-            .map_err(|e| ApiError::Internal(e.to_string()))?;
+    if user.status != "active" {
+        return Err(ApiError::Forbidden);
     }
 
-    let user = users::find_or_create_google_user(
-        &state.pool,
-        &google_user.sub,
-        &google_user.email,
-        Some(display_name.as_str()),
-    )
-    .await
-    .map_err(|e| ApiError::Internal(e.to_string()))?;
-
-    // Issue tokens
+    // Issue tokens and build the response (shared by both invite and non-invite paths).
     let raw_token = generate_refresh_token();
     let token_hash = hash_refresh_token(&raw_token, &state.config.jwt_secret);
     let expires_at =
@@ -497,7 +526,7 @@ pub async fn google_callback(
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    // Clear the oauth_state and invite_code cookies
+    // Clear the oauth_state and invite_code cookies.
     let secure = secure_attr(&state.config);
     let clear_state_cookie =
         format!("oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
@@ -540,30 +569,19 @@ pub async fn google_callback(
         let redirect_url = format!("{}/?auth=success", state.config.web_origin);
         let mut response = Redirect::to(&redirect_url).into_response();
 
-        response.headers_mut().append(
-            SET_COOKIE,
-            access_cookie
-                .parse()
-                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-        );
-        response.headers_mut().append(
-            SET_COOKIE,
-            refresh_cookie
-                .parse()
-                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-        );
-        response.headers_mut().append(
-            SET_COOKIE,
-            clear_state_cookie
-                .parse()
-                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-        );
-        response.headers_mut().append(
-            SET_COOKIE,
-            clear_invite_cookie
-                .parse()
-                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-        );
+        for cookie_str in [
+            &access_cookie,
+            &refresh_cookie,
+            &clear_state_cookie,
+            &clear_invite_cookie,
+        ] {
+            response.headers_mut().append(
+                SET_COOKIE,
+                cookie_str
+                    .parse()
+                    .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
+            );
+        }
         Ok(response)
     }
 }
@@ -624,10 +642,62 @@ pub async fn apple_callback(
         .map(sanitize_username)
         .unwrap_or_else(|| format!("user-{}", &Uuid::new_v4().to_string()[..8]));
 
-    let user =
-        users::find_or_create_apple_user(&state.pool, &apple_user.sub, Some(email), &username)
+    // Always begin a transaction so the existence check, invite claim, and user
+    // creation are atomic — prevents TOCTOU races.
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Check if user already exists *inside* the transaction.
+    let existing_user = users::find_apple_user_tx(&mut tx, &apple_user.sub, Some(email)).await;
+
+    let user = match existing_user {
+        Ok(user) => {
+            // Existing user — no invite needed.
+            tx.commit()
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            user
+        }
+        Err(sqlx::Error::RowNotFound) => {
+            // New user — claim invite if required, then create.
+            if state.config.require_invite {
+                let code = body.invite_code.as_deref().ok_or_else(|| {
+                    ApiError::BadRequest("invite code required for new account registration".into())
+                })?;
+
+                invites::claim_invite_code_tx(&mut tx, code)
+                    .await
+                    .map_err(|e| match e {
+                        sqlx::Error::RowNotFound => {
+                            ApiError::BadRequest("invalid or expired invite code".into())
+                        }
+                        other => ApiError::Internal(other.to_string()),
+                    })?;
+            }
+
+            let user = users::find_or_create_apple_user_tx(
+                &mut tx,
+                &apple_user.sub,
+                Some(email),
+                &username,
+            )
             .await
             .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            tx.commit()
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            user
+        }
+        Err(e) => return Err(ApiError::Internal(e.to_string())),
+    };
+
+    if user.status != "active" {
+        return Err(ApiError::Forbidden);
+    }
 
     let is_web = body.platform == "web";
     issue_tokens_response(&state, user.id, &user.role, is_web).await
@@ -819,6 +889,33 @@ fn sanitize_username(raw: &str) -> String {
     }
 }
 
+/// Issue only a short-lived JWT access token — no refresh token, no cookie.
+///
+/// Used for disabled users who are allowed to log in only to export their data
+/// or delete their account. Without a refresh token they cannot extend the
+/// session beyond the access token's lifetime.
+async fn issue_access_token_only(
+    state: &AppState,
+    user_id: Uuid,
+    role: &str,
+) -> Result<Response, ApiError> {
+    let access_token = encode_access_token(
+        user_id,
+        role,
+        &state.config.jwt_secret,
+        state.config.jwt_expiry_seconds,
+    )
+    .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let token_response = TokenResponse {
+        access_token,
+        token_type: "Bearer".to_string(),
+        expires_in: state.config.jwt_expiry_seconds,
+    };
+
+    Ok((StatusCode::OK, Json(token_response)).into_response())
+}
+
 /// Create a JWT access token and a refresh token, returning a JSON body with
 /// the access token and setting an httpOnly cookie for the refresh token.
 async fn issue_tokens(state: &AppState, user_id: Uuid, role: &str) -> Result<Response, ApiError> {
@@ -870,6 +967,11 @@ async fn issue_tokens_with_family(
     let user = users::find_by_id(&state.pool, user_id)
         .await
         .map_err(|_| ApiError::Unauthorized)?;
+
+    if user.status != "active" {
+        return Err(ApiError::Forbidden);
+    }
+
     let access_token = encode_access_token(
         user_id,
         &user.role,

@@ -3,50 +3,15 @@
 
 use serde_json::json;
 use tower::ServiceExt;
-use uuid::Uuid;
 
 use crate::common;
-
-/// Helper: create an admin user and return (user_id, jwt_token).
-async fn create_admin_user(app: &common::TestApp) -> (Uuid, String) {
-    let hash = bcrypt::hash("adminpassword", 4).expect("bcrypt hash failed");
-    let row: (Uuid,) = sqlx::query_as(
-        "INSERT INTO users (email, password_hash, auth_provider, role)
-         VALUES ($1, $2, 'local', 'admin') RETURNING id",
-    )
-    .bind(format!("admin-{}@example.com", Uuid::new_v4()))
-    .bind(&hash)
-    .fetch_one(&app.pool)
-    .await
-    .expect("failed to insert admin user");
-
-    sqlx::query(
-        "INSERT INTO user_auth_methods (user_id, provider, provider_subject)
-         VALUES ($1, 'local', $2)",
-    )
-    .bind(row.0)
-    .bind(row.0.to_string())
-    .execute(&app.pool)
-    .await
-    .expect("failed to insert user_auth_methods row");
-
-    let token = api::auth::jwt::encode_access_token(
-        row.0,
-        "admin",
-        "test-jwt-secret-at-least-32-bytes-long",
-        3600,
-    )
-    .expect("failed to encode JWT");
-
-    (row.0, token)
-}
 
 // ─── Invite CRUD ───────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_create_and_list_invites() {
     let app = common::setup().await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
 
     // Create an invite
     let response = app
@@ -92,7 +57,7 @@ async fn test_create_and_list_invites() {
 #[tokio::test]
 async fn test_revoke_invite() {
     let app = common::setup().await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
 
     // Create invite
     let response = app
@@ -157,7 +122,7 @@ async fn test_register_with_valid_invite() {
         c.require_invite = true;
     })
     .await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
 
     // Create an invite code
     let response = app
@@ -278,7 +243,7 @@ async fn test_register_with_revoked_invite() {
         c.require_invite = true;
     })
     .await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
 
     // Create and revoke an invite
     let response = app
@@ -341,7 +306,7 @@ async fn test_register_with_max_uses_exhausted() {
         c.require_invite = true;
     })
     .await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
 
     // Create an invite with max_uses = 1
     let response = app
@@ -443,7 +408,7 @@ async fn test_register_without_invite_when_not_required() {
 #[tokio::test]
 async fn test_disable_user_blocks_access() {
     let app = common::setup().await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
     let (user_id, user_token) = common::create_test_user(&app).await;
 
     // Verify user can access protected endpoint
@@ -497,7 +462,7 @@ async fn test_disable_user_blocks_access() {
 #[tokio::test]
 async fn test_reenable_user_restores_access() {
     let app = common::setup().await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
     let (user_id, user_token) = common::create_test_user(&app).await;
 
     // Disable user
@@ -547,7 +512,7 @@ async fn test_reenable_user_restores_access() {
 #[tokio::test]
 async fn test_admin_cannot_disable_self() {
     let app = common::setup().await;
-    let (admin_id, admin_token) = create_admin_user(&app).await;
+    let (admin_id, admin_token) = common::create_admin_user(&app).await;
 
     let response = app
         .app
@@ -567,7 +532,7 @@ async fn test_admin_cannot_disable_self() {
 #[tokio::test]
 async fn test_admin_cannot_delete_self() {
     let app = common::setup().await;
-    let (admin_id, admin_token) = create_admin_user(&app).await;
+    let (admin_id, admin_token) = common::create_admin_user(&app).await;
 
     let response = app
         .app
@@ -587,8 +552,22 @@ async fn test_admin_cannot_delete_self() {
 #[tokio::test]
 async fn test_admin_delete_user() {
     let app = common::setup().await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
     let (user_id, _user_token) = common::create_test_user(&app).await;
+
+    // Must disable the user before deleting
+    let response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/admin/users/{user_id}/status"),
+            &admin_token,
+            Some(&json!({"status": "disabled"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
 
     let response = app
         .app
@@ -684,7 +663,7 @@ async fn test_register_invalid_email_rejected() {
 #[tokio::test]
 async fn test_list_users_includes_status() {
     let app = common::setup().await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
 
     let response = app
         .app
@@ -712,7 +691,7 @@ async fn test_list_users_includes_status() {
 #[tokio::test]
 async fn test_update_role_still_works() {
     let app = common::setup().await;
-    let (_admin_id, admin_token) = create_admin_user(&app).await;
+    let (_admin_id, admin_token) = common::create_admin_user(&app).await;
     let (user_id, _user_token) = common::create_test_user(&app).await;
 
     let response = app

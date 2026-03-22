@@ -6,7 +6,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 
 use crate::AppState;
-use crate::auth::extractor::AuthUser;
+use crate::auth::extractor::{AuthUser, AuthUserAllowDisabled};
 use crate::db;
 use crate::db::users;
 use crate::error::ApiError;
@@ -24,7 +24,7 @@ pub async fn get_account(
 /// DELETE /account — permanently delete the user and all their data.
 pub async fn delete_account(
     State(state): State<AppState>,
-    AuthUser { id: user_id, .. }: AuthUser,
+    AuthUserAllowDisabled { id: user_id, .. }: AuthUserAllowDisabled,
 ) -> Result<StatusCode, ApiError> {
     // Write the audit entry synchronously before deleting the user so that the
     // record is committed regardless of whether the caller's connection closes

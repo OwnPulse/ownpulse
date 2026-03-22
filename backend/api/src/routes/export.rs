@@ -6,14 +6,14 @@ use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::{IntoResponse, Response};
 
 use crate::AppState;
-use crate::auth::extractor::AuthUser;
+use crate::auth::extractor::AuthUserAllowDisabled;
 use crate::db;
 use crate::error::ApiError;
 
 /// GET /export/json — streaming JSON export of all user data.
 pub async fn export_json(
     State(state): State<AppState>,
-    AuthUser { id: user_id, .. }: AuthUser,
+    AuthUserAllowDisabled { id: user_id, .. }: AuthUserAllowDisabled,
 ) -> Result<Response, ApiError> {
     let body = crate::export::json::stream_json_export(&state.pool, user_id)
         .await
@@ -43,7 +43,7 @@ pub async fn export_json(
 /// GET /export/csv — streaming CSV export of all user data.
 pub async fn export_csv(
     State(state): State<AppState>,
-    AuthUser { id: user_id, .. }: AuthUser,
+    AuthUserAllowDisabled { id: user_id, .. }: AuthUserAllowDisabled,
 ) -> Result<Response, ApiError> {
     let body = crate::export::csv::stream_csv_export(&state.pool, user_id)
         .await

@@ -61,6 +61,9 @@ To re-enable a user, change their status back to **Active**. Their access is res
 !!! warning "This action is permanent"
     Deleting a user permanently removes their account and all associated data. This cannot be undone.
 
+!!! note "Disable before deleting"
+    Before deleting a user, consider disabling their account first. This locks them out immediately while preserving their data, giving them time to export it. Once you are satisfied, you can proceed with deletion.
+
 To delete a user:
 
 1. Go to **Settings > User Management > Users**.
