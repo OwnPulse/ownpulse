@@ -16,6 +16,17 @@ use crate::models::friend_share::{
 };
 use crate::AppState;
 
+/// Mask an email for privacy: show first char + *** + domain.
+/// e.g., "tony@gmail.com" → "t***@gmail.com"
+fn mask_email(email: &str) -> String {
+    match email.split_once('@') {
+        Some((local, domain)) if !local.is_empty() => {
+            format!("{}***@{}", &local[..1], domain)
+        }
+        _ => "***".to_string(),
+    }
+}
+
 const VALID_DATA_TYPES: &[&str] = &[
     "checkins",
     "health_records",
@@ -109,8 +120,14 @@ pub async fn list_incoming(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Json<Vec<FriendShareResponse>>, ApiError> {
-    let shares = db::friend_shares::list_incoming(&state.pool, user_id).await?;
-    Ok(Json(shares))
+    let mut responses = db::friend_shares::list_incoming(&state.pool, user_id).await?;
+    // Mask owner email for non-accepted shares (prevent enumeration)
+    for share in &mut responses {
+        if share.status != "accepted" {
+            share.owner_email = mask_email(&share.owner_email);
+        }
+    }
+    Ok(Json(responses))
 }
 
 /// POST /friends/shares/:id/accept — accept a direct share.
@@ -234,4 +251,17 @@ pub async fn get_friend_data(
     }
 
     Ok(Json(Value::Object(result)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mask_email() {
+        assert_eq!(mask_email("tony@gmail.com"), "t***@gmail.com");
+        assert_eq!(mask_email("a@example.com"), "a***@example.com");
+        assert_eq!(mask_email("@broken.com"), "***");
+        assert_eq!(mask_email("noatsign"), "***");
+    }
 }
