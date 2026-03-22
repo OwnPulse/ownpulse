@@ -42,10 +42,15 @@ fn auth_routes() -> Router<AppState> {
 /// Build the versioned API router with rate limiting on auth endpoints.
 /// Mounted under `/api/v1` by `build_app`.
 pub fn api_routes() -> Router<AppState> {
-    use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
+    use tower_governor::{
+        governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor, GovernorLayer,
+    };
 
     // 5 requests per 60 seconds per IP on auth endpoints.
+    // SmartIpKeyExtractor checks X-Forwarded-For/X-Real-IP headers first,
+    // falling back to peer address. Required when behind a reverse proxy.
     let auth_governor_conf = GovernorConfigBuilder::default()
+        .key_extractor(SmartIpKeyExtractor)
         .per_second(12) // replenish 1 token every 12s → 5/min
         .burst_size(5)
         .finish()
