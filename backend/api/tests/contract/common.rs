@@ -5,6 +5,9 @@
 //! starts the Axum server on a random TCP port so the Pact verifier can
 //! make real HTTP requests against it.
 
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use testcontainers::ImageExt;
@@ -80,6 +83,7 @@ pub async fn setup() -> ContractTestApp {
         pool: pool.clone(),
         config,
         http_client: reqwest::Client::new(),
+        migrations_ready: Arc::new(AtomicBool::new(true)),
     };
 
     let app = api::build_app_without_metrics(state);

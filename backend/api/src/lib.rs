@@ -10,15 +10,21 @@ pub mod export;
 pub mod integrations;
 pub mod jobs;
 pub mod migrate;
+pub mod migration_check;
 pub mod models;
 pub mod routes;
 pub mod stats;
 
+use std::sync::atomic::Ordering;
+
+use axum::extract::State;
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
-use axum::http::{HeaderValue, Method};
+use axum::http::{HeaderValue, Method, StatusCode};
+use axum::response::IntoResponse;
 use axum::{Json, Router, routing::get};
 use axum_prometheus::PrometheusMetricLayer;
 use config::Config;
+use migration_check::MigrationsReady;
 use serde_json::json;
 use sqlx::PgPool;
 use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
@@ -29,10 +35,32 @@ pub struct AppState {
     pub pool: PgPool,
     pub config: Config,
     pub http_client: reqwest::Client,
+    pub migrations_ready: MigrationsReady,
 }
 
+/// Liveness probe — always returns 200 if the process is running.
 async fn health() -> Json<serde_json::Value> {
     Json(json!({"status": "ok"}))
+}
+
+/// Readiness probe — returns 503 if migrations are behind.
+///
+/// Kubernetes should use this for the readinessProbe so traffic is not
+/// routed to a pod whose database schema is outdated.
+async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
+    if state.migrations_ready.load(Ordering::SeqCst) {
+        (StatusCode::OK, Json(json!({"status": "healthy"}))).into_response()
+    } else {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({
+                "status": "unhealthy",
+                "reason": "database migrations behind",
+                "expected": migration_check::EXPECTED_MIGRATION_COUNT
+            })),
+        )
+            .into_response()
+    }
 }
 
 fn cors_layer(web_origin: &str) -> CorsLayer {
@@ -85,6 +113,7 @@ pub fn build_app(state: AppState) -> Router {
 
     Router::new()
         .route("/api/v1/health", get(health))
+        .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes())
         .layer(prometheus_layer)
         .layer(cors_layer(&state.config.web_origin))
@@ -97,6 +126,7 @@ pub fn build_app(state: AppState) -> Router {
 pub fn build_app_without_metrics(state: AppState) -> Router {
     Router::new()
         .route("/api/v1/health", get(health))
+        .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes_without_rate_limit())
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)
