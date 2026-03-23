@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::AppState;
 use crate::auth::extractor::AdminUser;
-use crate::db::{invites, users};
+use crate::db::{invites, refresh_tokens, users};
 use crate::error::ApiError;
 use crate::models::invite::{CreateInviteRequest, InviteResponse};
 use crate::models::user::UserResponse;
@@ -75,6 +75,15 @@ pub async fn update_status(
         ));
     }
     let user = users::update_user_status(&state.pool, user_id, &body.status).await?;
+
+    // When disabling a user, revoke all their refresh tokens so existing sessions
+    // cannot be refreshed.
+    if body.status == "disabled" {
+        refresh_tokens::delete_all_for_user(&state.pool, user_id)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+    }
+
     Ok(Json(UserResponse::from(user)))
 }
 
@@ -87,8 +96,13 @@ pub async fn delete_user(
     if admin_id == user_id {
         return Err(ApiError::BadRequest("cannot delete yourself".to_string()));
     }
-    // Verify user exists before attempting delete
-    users::find_by_id(&state.pool, user_id).await?;
+    // Verify user exists and is disabled before attempting delete
+    let target_user = users::find_by_id(&state.pool, user_id).await?;
+    if target_user.status != "disabled" {
+        return Err(ApiError::BadRequest(
+            "user must be disabled before deletion".to_string(),
+        ));
+    }
     users::delete_user(&state.pool, user_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -111,6 +125,21 @@ pub async fn create_invite(
     AdminUser(admin_id): AdminUser,
     Json(body): Json<CreateInviteRequest>,
 ) -> Result<(StatusCode, Json<InviteResponse>), ApiError> {
+    if let Some(max_uses) = body.max_uses
+        && max_uses <= 0
+    {
+        return Err(ApiError::BadRequest(
+            "max_uses must be greater than 0".to_string(),
+        ));
+    }
+    if let Some(expires_in_hours) = body.expires_in_hours
+        && expires_in_hours <= 0
+    {
+        return Err(ApiError::BadRequest(
+            "expires_in_hours must be greater than 0".to_string(),
+        ));
+    }
+
     let code = generate_invite_code();
 
     let expires_at = body

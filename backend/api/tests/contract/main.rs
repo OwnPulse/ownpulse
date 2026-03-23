@@ -223,9 +223,10 @@ async fn seed_admin_data(pool: &sqlx::PgPool) {
     let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash");
 
     // Target user for PATCH …/role, PATCH …/status, DELETE …/users/:id
+    // Status is 'disabled' because DELETE now requires the user to be disabled first.
     sqlx::query(
-        "INSERT INTO users (id, email, username, password_hash, auth_provider, role) \
-         VALUES ($1, $2, $3, $4, 'google', 'user') \
+        "INSERT INTO users (id, email, username, password_hash, auth_provider, role, status) \
+         VALUES ($1, $2, $3, $4, 'google', 'user', 'disabled') \
          ON CONFLICT (id) DO NOTHING",
     )
     .bind(target_user_id)
@@ -248,15 +249,19 @@ async fn seed_admin_data(pool: &sqlx::PgPool) {
     .expect("check invite_codes table");
 
     if table_exists.0 {
+        let admin_id: Uuid = "550e8400-e29b-41d4-a716-446655440000"
+            .parse()
+            .expect("valid UUID");
         let invite_id: Uuid = "660e8400-e29b-41d4-a716-446655440000"
             .parse()
             .expect("valid UUID");
         sqlx::query(
-            "INSERT INTO invite_codes (id, code, label, max_uses, use_count) \
-             VALUES ($1, 'ABC123DEF456', 'Friends', 10, 3) \
+            "INSERT INTO invite_codes (id, code, label, max_uses, use_count, created_by) \
+             VALUES ($1, 'ABC123DEF456', 'Friends', 10, 3, $2) \
              ON CONFLICT (id) DO NOTHING",
         )
         .bind(invite_id)
+        .bind(admin_id)
         .execute(pool)
         .await
         .expect("insert invite code for admin interactions");

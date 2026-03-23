@@ -97,6 +97,135 @@ pub async fn find_or_create_google_user(
     Ok(user)
 }
 
+/// Look up an existing Google user inside a transaction (read-only).
+///
+/// Returns `Err(sqlx::Error::RowNotFound)` when no matching user is found,
+/// allowing the caller to decide whether to create a new one.
+pub async fn find_google_user_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    google_sub: &str,
+    email: &str,
+) -> Result<UserRow, sqlx::Error> {
+    // 1. Look up by stable subject
+    let existing = sqlx::query_as::<_, UserRow>(
+        "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
+                u.role, u.data_region, u.federation_id, u.status, u.created_at
+         FROM users u
+         JOIN user_auth_methods m ON m.user_id = u.id
+         WHERE m.provider = 'google' AND m.provider_subject = $1",
+    )
+    .bind(google_sub)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(user) = existing {
+        return Ok(user);
+    }
+
+    // 2. Look up by email (handles migrated rows)
+    let existing_by_email = sqlx::query_as::<_, UserRow>(
+        "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
+                u.role, u.data_region, u.federation_id, u.status, u.created_at
+         FROM users u
+         JOIN user_auth_methods m ON m.user_id = u.id
+         WHERE m.provider = 'google' AND m.email = $1",
+    )
+    .bind(email)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(user) = existing_by_email {
+        // Backfill subject
+        sqlx::query(
+            "UPDATE user_auth_methods SET provider_subject = $1
+             WHERE user_id = $2 AND provider = 'google' AND provider_subject IS NULL",
+        )
+        .bind(google_sub)
+        .bind(user.id)
+        .execute(&mut **tx)
+        .await?;
+        return Ok(user);
+    }
+
+    Err(sqlx::Error::RowNotFound)
+}
+
+/// Look up or create a Google user inside an existing transaction.
+///
+/// Used when the invite claim and user creation must be atomic.
+/// Lookup follows the same order as [`find_or_create_google_user`].
+pub async fn find_or_create_google_user_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    google_sub: &str,
+    email: &str,
+    display_name: Option<&str>,
+) -> Result<UserRow, sqlx::Error> {
+    // 1. Look up by stable subject
+    let existing = sqlx::query_as::<_, UserRow>(
+        "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
+                u.role, u.data_region, u.federation_id, u.status, u.created_at
+         FROM users u
+         JOIN user_auth_methods m ON m.user_id = u.id
+         WHERE m.provider = 'google' AND m.provider_subject = $1",
+    )
+    .bind(google_sub)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(user) = existing {
+        return Ok(user);
+    }
+
+    // 2. Look up by email (handles migrated rows)
+    let existing_by_email = sqlx::query_as::<_, UserRow>(
+        "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
+                u.role, u.data_region, u.federation_id, u.status, u.created_at
+         FROM users u
+         JOIN user_auth_methods m ON m.user_id = u.id
+         WHERE m.provider = 'google' AND m.email = $1",
+    )
+    .bind(email)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(user) = existing_by_email {
+        // Backfill subject
+        sqlx::query(
+            "UPDATE user_auth_methods SET provider_subject = $1
+             WHERE user_id = $2 AND provider = 'google' AND provider_subject IS NULL",
+        )
+        .bind(google_sub)
+        .bind(user.id)
+        .execute(&mut **tx)
+        .await?;
+        return Ok(user);
+    }
+
+    // 3. Create new user and auth method row.
+    let user = sqlx::query_as::<_, UserRow>(
+        "INSERT INTO users (username, email, auth_provider)
+         VALUES ($1, $2, 'google')
+         RETURNING id, username, password_hash, auth_provider, email,
+                   role, data_region, federation_id, status, created_at",
+    )
+    .bind(display_name)
+    .bind(email)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email)
+         VALUES ($1, 'google', $2, $3)",
+    )
+    .bind(user.id)
+    .bind(google_sub)
+    .bind(email)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(user)
+}
+
 /// Look up an Apple-authenticated user, creating one if none exists.
 ///
 /// Lookup order:
@@ -161,6 +290,139 @@ pub async fn find_or_create_apple_user(
     .await?;
 
     tx.commit().await?;
+    Ok(user)
+}
+
+/// Look up an existing Apple user inside a transaction (read-only).
+///
+/// Returns `Err(sqlx::Error::RowNotFound)` when no matching user is found,
+/// allowing the caller to decide whether to create a new one.
+pub async fn find_apple_user_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    apple_sub: &str,
+    email: Option<&str>,
+) -> Result<UserRow, sqlx::Error> {
+    // 1. Look up by Apple subject
+    let existing = sqlx::query_as::<_, UserRow>(
+        "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
+                u.role, u.data_region, u.federation_id, u.status, u.created_at
+         FROM users u
+         JOIN user_auth_methods m ON m.user_id = u.id
+         WHERE m.provider = 'apple' AND m.provider_subject = $1",
+    )
+    .bind(apple_sub)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(user) = existing {
+        return Ok(user);
+    }
+
+    // 2. Look up by email (only when Apple provided one)
+    if let Some(em) = email {
+        let existing_by_email = sqlx::query_as::<_, UserRow>(
+            "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
+                    u.role, u.data_region, u.federation_id, u.status, u.created_at
+             FROM users u
+             JOIN user_auth_methods m ON m.user_id = u.id
+             WHERE m.provider = 'apple' AND m.email = $1",
+        )
+        .bind(em)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        if let Some(user) = existing_by_email {
+            // Backfill subject
+            sqlx::query(
+                "UPDATE user_auth_methods SET provider_subject = $1
+                 WHERE user_id = $2 AND provider = 'apple' AND provider_subject IS NULL",
+            )
+            .bind(apple_sub)
+            .bind(user.id)
+            .execute(&mut **tx)
+            .await?;
+            return Ok(user);
+        }
+    }
+
+    Err(sqlx::Error::RowNotFound)
+}
+
+/// Look up or create an Apple user inside an existing transaction.
+///
+/// Used when the invite claim and user creation must be atomic.
+/// Lookup follows the same order as [`find_or_create_apple_user`].
+pub async fn find_or_create_apple_user_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    apple_sub: &str,
+    email: Option<&str>,
+    username: &str,
+) -> Result<UserRow, sqlx::Error> {
+    // 1. Look up by Apple subject
+    let existing = sqlx::query_as::<_, UserRow>(
+        "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
+                u.role, u.data_region, u.federation_id, u.status, u.created_at
+         FROM users u
+         JOIN user_auth_methods m ON m.user_id = u.id
+         WHERE m.provider = 'apple' AND m.provider_subject = $1",
+    )
+    .bind(apple_sub)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    if let Some(user) = existing {
+        return Ok(user);
+    }
+
+    // 2. Look up by email (only when Apple provided one)
+    if let Some(em) = email {
+        let existing_by_email = sqlx::query_as::<_, UserRow>(
+            "SELECT u.id, u.username, u.password_hash, u.auth_provider, u.email,
+                    u.role, u.data_region, u.federation_id, u.status, u.created_at
+             FROM users u
+             JOIN user_auth_methods m ON m.user_id = u.id
+             WHERE m.provider = 'apple' AND m.email = $1",
+        )
+        .bind(em)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        if let Some(user) = existing_by_email {
+            // Backfill subject
+            sqlx::query(
+                "UPDATE user_auth_methods SET provider_subject = $1
+                 WHERE user_id = $2 AND provider = 'apple' AND provider_subject IS NULL",
+            )
+            .bind(apple_sub)
+            .bind(user.id)
+            .execute(&mut **tx)
+            .await?;
+            return Ok(user);
+        }
+    }
+
+    // 3. Create new user and auth method row.
+    let user = sqlx::query_as::<_, UserRow>(
+        "INSERT INTO users (username, email, auth_provider)
+         VALUES ($1, $2, 'apple')
+         RETURNING id, username, password_hash, auth_provider, email,
+                   role, data_region, federation_id, status, created_at",
+    )
+    .bind(username)
+    .bind(email)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email)
+         VALUES ($1, 'apple', $2, $3)",
+    )
+    .bind(user.id)
+    .bind(apple_sub)
+    .bind(email)
+    .execute(&mut **tx)
+    .await?;
+
     Ok(user)
 }
 
@@ -248,6 +510,10 @@ pub async fn update_user_status(
 pub async fn delete_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
+    sqlx::query("DELETE FROM invite_claims WHERE invite_code_id IN (SELECT id FROM invite_codes WHERE created_by = $1)")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
     sqlx::query("DELETE FROM invite_codes WHERE created_by = $1")
         .bind(user_id)
         .execute(&mut *tx)

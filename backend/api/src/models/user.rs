@@ -91,6 +91,8 @@ pub struct AuthMethodRow {
 pub struct AppleCallbackRequest {
     pub id_token: String,
     pub platform: String,
+    #[serde(default)]
+    pub invite_code: Option<String>,
 }
 
 /// Request body for `POST /auth/link`.

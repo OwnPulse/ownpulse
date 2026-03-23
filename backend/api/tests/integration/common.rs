@@ -100,7 +100,7 @@ pub async fn setup() -> TestApp {
 /// fields like `apple_client_id` or `apple_jwks_url` without repeating the whole struct.
 pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config)) -> TestApp {
     let container = Postgres::default()
-        .with_tag("16-alpine")
+        .with_tag("17-alpine")
         .start()
         .await
         .expect("failed to start postgres container");
@@ -198,6 +198,40 @@ pub fn auth_request(method: &str, uri: &str, token: &str, body: Option<&Value>) 
 pub async fn body_json(response: axum::response::Response) -> Value {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&bytes).unwrap()
+}
+
+/// Create an admin user and return (user_id, jwt_token).
+pub async fn create_admin_user(app: &TestApp) -> (Uuid, String) {
+    let hash = bcrypt::hash("adminpassword", 4).expect("bcrypt hash failed");
+    let row: (Uuid,) = sqlx::query_as(
+        "INSERT INTO users (email, password_hash, auth_provider, role)
+         VALUES ($1, $2, 'local', 'admin') RETURNING id",
+    )
+    .bind(format!("admin-{}@example.com", Uuid::new_v4()))
+    .bind(&hash)
+    .fetch_one(&app.pool)
+    .await
+    .expect("failed to insert admin user");
+
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject)
+         VALUES ($1, 'local', $2)",
+    )
+    .bind(row.0)
+    .bind(row.0.to_string())
+    .execute(&app.pool)
+    .await
+    .expect("failed to insert user_auth_methods row");
+
+    let token = api::auth::jwt::encode_access_token(
+        row.0,
+        "admin",
+        "test-jwt-secret-at-least-32-bytes-long",
+        3600,
+    )
+    .expect("failed to encode JWT");
+
+    (row.0, token)
 }
 
 /// Collect the response body into a string.

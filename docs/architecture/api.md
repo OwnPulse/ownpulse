@@ -36,7 +36,7 @@ Register a new account. When the instance requires invites (`REQUIRE_INVITE=true
 
 ```json
 {
-  "username": "string",
+  "email": "string",
   "password": "string",
   "invite_code": "string"
 }
@@ -49,11 +49,11 @@ Register a new account. When the instance requires invites (`REQUIRE_INVITE=true
 | Status | Reason |
 |--------|--------|
 | 400 | Invalid or expired invite code, or validation failure |
-| 409 | Username already taken |
+| 409 | Email already registered |
 
 #### Google OAuth with invite code
 
-`GET /auth/google/login` accepts an optional `?invite_code=XYZ` query parameter. If the user does not yet have an account and invite codes are required, the invite code is validated during the OAuth callback. If no valid code is present, the callback redirects to the login page with `?error=invite_required`.
+`GET /auth/google/login` accepts an optional `?invite_code=XYZ` query parameter. If the user does not yet have an account and invite codes are required, the invite code is validated during the OAuth callback. If no valid code is present, the callback returns a `400` JSON error (`"invite code required for new account registration"`).
 
 #### `POST /auth/apple/callback`
 

@@ -123,6 +123,83 @@
       }
     },
     {
+      "description": "a request to register a new account",
+      "providerState": "a valid invite code VALID-INVITE exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/register",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "email": "newuser@example.com",
+          "password": "securepassword",
+          "invite_code": "VALID-INVITE"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "access_token": "some-jwt-token",
+          "token_type": "Bearer",
+          "expires_in": 3600
+        }
+      }
+    },
+    {
+      "description": "a request to register with an invalid invite code",
+      "providerState": "no matching invite code exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/register",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "email": "newuser@example.com",
+          "password": "securepassword",
+          "invite_code": "INVALID"
+        }
+      },
+      "response": {
+        "status": 400,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "error": "Invalid invite code"
+        }
+      }
+    },
+    {
+      "description": "a request to register with a duplicate email",
+      "providerState": "a user with email exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/auth/register",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "email": "existing@example.com",
+          "password": "securepassword",
+          "invite_code": "VALID-INVITE"
+        }
+      },
+      "response": {
+        "status": 409,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "error": "Email already registered"
+        }
+      }
+    },
+    {
       "description": "a request to unlink an auth provider",
       "request": {
         "method": "DELETE",
