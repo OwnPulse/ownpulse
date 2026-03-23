@@ -7,7 +7,14 @@ import { accountApi } from "../api/account";
 import { getAuthMethods, logout, unlinkAuth } from "../api/auth";
 import { exportCsv, exportJson } from "../api/export";
 import { sourcePreferencesApi } from "../api/source-preferences";
+import { useTheme } from "../hooks/useTheme";
 import styles from "./Settings.module.css";
+
+const THEME_OPTIONS = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+] as const;
 
 const PROVIDER_NAMES: Record<string, string> = {
   google: "Google",
@@ -123,9 +130,33 @@ export default function Settings() {
     window.location.href = "/login";
   };
 
+  const { theme, setTheme } = useTheme();
+
   return (
     <main className="op-page">
       <h1>Settings</h1>
+
+      <section className="op-section">
+        <h2>Appearance</h2>
+        <fieldset className={styles.themePicker} aria-label="Theme">
+          {THEME_OPTIONS.map((option) => (
+            <label
+              key={option.value}
+              className={`${styles.themeOption}${theme === option.value ? ` ${styles.themeOptionActive}` : ""}`}
+            >
+              <input
+                type="radio"
+                name="theme"
+                value={option.value}
+                checked={theme === option.value}
+                onChange={() => setTheme(option.value)}
+                className={styles.themeRadioInput}
+              />
+              {option.label}
+            </label>
+          ))}
+        </fieldset>
+      </section>
 
       <section>
         <h2>Export Data</h2>
