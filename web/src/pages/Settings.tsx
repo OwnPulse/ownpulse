@@ -7,7 +7,14 @@ import { accountApi } from "../api/account";
 import { getAuthMethods, logout, unlinkAuth } from "../api/auth";
 import { exportCsv, exportJson } from "../api/export";
 import { sourcePreferencesApi } from "../api/source-preferences";
+import { useTheme } from "../hooks/useTheme";
 import styles from "./Settings.module.css";
+
+const THEME_OPTIONS = [
+  { value: "light", label: "Light" },
+  { value: "dark", label: "Dark" },
+  { value: "system", label: "System" },
+] as const;
 
 const PROVIDER_NAMES: Record<string, string> = {
   google: "Google",
@@ -123,9 +130,29 @@ export default function Settings() {
     window.location.href = "/login";
   };
 
+  const { theme, setTheme } = useTheme();
+
   return (
     <main className="op-page">
       <h1>Settings</h1>
+
+      <section className="op-section">
+        <h2>Appearance</h2>
+        <div className={styles.themePicker} role="radiogroup" aria-label="Theme">
+          {THEME_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={theme === option.value}
+              className={`${styles.themeOption}${theme === option.value ? ` ${styles.themeOptionActive}` : ""}`}
+              onClick={() => setTheme(option.value)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section>
         <h2>Export Data</h2>
