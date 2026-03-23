@@ -37,6 +37,16 @@
   background: var(--color-neutral-100);
 }
 
+:global([data-theme="dark"]) .themeOption:hover {
+  background: var(--color-neutral-800);
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme])) .themeOption:hover {
+    background: var(--color-neutral-800);
+  }
+}
+
 .themeOptionActive {
   background: var(--color-primary);
   color: #ffffff;

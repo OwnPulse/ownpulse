@@ -2,8 +2,21 @@
 // Copyright (C) OwnPulse Contributors
 
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useTheme } from "../../src/hooks/useTheme";
+
+function makeMatchMedia(darkMode: boolean) {
+  return (query: string) => ({
+    matches: darkMode && query === "(prefers-color-scheme: dark)",
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  });
+}
 
 describe("useTheme", () => {
   beforeEach(() => {
@@ -61,40 +74,28 @@ describe("useTheme", () => {
     expect(document.documentElement.dataset.theme).toBeUndefined();
   });
 
-  it("resolvedTheme reflects dark system preference when theme is system", () => {
-    // Override matchMedia to simulate dark OS preference
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: (query: string) => ({
-        matches: query === "(prefers-color-scheme: dark)",
-        media: query,
-        onchange: null,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }),
+  describe("with dark system preference", () => {
+    const originalMatchMedia = window.matchMedia;
+
+    beforeEach(() => {
+      Object.defineProperty(window, "matchMedia", {
+        writable: true,
+        value: makeMatchMedia(true),
+      });
     });
 
-    const { result } = renderHook(() => useTheme());
+    afterEach(() => {
+      Object.defineProperty(window, "matchMedia", {
+        writable: true,
+        value: originalMatchMedia,
+      });
+    });
 
-    expect(result.current.theme).toBe("system");
-    expect(result.current.resolvedTheme).toBe("dark");
+    it("resolvedTheme reflects dark system preference when theme is system", () => {
+      const { result } = renderHook(() => useTheme());
 
-    // Restore default stub (matches: false)
-    Object.defineProperty(window, "matchMedia", {
-      writable: true,
-      value: (query: string) => ({
-        matches: false,
-        media: query,
-        onchange: null,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }),
+      expect(result.current.theme).toBe("system");
+      expect(result.current.resolvedTheme).toBe("dark");
     });
   });
 
