@@ -1,8 +1,5 @@
 name: Deploy
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 on:
   workflow_run:
     workflows: [Backend, Web, User Docs]
@@ -33,7 +30,7 @@ jobs:
     steps:
       - name: Resolve per-service image tags
         id: tags
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
         env:
           INPUT_SHA: ${{ github.event.inputs.sha }}
         with:
@@ -133,7 +130,7 @@ jobs:
     if: needs.resolve-tags.outputs.ready == 'true'
     runs-on: arc-runner-set
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install kubectl
         run: |
@@ -141,7 +138,8 @@ jobs:
           chmod +x kubectl && sudo mv kubectl /usr/local/bin/
 
       - name: Install Helm
-        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
       - name: Validate staging Helm charts
         run: |
@@ -194,7 +192,7 @@ jobs:
       WEB_TAG: ${{ needs.resolve-tags.outputs.web-tag }}
       USERDOCS_TAG: ${{ needs.resolve-tags.outputs.userdocs-tag }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install kubectl
         run: |
@@ -202,7 +200,8 @@ jobs:
           chmod +x kubectl && sudo mv kubectl /usr/local/bin/
 
       - name: Install Helm
-        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
       - name: Resolve image tag for ${{ matrix.service }}
         id: tag
@@ -258,7 +257,7 @@ jobs:
     needs: [resolve-tags, production-approve]
     runs-on: arc-runner-set
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install kubectl
         run: |
@@ -266,7 +265,8 @@ jobs:
           chmod +x kubectl && sudo mv kubectl /usr/local/bin/
 
       - name: Install Helm
-        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
       - name: Clean up stuck Postgres release (production)
         run: |
@@ -304,7 +304,7 @@ jobs:
       WEB_TAG: ${{ needs.resolve-tags.outputs.web-tag }}
       USERDOCS_TAG: ${{ needs.resolve-tags.outputs.userdocs-tag }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install kubectl
         run: |
@@ -312,7 +312,8 @@ jobs:
           chmod +x kubectl && sudo mv kubectl /usr/local/bin/
 
       - name: Install Helm
-        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112 # v4.3.0
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
       - name: Resolve image tag for ${{ matrix.service }}
         id: tag
