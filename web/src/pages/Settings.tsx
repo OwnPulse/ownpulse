@@ -138,20 +138,24 @@ export default function Settings() {
 
       <section className="op-section">
         <h2>Appearance</h2>
-        <div className={styles.themePicker} role="radiogroup" aria-label="Theme">
+        <fieldset className={styles.themePicker} aria-label="Theme">
           {THEME_OPTIONS.map((option) => (
-            <button
+            <label
               key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={theme === option.value}
               className={`${styles.themeOption}${theme === option.value ? ` ${styles.themeOptionActive}` : ""}`}
-              onClick={() => setTheme(option.value)}
             >
+              <input
+                type="radio"
+                name="theme"
+                value={option.value}
+                checked={theme === option.value}
+                onChange={() => setTheme(option.value)}
+                className={styles.themeRadioInput}
+              />
               {option.label}
-            </button>
+            </label>
           ))}
-        </div>
+        </fieldset>
       </section>
 
       <section>

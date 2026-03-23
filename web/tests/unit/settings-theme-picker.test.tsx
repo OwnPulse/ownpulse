@@ -32,6 +32,10 @@ async function renderSettings() {
   return render(<Settings />, { wrapper });
 }
 
+function getRadio(name: string) {
+  return screen.getByRole("radio", { name });
+}
+
 describe("Settings — Theme Picker", () => {
   beforeEach(() => {
     useAuthStore.setState({ token: TOKEN, isAuthenticated: true });
@@ -42,33 +46,30 @@ describe("Settings — Theme Picker", () => {
   it("renders three theme options", async () => {
     await renderSettings();
 
-    const group = screen.getByRole("radiogroup", { name: /theme/i });
-    expect(group).toBeDefined();
-
     const options = screen.getAllByRole("radio");
     expect(options).toHaveLength(3);
-    expect(screen.getByText("Light")).toBeDefined();
-    expect(screen.getByText("Dark")).toBeDefined();
-    expect(screen.getByText("System")).toBeDefined();
+    expect(getRadio("Light")).toBeDefined();
+    expect(getRadio("Dark")).toBeDefined();
+    expect(getRadio("System")).toBeDefined();
   });
 
   it("defaults to system theme", async () => {
     await renderSettings();
 
-    expect(screen.getByText("System")).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByText("Light")).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByText("Dark")).toHaveAttribute("aria-checked", "false");
+    expect(getRadio("System")).toBeChecked();
+    expect(getRadio("Light")).not.toBeChecked();
+    expect(getRadio("Dark")).not.toBeChecked();
   });
 
   it("selects dark theme on click", async () => {
     await renderSettings();
     const user = userEvent.setup();
 
-    await user.click(screen.getByText("Dark"));
+    await user.click(getRadio("Dark"));
 
-    expect(screen.getByText("Dark")).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByText("Light")).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByText("System")).toHaveAttribute("aria-checked", "false");
+    expect(getRadio("Dark")).toBeChecked();
+    expect(getRadio("Light")).not.toBeChecked();
+    expect(getRadio("System")).not.toBeChecked();
     expect(localStorage.getItem("theme")).toBe("dark");
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
@@ -77,9 +78,9 @@ describe("Settings — Theme Picker", () => {
     await renderSettings();
     const user = userEvent.setup();
 
-    await user.click(screen.getByText("Light"));
+    await user.click(getRadio("Light"));
 
-    expect(screen.getByText("Light")).toHaveAttribute("aria-checked", "true");
+    expect(getRadio("Light")).toBeChecked();
     expect(localStorage.getItem("theme")).toBe("light");
     expect(document.documentElement.dataset.theme).toBe("light");
   });
@@ -89,9 +90,9 @@ describe("Settings — Theme Picker", () => {
     await renderSettings();
     const user = userEvent.setup();
 
-    await user.click(screen.getByText("System"));
+    await user.click(getRadio("System"));
 
-    expect(screen.getByText("System")).toHaveAttribute("aria-checked", "true");
+    expect(getRadio("System")).toBeChecked();
     expect(localStorage.getItem("theme")).toBeNull();
     expect(document.documentElement.dataset.theme).toBeUndefined();
   });
@@ -100,8 +101,8 @@ describe("Settings — Theme Picker", () => {
     localStorage.setItem("theme", "dark");
     await renderSettings();
 
-    expect(screen.getByText("Dark")).toHaveAttribute("aria-checked", "true");
-    expect(screen.getByText("Light")).toHaveAttribute("aria-checked", "false");
-    expect(screen.getByText("System")).toHaveAttribute("aria-checked", "false");
+    expect(getRadio("Dark")).toBeChecked();
+    expect(getRadio("Light")).not.toBeChecked();
+    expect(getRadio("System")).not.toBeChecked();
   });
 });
