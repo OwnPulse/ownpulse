@@ -22,6 +22,8 @@ pub enum ApiError {
     Conflict(String),
     #[error("internal error: {0}")]
     Internal(String),
+    #[error("database schema outdated — migrations may need to be run")]
+    SchemaOutdated,
 }
 
 impl IntoResponse for ApiError {
@@ -40,6 +42,10 @@ impl IntoResponse for ApiError {
                     "internal server error".to_string(),
                 )
             }
+            ApiError::SchemaOutdated => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "database schema outdated — migrations may need to be run".to_string(),
+            ),
         };
 
         (status, Json(json!({"error": message}))).into_response()
@@ -57,8 +63,17 @@ impl From<sqlx::Error> for ApiError {
         match &err {
             sqlx::Error::RowNotFound => ApiError::NotFound,
             sqlx::Error::Database(db_err) => {
+                // 23505 = unique_violation
                 if db_err.code().as_deref() == Some("23505") {
                     ApiError::Conflict("resource already exists".to_string())
+                }
+                // 42P01 = undefined_table ("relation does not exist")
+                else if db_err.code().as_deref() == Some("42P01") {
+                    tracing::error!(
+                        error = %err,
+                        "query referenced a missing table — database schema is likely outdated"
+                    );
+                    ApiError::SchemaOutdated
                 } else {
                     ApiError::Internal(err.to_string())
                 }

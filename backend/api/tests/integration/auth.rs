@@ -339,6 +339,7 @@ async fn test_google_callback_pkce_redirects_to_custom_scheme() {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
     };
     let app = api::build_app_without_metrics(state);
 
@@ -424,6 +425,7 @@ async fn test_google_callback_state_ios_no_longer_bypasses_csrf() {
         pool: test_app.pool.clone(),
         config,
         http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
     };
     let app = api::build_app_without_metrics(state);
 
@@ -489,6 +491,7 @@ async fn test_google_callback_no_verifier_no_cookie_returns_400() {
         pool: test_app.pool.clone(),
         config,
         http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
     };
     let app = api::build_app_without_metrics(state);
 
@@ -541,6 +544,7 @@ async fn test_google_callback_web_redirects_with_cookies() {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
     };
 
     let app = api::build_app_without_metrics(state);
@@ -612,6 +616,7 @@ async fn test_google_callback_rejects_mismatched_csrf_state() {
         pool: test_app.pool.clone(),
         config: google_config("http://127.0.0.1:0"),
         http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
     };
 
     let app = api::build_app_without_metrics(state);

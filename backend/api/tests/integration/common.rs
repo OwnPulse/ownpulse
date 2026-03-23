@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
 use axum::Router;
 use axum::body::Body;
 use http::Request;
@@ -12,6 +15,12 @@ use testcontainers::ImageExt;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 use uuid::Uuid;
+
+/// Create a `MigrationsReady` flag pre-set to `true` for tests where all
+/// migrations have been applied.
+pub fn migrations_ready_flag() -> api::migration_check::MigrationsReady {
+    Arc::new(AtomicBool::new(true))
+}
 
 /// Holds the Axum app, database pool, and the container handle (which keeps
 /// the ephemeral Postgres alive for the lifetime of the test).
@@ -84,6 +93,7 @@ pub async fn setup() -> TestApp {
         pool: pool.clone(),
         config,
         http_client: reqwest::Client::new(),
+        migrations_ready: migrations_ready_flag(),
     };
 
     let app = api::build_app_without_metrics(state);
@@ -127,6 +137,7 @@ pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config))
         pool: pool.clone(),
         config,
         http_client: reqwest::Client::new(),
+        migrations_ready: migrations_ready_flag(),
     };
 
     let app = api::build_app_without_metrics(state);

@@ -6,7 +6,7 @@ use std::time::Duration;
 use anyhow::Context;
 use sqlx::postgres::PgPoolOptions;
 use tokio::signal;
-use tracing::info;
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -78,10 +78,24 @@ async fn run_server() -> anyhow::Result<()> {
         .await
         .context("failed to connect to database")?;
 
+    // Check migration status. The server still starts even if migrations are
+    // behind — the readiness probe (/readyz) will return 503, preventing
+    // Kubernetes from routing traffic until the schema catches up.
+    let migrations_ready = api::migration_check::new_migrations_ready();
+    api::migration_check::run_check_and_set_flag(&pool, &migrations_ready).await;
+
+    if !migrations_ready.load(std::sync::atomic::Ordering::SeqCst) {
+        warn!(
+            "server starting with outdated database schema — \
+             /readyz will return 503 until migrations are applied"
+        );
+    }
+
     let state = api::AppState {
         pool,
         config,
         http_client: reqwest::Client::new(),
+        migrations_ready,
     };
 
     let app = api::build_app(state);
