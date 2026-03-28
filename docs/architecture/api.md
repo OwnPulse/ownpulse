@@ -1,6 +1,6 @@
 # API Reference
 
-**Base URL:** `https://api.<domain>/api/v1`
+**Base URL:** `https://app.<domain>/api/v1`
 
 All endpoints require JWT authentication unless marked as public. Tokens are issued via the auth endpoints and passed as `Authorization: Bearer <token>`.
 
