@@ -129,6 +129,7 @@ jobs:
           badge-file: backend-coverage.json
 
   result:
+    name: Backend / result
     if: always()
     needs: [changes, test]
     runs-on: ubuntu-latest
