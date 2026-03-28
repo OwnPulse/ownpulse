@@ -13,41 +13,41 @@ describe("metricKey", () => {
 describe("dateRangeToParams", () => {
   it("returns correct range for 7d preset", () => {
     const { start, end } = dateRangeToParams({ type: "preset", preset: "7d" });
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const diff = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-    expect(diff).toBe(7);
+    expect(start).toMatch(/T00:00:00Z$/);
+    expect(end).toMatch(/T23:59:59Z$/);
+    const diff = (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24);
+    expect(Math.round(diff)).toBe(8); // 7 days apart, end is 23:59:59
   });
 
   it("returns correct range for 30d preset", () => {
     const { start, end } = dateRangeToParams({ type: "preset", preset: "30d" });
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const diff = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-    expect(diff).toBe(30);
+    expect(start).toMatch(/T00:00:00Z$/);
+    expect(end).toMatch(/T23:59:59Z$/);
+    const diff = (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24);
+    expect(Math.round(diff)).toBe(31);
   });
 
   it("returns correct range for 90d preset", () => {
     const { start, end } = dateRangeToParams({ type: "preset", preset: "90d" });
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const diff = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-    expect(diff).toBe(90);
+    expect(start).toMatch(/T00:00:00Z$/);
+    expect(end).toMatch(/T23:59:59Z$/);
+    const diff = (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24);
+    expect(Math.round(diff)).toBe(91);
   });
 
   it("returns correct range for 1y preset", () => {
     const { start, end } = dateRangeToParams({ type: "preset", preset: "1y" });
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const diff = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
-    expect(diff).toBeGreaterThanOrEqual(365);
-    expect(diff).toBeLessThanOrEqual(366);
+    expect(start).toMatch(/T00:00:00Z$/);
+    expect(end).toMatch(/T23:59:59Z$/);
+    const diff = (new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24);
+    expect(Math.round(diff)).toBeGreaterThanOrEqual(365);
+    expect(Math.round(diff)).toBeLessThanOrEqual(367);
   });
 
   it("returns 2020-01-01 to today for all preset", () => {
     const { start, end } = dateRangeToParams({ type: "preset", preset: "all" });
-    expect(start).toBe("2020-01-01");
-    expect(end).toBe(new Date().toISOString().slice(0, 10));
+    expect(start).toBe("2020-01-01T00:00:00Z");
+    expect(end).toBe(`${new Date().toISOString().slice(0, 10)}T23:59:59Z`);
   });
 
   it("returns custom dates for custom range", () => {
@@ -56,8 +56,8 @@ describe("dateRangeToParams", () => {
       start: "2025-01-01",
       end: "2025-06-01",
     });
-    expect(start).toBe("2025-01-01");
-    expect(end).toBe("2025-06-01");
+    expect(start).toBe("2025-01-01T00:00:00Z");
+    expect(end).toBe("2025-06-01T23:59:59Z");
   });
 });
 
