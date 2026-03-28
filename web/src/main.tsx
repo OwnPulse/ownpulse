@@ -23,7 +23,7 @@ import Register from "./pages/Register";
 import Settings from "./pages/Settings";
 import ShareAccept from "./pages/ShareAccept";
 import Sources from "./pages/Sources";
-import Timeline from "./pages/Timeline";
+import Explore from "./pages/Explore";
 
 const queryClient = new QueryClient();
 
@@ -39,7 +39,8 @@ ReactDOM.createRoot(rootEl).render(
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/timeline" element={<Timeline />} />
+              <Route path="/explore" element={<Explore />} />
+              <Route path="/explore/:chartId" element={<Explore />} />
               <Route path="/entry" element={<DataEntry />} />
               <Route path="/sources" element={<Sources />} />
               <Route path="/settings" element={<Settings />} />

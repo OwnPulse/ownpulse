@@ -4,6 +4,7 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { logout } from "../api/auth";
+import { useSSE } from "../hooks/useSSE";
 import { useTheme } from "../hooks/useTheme";
 import { useAuthStore } from "../store/auth";
 import styles from "./Layout.module.css";
@@ -24,6 +25,7 @@ export default function Layout() {
   const role = useAuthStore((s) => s.role);
   const { theme, setTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  useSSE();
 
   const handleLogout = async () => {
     await logout();
@@ -62,8 +64,8 @@ export default function Layout() {
           <NavLink to="/" end className={navLinkClass} onClick={closeSidebar}>
             Dashboard
           </NavLink>
-          <NavLink to="/timeline" className={navLinkClass} onClick={closeSidebar}>
-            Timeline
+          <NavLink to="/explore" className={navLinkClass} onClick={closeSidebar}>
+            Explore
           </NavLink>
           <NavLink to="/entry" className={navLinkClass} onClick={closeSidebar}>
             Data Entry

@@ -1,0 +1,40 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.card {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  min-width: 180px;
+  position: relative;
+}
+
+.card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.name {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  margin-bottom: 0.25rem;
+}
+
+.meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.deleteBtn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.card:hover .deleteBtn {
+  opacity: 1;
+}

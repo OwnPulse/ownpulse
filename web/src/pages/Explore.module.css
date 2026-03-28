@@ -1,0 +1,66 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.sidebar {
+  width: 250px;
+  flex-shrink: 0;
+}
+
+.chartArea {
+  flex: 1;
+  min-width: 0;
+}
+
+.pickerToggle {
+  display: none;
+  margin-bottom: 1rem;
+}
+
+.savedSection {
+  margin-top: 2rem;
+}
+
+.savedSection h2 {
+  margin-bottom: 0.75rem;
+}
+
+.savedRow {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+
+  .sidebarOpen {
+    display: block;
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .pickerToggle {
+    display: inline-flex;
+  }
+
+  .layout {
+    flex-direction: column;
+  }
+}
