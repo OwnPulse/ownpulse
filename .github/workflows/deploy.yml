@@ -205,7 +205,7 @@ jobs:
 
       - name: Install helm-diff plugin
         run: |
-          helm plugin install https://github.com/databus23/helm-diff --version v3.15.3
+          helm plugin install https://github.com/databus23/helm-diff --version v3.15.3 --verify=false
 
       - name: Resolve image tag for ${{ matrix.service }}
         id: tag
@@ -350,7 +350,7 @@ jobs:
 
       - name: Install helm-diff plugin
         run: |
-          helm plugin install https://github.com/databus23/helm-diff --version v3.15.3
+          helm plugin install https://github.com/databus23/helm-diff --version v3.15.3 --verify=false
 
       - name: Resolve image tag for ${{ matrix.service }}
         id: tag
