@@ -236,21 +236,15 @@ async fn run_server() -> anyhow::Result<()> {
         .await
         .context("failed to connect to database")?;
 
-    // Check migration status. The server still starts even if migrations are
-    // behind — the readiness probe (/readyz) will return 503, preventing
-    // Kubernetes from routing traffic until the schema catches up.
+    // Run pending migrations on startup. This is idempotent — already-applied
+    // migrations are skipped. The server won't start serving traffic until
+    // migrations complete (readiness probe checks migration status).
+    api::migrate::run_migrations(&pool)
+        .await
+        .context("failed to run database migrations")?;
+
     let migrations_ready = api::migration_check::new_migrations_ready();
     api::migration_check::run_check_and_set_flag(&pool, &migrations_ready).await;
-
-    if !migrations_ready.load(std::sync::atomic::Ordering::SeqCst) {
-        warn!(
-            "server starting with outdated database schema — \
-             /readyz will return 503 until migrations are applied"
-        );
-        // Re-check periodically so the pod becomes ready once the migration
-        // hook (or manual migration) completes.
-        api::migration_check::spawn_migration_recheck(pool.clone(), migrations_ready.clone());
-    }
 
     let state = api::AppState {
         pool: pool.clone(),
