@@ -134,6 +134,7 @@ dependencies = [
  "pact_models",
  "pact_verifier",
  "rand 0.8.5",
+ "regex",
  "reqwest",
  "rsa",
  "rstest",
