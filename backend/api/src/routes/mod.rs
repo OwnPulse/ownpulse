@@ -151,7 +151,8 @@ fn base_routes() -> Router<AppState> {
             patch(friends::update_permissions),
         )
         .route("/friends/:friend_id/data", get(friends::get_friend_data))
-        // Explore — metrics, time-series, saved charts
+        // Explore — metrics, time-series, saved charts, intervention markers
+        .route("/explore/interventions", get(explore::interventions))
         .route("/explore/metrics", get(explore::metrics))
         .route("/explore/series", get(explore::series_get))
         .route("/explore/series", post(explore::series_post))

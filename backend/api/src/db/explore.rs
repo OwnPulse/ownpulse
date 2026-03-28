@@ -6,8 +6,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::models::explore::{
-    CalendarField, CheckinField, DataPoint, HealthRecordField, MetricSource, Resolution,
-    SeriesResponse, SleepField,
+    CalendarField, CheckinField, DataPoint, HealthRecordField, InterventionMarker, MetricSource,
+    ObserverPollField, Resolution, SeriesResponse, SleepField,
 };
 
 /// Row returned by aggregation queries.
@@ -72,6 +72,15 @@ pub async fn query_series(
                 "sleep".to_string(),
                 field.json_key().to_string(),
                 field.unit().to_string(),
+                agg_to_points(rows),
+            )
+        }
+        MetricSource::ObserverPoll(field) => {
+            let rows = query_observer_poll(pool, user_id, field, start, end, interval).await?;
+            (
+                "observer_polls".to_string(),
+                format!("{}:{}", field.poll_id, field.dimension),
+                "score".to_string(),
                 agg_to_points(rows),
             )
         }
@@ -236,6 +245,85 @@ async fn query_sleep(
     .bind(user_id)
     .bind(start)
     .bind(end)
+    .fetch_all(pool)
+    .await
+}
+
+/// Query observer poll responses, averaging across all observers for a single
+/// dimension.  The poll must be owned by `user_id`.
+async fn query_observer_poll(
+    pool: &PgPool,
+    user_id: Uuid,
+    field: &ObserverPollField,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    interval: &str,
+) -> Result<Vec<AggRow>, sqlx::Error> {
+    let dimension = &field.dimension;
+    // Safety: `dimension` comes from user input but is used as a JSONB key via
+    // the `->>` operator with a bind parameter style (format! interpolation here
+    // because `sqlx` cannot bind a key name). We validate it is non-empty and
+    // alphanumeric+underscore to prevent injection.
+    //
+    // We also verify ownership inline (AND p.user_id = $1) so a user cannot
+    // query another user's poll data.
+    sqlx::query_as::<_, AggRow>(&format!(
+        "SELECT date_trunc('{interval}', r.date::timestamptz) AS bucket,
+                AVG((r.scores->>'{dimension}')::double precision) AS avg_val,
+                COUNT(*) AS cnt
+         FROM observer_responses r
+         JOIN observer_polls p ON p.id = r.poll_id
+         WHERE r.poll_id = $1
+           AND p.user_id = $2
+           AND p.deleted_at IS NULL
+           AND r.date >= ($3::timestamptz)::date
+           AND r.date <= ($4::timestamptz)::date
+           AND r.scores->>'{dimension}' IS NOT NULL
+         GROUP BY bucket
+         ORDER BY bucket ASC"
+    ))
+    .bind(field.poll_id)
+    .bind(user_id)
+    .bind(start)
+    .bind(end)
+    .fetch_all(pool)
+    .await
+}
+
+/// Query intervention markers for a date range.
+pub async fn intervention_markers(
+    pool: &PgPool,
+    user_id: Uuid,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+) -> Result<Vec<InterventionMarker>, sqlx::Error> {
+    sqlx::query_as::<_, InterventionMarker>(
+        "SELECT administered_at AS t, substance, dose, unit, route
+         FROM interventions
+         WHERE user_id = $1
+           AND administered_at >= $2
+           AND administered_at <= $3
+         ORDER BY administered_at ASC",
+    )
+    .bind(user_id)
+    .bind(start)
+    .bind(end)
+    .fetch_all(pool)
+    .await
+}
+
+/// Fetch active observer polls owned by a user (for the metrics picker).
+pub async fn user_observer_polls(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<(Uuid, String, serde_json::Value)>, sqlx::Error> {
+    sqlx::query_as::<_, (Uuid, String, serde_json::Value)>(
+        "SELECT id, name, dimensions
+         FROM observer_polls
+         WHERE user_id = $1 AND deleted_at IS NULL
+         ORDER BY created_at DESC",
+    )
+    .bind(user_id)
     .fetch_all(pool)
     .await
 }
