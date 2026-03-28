@@ -256,6 +256,82 @@ pub async fn create_admin_user(app: &TestApp) -> (Uuid, String) {
     (row.0, token)
 }
 
+/// Spin up a [`TestApp`] with rate limiting enabled.
+///
+/// The rate-limited router uses `api_routes()` (with governor layers).
+/// IP-based extractors need an `X-Forwarded-For` header in test requests
+/// since `ConnectInfo` is not available in oneshot tests.
+pub async fn setup_with_rate_limiting() -> TestApp {
+    let container = Postgres::default()
+        .with_tag("17-alpine")
+        .start()
+        .await
+        .expect("failed to start postgres container");
+
+    let host_port = container
+        .get_host_port_ipv4(5432)
+        .await
+        .expect("failed to get mapped port");
+
+    let database_url = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&database_url)
+        .await
+        .expect("failed to connect to testcontainers postgres");
+
+    run_migrations(&pool).await;
+
+    let config = test_config(&database_url);
+    let web_origin = config.web_origin.clone();
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
+    let state = api::AppState {
+        pool: pool.clone(),
+        config,
+        http_client: reqwest::Client::new(),
+        migrations_ready: migrations_ready_flag(),
+        event_tx,
+    };
+
+    // Build with rate limiting but without Prometheus metrics.
+    let app = Router::new()
+        .route(
+            "/api/v1/health",
+            axum::routing::get(|| async { axum::Json(serde_json::json!({"status": "ok"})) }),
+        )
+        .nest("/api/v1", api::routes::api_routes())
+        .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(
+            tower_http::cors::CorsLayer::new()
+                .allow_origin(
+                    web_origin
+                        .parse::<axum::http::HeaderValue>()
+                        .expect("invalid WEB_ORIGIN"),
+                )
+                .allow_methods(tower_http::cors::AllowMethods::list([
+                    axum::http::Method::GET,
+                    axum::http::Method::POST,
+                    axum::http::Method::PUT,
+                    axum::http::Method::DELETE,
+                    axum::http::Method::PATCH,
+                    axum::http::Method::OPTIONS,
+                ]))
+                .allow_headers(tower_http::cors::AllowHeaders::list([
+                    axum::http::header::AUTHORIZATION,
+                    axum::http::header::CONTENT_TYPE,
+                ]))
+                .allow_credentials(true),
+        )
+        .with_state(state);
+
+    TestApp {
+        app,
+        pool,
+        _container: container,
+    }
+}
+
 /// Collect the response body into a string.
 pub async fn body_string(response: axum::response::Response) -> String {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();

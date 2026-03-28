@@ -569,3 +569,147 @@ async fn test_concurrent_registrations_against_single_use_invite() {
     );
     assert_eq!(failures, 9);
 }
+
+// ─── Rate limiting: explore endpoints (30 req/min per user) ─────────────────
+
+#[tokio::test]
+async fn test_explore_rate_limit_rejects_after_burst() {
+    let app = common::setup_with_rate_limiting().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    // Send 30 requests (the burst limit) — all should succeed.
+    for i in 0..30 {
+        let resp = app
+            .app
+            .clone()
+            .oneshot(common::auth_request(
+                "GET",
+                "/api/v1/explore/metrics",
+                &token,
+                None,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(
+            resp.status(),
+            200,
+            "request {i} should succeed within burst"
+        );
+    }
+
+    // The 31st request should be rate limited (429).
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            "/api/v1/explore/metrics",
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        429,
+        "request beyond burst should be rate limited"
+    );
+}
+
+// ─── Rate limiting: observer-polls/accept (10 req/min per IP) ───────────────
+
+#[tokio::test]
+async fn test_poll_accept_rate_limit_rejects_after_burst() {
+    let app = common::setup_with_rate_limiting().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    // Send 10 requests (burst limit). These will all return 400 (bad token)
+    // but the rate limiter fires before the handler, so the first 10 should
+    // NOT get 429.
+    for i in 0..10 {
+        let req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/observer-polls/accept")
+            .header("content-type", "application/json")
+            .header("authorization", format!("Bearer {token}"))
+            .header("x-forwarded-for", "203.0.113.42")
+            .body(Body::from(
+                serde_json::to_string(&json!({"token": "fake-invite-token"})).unwrap(),
+            ))
+            .unwrap();
+
+        let resp = app.app.clone().oneshot(req).await.unwrap();
+        assert_ne!(
+            resp.status(),
+            429,
+            "request {i} should NOT be rate limited within burst"
+        );
+    }
+
+    // The 11th request from the same IP should be rate limited.
+    let req = Request::builder()
+        .method("POST")
+        .uri("/api/v1/observer-polls/accept")
+        .header("content-type", "application/json")
+        .header("authorization", format!("Bearer {token}"))
+        .header("x-forwarded-for", "203.0.113.42")
+        .body(Body::from(
+            serde_json::to_string(&json!({"token": "fake-invite-token"})).unwrap(),
+        ))
+        .unwrap();
+
+    let resp = app.app.clone().oneshot(req).await.unwrap();
+    assert_eq!(
+        resp.status(),
+        429,
+        "request beyond burst should be rate limited"
+    );
+}
+
+// ─── Rate limiting: observer-polls/:id/respond (10 req/min per user) ────────
+
+#[tokio::test]
+async fn test_poll_respond_rate_limit_rejects_after_burst() {
+    let app = common::setup_with_rate_limiting().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    // Send 10 requests (burst limit). These will return 403 (not a poll member)
+    // but the rate limiter fires first, so the first 10 should not get 429.
+    let fake_poll_id = Uuid::new_v4();
+    for i in 0..10 {
+        let resp = app
+            .app
+            .clone()
+            .oneshot(common::auth_request(
+                "PUT",
+                &format!("/api/v1/observer-polls/{fake_poll_id}/respond"),
+                &token,
+                Some(&json!({"date": "2026-03-27", "scores": {"energy": 5}})),
+            ))
+            .await
+            .unwrap();
+        assert_ne!(
+            resp.status(),
+            429,
+            "request {i} should NOT be rate limited within burst"
+        );
+    }
+
+    // The 11th request should be rate limited.
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PUT",
+            &format!("/api/v1/observer-polls/{fake_poll_id}/respond"),
+            &token,
+            Some(&json!({"date": "2026-03-27", "scores": {"energy": 5}})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        429,
+        "request beyond burst should be rate limited"
+    );
+}

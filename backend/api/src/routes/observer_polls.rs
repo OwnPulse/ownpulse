@@ -7,7 +7,6 @@ use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use chrono::Utc;
-use regex::Regex;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -30,11 +29,15 @@ fn mask_email(email: &str) -> String {
     }
 }
 
-/// Strip HTML tags from a string using a simple regex.
+/// Strip all HTML tags from a string, preserving only plain text.
+///
+/// Uses `ammonia` for robust HTML sanitization that handles malformed HTML,
+/// unclosed tags, and XSS payloads correctly (unlike a simple regex).
 fn strip_html_tags(input: &str) -> String {
-    static RE: std::sync::LazyLock<Regex> =
-        std::sync::LazyLock::new(|| Regex::new(r"<[^>]*>").expect("invalid regex"));
-    RE.replace_all(input, "").to_string()
+    ammonia::Builder::new()
+        .tags(std::collections::HashSet::new())
+        .clean(input)
+        .to_string()
 }
 
 /// Dimension name pattern: alphanumeric + underscore, 1-50 chars.
@@ -485,14 +488,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_strip_html_tags() {
-        assert_eq!(strip_html_tags("<script>alert(1)</script>"), "alert(1)");
+    fn test_strip_html_tags_script() {
+        // ammonia removes <script> tags AND their content (correct security behavior)
+        assert_eq!(strip_html_tags("<script>alert(1)</script>"), "");
+    }
+
+    #[test]
+    fn test_strip_html_tags_no_tags() {
         assert_eq!(strip_html_tags("no tags"), "no tags");
+    }
+
+    #[test]
+    fn test_strip_html_tags_formatting() {
         assert_eq!(
             strip_html_tags("<b>bold</b> and <i>italic</i>"),
             "bold and italic"
         );
+    }
+
+    #[test]
+    fn test_strip_html_tags_empty() {
         assert_eq!(strip_html_tags(""), "");
+    }
+
+    #[test]
+    fn test_strip_html_tags_malformed_html() {
+        // Malformed/unclosed tags that a simple regex would miss
+        let result = strip_html_tags("<img src=x onerror=alert(1)");
+        assert!(!result.contains('<'), "should not contain HTML tags");
+    }
+
+    #[test]
+    fn test_strip_html_tags_nested_xss() {
+        let result = strip_html_tags("<div onmouseover=\"alert('xss')\">hover me</div>");
+        assert_eq!(result, "hover me");
     }
 
     #[test]

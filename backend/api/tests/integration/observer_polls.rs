@@ -108,7 +108,8 @@ async fn create_poll_strips_html_from_prompt() {
 
     assert_eq!(resp.status(), 201);
     let json = common::body_json(resp).await;
-    assert_eq!(json["custom_prompt"], "alert(1)Please rate");
+    // ammonia strips <script> tags AND their content (correct security behavior)
+    assert_eq!(json["custom_prompt"], "Please rate");
 }
 
 #[tokio::test]
