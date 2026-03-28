@@ -7,6 +7,7 @@ import { checkinsApi } from "../api/checkins";
 import { healthRecordsApi } from "../api/health-records";
 import { sleepApi } from "../api/sleep";
 import SleepChart from "../components/SleepChart";
+import WeightChart from "../components/WeightChart";
 import styles from "./Timeline.module.css";
 
 export default function Timeline() {
@@ -26,6 +27,18 @@ export default function Timeline() {
     return since.toISOString().slice(0, 10);
   }, []);
 
+  const weightSinceStr = useMemo(() => {
+    const since = new Date();
+    since.setDate(since.getDate() - 90);
+    return since.toISOString();
+  }, []);
+
+  const weightRecords = useQuery({
+    queryKey: ["weight", { since: weightSinceStr }],
+    queryFn: () =>
+      healthRecordsApi.list({ record_type: "body_mass", start: weightSinceStr }),
+  });
+
   const sleepRecords = useQuery({
     queryKey: ["sleep", { since: sinceStr }],
     queryFn: () => sleepApi.list({ since: sinceStr }),
@@ -40,6 +53,13 @@ export default function Timeline() {
         {sleepRecords.isLoading && <p>Loading...</p>}
         {sleepRecords.isError && <p>Error loading sleep records.</p>}
         {sleepRecords.data && <SleepChart data={sleepRecords.data} />}
+      </section>
+
+      <section className={styles.section}>
+        <h2>Weight (Last 90 Days)</h2>
+        {weightRecords.isLoading && <p>Loading...</p>}
+        {weightRecords.isError && <p>Error loading weight records.</p>}
+        {weightRecords.data && <WeightChart data={weightRecords.data} />}
       </section>
 
       <section className={styles.section}>

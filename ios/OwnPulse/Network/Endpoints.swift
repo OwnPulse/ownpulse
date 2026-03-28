@@ -15,4 +15,5 @@ enum Endpoints {
     static let healthKitConfirm = "/api/v1/healthkit/confirm"
     static let adminUsers = "/api/v1/admin/users"
     static let adminInvites = "/api/v1/admin/invites"
+    static let healthRecords = "/api/v1/health-records"
 }

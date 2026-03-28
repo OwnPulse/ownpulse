@@ -73,6 +73,120 @@ enum HealthKitTypeMap {
             unitString: "mmHg"
         ),
         Mapping(
+            hkType: HKQuantityType(.activeEnergyBurned),
+            recordType: "active_energy",
+            unit: .kilocalorie(),
+            unitString: "kcal"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.basalEnergyBurned),
+            recordType: "basal_energy",
+            unit: .kilocalorie(),
+            unitString: "kcal"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.distanceWalkingRunning),
+            recordType: "distance_walking_running",
+            unit: .meter(),
+            unitString: "m"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.flightsClimbed),
+            recordType: "flights_climbed",
+            unit: .count(),
+            unitString: "count"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.appleExerciseTime),
+            recordType: "exercise_time",
+            unit: .minute(),
+            unitString: "min"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.appleStandTime),
+            recordType: "stand_time",
+            unit: .minute(),
+            unitString: "min"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.vo2Max),
+            recordType: "vo2_max",
+            unit: HKUnit(from: "mL/kg*min"),
+            unitString: "mL/kg/min"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.bodyFatPercentage),
+            recordType: "body_fat_percentage",
+            unit: .percent(),
+            unitString: "%"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.leanBodyMass),
+            recordType: "lean_body_mass",
+            unit: .gramUnit(with: .kilo),
+            unitString: "kg"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.height),
+            recordType: "height",
+            unit: .meterUnit(with: .centi),
+            unitString: "cm"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.waistCircumference),
+            recordType: "waist_circumference",
+            unit: .meterUnit(with: .centi),
+            unitString: "cm"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.walkingSpeed),
+            recordType: "walking_speed",
+            unit: HKUnit.meter().unitDivided(by: .second()),
+            unitString: "m/s"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.distanceCycling),
+            recordType: "distance_cycling",
+            unit: .meter(),
+            unitString: "m"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.distanceSwimming),
+            recordType: "distance_swimming",
+            unit: .meter(),
+            unitString: "m"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.swimmingStrokeCount),
+            recordType: "swimming_strokes",
+            unit: .count(),
+            unitString: "count"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.dietaryWater),
+            recordType: "water_intake",
+            unit: .liter(),
+            unitString: "L"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.dietaryEnergyConsumed),
+            recordType: "dietary_energy",
+            unit: .kilocalorie(),
+            unitString: "kcal"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.bodyMassIndex),
+            recordType: "bmi",
+            unit: .count(),
+            unitString: "count"
+        ),
+        Mapping(
+            hkType: HKQuantityType(.walkingHeartRateAverage),
+            recordType: "walking_heart_rate",
+            unit: HKUnit.count().unitDivided(by: .minute()),
+            unitString: "bpm"
+        ),
+        Mapping(
             hkType: HKCategoryType(.sleepAnalysis),
             recordType: "sleep_analysis",
             unit: .minute(),

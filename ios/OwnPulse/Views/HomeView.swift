@@ -43,6 +43,9 @@ struct HomeView: View {
                 // Sleep & HRV chart
                 SleepChartView()
 
+                // Weight chart
+                WeightChartView()
+
                 // Sync Now button
                 Button {
                     Task {

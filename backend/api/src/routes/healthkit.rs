@@ -4,6 +4,7 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
+use metrics::{counter, histogram};
 
 use crate::AppState;
 use crate::auth::extractor::AuthUser;
@@ -20,6 +21,8 @@ pub async fn bulk_insert(
     AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<HealthKitBulkInsert>,
 ) -> Result<(StatusCode, Json<Vec<HealthRecordRow>>), ApiError> {
+    histogram!("healthkit_sync_batch_size").record(body.records.len() as f64);
+
     let mut inserted = Vec::with_capacity(body.records.len());
 
     for mut record in body.records {
@@ -37,6 +40,7 @@ pub async fn bulk_insert(
                     record_type = %record.record_type,
                     "duplicate health record detected during healthkit sync"
                 );
+                counter!("healthkit_duplicates_detected_total", "record_type" => record.record_type.clone()).increment(1);
                 Some(dup.id)
             }
             Ok(None) => None,
@@ -47,6 +51,7 @@ pub async fn bulk_insert(
         };
 
         let row = db_hr::insert(&state.pool, user_id, &record, duplicate_of).await?;
+        counter!("healthkit_records_ingested_total", "record_type" => record.record_type.clone()).increment(1);
         // Never enqueue write-back for healthkit-sourced records
         inserted.push(row);
     }
