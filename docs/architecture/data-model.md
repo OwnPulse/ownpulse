@@ -240,9 +240,75 @@ Export audit log.
 | `completed_at` | TIMESTAMPTZ nullable | |
 | `created_at` | TIMESTAMPTZ | |
 
+### `explore_charts`
+
+Saved chart configurations for the Explore page.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | `gen_random_uuid()` |
+| `user_id` | UUID FK | References `users`, `ON DELETE CASCADE` |
+| `name` | TEXT | Chart name, 1-200 characters |
+| `config` | JSONB | Chart configuration (metrics, range, resolution, colors) |
+| `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | |
+
+### `observer_polls`
+
+Observer polls for collecting external subjective ratings.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | `gen_random_uuid()` |
+| `user_id` | UUID FK | References `users`, `ON DELETE CASCADE` |
+| `name` | TEXT | Poll name, 1-100 characters |
+| `custom_prompt` | TEXT nullable | Optional prompt shown to observers, max 500 characters |
+| `dimensions` | JSONB | Array of dimension names (default: `["energy","mood","focus","recovery","appearance"]`) |
+| `created_at` | TIMESTAMPTZ | |
+| `deleted_at` | TIMESTAMPTZ nullable | Soft-delete timestamp |
+
+**Partial index:** `(user_id) WHERE deleted_at IS NULL`.
+
+### `observer_poll_members`
+
+Links observers to polls they have been invited to or joined.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | `gen_random_uuid()` |
+| `poll_id` | UUID FK | References `observer_polls`, `ON DELETE CASCADE` |
+| `observer_id` | UUID FK nullable | References `users`, `ON DELETE SET NULL` |
+| `invite_token` | UUID | Generated token for the invite link, `gen_random_uuid()` |
+| `invite_expires_at` | TIMESTAMPTZ | Default 7 days from creation |
+| `accepted_at` | TIMESTAMPTZ nullable | Set when observer accepts |
+| `created_at` | TIMESTAMPTZ | |
+
+**Unique constraint:** `(poll_id, observer_id)`.
+
+### `observer_responses`
+
+Daily ratings submitted by observers.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | `gen_random_uuid()` |
+| `poll_id` | UUID FK | References `observer_polls`, `ON DELETE CASCADE` |
+| `member_id` | UUID FK | References `observer_poll_members`, `ON DELETE CASCADE` |
+| `date` | DATE | Rating date |
+| `scores` | JSONB | Object mapping dimension names to 1-10 integer scores |
+| `created_at` | TIMESTAMPTZ | |
+
+**Unique constraint:** `(member_id, date)` — one response per observer per day.
+
 ## Relationships
 
 - All tables reference `users.id` via `user_id`.
 - `health_records.duplicate_of` self-references `health_records.id`.
 - `healthkit_write_queue.record_id` references the source record (polymorphic via `record_table`).
 - `sharing_consents` is checked before any cooperative aggregate query.
+- `explore_charts.user_id` references `users.id`.
+- `observer_polls.user_id` references `users.id`.
+- `observer_poll_members.poll_id` references `observer_polls.id`.
+- `observer_poll_members.observer_id` references `users.id` (nullable, `ON DELETE SET NULL`).
+- `observer_responses.poll_id` references `observer_polls.id`.
+- `observer_responses.member_id` references `observer_poll_members.id`.
