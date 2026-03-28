@@ -39,7 +39,7 @@ urlencoding = "2"
 rand = "0.8"
 async-stream = "0.3"
 tokio-stream = "0.1"
-regex = "1"
+ammonia = "4"
 
 [dev-dependencies]
 base64 = "0.22"
