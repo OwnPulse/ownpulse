@@ -37,7 +37,11 @@ fn secure_attr(config: &crate::config::Config) -> &'static str {
 
 /// Extract a user ID from the `access_token` httpOnly cookie. Only validates
 /// the JWT (signature, algorithm, expiry) — does NOT check DB status.
-fn extract_user_id_from_cookie(headers: &HeaderMap, jwt_secret: &str, web_origin: &str) -> Option<Uuid> {
+fn extract_user_id_from_cookie(
+    headers: &HeaderMap,
+    jwt_secret: &str,
+    web_origin: &str,
+) -> Option<Uuid> {
     read_cookie(headers, "access_token")
         .and_then(|token| decode_access_token(&token, jwt_secret, web_origin).ok())
         .map(|claims| claims.sub)
@@ -347,7 +351,10 @@ pub async fn google_login(
     let is_link_mode = login_query.mode.as_deref().is_some_and(|m| m == "link");
 
     // In link mode the user must already be authenticated.
-    if is_link_mode && extract_user_id_from_cookie(&headers, &state.config.jwt_secret, &state.config.web_origin).is_none() {
+    if is_link_mode
+        && extract_user_id_from_cookie(&headers, &state.config.jwt_secret, &state.config.web_origin)
+            .is_none()
+    {
         let redirect_url = format!("{}/settings?error=auth_required", state.config.web_origin);
         return Ok(Redirect::to(&redirect_url).into_response());
     }
@@ -493,11 +500,15 @@ pub async fn google_callback(
     // Link mode: associate the Google account with an existing user.
     // ---------------------------------------------------------------
     if is_link_mode {
-        let linking_user_id = extract_user_id_from_cookie(&headers, &state.config.jwt_secret, &state.config.web_origin)
-            .ok_or_else(|| {
-                // Cannot determine the authenticated user — redirect to login.
-                ApiError::BadRequest("__redirect_login_auth_required".into())
-            });
+        let linking_user_id = extract_user_id_from_cookie(
+            &headers,
+            &state.config.jwt_secret,
+            &state.config.web_origin,
+        )
+        .ok_or_else(|| {
+            // Cannot determine the authenticated user — redirect to login.
+            ApiError::BadRequest("__redirect_login_auth_required".into())
+        });
 
         let linking_user_id = match linking_user_id {
             Ok(id) => id,
