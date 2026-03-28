@@ -348,15 +348,10 @@ pub async fn google_login(
         .as_deref()
         .ok_or_else(|| ApiError::Internal("GOOGLE_REDIRECT_URI not configured".to_string()))?;
 
-    let is_link_mode = login_query
-        .mode
-        .as_deref()
-        .is_some_and(|m| m == "link");
+    let is_link_mode = login_query.mode.as_deref().is_some_and(|m| m == "link");
 
     // In link mode the user must already be authenticated.
-    if is_link_mode
-        && extract_user_id_from_cookie(&headers, &state.config.jwt_secret).is_none()
-    {
+    if is_link_mode && extract_user_id_from_cookie(&headers, &state.config.jwt_secret).is_none() {
         let redirect_url = format!("{}/settings?error=auth_required", state.config.web_origin);
         return Ok(Redirect::to(&redirect_url).into_response());
     }
@@ -506,8 +501,8 @@ pub async fn google_callback(
     // Link mode: associate the Google account with an existing user.
     // ---------------------------------------------------------------
     if is_link_mode {
-        let linking_user_id =
-            extract_user_id_from_cookie(&headers, &state.config.jwt_secret).ok_or_else(|| {
+        let linking_user_id = extract_user_id_from_cookie(&headers, &state.config.jwt_secret)
+            .ok_or_else(|| {
                 // Cannot determine the authenticated user — redirect to login.
                 ApiError::BadRequest("__redirect_login_auth_required".into())
             });
@@ -515,8 +510,7 @@ pub async fn google_callback(
         let linking_user_id = match linking_user_id {
             Ok(id) => id,
             Err(_) => {
-                let redirect_url =
-                    format!("{}/login?error=auth_required", state.config.web_origin);
+                let redirect_url = format!("{}/login?error=auth_required", state.config.web_origin);
                 let mut response = Redirect::to(&redirect_url).into_response();
                 append_cookie(&mut response, &clear_state_cookie)?;
                 return Ok(response);
@@ -533,12 +527,8 @@ pub async fn google_callback(
         }
 
         // Check if Google sub is already linked to a different user.
-        match user_auth_methods::find_by_provider_subject(
-            &state.pool,
-            "google",
-            &google_user.sub,
-        )
-        .await
+        match user_auth_methods::find_by_provider_subject(&state.pool, "google", &google_user.sub)
+            .await
         {
             Ok(existing) if existing.id != linking_user_id => {
                 let redirect_url =

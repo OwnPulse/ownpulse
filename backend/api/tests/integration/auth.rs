@@ -876,10 +876,7 @@ async fn test_google_callback_email_collision_pkce_redirects_with_error() {
 // ---------------------------------------------------------------------------
 
 /// Helper: create a user and return (user_id, access_token_cookie_value).
-async fn create_user_with_access_token(
-    pool: &sqlx::PgPool,
-    email: &str,
-) -> (uuid::Uuid, String) {
+async fn create_user_with_access_token(pool: &sqlx::PgPool, email: &str) -> (uuid::Uuid, String) {
     let user_id = insert_test_user(pool, email, "linktest123").await;
     let token = api::auth::jwt::encode_access_token(
         user_id,
@@ -1181,8 +1178,11 @@ async fn test_google_link_disabled_user_fails() {
         .await
         .expect("failed to disable user");
 
-    let mock_server =
-        setup_google_mock("google-disabled-link-sub", "disabled-linker-google@example.com").await;
+    let mock_server = setup_google_mock(
+        "google-disabled-link-sub",
+        "disabled-linker-google@example.com",
+    )
+    .await;
 
     let state = api::AppState {
         pool: test_app.pool.clone(),

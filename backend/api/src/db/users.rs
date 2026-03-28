@@ -435,12 +435,11 @@ pub async fn email_exists_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     email: &str,
 ) -> Result<bool, sqlx::Error> {
-    let row: Option<(i32,)> = sqlx::query_as(
-        "SELECT 1 AS one FROM users WHERE LOWER(email) = LOWER($1)",
-    )
-    .bind(email)
-    .fetch_optional(&mut **tx)
-    .await?;
+    let row: Option<(i32,)> =
+        sqlx::query_as("SELECT 1 AS one FROM users WHERE LOWER(email) = LOWER($1)")
+            .bind(email)
+            .fetch_optional(&mut **tx)
+            .await?;
     Ok(row.is_some())
 }
 
