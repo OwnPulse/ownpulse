@@ -1026,7 +1026,7 @@ async fn owner_sees_responses_with_masked_email() {
 
     assert_eq!(resp.status(), 200);
     let json = common::body_json(resp).await;
-    let responses = json.as_array().unwrap();
+    let responses = json["responses"].as_array().unwrap();
     assert_eq!(responses.len(), 1);
     assert_eq!(responses[0]["scores"]["energy"], 7);
     // Email should be masked
@@ -1078,7 +1078,7 @@ async fn owner_filters_responses_by_date_range() {
 
     assert_eq!(resp.status(), 200);
     let json = common::body_json(resp).await;
-    let responses = json.as_array().unwrap();
+    let responses = json["responses"].as_array().unwrap();
     assert_eq!(responses.len(), 1);
     assert_eq!(responses[0]["date"], "2025-01-15");
 }
@@ -1126,7 +1126,7 @@ async fn observer_sees_own_responses() {
 
     assert_eq!(resp.status(), 200);
     let json = common::body_json(resp).await;
-    assert_eq!(json.as_array().unwrap().len(), 1);
+    assert_eq!(json["responses"].as_array().unwrap().len(), 1);
 }
 
 #[tokio::test]
@@ -1184,7 +1184,7 @@ async fn observer_deletes_own_response() {
         .await
         .unwrap();
     let json = common::body_json(resp).await;
-    assert!(json.as_array().unwrap().is_empty());
+    assert!(json["responses"].as_array().unwrap().is_empty());
 
     // Verify it's gone from owner view too
     let resp = app
@@ -1199,7 +1199,7 @@ async fn observer_deletes_own_response() {
         .await
         .unwrap();
     let json = common::body_json(resp).await;
-    assert!(json.as_array().unwrap().is_empty());
+    assert!(json["responses"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -1241,7 +1241,7 @@ async fn observer_exports_all_responses() {
 
     assert_eq!(resp.status(), 200);
     let json = common::body_json(resp).await;
-    let exports = json.as_array().unwrap();
+    let exports = json["responses"].as_array().unwrap();
     assert_eq!(exports.len(), 1);
     assert_eq!(exports[0]["poll_name"], "Test poll");
 }

@@ -378,7 +378,7 @@ async fn test_explore_batch_series() {
 
     assert_eq!(resp.status(), 200);
     let json = common::body_json(resp).await;
-    let series = json.as_array().unwrap();
+    let series = json["series"].as_array().unwrap();
     assert_eq!(series.len(), 2);
     assert_eq!(series[0]["field"], "energy");
     assert_eq!(series[1]["field"], "mood");
