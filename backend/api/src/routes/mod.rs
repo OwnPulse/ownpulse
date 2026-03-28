@@ -11,6 +11,8 @@ pub mod audit;
 pub mod auth;
 pub mod checkins;
 pub mod dashboard;
+pub mod events;
+pub mod explore;
 pub mod export;
 pub mod friends;
 pub mod health_records;
@@ -148,4 +150,15 @@ fn base_routes() -> Router<AppState> {
             patch(friends::update_permissions),
         )
         .route("/friends/:friend_id/data", get(friends::get_friend_data))
+        // Explore — metrics, time-series, saved charts
+        .route("/explore/metrics", get(explore::metrics))
+        .route("/explore/series", get(explore::series_get))
+        .route("/explore/series", post(explore::series_post))
+        .route("/explore/charts", post(explore::create_chart))
+        .route("/explore/charts", get(explore::list_charts))
+        .route("/explore/charts/:id", get(explore::get_chart))
+        .route("/explore/charts/:id", axum::routing::put(explore::update_chart))
+        .route("/explore/charts/:id", delete(explore::delete_chart))
+        // SSE events (auth via query param, not middleware)
+        .route("/events", get(events::events_stream))
 }

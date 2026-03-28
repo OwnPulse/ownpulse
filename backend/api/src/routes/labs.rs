@@ -11,6 +11,7 @@ use crate::auth::extractor::AuthUser;
 use crate::db::lab_results as db;
 use crate::error::ApiError;
 use crate::models::lab_result::{CreateLabResult, LabResultQuery, LabResultRow};
+use crate::routes::events::publish_event;
 
 /// POST /labs
 pub async fn create(
@@ -19,6 +20,7 @@ pub async fn create(
     Json(body): Json<CreateLabResult>,
 ) -> Result<(StatusCode, Json<LabResultRow>), ApiError> {
     let row = db::insert(&state.pool, user_id, &body).await?;
+    publish_event(&state.event_tx, user_id, "labs", None);
     Ok((StatusCode::CREATED, Json(row)))
 }
 
@@ -26,9 +28,9 @@ pub async fn create(
 pub async fn list(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
-    Query(_query): Query<LabResultQuery>,
+    Query(query): Query<LabResultQuery>,
 ) -> Result<Json<Vec<LabResultRow>>, ApiError> {
-    let rows = db::list(&state.pool, user_id).await?;
+    let rows = db::list(&state.pool, user_id, query.start, query.end).await?;
     Ok(Json(rows))
 }
 

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use chrono::NaiveDate;
+
 use crate::models::checkin::{CheckinRow, UpsertCheckin};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -37,17 +39,26 @@ pub async fn upsert(
     .await
 }
 
-/// List check-ins for a user, newest first.
-pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<CheckinRow>, sqlx::Error> {
+/// List check-ins for a user, newest first, with optional date range filtering.
+pub async fn list(
+    pool: &PgPool,
+    user_id: Uuid,
+    start: Option<NaiveDate>,
+    end: Option<NaiveDate>,
+) -> Result<Vec<CheckinRow>, sqlx::Error> {
     sqlx::query_as::<_, CheckinRow>(
         "SELECT id, user_id, date, energy, mood, focus, recovery, libido,
                 notes, created_at
          FROM daily_checkins
          WHERE user_id = $1
+           AND ($2::date IS NULL OR date >= $2)
+           AND ($3::date IS NULL OR date <= $3)
          ORDER BY date DESC
          LIMIT 1000",
     )
     .bind(user_id)
+    .bind(start)
+    .bind(end)
     .fetch_all(pool)
     .await
 }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use chrono::NaiveDate;
+
 use crate::models::lab_result::{CreateLabResult, LabResultRow};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -35,18 +37,27 @@ pub async fn insert(
     .await
 }
 
-/// List lab results for a user, newest panel date first.
-pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<LabResultRow>, sqlx::Error> {
+/// List lab results for a user, newest panel date first, with optional date range filtering.
+pub async fn list(
+    pool: &PgPool,
+    user_id: Uuid,
+    start: Option<NaiveDate>,
+    end: Option<NaiveDate>,
+) -> Result<Vec<LabResultRow>, sqlx::Error> {
     sqlx::query_as::<_, LabResultRow>(
         "SELECT id, user_id, panel_date, lab_name, marker, value, unit,
                 reference_low, reference_high, out_of_range, source,
                 uploaded_file_id, created_at
          FROM lab_results
          WHERE user_id = $1
+           AND ($2::date IS NULL OR panel_date >= $2)
+           AND ($3::date IS NULL OR panel_date <= $3)
          ORDER BY panel_date DESC, marker ASC
          LIMIT 1000",
     )
     .bind(user_id)
+    .bind(start)
+    .bind(end)
     .fetch_all(pool)
     .await
 }

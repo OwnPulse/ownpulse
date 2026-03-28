@@ -11,6 +11,7 @@ use crate::auth::extractor::AuthUser;
 use crate::db::interventions as db;
 use crate::error::ApiError;
 use crate::models::intervention::{CreateIntervention, InterventionQuery, InterventionRow};
+use crate::routes::events::publish_event;
 
 /// POST /interventions — no substance name validation per project rules.
 pub async fn create(
@@ -19,6 +20,7 @@ pub async fn create(
     Json(body): Json<CreateIntervention>,
 ) -> Result<(StatusCode, Json<InterventionRow>), ApiError> {
     let row = db::insert(&state.pool, user_id, &body).await?;
+    publish_event(&state.event_tx, user_id, "interventions", None);
     Ok((StatusCode::CREATED, Json(row)))
 }
 
