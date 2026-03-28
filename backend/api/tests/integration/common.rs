@@ -179,6 +179,7 @@ pub async fn create_test_user(app: &TestApp) -> (Uuid, String) {
         row.0,
         "user",
         "test-jwt-secret-at-least-32-bytes-long",
+        "http://localhost:5173",
         3600,
     )
     .expect("failed to encode JWT");
@@ -238,6 +239,7 @@ pub async fn create_admin_user(app: &TestApp) -> (Uuid, String) {
         row.0,
         "admin",
         "test-jwt-secret-at-least-32-bytes-long",
+        "http://localhost:5173",
         3600,
     )
     .expect("failed to encode JWT");

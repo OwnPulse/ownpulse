@@ -26,8 +26,8 @@ async fn extract_active_user(
         .strip_prefix("Bearer ")
         .ok_or(ApiError::Unauthorized)?;
 
-    let claims =
-        decode_access_token(token, &state.config.jwt_secret).map_err(|_| ApiError::Unauthorized)?;
+    let claims = decode_access_token(token, &state.config.jwt_secret, &state.config.web_origin)
+        .map_err(|_| ApiError::Unauthorized)?;
 
     // Check user status in the database — disabled/deleted users are rejected immediately
     let user = users::find_by_id(&state.pool, claims.sub)
@@ -87,8 +87,8 @@ async fn extract_any_user(parts: &mut Parts, state: &AppState) -> Result<(Uuid, 
         .strip_prefix("Bearer ")
         .ok_or(ApiError::Unauthorized)?;
 
-    let claims =
-        decode_access_token(token, &state.config.jwt_secret).map_err(|_| ApiError::Unauthorized)?;
+    let claims = decode_access_token(token, &state.config.jwt_secret, &state.config.web_origin)
+        .map_err(|_| ApiError::Unauthorized)?;
 
     let user = users::find_by_id(&state.pool, claims.sub)
         .await

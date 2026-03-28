@@ -29,6 +29,7 @@ async fn create_test_user_with_email(app: &common::TestApp, email: &str) -> (Uui
         row.0,
         "user",
         "test-jwt-secret-at-least-32-bytes-long",
+        "http://localhost:5173",
         3600,
     )
     .unwrap();
