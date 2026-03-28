@@ -687,12 +687,9 @@ async fn test_login_returns_decodable_jwt() {
     let access_token = json["access_token"].as_str().unwrap();
 
     // Decode the JWT using the same secret as the test config
-    let claims = api::auth::jwt::decode_access_token(
-        access_token,
-        "test-jwt-secret-at-least-32-bytes-long",
-        "http://localhost:5173",
-    )
-    .expect("JWT should decode successfully");
+    let claims =
+        api::auth::jwt::decode_access_token(access_token, "test-jwt-secret-at-least-32-bytes-long", "http://localhost:5173")
+            .expect("JWT should decode successfully");
 
     assert_eq!(claims.sub, user_id);
     assert!(claims.exp > chrono::Utc::now().timestamp());

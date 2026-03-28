@@ -170,12 +170,9 @@ async fn test_refresh_for_disabled_user_returns_403() {
     // Get user ID from the access token
     let login_body = body_json(login_response).await;
     let access_token = login_body["access_token"].as_str().unwrap();
-    let claims = api::auth::jwt::decode_access_token(
-        access_token,
-        "test-jwt-secret-at-least-32-bytes-long",
-        "http://localhost:5173",
-    )
-    .unwrap();
+    let claims =
+        api::auth::jwt::decode_access_token(access_token, "test-jwt-secret-at-least-32-bytes-long", "http://localhost:5173")
+            .unwrap();
     let user_id = claims.sub;
 
     disable_user(&app, &admin_token, user_id).await;
@@ -218,12 +215,9 @@ async fn test_disable_user_revokes_refresh_tokens() {
 
     let login_body = body_json(login_response).await;
     let access_token = login_body["access_token"].as_str().unwrap();
-    let claims = api::auth::jwt::decode_access_token(
-        access_token,
-        "test-jwt-secret-at-least-32-bytes-long",
-        "http://localhost:5173",
-    )
-    .unwrap();
+    let claims =
+        api::auth::jwt::decode_access_token(access_token, "test-jwt-secret-at-least-32-bytes-long", "http://localhost:5173")
+            .unwrap();
     let user_id = claims.sub;
 
     // Disable the user
