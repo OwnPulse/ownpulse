@@ -53,8 +53,7 @@ export function SaveChartDialog({ open, onClose }: SaveChartDialogProps) {
     // biome-ignore lint/a11y/useKeyWithClickEvents: overlay dismiss is standard modal UX
     // biome-ignore lint/a11y/noStaticElementInteractions: overlay dismiss is standard modal UX
     <div className={styles.overlay} onClick={onClose}>
-      {/* biome-ignore lint/a11y/noStaticElementInteractions: dialog stops propagation */}
-      {/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled by Escape */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: dialog container with keyboard escape */}
       <div
         className={styles.dialog}
         onClick={(e) => e.stopPropagation()}

@@ -30,7 +30,8 @@ export default function Explore() {
   const savedChartQuery = useQuery({
     queryKey: ["explore-chart", chartId],
     queryFn: async () => {
-      const chart = await exploreApi.getChart(chartId!);
+      if (!chartId) throw new Error("chartId is required");
+      const chart = await exploreApi.getChart(chartId);
       loadConfig(chart.config);
       return chart;
     },

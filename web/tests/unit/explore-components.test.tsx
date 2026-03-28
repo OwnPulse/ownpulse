@@ -416,8 +416,8 @@ describe("SavedChartCard", () => {
       wrapper: createWrapper(),
     });
 
-    const card = screen.getByText("My Weekly Chart").closest("[role='button']")!;
-    card.focus();
+    const card = screen.getByText("My Weekly Chart").closest("button");
+    card?.focus();
     await user.keyboard("{Enter}");
     expect(onLoad).toHaveBeenCalledOnce();
   });
