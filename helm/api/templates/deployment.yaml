@@ -23,6 +23,16 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: 15
+      initContainers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["--migrate-only"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "ownpulse-api.fullname" . }}
+            - secretRef:
+                name: {{ .Values.secret.name }}
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
