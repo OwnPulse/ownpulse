@@ -12,8 +12,8 @@ use crate::db::{explore as db_explore, explore_charts as db_charts};
 use crate::error::ApiError;
 use crate::models::explore::{
     BatchSeriesRequest, CalendarField, ChartRow, CheckinField, CreateChart, HealthRecordField,
-    MetricOption, MetricSource, MetricSourceGroup, MetricsResponse, SeriesQuery, SeriesResponse,
-    SleepField, UpdateChart, validate_chart_config,
+    InterventionMarker, InterventionMarkersQuery, MetricOption, MetricSource, MetricSourceGroup,
+    MetricsResponse, SeriesQuery, SeriesResponse, SleepField, UpdateChart, validate_chart_config,
 };
 
 /// GET /explore/metrics — list available metrics for the user.
@@ -22,8 +22,9 @@ pub async fn metrics(
     AuthUser { id: user_id, .. }: AuthUser,
 ) -> Result<Json<MetricsResponse>, ApiError> {
     let lab_markers = db_explore::distinct_lab_markers(&state.pool, user_id).await?;
+    let observer_polls = db_explore::user_observer_polls(&state.pool, user_id).await?;
 
-    let sources = vec![
+    let mut sources = vec![
         MetricSourceGroup {
             source: "health_records".to_string(),
             label: "Health Records".to_string(),
@@ -86,7 +87,41 @@ pub async fn metrics(
         },
     ];
 
+    // Add observer poll dimensions as metrics if the user has any active polls.
+    if !observer_polls.is_empty() {
+        let mut poll_metrics = Vec::new();
+        for (poll_id, poll_name, dimensions) in &observer_polls {
+            if let Some(dims) = dimensions.as_array() {
+                for dim in dims {
+                    if let Some(dim_str) = dim.as_str() {
+                        poll_metrics.push(MetricOption {
+                            field: format!("{poll_id}:{dim_str}"),
+                            label: format!("Observer: {dim_str} ({poll_name})"),
+                            unit: "score".to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        sources.push(MetricSourceGroup {
+            source: "observer_polls".to_string(),
+            label: "Observer Polls".to_string(),
+            metrics: poll_metrics,
+        });
+    }
+
     Ok(Json(MetricsResponse { sources }))
+}
+
+/// GET /explore/interventions — intervention markers for a date range.
+pub async fn interventions(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Query(query): Query<InterventionMarkersQuery>,
+) -> Result<Json<Vec<InterventionMarker>>, ApiError> {
+    let markers =
+        db_explore::intervention_markers(&state.pool, user_id, query.start, query.end).await?;
+    Ok(Json(markers))
 }
 
 /// GET /explore/series — single time-series with aggregation.
