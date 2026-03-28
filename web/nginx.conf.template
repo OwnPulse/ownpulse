@@ -26,10 +26,6 @@ server {
     # resolver directive, instead of caching the IP at startup. This is required
     # for Kubernetes where service ClusterIPs can change on redeploy, and for
     # proper load balancing across multiple API pods.
-    #
-    # IMPORTANT: API_UPSTREAM must be a FQDN (e.g. svc.namespace.svc.cluster.local:80).
-    # The resolver directive bypasses /etc/resolv.conf search domains, so short
-    # names like "my-svc:80" will fail with NXDOMAIN.
     resolver kube-dns.kube-system.svc.cluster.local valid=10s;
     set $api_upstream ${API_UPSTREAM};
 
