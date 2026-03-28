@@ -36,6 +36,34 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0007_row_level_security.sql",
         include_str!("../../../db/migrations/0007_row_level_security.sql"),
     ),
+    (
+        "0008_email_login.sql",
+        include_str!("../../../db/migrations/0008_email_login.sql"),
+    ),
+    (
+        "0009_friend_share_declined_status.sql",
+        include_str!("../../../db/migrations/0009_friend_share_declined_status.sql"),
+    ),
+    (
+        "0010_user_auth_methods.sql",
+        include_str!("../../../db/migrations/0010_user_auth_methods.sql"),
+    ),
+    (
+        "0011_fix_google_provider_subject.sql",
+        include_str!("../../../db/migrations/0011_fix_google_provider_subject.sql"),
+    ),
+    (
+        "0012_user_status.sql",
+        include_str!("../../../db/migrations/0012_user_status.sql"),
+    ),
+    (
+        "0013_invite_codes.sql",
+        include_str!("../../../db/migrations/0013_invite_codes.sql"),
+    ),
+    (
+        "0014_invite_claims.sql",
+        include_str!("../../../db/migrations/0014_invite_claims.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -213,6 +241,36 @@ async fn detect_applied_migrations(pool: &PgPool) -> Result<(), MigrateError> {
         (
             "0007_row_level_security.sql",
             "SELECT COALESCE((SELECT relrowsecurity FROM pg_class WHERE relname = 'health_records'), false)",
+        ),
+        (
+            "0008_email_login.sql",
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'email')",
+        ),
+        (
+            "0009_friend_share_declined_status.sql",
+            "SELECT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'declined')",
+        ),
+        (
+            "0010_user_auth_methods.sql",
+            "SELECT to_regclass('public.user_auth_methods') IS NOT NULL",
+        ),
+        (
+            "0011_fix_google_provider_subject.sql",
+            // This migration updates data, not schema — detect by checking if 0010 was applied
+            // (it's always applied after 0010).
+            "SELECT to_regclass('public.user_auth_methods') IS NOT NULL",
+        ),
+        (
+            "0012_user_status.sql",
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'status')",
+        ),
+        (
+            "0013_invite_codes.sql",
+            "SELECT to_regclass('public.invites') IS NOT NULL",
+        ),
+        (
+            "0014_invite_claims.sql",
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invites' AND column_name = 'claimed_by')",
         ),
     ];
 
