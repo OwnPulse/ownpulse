@@ -1,0 +1,23 @@
+image:
+  repository: ownpulse-web
+  tag: local
+  pullPolicy: Never
+
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  host: app.localhost
+  tls:
+    enabled: false
+
+env:
+  API_UPSTREAM: api-ownpulse-api:80
+
+resources:
+  requests:
+    memory: "32Mi"
+    cpu: "25m"
+  limits:
+    memory: "128Mi"
+    cpu: "200m"
