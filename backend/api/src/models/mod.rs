@@ -2,6 +2,8 @@
 // Copyright (C) OwnPulse Contributors
 
 pub mod checkin;
+pub mod event;
+pub mod explore;
 pub mod friend_share;
 pub mod health_record;
 pub mod healthkit;

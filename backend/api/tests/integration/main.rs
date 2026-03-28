@@ -8,6 +8,7 @@ mod auth;
 mod auth_multi;
 mod checkins;
 mod common;
+mod explore;
 mod export;
 mod friends;
 mod health_records;

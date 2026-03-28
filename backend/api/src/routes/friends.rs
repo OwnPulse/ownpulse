@@ -203,7 +203,7 @@ pub async fn get_friend_data(
     for data_type in &permitted_types {
         match data_type.as_str() {
             "checkins" => {
-                let items = db::checkins::list(&state.pool, friend_id).await?;
+                let items = db::checkins::list(&state.pool, friend_id, None, None).await?;
                 result.insert(
                     "checkins".to_string(),
                     serde_json::to_value(items).map_err(|e| ApiError::Internal(e.to_string()))?,
@@ -233,7 +233,7 @@ pub async fn get_friend_data(
                 );
             }
             "lab_results" => {
-                let items = db::lab_results::list(&state.pool, friend_id).await?;
+                let items = db::lab_results::list(&state.pool, friend_id, None, None).await?;
                 result.insert(
                     "lab_results".to_string(),
                     serde_json::to_value(items).map_err(|e| ApiError::Internal(e.to_string()))?,

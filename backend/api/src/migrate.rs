@@ -64,6 +64,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0014_invite_claims.sql",
         include_str!("../../../db/migrations/0014_invite_claims.sql"),
     ),
+    (
+        "0015_explore_charts.sql",
+        include_str!("../../../db/migrations/0015_explore_charts.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -271,6 +275,10 @@ async fn detect_applied_migrations(pool: &PgPool) -> Result<(), MigrateError> {
         (
             "0014_invite_claims.sql",
             "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'invites' AND column_name = 'claimed_by')",
+        ),
+        (
+            "0015_explore_charts.sql",
+            "SELECT to_regclass('public.explore_charts') IS NOT NULL",
         ),
     ];
 

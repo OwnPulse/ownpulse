@@ -11,6 +11,7 @@ use crate::auth::extractor::AuthUser;
 use crate::db::checkins as db;
 use crate::error::ApiError;
 use crate::models::checkin::{CheckinQuery, CheckinRow, UpsertCheckin};
+use crate::routes::events::publish_event;
 
 fn validate_score(value: Option<i32>, field: &str) -> Result<(), ApiError> {
     if let Some(v) = value
@@ -36,6 +37,7 @@ pub async fn upsert(
     validate_score(body.libido, "libido")?;
 
     let row = db::upsert(&state.pool, user_id, &body).await?;
+    publish_event(&state.event_tx, user_id, "checkins", None);
     Ok((StatusCode::CREATED, Json(row)))
 }
 
@@ -43,9 +45,9 @@ pub async fn upsert(
 pub async fn list(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
-    Query(_query): Query<CheckinQuery>,
+    Query(query): Query<CheckinQuery>,
 ) -> Result<Json<Vec<CheckinRow>>, ApiError> {
-    let rows = db::list(&state.pool, user_id).await?;
+    let rows = db::list(&state.pool, user_id, query.start, query.end).await?;
     Ok(Json(rows))
 }
 

@@ -89,11 +89,13 @@ pub async fn setup() -> TestApp {
     run_migrations(&pool).await;
 
     let config = test_config(&database_url);
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: pool.clone(),
         config,
         http_client: reqwest::Client::new(),
         migrations_ready: migrations_ready_flag(),
+        event_tx,
     };
 
     let app = api::build_app_without_metrics(state);
@@ -133,11 +135,13 @@ pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config))
     let mut config = test_config(&database_url);
     config_fn(&mut config);
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: pool.clone(),
         config,
         http_client: reqwest::Client::new(),
         migrations_ready: migrations_ready_flag(),
+        event_tx,
     };
 
     let app = api::build_app_without_metrics(state);
