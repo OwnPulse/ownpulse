@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { login } from "../api/auth";
 import { useAuth } from "../hooks/useAuth";
 import { useAuthStore } from "../store/auth";
 import styles from "./Login.module.css";
+
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  email_exists:
+    "An account with this email already exists. Sign in with your existing method, then link additional providers from Settings.",
+  auth_required: "You must be signed in to link an account.",
+};
 
 export default function Login() {
   const { loading } = useAuth();
@@ -15,6 +21,15 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const errorCode = searchParams.get("error");
+    if (errorCode && errorCode in OAUTH_ERROR_MESSAGES) {
+      setError(OAUTH_ERROR_MESSAGES[errorCode]);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   if (loading) {
     return (

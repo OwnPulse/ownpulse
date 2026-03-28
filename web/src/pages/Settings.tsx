@@ -2,7 +2,8 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { accountApi } from "../api/account";
 import { getAuthMethods, logout, unlinkAuth } from "../api/auth";
 import { exportCsv, exportJson } from "../api/export";
@@ -15,6 +16,17 @@ const THEME_OPTIONS = [
   { value: "dark", label: "Dark" },
   { value: "system", label: "System" },
 ] as const;
+
+const LINKABLE_PROVIDERS = ["google"] as const;
+
+const SETTINGS_MESSAGES: Record<string, { type: "success" | "error"; text: string }> = {
+  "linked=google": { type: "success", text: "Google account linked successfully." },
+  "error=already_linked": {
+    type: "error",
+    text: "That Google account is already linked to a different user.",
+  },
+  "error=auth_required": { type: "error", text: "Your session expired. Please log in again." },
+};
 
 const PROVIDER_NAMES: Record<string, string> = {
   google: "Google",
@@ -29,6 +41,24 @@ function providerDisplayName(provider: string): string {
 function LinkedAccounts() {
   const queryClient = useQueryClient();
   const [unlinkError, setUnlinkError] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [statusMsg, setStatusMsg] = useState<{ type: "success" | "error"; text: string } | null>(
+    null,
+  );
+
+  useEffect(() => {
+    const linked = searchParams.get("linked");
+    const error = searchParams.get("error");
+
+    let key: string | null = null;
+    if (linked) key = `linked=${linked}`;
+    else if (error) key = `error=${error}`;
+
+    if (key && key in SETTINGS_MESSAGES) {
+      setStatusMsg(SETTINGS_MESSAGES[key]);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const {
     data: methods,
@@ -61,9 +91,18 @@ function LinkedAccounts() {
     unlinkMutation.mutate(provider);
   };
 
+  const availableToLink = methods
+    ? LINKABLE_PROVIDERS.filter((p) => !methods.some((m) => m.provider === p))
+    : [];
+
   return (
     <section className="op-section">
       <h2>Linked Accounts</h2>
+      {statusMsg && (
+        <p className={statusMsg.type === "error" ? "op-error-msg" : "op-success-msg"}>
+          {statusMsg.text}
+        </p>
+      )}
       {isLoading && <p>Loading...</p>}
       {isError && <p>Error loading linked accounts.</p>}
       {unlinkError && <p className="op-error-msg">{unlinkError}</p>}
@@ -88,6 +127,19 @@ function LinkedAccounts() {
             </li>
           ))}
         </ul>
+      )}
+      {availableToLink.length > 0 && (
+        <div className={styles.linkActions}>
+          {availableToLink.map((provider) => (
+            <a
+              key={provider}
+              href={`/api/v1/auth/${provider}/login?mode=link`}
+              className="op-btn op-btn-secondary op-btn-sm"
+            >
+              Link {providerDisplayName(provider)}
+            </a>
+          ))}
+        </div>
       )}
     </section>
   );

@@ -383,6 +383,33 @@ async fn test_google_callback_pkce_redirects_to_custom_scheme() {
     );
 }
 
+/// Shared helper: start a WireMock server with Google token + userinfo stubs.
+async fn setup_google_mock(sub: &str, email: &str) -> wiremock::MockServer {
+    let mock_server = wiremock::MockServer::start().await;
+
+    wiremock::Mock::given(wiremock::matchers::method("POST"))
+        .and(wiremock::matchers::path("/token"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+            "access_token": "mock-google-access-token",
+            "id_token": "mock-id-token",
+            "refresh_token": "mock-google-refresh-token"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    wiremock::Mock::given(wiremock::matchers::method("GET"))
+        .and(wiremock::matchers::path("/userinfo"))
+        .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+            "sub": sub,
+            "email": email,
+            "name": "Test User"
+        })))
+        .mount(&mock_server)
+        .await;
+
+    mock_server
+}
+
 /// Regression: the old `state=ios` bypass must no longer skip CSRF validation.
 /// A request with `state=ios` but no `code_verifier` is treated as a web flow
 /// and rejected because no `oauth_state` cookie is present.
@@ -738,5 +765,457 @@ async fn test_rotated_refresh_token_returns_401() {
         valid_response.status(),
         200,
         "the current valid refresh token should still work"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Google callback: email collision tests
+// ---------------------------------------------------------------------------
+
+/// When a local user already exists with the same email, a Google OAuth
+/// registration (web flow) must redirect to /login?error=email_exists.
+#[tokio::test]
+async fn test_google_callback_email_collision_redirects_with_error() {
+    let test_app = common::setup().await;
+    let email = "collision@example.com";
+    insert_test_user(&test_app.pool, email, "existingpass").await;
+
+    let mock_server = setup_google_mock("google-collision-sub", email).await;
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config: google_config(&mock_server.uri()),
+        http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    let csrf_state = "csrf-collision-test";
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/api/v1/auth/google/callback?code=test-auth-code&state={csrf_state}"
+                ))
+                .header("cookie", format!("oauth_state={csrf_state}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        response.status().is_redirection(),
+        "expected redirect, got {}",
+        response.status()
+    );
+
+    let location = response
+        .headers()
+        .get("location")
+        .expect("missing location header")
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.contains("/login?error=email_exists"),
+        "expected email_exists error redirect, got: {location}"
+    );
+}
+
+/// Email collision in PKCE flow redirects to ownpulse://auth?error=email_exists.
+#[tokio::test]
+async fn test_google_callback_email_collision_pkce_redirects_with_error() {
+    let test_app = common::setup().await;
+    let email = "pkce-collision@example.com";
+    insert_test_user(&test_app.pool, email, "existingpass").await;
+
+    let mock_server = setup_google_mock("google-pkce-collision-sub", email).await;
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config: google_config(&mock_server.uri()),
+        http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/auth/google/callback?code=test-auth-code&code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        response.status().is_redirection(),
+        "expected redirect, got {}",
+        response.status()
+    );
+
+    let location = response
+        .headers()
+        .get("location")
+        .expect("missing location header")
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.starts_with("ownpulse://auth?error=email_exists"),
+        "expected PKCE email_exists redirect, got: {location}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Google link mode tests
+// ---------------------------------------------------------------------------
+
+/// Helper: create a user and return (user_id, access_token_cookie_value).
+async fn create_user_with_access_token(pool: &sqlx::PgPool, email: &str) -> (uuid::Uuid, String) {
+    let user_id = insert_test_user(pool, email, "linktest123").await;
+    let token = api::auth::jwt::encode_access_token(
+        user_id,
+        "user",
+        "test-jwt-secret-at-least-32-bytes-long",
+        3600,
+    )
+    .expect("failed to encode JWT");
+    (user_id, token)
+}
+
+/// An authenticated user can link their Google account.
+#[tokio::test]
+async fn test_google_link_flow_succeeds() {
+    let test_app = common::setup().await;
+    let (user_id, access_token) =
+        create_user_with_access_token(&test_app.pool, "linker@example.com").await;
+
+    let mock_server = setup_google_mock("google-link-sub", "linker-google@example.com").await;
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config: google_config(&mock_server.uri()),
+        http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    let csrf_nonce = "link-csrf-nonce";
+    let csrf_state = format!("{csrf_nonce}:link");
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/api/v1/auth/google/callback?code=test-auth-code&state={csrf_state}"
+                ))
+                .header(
+                    "cookie",
+                    format!("oauth_state={csrf_state}; access_token={access_token}"),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        response.status().is_redirection(),
+        "expected redirect, got {}",
+        response.status()
+    );
+
+    let location = response
+        .headers()
+        .get("location")
+        .expect("missing location header")
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.contains("/settings?linked=google"),
+        "expected settings?linked=google redirect, got: {location}"
+    );
+
+    // Verify the auth method was actually inserted in the database.
+    let methods: Vec<(String,)> = sqlx::query_as(
+        "SELECT provider FROM user_auth_methods WHERE user_id = $1 ORDER BY provider",
+    )
+    .bind(user_id)
+    .fetch_all(&test_app.pool)
+    .await
+    .expect("failed to query auth methods");
+
+    let providers: Vec<&str> = methods.iter().map(|r| r.0.as_str()).collect();
+    assert!(
+        providers.contains(&"google"),
+        "expected google auth method, got: {providers:?}"
+    );
+}
+
+/// When Google sub is already linked to a different user, redirect to
+/// /settings?error=already_linked.
+#[tokio::test]
+async fn test_google_link_already_linked_to_other_user_fails() {
+    let test_app = common::setup().await;
+
+    // Create the first user and link google to them.
+    let first_user_id = insert_test_user(&test_app.pool, "first@example.com", "password1").await;
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email)
+         VALUES ($1, 'google', $2, $3)",
+    )
+    .bind(first_user_id)
+    .bind("google-already-linked-sub")
+    .bind("first-google@example.com")
+    .execute(&test_app.pool)
+    .await
+    .expect("failed to insert auth method");
+
+    // Create a second user who wants to link the same google account.
+    let (_second_user_id, access_token) =
+        create_user_with_access_token(&test_app.pool, "second@example.com").await;
+
+    let mock_server =
+        setup_google_mock("google-already-linked-sub", "first-google@example.com").await;
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config: google_config(&mock_server.uri()),
+        http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    let csrf_nonce = "link-already-nonce";
+    let csrf_state = format!("{csrf_nonce}:link");
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/api/v1/auth/google/callback?code=test-auth-code&state={csrf_state}"
+                ))
+                .header(
+                    "cookie",
+                    format!("oauth_state={csrf_state}; access_token={access_token}"),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        response.status().is_redirection(),
+        "expected redirect, got {}",
+        response.status()
+    );
+
+    let location = response
+        .headers()
+        .get("location")
+        .expect("missing location header")
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.contains("/settings?error=already_linked"),
+        "expected already_linked error redirect, got: {location}"
+    );
+}
+
+/// Without an access_token cookie, link mode redirects to /login?error=auth_required.
+#[tokio::test]
+async fn test_google_link_unauthenticated_redirects_to_login() {
+    let test_app = common::setup().await;
+
+    let mock_server = setup_google_mock("google-unauth-sub", "unauth@example.com").await;
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config: google_config(&mock_server.uri()),
+        http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    let csrf_nonce = "unauth-link-nonce";
+    let csrf_state = format!("{csrf_nonce}:link");
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/api/v1/auth/google/callback?code=test-auth-code&state={csrf_state}"
+                ))
+                .header("cookie", format!("oauth_state={csrf_state}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        response.status().is_redirection(),
+        "expected redirect, got {}",
+        response.status()
+    );
+
+    let location = response
+        .headers()
+        .get("location")
+        .expect("missing location header")
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.contains("/login?error=auth_required"),
+        "expected auth_required error redirect, got: {location}"
+    );
+}
+
+/// Linking the same Google account twice to the same user is idempotent —
+/// no duplicate rows, and still redirects to /settings?linked=google.
+#[tokio::test]
+async fn test_google_link_idempotent_same_user() {
+    let test_app = common::setup().await;
+    let (user_id, access_token) =
+        create_user_with_access_token(&test_app.pool, "idempotent@example.com").await;
+
+    // Pre-link the Google account.
+    sqlx::query(
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email)
+         VALUES ($1, 'google', $2, $3)",
+    )
+    .bind(user_id)
+    .bind("google-idempotent-sub")
+    .bind("idempotent-google@example.com")
+    .execute(&test_app.pool)
+    .await
+    .expect("failed to insert auth method");
+
+    let mock_server =
+        setup_google_mock("google-idempotent-sub", "idempotent-google@example.com").await;
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config: google_config(&mock_server.uri()),
+        http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    let csrf_nonce = "idempotent-nonce";
+    let csrf_state = format!("{csrf_nonce}:link");
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/api/v1/auth/google/callback?code=test-auth-code&state={csrf_state}"
+                ))
+                .header(
+                    "cookie",
+                    format!("oauth_state={csrf_state}; access_token={access_token}"),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        response.status().is_redirection(),
+        "expected redirect, got {}",
+        response.status()
+    );
+
+    let location = response
+        .headers()
+        .get("location")
+        .expect("missing location header")
+        .to_str()
+        .unwrap();
+
+    assert!(
+        location.contains("/settings?linked=google"),
+        "expected idempotent success redirect, got: {location}"
+    );
+
+    // Verify no duplicate rows.
+    let count: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM user_auth_methods WHERE user_id = $1 AND provider = 'google'",
+    )
+    .bind(user_id)
+    .fetch_one(&test_app.pool)
+    .await
+    .expect("failed to count auth methods");
+
+    assert_eq!(count.0, 1, "expected exactly one google auth method row");
+}
+
+/// A disabled user attempting to link Google gets a 403.
+#[tokio::test]
+async fn test_google_link_disabled_user_fails() {
+    let test_app = common::setup().await;
+    let (user_id, access_token) =
+        create_user_with_access_token(&test_app.pool, "disabled-linker@example.com").await;
+
+    // Disable the user.
+    sqlx::query("UPDATE users SET status = 'disabled' WHERE id = $1")
+        .bind(user_id)
+        .execute(&test_app.pool)
+        .await
+        .expect("failed to disable user");
+
+    let mock_server = setup_google_mock(
+        "google-disabled-link-sub",
+        "disabled-linker-google@example.com",
+    )
+    .await;
+
+    let state = api::AppState {
+        pool: test_app.pool.clone(),
+        config: google_config(&mock_server.uri()),
+        http_client: reqwest::Client::new(),
+        migrations_ready: common::migrations_ready_flag(),
+    };
+    let app = api::build_app_without_metrics(state);
+
+    let csrf_nonce = "disabled-link-nonce";
+    let csrf_state = format!("{csrf_nonce}:link");
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/api/v1/auth/google/callback?code=test-auth-code&state={csrf_state}"
+                ))
+                .header(
+                    "cookie",
+                    format!("oauth_state={csrf_state}; access_token={access_token}"),
+                )
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        403,
+        "disabled user should get 403, got {}",
+        response.status()
     );
 }

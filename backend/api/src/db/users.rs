@@ -426,6 +426,23 @@ pub async fn find_or_create_apple_user_tx(
     Ok(user)
 }
 
+/// Check whether any user with the given email exists (inside a transaction).
+///
+/// Used during OAuth registration to detect email collisions before creating
+/// a new user, so the caller can redirect with a descriptive error rather
+/// than relying on a unique-constraint violation.
+pub async fn email_exists_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    email: &str,
+) -> Result<bool, sqlx::Error> {
+    let row: Option<(i32,)> =
+        sqlx::query_as("SELECT 1 AS one FROM users WHERE LOWER(email) = LOWER($1)")
+            .bind(email)
+            .fetch_optional(&mut **tx)
+            .await?;
+    Ok(row.is_some())
+}
+
 /// List all users ordered by creation date.
 pub async fn list_all_users(pool: &PgPool) -> Result<Vec<UserRow>, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(

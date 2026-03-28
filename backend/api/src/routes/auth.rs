@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::AppState;
 use crate::auth::extractor::AuthUser;
-use crate::auth::jwt::encode_access_token;
+use crate::auth::jwt::{decode_access_token, encode_access_token};
 use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
 use crate::db::invites;
 use crate::db::refresh_tokens;
@@ -33,6 +33,44 @@ fn secure_attr(config: &crate::config::Config) -> &'static str {
     } else {
         ""
     }
+}
+
+/// Extract a user ID from the `access_token` httpOnly cookie. Only validates
+/// the JWT (signature, algorithm, expiry) — does NOT check DB status.
+fn extract_user_id_from_cookie(headers: &HeaderMap, jwt_secret: &str) -> Option<Uuid> {
+    read_cookie(headers, "access_token")
+        .and_then(|token| decode_access_token(&token, jwt_secret).ok())
+        .map(|claims| claims.sub)
+}
+
+/// Read a named cookie from the request headers.
+fn read_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(axum::http::header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookies| {
+            cookies
+                .split(';')
+                .filter_map(|c| {
+                    let trimmed = c.trim();
+                    trimmed
+                        .strip_prefix(name)
+                        .and_then(|rest| rest.strip_prefix('='))
+                        .map(|v| v.to_string())
+                })
+                .next()
+        })
+}
+
+/// Append a Set-Cookie header to a response.
+fn append_cookie(response: &mut Response, cookie: &str) -> Result<(), ApiError> {
+    response.headers_mut().append(
+        SET_COOKIE,
+        cookie
+            .parse()
+            .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
+    );
+    Ok(())
 }
 
 /// Dummy bcrypt hash used when a user is not found, so the response time is
@@ -280,6 +318,9 @@ pub async fn logout(
 #[derive(Deserialize)]
 pub struct GoogleLoginQuery {
     pub invite_code: Option<String>,
+    /// When `mode=link`, the OAuth flow will link Google to the authenticated
+    /// user's account instead of logging in / registering.
+    pub mode: Option<String>,
 }
 
 /// GET /auth/google/login — generate OAuth authorization URL with CSRF state.
@@ -287,8 +328,13 @@ pub struct GoogleLoginQuery {
 /// Accepts an optional `?invite_code=` query param. When provided, the code is
 /// stored in a short-lived httpOnly cookie so the callback can use it for new
 /// user registration.
+///
+/// When `?mode=link`, the flow is account-linking instead of login/register.
+/// The user must be authenticated (access_token cookie). The CSRF state is
+/// suffixed with `:link` so the callback can distinguish the two flows.
 pub async fn google_login(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Query(login_query): Query<GoogleLoginQuery>,
 ) -> Result<Response, ApiError> {
     let client_id = state
@@ -302,7 +348,20 @@ pub async fn google_login(
         .as_deref()
         .ok_or_else(|| ApiError::Internal("GOOGLE_REDIRECT_URI not configured".to_string()))?;
 
-    let csrf_state = Uuid::new_v4().to_string();
+    let is_link_mode = login_query.mode.as_deref().is_some_and(|m| m == "link");
+
+    // In link mode the user must already be authenticated.
+    if is_link_mode && extract_user_id_from_cookie(&headers, &state.config.jwt_secret).is_none() {
+        let redirect_url = format!("{}/settings?error=auth_required", state.config.web_origin);
+        return Ok(Redirect::to(&redirect_url).into_response());
+    }
+
+    let csrf_nonce = Uuid::new_v4().to_string();
+    let csrf_state = if is_link_mode {
+        format!("{csrf_nonce}:link")
+    } else {
+        csrf_nonce
+    };
 
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth\
@@ -322,12 +381,7 @@ pub async fn google_login(
     );
 
     let mut response = Redirect::to(&auth_url).into_response();
-    response.headers_mut().insert(
-        SET_COOKIE,
-        state_cookie
-            .parse()
-            .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-    );
+    append_cookie(&mut response, &state_cookie)?;
 
     // Store invite code in a short-lived cookie if provided (alphanumeric only).
     if let Some(ref code) = login_query.invite_code
@@ -337,12 +391,7 @@ pub async fn google_login(
         let invite_cookie = format!(
             "invite_code={code}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600"
         );
-        response.headers_mut().append(
-            SET_COOKIE,
-            invite_cookie
-                .parse()
-                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-        );
+        append_cookie(&mut response, &invite_cookie)?;
     }
 
     Ok(response)
@@ -381,16 +430,7 @@ pub async fn google_callback(
     // 2. Web (browser): no `code_verifier`; we validate the `state` parameter
     //    against the short-lived httpOnly `oauth_state` cookie set by
     //    `google_login`. This is the standard OAuth 2.0 CSRF mitigation.
-    let oauth_state_cookie = headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies
-                .split(';')
-                .filter_map(|c| c.trim().strip_prefix("oauth_state="))
-                .next()
-                .map(|s| s.to_string())
-        });
+    let oauth_state_cookie = read_cookie(&headers, "oauth_state");
 
     if query.code_verifier.is_none() {
         // Web flow — validate state parameter against the CSRF cookie.
@@ -407,6 +447,19 @@ pub async fn google_callback(
     }
     // PKCE flow — no cookie check here; Google validates the verifier during
     // token exchange and will reject the request if it does not match.
+
+    // Link mode is web-only — PKCE flows cannot trigger it because there is
+    // no oauth_state cookie.
+    let is_link_mode = oauth_state_cookie
+        .as_deref()
+        .is_some_and(|s| s.ends_with(":link"));
+
+    // Compute cookie helpers early so both branches can use them.
+    let secure = secure_attr(&state.config);
+    let clear_state_cookie =
+        format!("oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
+    let clear_invite_cookie =
+        format!("invite_code=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
 
     let client_id = state
         .config
@@ -444,20 +497,77 @@ pub async fn google_callback(
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
+    // ---------------------------------------------------------------
+    // Link mode: associate the Google account with an existing user.
+    // ---------------------------------------------------------------
+    if is_link_mode {
+        let linking_user_id = extract_user_id_from_cookie(&headers, &state.config.jwt_secret)
+            .ok_or_else(|| {
+                // Cannot determine the authenticated user — redirect to login.
+                ApiError::BadRequest("__redirect_login_auth_required".into())
+            });
+
+        let linking_user_id = match linking_user_id {
+            Ok(id) => id,
+            Err(_) => {
+                let redirect_url = format!("{}/login?error=auth_required", state.config.web_origin);
+                let mut response = Redirect::to(&redirect_url).into_response();
+                append_cookie(&mut response, &clear_state_cookie)?;
+                return Ok(response);
+            }
+        };
+
+        // Verify user exists and is active.
+        let linking_user = users::find_by_id(&state.pool, linking_user_id)
+            .await
+            .map_err(|_| ApiError::Forbidden)?;
+
+        if linking_user.status != "active" {
+            return Err(ApiError::Forbidden);
+        }
+
+        // Check if Google sub is already linked to a different user.
+        match user_auth_methods::find_by_provider_subject(&state.pool, "google", &google_user.sub)
+            .await
+        {
+            Ok(existing) if existing.id != linking_user_id => {
+                let redirect_url =
+                    format!("{}/settings?error=already_linked", state.config.web_origin);
+                let mut response = Redirect::to(&redirect_url).into_response();
+                append_cookie(&mut response, &clear_state_cookie)?;
+                return Ok(response);
+            }
+            Ok(_) => {
+                // Already linked to the same user — idempotent success.
+            }
+            Err(sqlx::Error::RowNotFound) => {
+                user_auth_methods::insert(
+                    &state.pool,
+                    linking_user_id,
+                    "google",
+                    Some(&google_user.sub),
+                    Some(&google_user.email),
+                )
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            }
+            Err(e) => return Err(ApiError::Internal(e.to_string())),
+        }
+
+        let redirect_url = format!("{}/settings?linked=google", state.config.web_origin);
+        let mut response = Redirect::to(&redirect_url).into_response();
+        append_cookie(&mut response, &clear_state_cookie)?;
+        return Ok(response);
+    }
+
+    // ---------------------------------------------------------------
+    // Login / register flow (existing behaviour).
+    // ---------------------------------------------------------------
     let display_name = sanitize_username(google_user.email.split('@').next().unwrap_or("user"));
 
     // Extract the invite code cookie once (used when creating new users with
     // require_invite enabled).
-    let invite_code_cookie = headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies
-                .split(';')
-                .filter_map(|c| c.trim().strip_prefix("invite_code="))
-                .next()
-                .map(|s| s.to_string())
-        });
+    let invite_code_cookie = read_cookie(&headers, "invite_code");
 
     // Always begin a transaction so the existence check, invite claim, and user
     // creation are atomic — prevents TOCTOU races where a concurrent deletion
@@ -481,7 +591,35 @@ pub async fn google_callback(
             user
         }
         Err(sqlx::Error::RowNotFound) => {
-            // New user — claim invite if required, then create.
+            // New user — before creating, check for email collision with an
+            // existing account (e.g. a local user who registered with the same
+            // email). This must happen inside the transaction to avoid TOCTOU.
+            if users::email_exists_tx(&mut tx, &google_user.email)
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?
+            {
+                // Roll back — the invite (if any) was not yet claimed.
+                tx.rollback()
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+                if query.code_verifier.is_some() {
+                    let redirect_url = "ownpulse://auth?error=email_exists";
+                    let mut response = Redirect::to(redirect_url).into_response();
+                    append_cookie(&mut response, &clear_state_cookie)?;
+                    append_cookie(&mut response, &clear_invite_cookie)?;
+                    return Ok(response);
+                } else {
+                    let redirect_url =
+                        format!("{}/login?error=email_exists", state.config.web_origin);
+                    let mut response = Redirect::to(&redirect_url).into_response();
+                    append_cookie(&mut response, &clear_state_cookie)?;
+                    append_cookie(&mut response, &clear_invite_cookie)?;
+                    return Ok(response);
+                }
+            }
+
+            // Claim invite if required, then create.
             let claimed_invite = if state.config.require_invite {
                 let code = invite_code_cookie.ok_or_else(|| {
                     ApiError::BadRequest("invite code required for new account registration".into())
@@ -549,13 +687,6 @@ pub async fn google_callback(
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    // Clear the oauth_state and invite_code cookies.
-    let secure = secure_attr(&state.config);
-    let clear_state_cookie =
-        format!("oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
-    let clear_invite_cookie =
-        format!("invite_code=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
-
     if query.code_verifier.is_some() {
         // Native app (PKCE flow): redirect to the custom URI scheme with tokens
         // in the URL fragment so the app can extract them from the redirect.
@@ -565,18 +696,8 @@ pub async fn google_callback(
             access_token, raw_token
         );
         let mut response = Redirect::to(&redirect_url).into_response();
-        response.headers_mut().append(
-            SET_COOKIE,
-            clear_state_cookie
-                .parse()
-                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-        );
-        response.headers_mut().append(
-            SET_COOKIE,
-            clear_invite_cookie
-                .parse()
-                .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-        );
+        append_cookie(&mut response, &clear_state_cookie)?;
+        append_cookie(&mut response, &clear_invite_cookie)?;
         Ok(response)
     } else {
         // Web flow: set tokens as httpOnly cookies and redirect without tokens in URL.
@@ -598,12 +719,7 @@ pub async fn google_callback(
             &clear_state_cookie,
             &clear_invite_cookie,
         ] {
-            response.headers_mut().append(
-                SET_COOKIE,
-                cookie_str
-                    .parse()
-                    .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-            );
+            append_cookie(&mut response, cookie_str)?;
         }
         Ok(response)
     }
@@ -685,7 +801,24 @@ pub async fn apple_callback(
             user
         }
         Err(sqlx::Error::RowNotFound) => {
-            // New user — claim invite if required, then create.
+            // New user — before creating, check for email collision with an
+            // existing account (e.g. a user who registered with the same email
+            // via Google or local auth). This must happen inside the transaction.
+            if users::email_exists_tx(&mut tx, email)
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?
+            {
+                tx.rollback()
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                return Err(ApiError::Conflict(
+                    "an account with this email already exists \
+                     — sign in with your existing method, then link Apple from Settings"
+                        .into(),
+                ));
+            }
+
+            // Claim invite if required, then create.
             let claimed_invite = if state.config.require_invite {
                 let code = body.invite_code.as_deref().ok_or_else(|| {
                     ApiError::BadRequest("invite code required for new account registration".into())
@@ -847,7 +980,7 @@ pub async fn link_auth(
         }
         "google" => {
             return Err(ApiError::BadRequest(
-                "Google account linking is not yet supported; use Google Sign-In to create your account instead".into(),
+                "Google linking requires OAuth redirect — navigate to /api/v1/auth/google/login?mode=link".into(),
             ));
         }
         other => {

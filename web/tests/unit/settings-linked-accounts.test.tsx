@@ -6,6 +6,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { delay, HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
+import { MemoryRouter } from "react-router-dom";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthMethod } from "../../src/api/auth";
 import { useAuthStore } from "../../src/store/auth";
@@ -21,6 +22,10 @@ const ONE_METHOD: AuthMethod[] = [
   { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
 ];
 
+const LOCAL_ONLY: AuthMethod[] = [
+  { id: "1", provider: "local", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+];
+
 const server = setupServer(
   // Default: return empty arrays for endpoints the Settings page queries
   http.get("/api/v1/source-preferences", () => HttpResponse.json([])),
@@ -30,16 +35,22 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-function wrapper({ children }: { children: React.ReactNode }) {
-  const qc = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+function createWrapper(initialEntries: string[] = ["/"]) {
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return (
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
+      </QueryClientProvider>
+    );
+  };
 }
 
-async function renderSettings() {
+async function renderSettings(initialEntries?: string[]) {
   const { default: Settings } = await import("../../src/pages/Settings");
-  return render(<Settings />, { wrapper });
+  return render(<Settings />, { wrapper: createWrapper(initialEntries) });
 }
 
 describe("Settings — Linked Accounts", () => {
@@ -171,6 +182,64 @@ describe("Settings — Linked Accounts", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Server error")).toBeDefined();
+    });
+  });
+
+  it("shows Link Google button when google is not linked", async () => {
+    server.use(http.get("/api/v1/auth/methods", () => HttpResponse.json(LOCAL_ONLY)));
+
+    await renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Password")).toBeDefined();
+    });
+
+    const linkGoogle = screen.getByRole("link", { name: /link google/i });
+    expect(linkGoogle).toBeDefined();
+    expect(linkGoogle).toHaveAttribute("href", "/api/v1/auth/google/login?mode=link");
+  });
+
+  it("does not show Link Google button when google is already linked", async () => {
+    server.use(http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)));
+
+    await renderSettings();
+
+    await waitFor(() => {
+      expect(screen.getByText("Google")).toBeDefined();
+    });
+
+    expect(screen.queryByRole("link", { name: /link google/i })).toBeNull();
+  });
+
+  it("shows success message when redirected with ?linked=google", async () => {
+    server.use(http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)));
+
+    await renderSettings(["/settings?linked=google"]);
+
+    await waitFor(() => {
+      expect(screen.getByText("Google account linked successfully.")).toBeDefined();
+    });
+  });
+
+  it("shows error message when redirected with ?error=already_linked", async () => {
+    server.use(http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)));
+
+    await renderSettings(["/settings?error=already_linked"]);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("That Google account is already linked to a different user."),
+      ).toBeDefined();
+    });
+  });
+
+  it("shows error message when redirected with ?error=auth_required", async () => {
+    server.use(http.get("/api/v1/auth/methods", () => HttpResponse.json(TWO_METHODS)));
+
+    await renderSettings(["/settings?error=auth_required"]);
+
+    await waitFor(() => {
+      expect(screen.getByText("Your session expired. Please log in again.")).toBeDefined();
     });
   });
 });
