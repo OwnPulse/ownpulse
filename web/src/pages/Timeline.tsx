@@ -35,8 +35,7 @@ export default function Timeline() {
 
   const weightRecords = useQuery({
     queryKey: ["weight", { since: weightSinceStr }],
-    queryFn: () =>
-      healthRecordsApi.list({ record_type: "body_mass", start: weightSinceStr }),
+    queryFn: () => healthRecordsApi.list({ record_type: "body_mass", start: weightSinceStr }),
   });
 
   const sleepRecords = useQuery({

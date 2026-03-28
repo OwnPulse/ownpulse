@@ -51,7 +51,8 @@ pub async fn bulk_insert(
         };
 
         let row = db_hr::insert(&state.pool, user_id, &record, duplicate_of).await?;
-        counter!("healthkit_records_ingested_total", "record_type" => record.record_type.clone()).increment(1);
+        counter!("healthkit_records_ingested_total", "record_type" => record.record_type.clone())
+            .increment(1);
         // Never enqueue write-back for healthkit-sourced records
         inserted.push(row);
     }
