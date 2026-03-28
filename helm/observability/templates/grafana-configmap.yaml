@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-datasources
+  labels:
+    {{- include "observability.labels" (dict "component" "grafana" "context" $) | nindent 4 }}
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        access: proxy
+        {{- if .Values.tls.enabled }}
+        url: https://{{ include "observability.componentName" (dict "component" "loki" "context" $) }}:{{ .Values.loki.service.port }}
+        jsonData:
+          tlsAuth: true
+          tlsAuthWithCACert: true
+          httpHeaderName1: X-Scope-OrgID
+          derivedFields:
+            - datasourceUid: tempo
+              matcherRegex: '"trace_id":"([a-f0-9]+)"'
+              name: TraceID
+              url: "$${__value.raw}"
+              urlDisplayLabel: View Trace
+        secureJsonData:
+          tlsCACert: $__file{/etc/grafana/tls/ca.crt}
+          tlsClientCert: $__file{/etc/grafana/tls/tls.crt}
+          tlsClientKey: $__file{/etc/grafana/tls/tls.key}
+          httpHeaderValue1: {{ .Values.tenantId }}
+        {{- else }}
+        url: http://{{ include "observability.componentName" (dict "component" "loki" "context" $) }}:{{ .Values.loki.service.port }}
+        jsonData:
+          httpHeaderName1: X-Scope-OrgID
+          derivedFields:
+            - datasourceUid: tempo
+              matcherRegex: '"trace_id":"([a-f0-9]+)"'
+              name: TraceID
+              url: "$${__value.raw}"
+              urlDisplayLabel: View Trace
+        secureJsonData:
+          httpHeaderValue1: {{ .Values.tenantId }}
+        {{- end }}
+        isDefault: true
+      - name: Tempo
+        type: tempo
+        access: proxy
+        uid: tempo
+        {{- if .Values.tls.enabled }}
+        url: https://{{ include "observability.componentName" (dict "component" "tempo" "context" $) }}:{{ .Values.tempo.service.port }}
+        jsonData:
+          tlsAuth: true
+          tlsAuthWithCACert: true
+          tracesToLogsV2:
+            datasourceUid: loki
+            filterByTraceID: true
+          nodeGraph:
+            enabled: true
+        secureJsonData:
+          tlsCACert: $__file{/etc/grafana/tls/ca.crt}
+          tlsClientCert: $__file{/etc/grafana/tls/tls.crt}
+          tlsClientKey: $__file{/etc/grafana/tls/tls.key}
+        {{- else }}
+        url: http://{{ include "observability.componentName" (dict "component" "tempo" "context" $) }}:{{ .Values.tempo.service.port }}
+        jsonData:
+          tracesToLogsV2:
+            datasourceUid: loki
+            filterByTraceID: true
+          nodeGraph:
+            enabled: true
+        {{- end }}

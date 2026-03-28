@@ -1,0 +1,132 @@
+{{- if .Values.tls.enabled }}
+---
+# Self-signed CA for internal observability TLS
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "observability.fullname" . }}-ca-issuer
+  labels:
+    {{- include "observability.labels" (dict "component" "tls" "context" $) | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+# CA certificate (signs all internal certs)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "observability.fullname" . }}-ca
+  labels:
+    {{- include "observability.labels" (dict "component" "tls" "context" $) | nindent 4 }}
+spec:
+  isCA: true
+  commonName: ownpulse-observability-ca
+  secretName: {{ include "observability.fullname" . }}-ca
+  duration: 8760h # 1 year
+  renewBefore: 720h # 30 days
+  issuerRef:
+    name: {{ include "observability.fullname" . }}-ca-issuer
+    kind: Issuer
+---
+# Issuer that uses the CA cert to sign service certs
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ include "observability.fullname" . }}-issuer
+  labels:
+    {{- include "observability.labels" (dict "component" "tls" "context" $) | nindent 4 }}
+spec:
+  ca:
+    secretName: {{ include "observability.fullname" . }}-ca
+---
+# Loki server certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "loki" "context" $) }}-tls
+  labels:
+    {{- include "observability.labels" (dict "component" "loki" "context" $) | nindent 4 }}
+spec:
+  secretName: {{ include "observability.componentName" (dict "component" "loki" "context" $) }}-tls
+  duration: 2160h # 90 days
+  renewBefore: 360h # 15 days
+  issuerRef:
+    name: {{ include "observability.fullname" . }}-issuer
+    kind: Issuer
+  dnsNames:
+    - {{ include "observability.componentName" (dict "component" "loki" "context" $) }}
+    - {{ include "observability.componentName" (dict "component" "loki" "context" $) }}.{{ .Release.Namespace }}
+    - {{ include "observability.componentName" (dict "component" "loki" "context" $) }}.{{ .Release.Namespace }}.svc
+    - {{ include "observability.componentName" (dict "component" "loki" "context" $) }}.{{ .Release.Namespace }}.svc.cluster.local
+---
+# Tempo server certificate
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}-tls
+  labels:
+    {{- include "observability.labels" (dict "component" "tempo" "context" $) | nindent 4 }}
+spec:
+  secretName: {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}-tls
+  duration: 2160h # 90 days
+  renewBefore: 360h # 15 days
+  issuerRef:
+    name: {{ include "observability.fullname" . }}-issuer
+    kind: Issuer
+  dnsNames:
+    - {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}
+    - {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}.{{ .Release.Namespace }}
+    - {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}.{{ .Release.Namespace }}.svc
+    - {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}.{{ .Release.Namespace }}.svc.cluster.local
+---
+# Alloy server certificate (for OTLP receiver)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}-tls
+  labels:
+    {{- include "observability.labels" (dict "component" "alloy" "context" $) | nindent 4 }}
+spec:
+  secretName: {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}-tls
+  duration: 2160h # 90 days
+  renewBefore: 360h # 15 days
+  issuerRef:
+    name: {{ include "observability.fullname" . }}-issuer
+    kind: Issuer
+  dnsNames:
+    - {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}
+    - {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}.{{ .Release.Namespace }}
+    - {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}.{{ .Release.Namespace }}.svc
+    - {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}.{{ .Release.Namespace }}.svc.cluster.local
+---
+# API client certificate (for mTLS from backend to Alloy)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "observability.fullname" . }}-api-tls
+  labels:
+    {{- include "observability.labels" (dict "component" "tls" "context" $) | nindent 4 }}
+spec:
+  secretName: {{ include "observability.fullname" . }}-api-tls
+  duration: 2160h # 90 days
+  renewBefore: 360h # 15 days
+  issuerRef:
+    name: {{ include "observability.fullname" . }}-issuer
+    kind: Issuer
+  commonName: ownpulse-api
+---
+# Grafana client certificate (for mTLS to Loki and Tempo)
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-tls
+  labels:
+    {{- include "observability.labels" (dict "component" "grafana" "context" $) | nindent 4 }}
+spec:
+  secretName: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-tls
+  duration: 2160h # 90 days
+  renewBefore: 360h # 15 days
+  issuerRef:
+    name: {{ include "observability.fullname" . }}-issuer
+    kind: Issuer
+  commonName: grafana
+{{- end }}

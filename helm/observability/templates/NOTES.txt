@@ -1,0 +1,42 @@
+OwnPulse Observability Stack deployed successfully.
+
+Components:
+  - Grafana  (dashboards and visualization)
+  - Loki     (log aggregation, tenant: {{ .Values.tenantId }})
+  - Tempo    (distributed tracing)
+  - Alloy    (log collection and OTLP receiver)
+{{- if .Values.tls.enabled }}
+  - TLS      (cert-manager internal CA)
+{{- end }}
+
+Access Grafana:
+{{- if .Values.grafana.ingress.enabled }}
+  https://{{ .Values.grafana.ingress.host }}
+{{- else }}
+  kubectl port-forward svc/{{ include "observability.componentName" (dict "component" "grafana" "context" $) }} {{ .Values.grafana.service.port }}:{{ .Values.grafana.service.port }} -n {{ .Release.Namespace }}
+
+  Then open http://localhost:{{ .Values.grafana.service.port }}
+{{- end }}
+
+  Retrieve credentials:
+    kubectl get secret {{ include "observability.componentName" (dict "component" "grafana" "context" $) }} -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
+  (Override via --set grafana.admin.password=<your-password> — use SOPS for production.)
+
+Enable trace export from the API:
+{{- if .Values.tls.enabled }}
+  helm upgrade api helm/api -n {{ .Release.Namespace }} \
+    --set otelEndpoint=https://{{ include "observability.componentName" (dict "component" "alloy" "context" $) }}:{{ .Values.alloy.service.otlpGrpcPort }} \
+    --set otelTlsSecret={{ include "observability.fullname" . }}-api-tls
+{{- else }}
+  helm upgrade api helm/api -n {{ .Release.Namespace }} \
+    --set otelEndpoint=http://{{ include "observability.componentName" (dict "component" "alloy" "context" $) }}:{{ .Values.alloy.service.otlpGrpcPort }}
+{{- end }}
+
+OTLP endpoints (for custom integrations):
+{{- if .Values.tls.enabled }}
+  gRPC (TLS): {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}:{{ .Values.alloy.service.otlpGrpcPort }}
+  HTTP (TLS): {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}:{{ .Values.alloy.service.otlpHttpPort }}
+{{- else }}
+  gRPC: {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}:{{ .Values.alloy.service.otlpGrpcPort }}
+  HTTP: {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}:{{ .Values.alloy.service.otlpHttpPort }}
+{{- end }}
