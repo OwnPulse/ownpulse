@@ -257,7 +257,7 @@ jobs:
       # Staging services are now accessible via ingress-nginx at their DNS names
       # (DNS resolves to Tailscale IP). No tailscale serve needed.
       - run: |
-          echo "Staging API: https://api.staging.ownpulse.health"
+          echo "Staging API: https://app.staging.ownpulse.health/api"
           echo "Staging Web: https://app.staging.ownpulse.health"
 
       - uses: OwnPulse/gh-actions/smoke-test@v1

@@ -17,7 +17,7 @@ containerPort: 8080
 metricsPort: 9090
 
 ingress:
-  enabled: true
+  enabled: false
   className: nginx
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
