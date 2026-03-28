@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}
+  labels:
+    {{- include "observability.labels" (dict "component" "tempo" "context" $) | nindent 4 }}
+spec:
+  replicas: {{ .Values.tempo.replicas }}
+  serviceName: {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}
+  selector:
+    matchLabels:
+      {{- include "observability.selectorLabels" (dict "component" "tempo" "context" $) | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/tempo-configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "observability.selectorLabels" (dict "component" "tempo" "context" $) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}
+      securityContext:
+        fsGroup: 10001
+        runAsUser: 10001
+        runAsGroup: 10001
+        runAsNonRoot: true
+      containers:
+        - name: tempo
+          image: "{{ .Values.tempo.image.repository }}:{{ .Values.tempo.image.tag }}"
+          imagePullPolicy: {{ .Values.tempo.image.pullPolicy }}
+          args:
+            - -config.file=/etc/tempo/tempo.yaml
+            - -target=all
+          ports:
+            - name: http
+              containerPort: 3200
+              protocol: TCP
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.tempo.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tempo
+              readOnly: true
+            - name: data
+              mountPath: /data/tempo
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /etc/tempo/tls
+              readOnly: true
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}-tls
+        {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: {{ .Values.tempo.persistence.size }}
+        {{- if .Values.tempo.persistence.storageClass }}
+        storageClassName: {{ .Values.tempo.persistence.storageClass | quote }}
+        {{- end }}

@@ -1,0 +1,104 @@
+# OwnPulse Observability Stack — sensible defaults for a small VPS (2-4GB RAM)
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Internal TLS via cert-manager self-signed CA.
+# Requires cert-manager to be installed in the cluster.
+tls:
+  enabled: true
+
+# Loki tenant ID — used for multi-tenant auth (X-Scope-OrgID header).
+tenantId: ownpulse
+
+grafana:
+  image:
+    repository: grafana/grafana
+    tag: "11.4.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 3000
+  admin:
+    user: admin
+    password: admin  # Override in production via SOPS-encrypted values file
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  persistence:
+    enabled: false
+    size: 1Gi
+    storageClass: ""
+  ingress:
+    enabled: false
+    className: nginx
+    annotations: {}
+    host: grafana.ownpulse.health
+    tls:
+      secretName: grafana-tls
+
+loki:
+  image:
+    repository: grafana/loki
+    tag: "3.3.2"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 3100
+  retention: 72h
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  persistence:
+    size: 1Gi
+    storageClass: ""
+
+tempo:
+  image:
+    repository: grafana/tempo
+    tag: "2.6.1"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 3200
+    otlpGrpcPort: 4317
+    otlpHttpPort: 4318
+  retention: 72h
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "50m"
+    limits:
+      memory: "256Mi"
+      cpu: "250m"
+  persistence:
+    size: 1Gi
+    storageClass: ""
+
+alloy:
+  image:
+    repository: grafana/alloy
+    tag: "1.5.1"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    otlpGrpcPort: 4317
+    otlpHttpPort: 4318
+  resources:
+    requests:
+      memory: "64Mi"
+      cpu: "25m"
+    limits:
+      memory: "128Mi"
+      cpu: "200m"

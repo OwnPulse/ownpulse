@@ -1,0 +1,105 @@
+---
+# Loki: accept connections only from Alloy (push) and Grafana (query)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "loki" "context" $) }}
+  labels:
+    {{- include "observability.labels" (dict "component" "loki" "context" $) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "observability.selectorLabels" (dict "component" "loki" "context" $) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alloy
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+      ports:
+        - port: 3100
+          protocol: TCP
+        - port: 9096
+          protocol: TCP
+---
+# Tempo: accept connections only from Alloy (push) and Grafana (query)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "tempo" "context" $) }}
+  labels:
+    {{- include "observability.labels" (dict "component" "tempo" "context" $) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "observability.selectorLabels" (dict "component" "tempo" "context" $) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alloy
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+      ports:
+        - port: 3200
+          protocol: TCP
+        - port: 4317
+          protocol: TCP
+        - port: 4318
+          protocol: TCP
+---
+# Grafana: when ingress enabled, accept from ingress-nginx namespace only;
+# when disabled, no ingress rule — only kubectl port-forward works.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}
+  labels:
+    {{- include "observability.labels" (dict "component" "grafana" "context" $) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "observability.selectorLabels" (dict "component" "grafana" "context" $) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  {{- if .Values.grafana.ingress.enabled }}
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - port: 3000
+          protocol: TCP
+  {{- end }}
+---
+# Alloy: accept OTLP only from pods in the release namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}
+  labels:
+    {{- include "observability.labels" (dict "component" "alloy" "context" $) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "observability.selectorLabels" (dict "component" "alloy" "context" $) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Release.Namespace }}
+      ports:
+        - port: 4317
+          protocol: TCP
+        - port: 4318
+          protocol: TCP

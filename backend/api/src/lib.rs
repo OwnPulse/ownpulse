@@ -28,6 +28,7 @@ use migration_check::MigrationsReady;
 use serde_json::json;
 use sqlx::PgPool;
 use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
+use tower_http::trace::TraceLayer;
 use tracing::info;
 
 #[derive(Clone)]
@@ -115,6 +116,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes())
+        .layer(TraceLayer::new_for_http())
         .layer(prometheus_layer)
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)
@@ -128,6 +130,7 @@ pub fn build_app_without_metrics(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes_without_rate_limit())
+        .layer(TraceLayer::new_for_http())
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)
 }

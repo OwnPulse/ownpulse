@@ -404,6 +404,7 @@ All jobs idempotent. No shared runner state. iOS failures do not block deploy â€
 | `WEB_ORIGIN` | yes | CORS allowlist for web frontend URL |
 | `REQUIRE_INVITE` | no | Default `true`. When enabled, registration requires a valid invite code. |
 | `RUST_LOG` | no | Default `info` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | no | OTLP gRPC endpoint for trace export, e.g. `http://alloy:4317` |
 
 ---
 

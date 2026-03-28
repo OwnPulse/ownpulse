@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}
+  labels:
+    {{- include "observability.labels" (dict "component" "alloy" "context" $) | nindent 4 }}
+data:
+  config.alloy: |
+    // Pod log discovery and collection
+    discovery.kubernetes "pods" {
+      role = "pod"
+    }
+
+    discovery.relabel "pod_logs" {
+      targets = discovery.kubernetes.pods.targets
+
+      // Only collect logs from the release namespace
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        regex         = "{{ .Release.Namespace }}"
+        action        = "keep"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+
+      rule {
+        source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name", "__meta_kubernetes_pod_container_name"]
+        separator     = "/"
+        target_label  = "__path__"
+        replacement   = "/var/log/pods/*$1/$2/$3/*.log"
+      }
+    }
+
+    loki.source.kubernetes "pod_logs" {
+      targets    = discovery.relabel.pod_logs.output
+      forward_to = [loki.write.default.receiver]
+    }
+
+    loki.write "default" {
+      endpoint {
+        {{- if .Values.tls.enabled }}
+        url = "https://{{ include "observability.componentName" (dict "component" "loki" "context" $) }}:{{ .Values.loki.service.port }}/loki/api/v1/push"
+
+        tls_config {
+          ca_file   = "/etc/alloy/tls/ca.crt"
+          cert_file = "/etc/alloy/tls/tls.crt"
+          key_file  = "/etc/alloy/tls/tls.key"
+        }
+        {{- else }}
+        url = "http://{{ include "observability.componentName" (dict "component" "loki" "context" $) }}:{{ .Values.loki.service.port }}/loki/api/v1/push"
+        {{- end }}
+
+        tenant_id = "{{ .Values.tenantId }}"
+      }
+    }
+
+    // OTLP receiver for traces from application
+    otelcol.receiver.otlp "default" {
+      grpc {
+        endpoint = "0.0.0.0:4317"
+        {{- if .Values.tls.enabled }}
+        tls {
+          cert_file  = "/etc/alloy/tls/tls.crt"
+          key_file   = "/etc/alloy/tls/tls.key"
+          ca_file    = "/etc/alloy/tls/ca.crt"
+          client_auth_type = "RequireAndVerifyClientCert"
+        }
+        {{- end }}
+      }
+
+      http {
+        endpoint = "0.0.0.0:4318"
+        {{- if .Values.tls.enabled }}
+        tls {
+          cert_file  = "/etc/alloy/tls/tls.crt"
+          key_file   = "/etc/alloy/tls/tls.key"
+          ca_file    = "/etc/alloy/tls/ca.crt"
+          client_auth_type = "RequireAndVerifyClientCert"
+        }
+        {{- end }}
+      }
+
+      output {
+        traces = [otelcol.exporter.otlp.tempo.input]
+      }
+    }
+
+    // Forward traces to Tempo
+    otelcol.exporter.otlp "tempo" {
+      client {
+        endpoint = "{{ include "observability.componentName" (dict "component" "tempo" "context" $) }}:{{ .Values.tempo.service.otlpGrpcPort }}"
+
+        tls {
+          {{- if .Values.tls.enabled }}
+          ca_file   = "/etc/alloy/tls/ca.crt"
+          cert_file = "/etc/alloy/tls/tls.crt"
+          key_file  = "/etc/alloy/tls/tls.key"
+          {{- else }}
+          insecure = true
+          {{- end }}
+        }
+      }
+    }

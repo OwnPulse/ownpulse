@@ -20,7 +20,12 @@ hmac = "0.12"
 hex = "0.4"
 bcrypt = "0.15"
 tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "registry"] }
+opentelemetry = "0.31"
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic"] }
+tonic = { version = "0.14", features = ["transport", "tls-ring"] }
+tracing-opentelemetry = "0.32"
 envy = "0.4"
 futures = "0.3"
 anyhow = "1"

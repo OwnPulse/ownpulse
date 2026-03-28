@@ -1,0 +1,97 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}
+  labels:
+    {{- include "observability.labels" (dict "component" "grafana" "context" $) | nindent 4 }}
+spec:
+  replicas: {{ .Values.grafana.replicas }}
+  selector:
+    matchLabels:
+      {{- include "observability.selectorLabels" (dict "component" "grafana" "context" $) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "observability.selectorLabels" (dict "component" "grafana" "context" $) | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}
+      securityContext:
+        fsGroup: 472
+        runAsUser: 472
+        runAsGroup: 472
+        runAsNonRoot: true
+      containers:
+        - name: grafana
+          image: "{{ .Values.grafana.image.repository }}:{{ .Values.grafana.image.tag }}"
+          imagePullPolicy: {{ .Values.grafana.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}
+                  key: admin-user
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}
+                  key: admin-password
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.grafana.resources | nindent 12 }}
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+            {{- if .Values.grafana.persistence.enabled }}
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+            {{- end }}
+            {{- if .Values.tls.enabled }}
+            - name: ca-cert
+              mountPath: /etc/grafana/tls
+              readOnly: true
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: datasources
+          configMap:
+            name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-datasources
+        {{- if .Values.grafana.persistence.enabled }}
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}
+        {{- end }}
+        {{- if .Values.tls.enabled }}
+        - name: ca-cert
+          projected:
+            sources:
+              - secret:
+                  name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-tls
+                  items:
+                    - key: tls.crt
+                      path: tls.crt
+                    - key: tls.key
+                      path: tls.key
+                    - key: ca.crt
+                      path: ca.crt
+        {{- end }}

@@ -13,7 +13,7 @@ spec:
     metadata:
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8080"
+        prometheus.io/port: "{{ .Values.metricsPort }}"
         prometheus.io/path: "/metrics"
       labels:
         {{- include "ownpulse-api.selectorLabels" . | nindent 8 }}
@@ -38,9 +38,24 @@ spec:
                 name: {{ include "ownpulse-api.fullname" . }}
             - secretRef:
                 name: {{ .Values.secret.name }}
+          {{- if or .Values.otelEndpoint .Values.otelTlsSecret }}
+          env:
+            {{- if .Values.otelEndpoint }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otelEndpoint | quote }}
+            {{- end }}
+            {{- if .Values.otelTlsSecret }}
+            - name: OTEL_EXPORTER_OTLP_CERTIFICATE
+              value: /etc/otel/tls/ca.crt
+            - name: OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE
+              value: /etc/otel/tls/tls.crt
+            - name: OTEL_EXPORTER_OTLP_CLIENT_KEY
+              value: /etc/otel/tls/tls.key
+            {{- end }}
+          {{- end }}
           readinessProbe:
             httpGet:
-              path: /api/v1/health
+              path: /readyz
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10
@@ -52,3 +67,15 @@ spec:
             periodSeconds: 30
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          {{- if .Values.otelTlsSecret }}
+          volumeMounts:
+            - name: otel-tls
+              mountPath: /etc/otel/tls
+              readOnly: true
+          {{- end }}
+      {{- if .Values.otelTlsSecret }}
+      volumes:
+        - name: otel-tls
+          secret:
+            secretName: {{ .Values.otelTlsSecret }}
+      {{- end }}

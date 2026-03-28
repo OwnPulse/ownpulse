@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "alloy" "context" $) }}
+  labels:
+    {{- include "observability.labels" (dict "component" "alloy" "context" $) | nindent 4 }}
+spec:
+  type: {{ .Values.alloy.service.type }}
+  ports:
+    - port: {{ .Values.alloy.service.otlpGrpcPort }}
+      targetPort: otlp-grpc
+      protocol: TCP
+      name: otlp-grpc
+    - port: {{ .Values.alloy.service.otlpHttpPort }}
+      targetPort: otlp-http
+      protocol: TCP
+      name: otlp-http
+  selector:
+    {{- include "observability.selectorLabels" (dict "component" "alloy" "context" $) | nindent 4 }}

@@ -1,12 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use anyhow::Context;
+use opentelemetry::trace::TracerProvider;
+use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
+use opentelemetry_sdk::Resource;
 use sqlx::postgres::PgPoolOptions;
 use tokio::signal;
 use tracing::{info, warn};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+
+/// Holds the OTel tracer provider so we can flush spans on shutdown.
+static TRACER_PROVIDER: OnceLock<opentelemetry_sdk::trace::SdkTracerProvider> = OnceLock::new();
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -25,13 +34,150 @@ async fn main() -> anyhow::Result<()> {
 }
 
 fn init_tracing() {
-    if std::env::var("RUST_LOG")
+    use tracing_subscriber::fmt;
+
+    let pretty = std::env::var("RUST_LOG")
         .unwrap_or_default()
-        .contains("pretty")
-    {
-        tracing_subscriber::fmt().pretty().init();
+        .contains("pretty");
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
+    // Build the optional OTel layer. `Option<Layer>` implements `Layer`, so we
+    // always compose it into the subscriber — when `None` it is a no-op.
+    let otel_layer = build_otel_layer();
+
+    // Use `Option` layers for the fmt variants so the subscriber has a single
+    // concrete type regardless of `pretty`.
+    let json_layer = if pretty {
+        None
     } else {
-        tracing_subscriber::fmt().json().init();
+        Some(fmt::layer().json())
+    };
+    let pretty_layer = if pretty {
+        Some(fmt::layer().pretty())
+    } else {
+        None
+    };
+
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(json_layer)
+        .with(pretty_layer)
+        .with(otel_layer)
+        .init();
+}
+
+/// Attempt to create an OpenTelemetry tracing layer from the
+/// `OTEL_EXPORTER_OTLP_ENDPOINT` env var. Returns `None` when the var is
+/// unset or the exporter fails to initialise — the server continues without
+/// trace export in that case.
+fn build_otel_layer<S>() -> Option<tracing_opentelemetry::OpenTelemetryLayer<S, opentelemetry_sdk::trace::SdkTracer>>
+where
+    S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
+    let endpoint = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT").ok()?;
+
+    let resource = Resource::builder()
+        .with_service_name("ownpulse-api")
+        .build();
+
+    // Build the exporter, optionally with TLS if OTEL_EXPORTER_OTLP_CERTIFICATE
+    // points to a CA cert (used for in-cluster TLS with cert-manager's internal CA).
+    let exporter = build_otlp_exporter(&endpoint)?;
+
+    let provider = opentelemetry_sdk::trace::SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_resource(resource)
+        .build();
+
+    let tracer = provider.tracer("ownpulse-api");
+
+    // Store for graceful shutdown; ignore if already set (should not happen).
+    let _ = TRACER_PROVIDER.set(provider);
+
+    // Log after the subscriber is installed would be cleaner, but we cannot
+    // emit tracing events before init. Use eprintln for this one message.
+    eprintln!("OpenTelemetry trace export enabled → {endpoint}");
+
+    Some(tracing_opentelemetry::layer().with_tracer(tracer))
+}
+
+/// Build an OTLP span exporter, optionally with TLS.
+fn build_otlp_exporter(endpoint: &str) -> Option<opentelemetry_otlp::SpanExporter> {
+    // Check for CA cert to enable TLS
+    let ca_path = std::env::var("OTEL_EXPORTER_OTLP_CERTIFICATE").ok();
+
+    if let Some(ref ca_path) = ca_path {
+        // TLS path: build a tonic Channel with custom CA cert, pass it to the exporter
+        let pem = match std::fs::read_to_string(ca_path) {
+            Ok(p) => p,
+            Err(err) => {
+                eprintln!("failed to read OTLP CA cert at {ca_path} ({err}), continuing without trace export");
+                return None;
+            }
+        };
+
+        let mut tls_config = tonic::transport::ClientTlsConfig::new()
+            .ca_certificate(tonic::transport::Certificate::from_pem(pem));
+
+        // mTLS: if client cert and key are available, present them to the server
+        if let (Ok(cert_path), Ok(key_path)) = (
+            std::env::var("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE"),
+            std::env::var("OTEL_EXPORTER_OTLP_CLIENT_KEY"),
+        ) {
+            match (std::fs::read_to_string(&cert_path), std::fs::read_to_string(&key_path)) {
+                (Ok(cert_pem), Ok(key_pem)) => {
+                    let identity = tonic::transport::Identity::from_pem(cert_pem, key_pem);
+                    tls_config = tls_config.identity(identity);
+                }
+                (Err(err), _) | (_, Err(err)) => {
+                    eprintln!("failed to read OTLP client cert/key ({err}), continuing without mTLS");
+                }
+            }
+        }
+
+        let channel = match tonic::transport::Channel::from_shared(endpoint.to_string()) {
+            Ok(c) => match c.tls_config(tls_config) {
+                Ok(c) => c,
+                Err(err) => {
+                    eprintln!("failed to configure TLS ({err}), continuing without trace export");
+                    return None;
+                }
+            },
+            Err(err) => {
+                eprintln!("invalid OTLP endpoint ({err}), continuing without trace export");
+                return None;
+            }
+        };
+
+        // Connect lazily — the channel will establish the connection on first use
+        let channel = channel.connect_lazy();
+
+        match opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_channel(channel)
+            .build()
+        {
+            Ok(e) => Some(e),
+            Err(err) => {
+                eprintln!("failed to create OTLP exporter ({err}), continuing without trace export");
+                None
+            }
+        }
+    } else {
+        // No TLS — plain gRPC connection
+        match opentelemetry_otlp::SpanExporter::builder()
+            .with_tonic()
+            .with_endpoint(endpoint)
+            .build()
+        {
+            Ok(e) => Some(e),
+            Err(err) => {
+                eprintln!("failed to create OTLP exporter ({err}), continuing without trace export");
+                None
+            }
+        }
     }
 }
 
@@ -137,5 +283,10 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
 
-    info!("shutdown signal received");
+    info!("shutdown signal received, flushing traces");
+    if let Some(provider) = TRACER_PROVIDER.get()
+        && let Err(err) = provider.shutdown()
+    {
+        warn!(error = %err, "failed to flush OpenTelemetry traces on shutdown");
+    }
 }

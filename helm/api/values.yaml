@@ -35,6 +35,9 @@ resources:
     memory: "512Mi"
     cpu: "500m"
 
+otelEndpoint: ""  # Set to "https://alloy:4317" when observability stack is installed
+otelTlsSecret: "" # Set to "<release>-observability-api-tls" — contains CA cert + client cert for mTLS
+
 configmap:
   RUST_LOG: "info"
   DATA_REGION: "us"
