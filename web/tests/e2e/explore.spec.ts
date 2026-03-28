@@ -107,98 +107,97 @@ async function mockExploreApis(page: import("@playwright/test").Page) {
   );
 }
 
-// TODO: Fix E2E tests to work without a running backend (use built app + route mocking)
-test.describe
-  .skip("Explore page", () => {
-    test("loads with metric picker and empty chart area", async ({ page }) => {
-      await mockExploreApis(page);
-      await page.goto("/explore");
+test.describe("Explore page", () => {
+  test("loads with metric picker and empty chart area", async ({ page }) => {
+    await mockExploreApis(page);
+    await page.goto("/explore");
 
-      await expect(page.getByText("Explore")).toBeVisible();
-      await expect(page.getByText("Check-ins")).toBeVisible();
-      await expect(page.getByText("Energy")).toBeVisible();
-      await expect(
-        page.getByText("Select metrics from the picker to start exploring."),
-      ).toBeVisible();
-    });
-
-    test("selecting a metric fetches and displays chart data", async ({ page }) => {
-      await mockExploreApis(page);
-      await page.goto("/explore");
-
-      await expect(page.getByText("Energy")).toBeVisible();
-      await page.getByLabel("Energy").check();
-
-      // Chart should now render (unovis SVG container)
-      await expect(
-        page.getByText("Select metrics from the picker to start exploring."),
-      ).not.toBeVisible();
-    });
-
-    test("date range preset buttons work", async ({ page }) => {
-      await mockExploreApis(page);
-      await page.goto("/explore");
-
-      await page.getByRole("button", { name: "7D" }).click();
-      // 7D should be visually active (has the active class)
-      await expect(page.getByRole("button", { name: "7D" })).toBeVisible();
-
-      await page.getByRole("button", { name: "90D" }).click();
-      await expect(page.getByRole("button", { name: "90D" })).toBeVisible();
-    });
-
-    test("resolution toggle buttons work", async ({ page }) => {
-      await mockExploreApis(page);
-      await page.goto("/explore");
-
-      await expect(page.getByRole("button", { name: "Daily" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
-      await page.getByRole("button", { name: "Weekly" }).click();
-      await expect(page.getByRole("button", { name: "Weekly" })).toHaveAttribute(
-        "aria-pressed",
-        "true",
-      );
-      await expect(page.getByRole("button", { name: "Daily" })).toHaveAttribute(
-        "aria-pressed",
-        "false",
-      );
-    });
-
-    test("search filters metrics", async ({ page }) => {
-      await mockExploreApis(page);
-      await page.goto("/explore");
-
-      await expect(page.getByText("Weight")).toBeVisible();
-      await page.getByLabel("Search metrics").fill("energy");
-      await expect(page.getByText("Energy")).toBeVisible();
-      await expect(page.getByText("Weight")).not.toBeVisible();
-    });
-
-    test("handles API error gracefully", async ({ page }) => {
-      const fakeJwt = `eyJhbGciOiJIUzI1NiJ9.${btoa(JSON.stringify({ sub: "00000000-0000-0000-0000-000000000001", role: "user", exp: 9999999999 }))}.fake`;
-      await page.route("**/api/v1/auth/refresh", (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({ access_token: fakeJwt, token_type: "bearer", expires_in: 3600 }),
-        }),
-      );
-      await page.route("**/api/v1/explore/metrics", (route) =>
-        route.fulfill({ status: 500, contentType: "text/plain", body: "Internal Server Error" }),
-      );
-      await page.route("**/api/v1/explore/charts", (route) =>
-        route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
-      );
-      await page.route("**/api/v1/source-preferences", (route) =>
-        route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
-      );
-      await page.route("**/api/v1/events*", (route) =>
-        route.fulfill({ status: 200, contentType: "text/event-stream", body: "" }),
-      );
-
-      await page.goto("/explore");
-      await expect(page.getByText("Error loading metrics.")).toBeVisible();
-    });
+    await expect(page.getByRole("heading", { name: "Explore" })).toBeVisible();
+    await expect(page.getByText("Check-ins")).toBeVisible();
+    await expect(page.getByText("Energy")).toBeVisible();
+    await expect(
+      page.getByText("Select metrics from the picker to start exploring."),
+    ).toBeVisible();
   });
+
+  test("selecting a metric fetches and displays chart data", async ({ page }) => {
+    await mockExploreApis(page);
+    await page.goto("/explore");
+
+    await expect(page.getByText("Energy")).toBeVisible();
+    await page.getByLabel("Energy").check();
+
+    // Chart should now render (unovis SVG container)
+    await expect(
+      page.getByText("Select metrics from the picker to start exploring."),
+    ).not.toBeVisible();
+  });
+
+  test("date range preset buttons work", async ({ page }) => {
+    await mockExploreApis(page);
+    await page.goto("/explore");
+
+    await page.getByRole("button", { name: "7D" }).click();
+    // 7D should be visually active (has the active class)
+    await expect(page.getByRole("button", { name: "7D" })).toBeVisible();
+
+    await page.getByRole("button", { name: "90D" }).click();
+    await expect(page.getByRole("button", { name: "90D" })).toBeVisible();
+  });
+
+  test("resolution toggle buttons work", async ({ page }) => {
+    await mockExploreApis(page);
+    await page.goto("/explore");
+
+    await expect(page.getByRole("button", { name: "Daily" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await page.getByRole("button", { name: "Weekly" }).click();
+    await expect(page.getByRole("button", { name: "Weekly" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByRole("button", { name: "Daily" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
+
+  test("search filters metrics", async ({ page }) => {
+    await mockExploreApis(page);
+    await page.goto("/explore");
+
+    await expect(page.getByText("Weight")).toBeVisible();
+    await page.getByLabel("Search metrics").fill("energy");
+    await expect(page.getByText("Energy")).toBeVisible();
+    await expect(page.getByText("Weight")).not.toBeVisible();
+  });
+
+  test("handles API error gracefully", async ({ page }) => {
+    const fakeJwt = `eyJhbGciOiJIUzI1NiJ9.${btoa(JSON.stringify({ sub: "00000000-0000-0000-0000-000000000001", role: "user", exp: 9999999999 }))}.fake`;
+    await page.route("**/api/v1/auth/refresh", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ access_token: fakeJwt, token_type: "bearer", expires_in: 3600 }),
+      }),
+    );
+    await page.route("**/api/v1/explore/metrics", (route) =>
+      route.fulfill({ status: 500, contentType: "text/plain", body: "Internal Server Error" }),
+    );
+    await page.route("**/api/v1/explore/charts", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+    );
+    await page.route("**/api/v1/source-preferences", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+    );
+    await page.route("**/api/v1/events*", (route) =>
+      route.fulfill({ status: 200, contentType: "text/event-stream", body: "" }),
+    );
+
+    await page.goto("/explore");
+    // TanStack Query retries 3 times with backoff before reporting error
+    await expect(page.getByText("Error loading metrics.")).toBeVisible({ timeout: 15000 });
+  });
+});

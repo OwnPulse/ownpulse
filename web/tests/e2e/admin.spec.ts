@@ -80,6 +80,11 @@ async function mockAdminApis(page: import("@playwright/test").Page) {
   await page.route("**/api/v1/source-preferences", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
   );
+
+  // Mock SSE events endpoint to avoid connection errors
+  await page.route("**/api/v1/events*", (route) =>
+    route.fulfill({ status: 200, contentType: "text/event-stream", body: "" }),
+  );
 }
 
 test.describe("Admin page", () => {
