@@ -39,6 +39,54 @@ jobs:
               - 'schema/**'
               - '.github/workflows/backend.yml'
 
+  fmt:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+        with:
+          components: rustfmt
+
+      - run: cargo fmt --check
+
+  clippy:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config libssl-dev
+
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7  # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-clippy-
+
+      - run: cargo clippy -- -D warnings
+
   test:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
@@ -72,19 +120,34 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
         with:
-          components: clippy, rustfmt, llvm-tools-preview
+          components: llvm-tools-preview
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7  # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-
+
+      - name: Cache cargo tools
+        id: tool-cache
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7  # v5
+        with:
+          path: ~/.cargo/bin
+          key: ${{ runner.os }}-cargo-tools-llvm-cov-sqlx-cli-v1
 
       - name: Install cargo tools
+        if: steps.tool-cache.outputs.cache-hit != 'true'
         uses: taiki-e/install-action@06203676c62f0d3c765be3f2fcfbebbcb02d09f5  # v2.69.6
         with:
           tool: cargo-llvm-cov,sqlx-cli
 
       - name: Run database migrations
         run: sqlx migrate run --source ../db/migrations
-
-      - run: cargo fmt --check
-
-      - run: cargo clippy -- -D warnings
 
       - run: cargo sqlx prepare --workspace --check
 
@@ -101,10 +164,12 @@ jobs:
           echo "Backend line coverage: ${LINE_COV}%"
 
       - name: Generate coverage HTML report
+        if: github.ref == 'refs/heads/main'
         run: |
           cargo llvm-cov --all-targets --html --output-dir coverage-html
 
       - name: Upload coverage report
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7
         with:
           name: backend-coverage-report
@@ -131,16 +196,21 @@ jobs:
   result:
     name: Backend / result
     if: always()
-    needs: [changes, test]
+    needs: [changes, fmt, clippy, test]
     runs-on: ubuntu-latest
     steps:
       - name: Check result
         run: |
-          if [[ "${{ needs.test.result }}" == "failure" ]]; then
-            echo "Backend tests failed"
+          if [[ "${{ needs.fmt.result }}" == "failure" || \
+                "${{ needs.clippy.result }}" == "failure" || \
+                "${{ needs.test.result }}" == "failure" ]]; then
+            echo "Backend CI failed"
+            echo "  fmt: ${{ needs.fmt.result }}"
+            echo "  clippy: ${{ needs.clippy.result }}"
+            echo "  test: ${{ needs.test.result }}"
             exit 1
           fi
-          echo "Backend gate passed (test result: ${{ needs.test.result }})"
+          echo "Backend gate passed"
 
   build:
     if: github.ref == 'refs/heads/main'
