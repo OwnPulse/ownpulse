@@ -68,6 +68,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0015_explore_charts.sql",
         include_str!("../../../db/migrations/0015_explore_charts.sql"),
     ),
+    (
+        "0016_observer_polls.sql",
+        include_str!("../../../db/migrations/0016_observer_polls.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -279,6 +283,10 @@ async fn detect_applied_migrations(pool: &PgPool) -> Result<(), MigrateError> {
         (
             "0015_explore_charts.sql",
             "SELECT to_regclass('public.explore_charts') IS NOT NULL",
+        ),
+        (
+            "0016_observer_polls.sql",
+            "SELECT to_regclass('public.observer_polls') IS NOT NULL",
         ),
     ];
 
