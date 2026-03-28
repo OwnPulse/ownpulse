@@ -53,7 +53,6 @@ pub async fn events_stream(
     let mut rx = state.event_tx.subscribe();
 
     let stream = async_stream::stream! {
-        let mut keepalive = tokio::time::interval(Duration::from_secs(30));
         let mut revalidate = tokio::time::interval(Duration::from_secs(300));
         revalidate.tick().await; // consume first immediate tick
 
@@ -90,9 +89,6 @@ pub async fn events_stream(
                             break;
                         }
                     }
-                }
-                _ = keepalive.tick() => {
-                    yield Ok(Event::default().comment("keepalive"));
                 }
             }
         }

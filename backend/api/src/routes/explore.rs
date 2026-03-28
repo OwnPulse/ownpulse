@@ -107,7 +107,7 @@ pub async fn series_post(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<BatchSeriesRequest>,
-) -> Result<Json<Vec<SeriesResponse>>, ApiError> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     if body.metrics.is_empty() {
         return Err(ApiError::BadRequest(
             "at least one metric is required".to_string(),
@@ -137,7 +137,7 @@ pub async fn series_post(
     let results = futures::future::join_all(futures).await;
     let series: Vec<SeriesResponse> = results.into_iter().collect::<Result<Vec<_>, _>>()?;
 
-    Ok(Json(series))
+    Ok(Json(serde_json::json!({ "series": series })))
 }
 
 /// POST /explore/charts — create a saved chart.

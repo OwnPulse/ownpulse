@@ -32,8 +32,9 @@ fn mask_email(email: &str) -> String {
 
 /// Strip HTML tags from a string using a simple regex.
 fn strip_html_tags(input: &str) -> String {
-    let re = Regex::new(r"<[^>]*>").expect("invalid regex");
-    re.replace_all(input, "").to_string()
+    static RE: std::sync::LazyLock<Regex> =
+        std::sync::LazyLock::new(|| Regex::new(r"<[^>]*>").expect("invalid regex"));
+    RE.replace_all(input, "").to_string()
 }
 
 /// Dimension name pattern: alphanumeric + underscore, 1-50 chars.
@@ -343,9 +344,7 @@ pub async fn list_responses(
             .map(mask_email);
     }
 
-    Ok(Json(serde_json::to_value(responses).map_err(|e| {
-        ApiError::Internal(e.to_string())
-    })?))
+    Ok(Json(serde_json::json!({ "responses": responses })))
 }
 
 /// POST /observer-polls/accept
@@ -450,19 +449,14 @@ pub async fn my_responses(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
     Path(poll_id): Path<Uuid>,
-) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let member_id = db::observer_polls::get_accepted_member_id(&state.pool, poll_id, user_id)
         .await?
         .ok_or(ApiError::Forbidden)?;
 
     let responses = db::observer_polls::list_my_responses(&state.pool, member_id).await?;
 
-    let values: Vec<serde_json::Value> = responses
-        .into_iter()
-        .map(|r| serde_json::to_value(r).expect("serialization should not fail"))
-        .collect();
-
-    Ok(Json(values))
+    Ok(Json(serde_json::json!({ "responses": responses })))
 }
 
 /// DELETE /observer-polls/responses/:response_id
@@ -482,15 +476,10 @@ pub async fn delete_response(
 pub async fn export_responses(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
-) -> Result<Json<Vec<serde_json::Value>>, ApiError> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let responses = db::observer_polls::export_observer_responses(&state.pool, user_id).await?;
 
-    let values: Vec<serde_json::Value> = responses
-        .into_iter()
-        .map(|r| serde_json::to_value(r).expect("serialization should not fail"))
-        .collect();
-
-    Ok(Json(values))
+    Ok(Json(serde_json::json!({ "responses": responses })))
 }
 
 #[cfg(test)]

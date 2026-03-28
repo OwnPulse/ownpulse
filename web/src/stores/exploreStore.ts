@@ -54,38 +54,45 @@ function defaultResolutionForPreset(preset: string): Resolution {
 
 export function dateRangeToParams(range: DateRange): { start: string; end: string } {
   if (range.type === "custom") {
-    return { start: range.start, end: range.end };
+    return { start: `${range.start}T00:00:00Z`, end: `${range.end}T23:59:59Z` };
   }
 
   const now = new Date();
-  const end = now.toISOString().slice(0, 10);
+  const endDate = now.toISOString().slice(0, 10);
 
+  let startDate: string;
   switch (range.preset) {
     case "7d": {
       const d = new Date(now);
       d.setDate(d.getDate() - 7);
-      return { start: d.toISOString().slice(0, 10), end };
+      startDate = d.toISOString().slice(0, 10);
+      break;
     }
     case "30d": {
       const d = new Date(now);
       d.setDate(d.getDate() - 30);
-      return { start: d.toISOString().slice(0, 10), end };
+      startDate = d.toISOString().slice(0, 10);
+      break;
     }
     case "90d": {
       const d = new Date(now);
       d.setDate(d.getDate() - 90);
-      return { start: d.toISOString().slice(0, 10), end };
+      startDate = d.toISOString().slice(0, 10);
+      break;
     }
     case "1y": {
       const d = new Date(now);
       d.setFullYear(d.getFullYear() - 1);
-      return { start: d.toISOString().slice(0, 10), end };
+      startDate = d.toISOString().slice(0, 10);
+      break;
     }
     case "all":
-      return { start: "2020-01-01", end };
     default:
-      return { start: "2020-01-01", end };
+      startDate = "2020-01-01";
+      break;
   }
+
+  return { start: `${startDate}T00:00:00Z`, end: `${endDate}T23:59:59Z` };
 }
 
 export const useExploreStore = create<ExploreState>((set) => ({
