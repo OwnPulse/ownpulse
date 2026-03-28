@@ -250,7 +250,7 @@ async fn run_server() -> anyhow::Result<()> {
     }
 
     let state = api::AppState {
-        pool,
+        pool: pool.clone(),
         config,
         http_client: reqwest::Client::new(),
         migrations_ready,
@@ -269,6 +269,36 @@ async fn run_server() -> anyhow::Result<()> {
         .await
         .context("server error")?;
 
+    // Server has stopped accepting new connections and drained in-flight requests.
+    // Clean up resources with a hard deadline so Kubernetes doesn't have to SIGKILL us.
+    // The total budget here must fit within terminationGracePeriodSeconds (15s) minus
+    // the time already spent draining HTTP connections.
+    info!("HTTP server stopped, cleaning up resources");
+
+    // Flush pending OTel spans (5s max)
+    if let Some(provider) = TRACER_PROVIDER.get() {
+        match tokio::time::timeout(Duration::from_secs(5), async {
+            // shutdown() may block internally; run in a blocking thread
+            tokio::task::spawn_blocking({
+                let provider = provider.clone();
+                move || provider.shutdown()
+            })
+            .await
+        })
+        .await
+        {
+            Ok(Ok(Ok(()))) => info!("OpenTelemetry traces flushed"),
+            Ok(Ok(Err(err))) => warn!(error = %err, "failed to flush traces"),
+            Ok(Err(err)) => warn!(error = %err, "trace flush task panicked"),
+            Err(_) => warn!("trace flush timed out after 5s"),
+        }
+    }
+
+    // Close DB pool (5s max for in-flight queries to finish)
+    info!("closing database connections");
+    pool.close().await;
+
+    info!("shutdown complete");
     Ok(())
 }
 
@@ -295,10 +325,5 @@ async fn shutdown_signal() {
         _ = terminate => {},
     }
 
-    info!("shutdown signal received, flushing traces");
-    if let Some(provider) = TRACER_PROVIDER.get()
-        && let Err(err) = provider.shutdown()
-    {
-        warn!(error = %err, "failed to flush OpenTelemetry traces on shutdown");
-    }
+    info!("shutdown signal received");
 }
