@@ -200,6 +200,149 @@
       }
     },
     {
+      "description": "a request to list available explore metrics",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/explore/metrics",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "sources": [
+            {
+              "source": "checkins",
+              "label": "Check-ins",
+              "metrics": [
+                { "field": "energy", "label": "Energy", "unit": "score" }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "a request to fetch batch series data",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/explore/series",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "metrics": [{ "source": "checkins", "field": "energy" }],
+          "start": "2026-03-01",
+          "end": "2026-03-07",
+          "resolution": "daily"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "series": [
+            {
+              "source": "checkins",
+              "field": "energy",
+              "unit": "score",
+              "points": [
+                { "t": "2026-03-01T00:00:00Z", "v": 7, "n": 1 }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "a request to list saved charts",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/explore/charts",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "uuid-1",
+            "name": "My Chart",
+            "config": {
+              "version": 1,
+              "metrics": [{ "source": "checkins", "field": "energy" }],
+              "range": { "preset": "30d" },
+              "resolution": "daily"
+            },
+            "created_at": "2026-03-10T08:00:00Z",
+            "updated_at": "2026-03-10T08:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to create a saved chart",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/explore/charts",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "My Chart",
+          "config": {
+            "version": 1,
+            "metrics": [{ "source": "checkins", "field": "energy" }],
+            "range": { "preset": "30d" },
+            "resolution": "daily"
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "uuid-1",
+          "name": "My Chart",
+          "config": {
+            "version": 1,
+            "metrics": [{ "source": "checkins", "field": "energy" }],
+            "range": { "preset": "30d" },
+            "resolution": "daily"
+          },
+          "created_at": "2026-03-10T08:00:00Z",
+          "updated_at": "2026-03-10T08:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to delete a saved chart",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/explore/charts/uuid-1",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
       "description": "a request to unlink an auth provider",
       "request": {
         "method": "DELETE",

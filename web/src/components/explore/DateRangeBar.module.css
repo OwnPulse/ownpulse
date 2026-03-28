@@ -1,0 +1,40 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.bar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.presets {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.active:hover {
+  background: var(--color-primary-hover);
+}
+
+.customRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.customRow .op-input {
+  width: auto;
+  max-width: 160px;
+}
+
+.dateSep {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

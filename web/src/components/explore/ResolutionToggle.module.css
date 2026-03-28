@@ -1,0 +1,16 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.toggle {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.active:hover {
+  background: var(--color-primary-hover);
+}
