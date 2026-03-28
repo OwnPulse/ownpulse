@@ -6,7 +6,7 @@ OwnPulse is three services behind one REST API, deployed on Kubernetes (k3s).
 
 | Service | Stack | Deployment | URL pattern |
 |---------|-------|------------|-------------|
-| **Backend API** | Rust + Axum + SQLx + Postgres 17 | Rust binary container | `api.<domain>` |
+| **Backend API** | Rust + Axum + SQLx + Postgres 17 | Rust binary container | `app.<domain>/api/` |
 | **Web frontend** | React + Vite + TypeScript + unovis | nginx container serving static build | `app.<domain>` |
 | **iOS app** | Swift 6 + SwiftUI + HealthKit | App Store / TestFlight | native device |
 

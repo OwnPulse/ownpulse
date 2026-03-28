@@ -30,12 +30,13 @@ curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
 ## Step 3: DNS Setup
 
-Point two DNS A records to your VPS IP:
+Point a DNS A record to your VPS IP:
 
 ```
-api.yourdomain.com  →  <VPS IP>
 app.yourdomain.com  →  <VPS IP>
 ```
+
+The API is served at `app.yourdomain.com/api/` via the web frontend's nginx proxy — no separate API domain needed.
 
 TLS certificates are provisioned automatically by cert-manager (installed with the Helm chart).
 

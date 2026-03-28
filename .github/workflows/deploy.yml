@@ -257,14 +257,23 @@ jobs:
       # Staging services are now accessible via ingress-nginx at their DNS names
       # (DNS resolves to Tailscale IP). No tailscale serve needed.
       - run: |
-          echo "Staging API: https://api.staging.ownpulse.health"
+          echo "Staging API: https://app.staging.ownpulse.health/api"
           echo "Staging Web: https://app.staging.ownpulse.health"
 
       - uses: OwnPulse/gh-actions/smoke-test@v1
         with:
           service-url: http://api-staging-ownpulse-api:80/api/v1/health
           namespace: ownpulse-staging
-          label: Staging API
+          label: Staging API (direct)
+
+      # Verify the web nginx proxy can reach the API — catches DNS/FQDN
+      # resolution issues where the direct service call above would pass
+      # but the proxy_pass fails (nginx resolver bypasses search domains).
+      - uses: OwnPulse/gh-actions/smoke-test@v1
+        with:
+          service-url: http://web-staging-ownpulse-web:80/api/v1/health
+          namespace: ownpulse-staging
+          label: Staging API (via web proxy)
 
   # ---------------------------------------------------------------------------
   # Production (requires manual approval via GitHub environment)
@@ -388,4 +397,10 @@ jobs:
         with:
           service-url: http://api-ownpulse-api:80/api/v1/health
           namespace: ownpulse
-          label: Production API
+          label: Production API (direct)
+
+      - uses: OwnPulse/gh-actions/smoke-test@v1
+        with:
+          service-url: http://web-ownpulse-web:80/api/v1/health
+          namespace: ownpulse
+          label: Production API (via web proxy)

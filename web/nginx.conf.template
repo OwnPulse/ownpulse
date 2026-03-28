@@ -21,16 +21,11 @@ server {
     add_header X-Frame-Options "DENY" always;
     add_header Content-Security-Policy "default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'" always;
 
-    # Proxy API requests to the backend service.
-    # Using a variable forces nginx to re-resolve DNS on every request via the
-    # resolver directive, instead of caching the IP at startup. This is required
-    # for Kubernetes where service ClusterIPs can change on redeploy, and for
-    # proper load balancing across multiple API pods.
-    resolver kube-dns.kube-system.svc.cluster.local valid=10s;
-    set $api_upstream ${API_UPSTREAM};
-
+    # Proxy API requests to the backend Kubernetes Service.
+    # nginx resolves the service name once at startup via /etc/resolv.conf.
+    # The ClusterIP is stable — kube-proxy handles load balancing across pods.
     location /api/ {
-        proxy_pass http://$api_upstream;
+        proxy_pass http://${API_UPSTREAM};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
