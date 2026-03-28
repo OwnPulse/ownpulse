@@ -11,5 +11,9 @@
   "observations": [],
   "calendar_days": [],
   "sharing_consents": [],
-  "user_auth_methods": []
+  "user_auth_methods": [],
+  "explore_charts": [],
+  "observer_polls": [],
+  "observer_poll_members": [],
+  "observer_responses": []
 }

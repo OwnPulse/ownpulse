@@ -26,6 +26,8 @@ Your OwnPulse instance is yours. Data is stored on infrastructure you control. T
 - [Manual Data Entry](data-entry.md) -- log health data by hand
 - [iOS App](ios-app.md) -- HealthKit sync, sleep+HRV chart, background sync
 - [Apple Health](apple-health.md) -- set up HealthKit sync on iOS
+- [Explore](explore.md) -- multi-metric charting and saved chart configurations
+- [Observer Polls](observer-polls.md) -- collect external ratings from trusted people
 - [Integrations](integrations.md) -- connect external data sources
 - [Data Export](export.md) -- download your data
 - [Sleep Tracking](sleep.md) -- view and understand your sleep data
