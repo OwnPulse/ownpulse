@@ -23,7 +23,9 @@ vi.mock("@unovis/react", () => ({
   VisXYContainer: ({ children }: { children: ReactNode }) => (
     <div data-testid="xy-container">{children}</div>
   ),
-  VisLine: () => <div data-testid="vis-line" />,
+  VisLine: ({ lineDashArray }: { lineDashArray?: number[] }) => (
+    <div data-testid="vis-line" data-dash={lineDashArray ? lineDashArray.join(",") : undefined} />
+  ),
   VisAxis: ({ type, label }: { type?: string; label?: string }) => (
     <div data-testid={`axis-${type ?? label}`} />
   ),
@@ -460,5 +462,209 @@ describe("SavedChartCard", () => {
       wrapper: createWrapper(),
     });
     expect(screen.getByText(/2025-01-01 - 2025-06-01/)).toBeDefined();
+  });
+});
+
+describe("ExploreChart with intervention markers", () => {
+  beforeEach(() => {
+    useExploreStore.setState({
+      selectedMetrics: [],
+      hiddenMetrics: new Set(),
+      dateRange: { type: "preset", preset: "30d" },
+      resolution: "daily",
+    });
+  });
+
+  const baseSeries = [
+    {
+      source: "checkins",
+      field: "energy",
+      unit: "score",
+      points: [
+        { t: "2026-03-01T00:00:00Z", v: 7, n: 1 },
+        { t: "2026-03-02T00:00:00Z", v: 6, n: 1 },
+        { t: "2026-03-03T00:00:00Z", v: 8, n: 1 },
+      ],
+    },
+  ];
+
+  const interventions = [
+    {
+      id: "iv-1",
+      user_id: "user-1",
+      substance: "Caffeine",
+      dose: 200,
+      unit: "mg",
+      route: "oral",
+      administered_at: "2026-03-02T08:00:00Z",
+      fasted: false,
+      created_at: "2026-03-02T08:00:00Z",
+    },
+    {
+      id: "iv-2",
+      user_id: "user-1",
+      substance: "Magnesium",
+      dose: 400,
+      unit: "mg",
+      route: "oral",
+      administered_at: "2026-03-02T20:00:00Z",
+      fasted: true,
+      created_at: "2026-03-02T20:00:00Z",
+    },
+  ];
+
+  it("renders intervention markers SVG when interventions provided", () => {
+    render(<ExploreChart series={baseSeries} interventions={interventions} />, {
+      wrapper: createWrapper(),
+    });
+    expect(screen.getByTestId("intervention-markers")).toBeDefined();
+  });
+
+  it("renders marker lines with aria-labels", () => {
+    render(<ExploreChart series={baseSeries} interventions={interventions} />, {
+      wrapper: createWrapper(),
+    });
+    expect(screen.getByLabelText("Intervention: Caffeine 200mg")).toBeDefined();
+    expect(screen.getByLabelText("Intervention: Magnesium 400mg")).toBeDefined();
+  });
+
+  it("does not render markers when no interventions", () => {
+    render(<ExploreChart series={baseSeries} interventions={[]} />, {
+      wrapper: createWrapper(),
+    });
+    expect(screen.queryByTestId("intervention-markers")).toBeNull();
+  });
+
+  it("does not render markers when no series data", () => {
+    render(<ExploreChart series={[]} interventions={interventions} />, {
+      wrapper: createWrapper(),
+    });
+    expect(screen.queryByTestId("intervention-markers")).toBeNull();
+  });
+
+  it("filters out interventions outside the data range", () => {
+    const outOfRangeInterventions = [
+      {
+        id: "iv-3",
+        user_id: "user-1",
+        substance: "OutOfRange",
+        dose: 100,
+        unit: "mg",
+        route: "oral",
+        administered_at: "2025-01-01T00:00:00Z",
+        fasted: false,
+        created_at: "2025-01-01T00:00:00Z",
+      },
+    ];
+    render(<ExploreChart series={baseSeries} interventions={outOfRangeInterventions} />, {
+      wrapper: createWrapper(),
+    });
+    expect(screen.queryByTestId("intervention-markers")).toBeNull();
+  });
+});
+
+describe("ExploreChart with observer data", () => {
+  beforeEach(() => {
+    useExploreStore.setState({
+      selectedMetrics: [],
+      hiddenMetrics: new Set(),
+      dateRange: { type: "preset", preset: "30d" },
+      resolution: "daily",
+    });
+  });
+
+  it("renders observer lines with dashed style", () => {
+    const series = [
+      {
+        source: "checkins",
+        field: "mood",
+        unit: "score",
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+      },
+      {
+        source: "observer_polls",
+        field: "poll-1:mood",
+        unit: "score",
+        points: [{ t: "2026-03-01T00:00:00Z", v: 6, n: 1 }],
+      },
+    ];
+    render(<ExploreChart series={series} />, { wrapper: createWrapper() });
+    const lines = screen.getAllByTestId("vis-line");
+    expect(lines).toHaveLength(2);
+    // First line (checkins) should not have dash
+    expect(lines[0].getAttribute("data-dash")).toBeNull();
+    // Second line (observer) should have dash
+    expect(lines[1].getAttribute("data-dash")).toBe("6,3");
+  });
+
+  it("renders both self-reported and observer lines on same chart", () => {
+    const series = [
+      {
+        source: "checkins",
+        field: "energy",
+        unit: "score",
+        points: [
+          { t: "2026-03-01T00:00:00Z", v: 7, n: 1 },
+          { t: "2026-03-02T00:00:00Z", v: 8, n: 1 },
+        ],
+      },
+      {
+        source: "observer_polls",
+        field: "poll-1:energy",
+        unit: "score",
+        points: [
+          { t: "2026-03-01T00:00:00Z", v: 6, n: 1 },
+          { t: "2026-03-02T00:00:00Z", v: 7, n: 1 },
+        ],
+      },
+    ];
+    render(<ExploreChart series={series} />, { wrapper: createWrapper() });
+    expect(screen.getByTestId("xy-container")).toBeDefined();
+    expect(screen.getAllByTestId("vis-line")).toHaveLength(2);
+  });
+});
+
+describe("MetricPicker with observer sources", () => {
+  beforeEach(() => {
+    useExploreStore.setState({
+      selectedMetrics: [],
+      hiddenMetrics: new Set(),
+      dateRange: { type: "preset", preset: "30d" },
+      resolution: "daily",
+    });
+  });
+
+  it("renders observer poll metrics under their own category", async () => {
+    server.use(
+      http.get("/api/v1/explore/metrics", () => {
+        return HttpResponse.json({
+          sources: [
+            {
+              source: "checkins",
+              label: "Check-ins",
+              metrics: [{ field: "energy", label: "Energy", unit: "score" }],
+            },
+            {
+              source: "observer_polls",
+              label: "Observer Polls",
+              metrics: [
+                {
+                  field: "poll-1:energy",
+                  label: "Observer: Energy (Daily mood check)",
+                  unit: "score",
+                },
+                { field: "poll-1:mood", label: "Observer: Mood (Daily mood check)", unit: "score" },
+              ],
+            },
+          ],
+        });
+      }),
+    );
+    render(<MetricPicker />, { wrapper: createWrapper() });
+    await waitFor(() => {
+      expect(screen.getByText("Observer Polls")).toBeDefined();
+      expect(screen.getByText("Observer: Energy (Daily mood check)")).toBeDefined();
+      expect(screen.getByText("Observer: Mood (Daily mood check)")).toBeDefined();
+    });
   });
 });
