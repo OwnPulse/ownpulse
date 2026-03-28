@@ -21,8 +21,8 @@ All endpoints require JWT authentication unless marked as public. Tokens are iss
 | POST | `/auth/register` | Register with invite code (see below) | 1 |
 | POST | `/auth/refresh` | Refresh token rotation (cookie) | 1 |
 | POST | `/auth/logout` | Invalidate refresh token | 1 |
-| GET | `/auth/google/login` | Google OAuth redirect (accepts optional `?invite_code=XYZ`) | 1 |
-| GET | `/auth/google/callback` | Google OAuth callback | 1 |
+| GET | `/auth/google/login` | Google OAuth redirect (accepts `?invite_code=`, `?mode=link`) | 1 |
+| GET | `/auth/google/callback` | Google OAuth callback (login, register, or link) | 1 |
 | POST | `/auth/apple/callback` | Apple Sign-In callback (verify id_token, issue tokens) | 1 |
 | GET | `/auth/methods` | List auth methods linked to current user (requires JWT) | 1 |
 | POST | `/auth/link` | Link a new auth provider to current user (requires JWT) | 1 |
@@ -54,6 +54,20 @@ Register a new account. When the instance requires invites (`REQUIRE_INVITE=true
 #### Google OAuth with invite code
 
 `GET /auth/google/login` accepts an optional `?invite_code=XYZ` query parameter. If the user does not yet have an account and invite codes are required, the invite code is validated during the OAuth callback. If no valid code is present, the callback returns a `400` JSON error (`"invite code required for new account registration"`).
+
+#### Google OAuth account linking
+
+`GET /auth/google/login` accepts an optional `?mode=link` query parameter. When present, the backend encodes a `:link` marker into the OAuth `state` parameter. On callback, the backend reads the marker and links the Google account to the currently authenticated user instead of performing a login or registration.
+
+The user must have a valid session (JWT) when initiating the link flow. The backend reads the JWT from the `token` cookie (the same httpOnly cookie used for refresh tokens is not required -- the access token cookie is sufficient).
+
+**Error redirects from `/auth/google/callback` during linking:**
+
+| Condition | Redirect |
+|-----------|----------|
+| No valid session | `<WEB_ORIGIN>/login?error=auth_required` |
+| Google email already linked to a different user | `<WEB_ORIGIN>/settings?error=already_linked` |
+| Success | `<WEB_ORIGIN>/settings?linked=google` |
 
 #### `POST /auth/apple/callback`
 
@@ -95,6 +109,7 @@ Verify an Apple Sign-In identity token and issue access + refresh tokens. Create
 |--------|--------|
 | 400 | Unknown `platform` value (must be `"web"` or `"ios"`) |
 | 401 | Identity token verification failed (invalid signature, expired, wrong audience, JWKS fetch error) |
+| 409 | Email already registered with a different provider |
 | 500 | `APPLE_CLIENT_ID` not configured |
 
 #### `GET /auth/methods`
@@ -146,7 +161,7 @@ Link a new auth provider to the authenticated user's account. Requires JWT.
 
 | Status | Reason |
 |--------|--------|
-| 400 | Missing required field for provider, password too short, unsupported provider, or Google linking (not yet supported) |
+| 400 | Missing required field for provider, password too short, or unsupported provider. Google linking uses the OAuth redirect flow (`GET /auth/google/login?mode=link`) instead of this endpoint |
 | 401 | Missing/invalid JWT, or Apple id_token verification failed |
 | 409 | The Apple account is already linked to a different user |
 

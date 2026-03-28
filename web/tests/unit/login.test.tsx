@@ -43,6 +43,26 @@ describe("Login", () => {
     expect(appleLink).toHaveAttribute("href", "/api/v1/auth/apple/login");
   });
 
+  it("shows error message when redirected with ?error=email_exists", () => {
+    render(
+      <MemoryRouter initialEntries={["/login?error=email_exists"]}>
+        <Login />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/account with this email already exists/i)).toBeDefined();
+  });
+
+  it("shows error message when redirected with ?error=auth_required", () => {
+    render(
+      <MemoryRouter initialEntries={["/login?error=auth_required"]}>
+        <Login />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText(/must be signed in to link/i)).toBeDefined();
+  });
+
   it("shows error on failed login", async () => {
     mockLogin.mockRejectedValue(new Error("bad credentials"));
 

@@ -27,6 +27,18 @@ If you have an invite code but not a link, go to the registration page manually 
 !!! note "Invite codes"
     Most OwnPulse instances require an invite code to register. Ask your instance administrator for one. See [User Management & Invites](admin.md) for more on how invite codes work.
 
+## Email already in use
+
+If you try to sign in with a provider (Google or Apple) and the email address is already associated with a different sign-in method, you will be redirected to the login page with an error message: "An account with this email already exists."
+
+This means your email is already registered -- for example, you may have originally signed up with a password. To add Google or Apple as an additional sign-in method:
+
+1. Sign in using your existing method (password, or whichever provider you originally used).
+2. Go to **Settings > Linked Accounts**.
+3. Click **Link Google** or **Link Apple** to connect the new provider.
+
+Once linked, you can use either method to sign in going forward.
+
 ## Sessions and tokens
 
 OwnPulse uses JWT (JSON Web Token) authentication. Your session token expires periodically for security. When it does, you will be redirected to the login screen and need to sign in again. The refresh token extends your session transparently in most cases, so you should not need to re-authenticate frequently during normal use.

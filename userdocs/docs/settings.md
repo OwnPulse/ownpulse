@@ -30,7 +30,16 @@ You can link multiple sign-in methods to your account. Go to **Settings > Linked
 
 ### Linking a new provider
 
-Tap **Link** next to the provider you want to add (Apple, Google, or password). For Apple and Google, you will be redirected to their sign-in flow. For password, you will be prompted to choose a password. Once linked, you can use any of your linked methods to sign in.
+If a provider is not yet linked, a **Link** button appears below your linked accounts list. For example, if you only have a password login, you will see a **Link Google** button.
+
+Clicking **Link Google** redirects you to Google's sign-in flow. After authorizing, you are returned to the Settings page with a confirmation message. The Google account is now linked and you can use it to sign in.
+
+For Apple, the same redirect flow applies. For password, you will be prompted to choose a password.
+
+Once linked, you can use any of your linked methods to sign in.
+
+!!! note "Why doesn't OwnPulse auto-link accounts with the same email?"
+    OwnPulse does not automatically link accounts that share the same email address. This is a deliberate security measure -- auto-linking could allow someone who compromises one provider to gain access to your account through another. Linking is always an explicit action you take while signed in.
 
 ### Unlinking a provider
 
