@@ -14,7 +14,7 @@ ingress:
 configmap:
   RUST_LOG: "debug"
   DATA_REGION: "us"
-  WEB_ORIGIN: "http://app.localhost:8080"
+  WEB_ORIGIN: "http://localhost:8080"
   REQUIRE_INVITE: "false"
 
 secret:
