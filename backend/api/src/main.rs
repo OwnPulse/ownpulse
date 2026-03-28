@@ -247,6 +247,9 @@ async fn run_server() -> anyhow::Result<()> {
             "server starting with outdated database schema — \
              /readyz will return 503 until migrations are applied"
         );
+        // Re-check periodically so the pod becomes ready once the migration
+        // hook (or manual migration) completes.
+        api::migration_check::spawn_migration_recheck(pool.clone(), migrations_ready.clone());
     }
 
     let state = api::AppState {

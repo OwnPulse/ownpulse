@@ -123,6 +123,37 @@ pub async fn run_check_and_set_flag(pool: &PgPool, ready: &MigrationsReady) {
     }
 }
 
+/// Spawn a background task that re-checks migration status every few seconds
+/// until the database catches up. This handles the case where a Helm pre-install
+/// hook runs migrations after the pod has already started — the pod will become
+/// ready once the hook completes.
+pub fn spawn_migration_recheck(pool: PgPool, ready: MigrationsReady) {
+    tokio::spawn(async move {
+        loop {
+            if ready.load(Ordering::SeqCst) {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            match check_migrations(&pool).await {
+                Ok(result) => {
+                    if result.is_ready() {
+                        info!(
+                            applied = result.applied,
+                            expected = result.expected,
+                            "migrations caught up, pod is now ready"
+                        );
+                        ready.store(true, Ordering::SeqCst);
+                        return;
+                    }
+                }
+                Err(err) => {
+                    warn!(error = %err, "migration recheck failed, will retry");
+                }
+            }
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
