@@ -1,0 +1,52 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.sparklineRow {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.sparklineItem {
+  flex: 1 1 120px;
+  min-width: 100px;
+  text-align: center;
+}
+
+.sparklineHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.dimensionName {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+.currentValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.trendUp {
+  color: var(--color-success, #27ae60);
+}
+
+.trendDown {
+  color: var(--color-danger, #e74c3c);
+}
+
+.trendNeutral {
+  color: var(--color-text-muted);
+}
+
+.chartContainer {
+  height: 40px;
+  width: 100%;
+}
