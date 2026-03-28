@@ -41,14 +41,37 @@ pub async fn events_stream(
         return Err(ApiError::Forbidden);
     }
 
+    // NOTE: JWT is passed as a query param because EventSource does not support
+    // custom headers. This means the token appears in server access logs. The token
+    // is short-lived (1 hour) which limits exposure. A ticket-based exchange is a
+    // future improvement (see ADR-0011).
     let user_id = user.id;
+    let jwt_secret = state.config.jwt_secret.clone();
+    let web_origin = state.config.web_origin.clone();
+    let token = query.token.clone();
+    let pool = state.pool.clone();
     let mut rx = state.event_tx.subscribe();
 
     let stream = async_stream::stream! {
         let mut keepalive = tokio::time::interval(Duration::from_secs(30));
+        let mut revalidate = tokio::time::interval(Duration::from_secs(300));
+        revalidate.tick().await; // consume first immediate tick
 
         loop {
             tokio::select! {
+                _ = revalidate.tick() => {
+                    // Re-check token expiry and user status every 5 minutes
+                    if decode_access_token(&token, &jwt_secret, &web_origin).is_err() {
+                        tracing::info!(user_id = %user_id, "SSE: token expired, closing");
+                        break;
+                    }
+                    if let Ok(u) = users::find_by_id(&pool, user_id).await {
+                        if u.status != "active" {
+                            tracing::info!(user_id = %user_id, "SSE: user inactive, closing");
+                            break;
+                        }
+                    }
+                }
                 result = rx.recv() => {
                     match result {
                         Ok((uid, event)) if uid == user_id => {

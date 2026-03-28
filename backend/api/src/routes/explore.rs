@@ -146,12 +146,18 @@ pub async fn create_chart(
     AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<CreateChart>,
 ) -> Result<(StatusCode, Json<ChartRow>), ApiError> {
+    let name = body.name.trim();
+    if name.is_empty() || name.len() > 200 {
+        return Err(ApiError::BadRequest(
+            "chart name must be 1-200 characters".to_string(),
+        ));
+    }
     validate_chart_config(&body.config)?;
 
     let config_json = serde_json::to_value(&body.config)
         .map_err(|e| ApiError::Internal(format!("failed to serialize chart config: {e}")))?;
 
-    let row = db_charts::insert(&state.pool, user_id, &body.name, &config_json).await?;
+    let row = db_charts::insert(&state.pool, user_id, name, &config_json).await?;
     Ok((StatusCode::CREATED, Json(row)))
 }
 

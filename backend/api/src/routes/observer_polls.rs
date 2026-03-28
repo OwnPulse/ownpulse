@@ -94,6 +94,13 @@ fn validate_scores(
         .as_object()
         .ok_or_else(|| ApiError::BadRequest("scores must be a JSON object".to_string()))?;
 
+    if obj.len() != dimensions.len() {
+        return Err(ApiError::BadRequest(format!(
+            "scores must contain exactly {} dimensions",
+            dimensions.len()
+        )));
+    }
+
     let mut result = HashMap::new();
 
     for (key, value) in obj {
