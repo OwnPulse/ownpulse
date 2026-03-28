@@ -353,10 +353,10 @@ async fn test_apple_callback_existing_user_returns_same_user() {
 
     // Decode both tokens and check they have the same user_id
     let claims1 =
-        api::auth::jwt::decode_access_token(&token1, "test-jwt-secret-at-least-32-bytes-long")
+        api::auth::jwt::decode_access_token(&token1, "test-jwt-secret-at-least-32-bytes-long", "http://localhost:5173")
             .unwrap();
     let claims2 =
-        api::auth::jwt::decode_access_token(&token2, "test-jwt-secret-at-least-32-bytes-long")
+        api::auth::jwt::decode_access_token(&token2, "test-jwt-secret-at-least-32-bytes-long", "http://localhost:5173")
             .unwrap();
 
     assert_eq!(

@@ -688,7 +688,7 @@ async fn test_login_returns_decodable_jwt() {
 
     // Decode the JWT using the same secret as the test config
     let claims =
-        api::auth::jwt::decode_access_token(access_token, "test-jwt-secret-at-least-32-bytes-long")
+        api::auth::jwt::decode_access_token(access_token, "test-jwt-secret-at-least-32-bytes-long", "http://localhost:5173")
             .expect("JWT should decode successfully");
 
     assert_eq!(claims.sub, user_id);
@@ -882,6 +882,7 @@ async fn create_user_with_access_token(pool: &sqlx::PgPool, email: &str) -> (uui
         user_id,
         "user",
         "test-jwt-secret-at-least-32-bytes-long",
+        "http://localhost:5173",
         3600,
     )
     .expect("failed to encode JWT");

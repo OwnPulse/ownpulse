@@ -37,9 +37,9 @@ fn secure_attr(config: &crate::config::Config) -> &'static str {
 
 /// Extract a user ID from the `access_token` httpOnly cookie. Only validates
 /// the JWT (signature, algorithm, expiry) — does NOT check DB status.
-fn extract_user_id_from_cookie(headers: &HeaderMap, jwt_secret: &str) -> Option<Uuid> {
+fn extract_user_id_from_cookie(headers: &HeaderMap, jwt_secret: &str, web_origin: &str) -> Option<Uuid> {
     read_cookie(headers, "access_token")
-        .and_then(|token| decode_access_token(&token, jwt_secret).ok())
+        .and_then(|token| decode_access_token(&token, jwt_secret, web_origin).ok())
         .map(|claims| claims.sub)
 }
 
@@ -342,16 +342,12 @@ pub async fn google_login(
         .google_client_id
         .as_deref()
         .ok_or_else(|| ApiError::Internal("GOOGLE_CLIENT_ID not configured".to_string()))?;
-    let redirect_uri = state
-        .config
-        .google_redirect_uri
-        .as_deref()
-        .ok_or_else(|| ApiError::Internal("GOOGLE_REDIRECT_URI not configured".to_string()))?;
+    let redirect_uri = state.config.google_redirect_uri();
 
     let is_link_mode = login_query.mode.as_deref().is_some_and(|m| m == "link");
 
     // In link mode the user must already be authenticated.
-    if is_link_mode && extract_user_id_from_cookie(&headers, &state.config.jwt_secret).is_none() {
+    if is_link_mode && extract_user_id_from_cookie(&headers, &state.config.jwt_secret, &state.config.web_origin).is_none() {
         let redirect_url = format!("{}/settings?error=auth_required", state.config.web_origin);
         return Ok(Redirect::to(&redirect_url).into_response());
     }
@@ -371,7 +367,7 @@ pub async fn google_login(
          &scope=openid%20email%20profile\
          &state={}",
         urlencoding::encode(client_id),
-        urlencoding::encode(redirect_uri),
+        urlencoding::encode(&redirect_uri),
         urlencoding::encode(&csrf_state),
     );
 
@@ -471,17 +467,13 @@ pub async fn google_callback(
         .google_client_secret
         .as_deref()
         .ok_or_else(|| ApiError::Internal("GOOGLE_CLIENT_SECRET not configured".to_string()))?;
-    let redirect_uri = state
-        .config
-        .google_redirect_uri
-        .as_deref()
-        .ok_or_else(|| ApiError::Internal("GOOGLE_REDIRECT_URI not configured".to_string()))?;
+    let redirect_uri = state.config.google_redirect_uri();
 
     let tokens = crate::integrations::google::exchange_code_for_tokens(
         &state.http_client,
         client_id,
         client_secret,
-        redirect_uri,
+        &redirect_uri,
         &query.code,
         &state.config.google_token_url,
         query.code_verifier.as_deref(),
@@ -501,7 +493,7 @@ pub async fn google_callback(
     // Link mode: associate the Google account with an existing user.
     // ---------------------------------------------------------------
     if is_link_mode {
-        let linking_user_id = extract_user_id_from_cookie(&headers, &state.config.jwt_secret)
+        let linking_user_id = extract_user_id_from_cookie(&headers, &state.config.jwt_secret, &state.config.web_origin)
             .ok_or_else(|| {
                 // Cannot determine the authenticated user — redirect to login.
                 ApiError::BadRequest("__redirect_login_auth_required".into())
@@ -683,6 +675,7 @@ pub async fn google_callback(
         user.id,
         &user.role,
         &state.config.jwt_secret,
+        &state.config.web_origin,
         state.config.jwt_expiry_seconds,
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -1073,6 +1066,7 @@ async fn issue_access_token_only(
         user_id,
         role,
         &state.config.jwt_secret,
+        &state.config.web_origin,
         state.config.jwt_expiry_seconds,
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -1093,6 +1087,7 @@ async fn issue_tokens(state: &AppState, user_id: Uuid, role: &str) -> Result<Res
         user_id,
         role,
         &state.config.jwt_secret,
+        &state.config.web_origin,
         state.config.jwt_expiry_seconds,
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -1146,6 +1141,7 @@ async fn issue_tokens_with_family(
         user_id,
         &user.role,
         &state.config.jwt_secret,
+        &state.config.web_origin,
         state.config.jwt_expiry_seconds,
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -1195,6 +1191,7 @@ async fn issue_tokens_response(
         user_id,
         role,
         &state.config.jwt_secret,
+        &state.config.web_origin,
         state.config.jwt_expiry_seconds,
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;

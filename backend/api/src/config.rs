@@ -128,6 +128,16 @@ fn default_require_invite() -> bool {
 }
 
 impl Config {
+    /// Return the Google OAuth redirect URI.
+    ///
+    /// If `GOOGLE_REDIRECT_URI` is explicitly set, use it (backward compat for
+    /// self-hosters with a non-standard path). Otherwise derive from `web_origin`.
+    pub fn google_redirect_uri(&self) -> String {
+        self.google_redirect_uri
+            .clone()
+            .unwrap_or_else(|| format!("{}/api/v1/auth/google/callback", self.web_origin))
+    }
+
     /// Load configuration from environment variables.
     pub fn load() -> Self {
         let config = envy::from_env::<Config>().expect("failed to load config from environment");
@@ -216,5 +226,24 @@ mod tests {
         config.web_origin = "https://app.ownpulse.health".to_string();
         config.jwt_secret = "a-real-secret-that-is-not-the-default".to_string();
         config.validate();
+    }
+
+    #[test]
+    fn google_redirect_uri_derived_from_web_origin() {
+        let config = test_config();
+        assert_eq!(
+            config.google_redirect_uri(),
+            "http://localhost:5173/api/v1/auth/google/callback"
+        );
+    }
+
+    #[test]
+    fn google_redirect_uri_explicit_override() {
+        let mut config = test_config();
+        config.google_redirect_uri = Some("https://custom.example.com/callback".to_string());
+        assert_eq!(
+            config.google_redirect_uri(),
+            "https://custom.example.com/callback"
+        );
     }
 }

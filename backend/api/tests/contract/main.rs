@@ -182,7 +182,7 @@ async fn create_test_user(pool: &sqlx::PgPool, jwt_secret: &str) -> (Uuid, Strin
     .expect("insert test user");
 
     let token =
-        api::auth::jwt::encode_access_token(row.0, "user", jwt_secret, 3600).expect("encode JWT");
+        api::auth::jwt::encode_access_token(row.0, "user", jwt_secret, "http://localhost:5173", 3600).expect("encode JWT");
 
     (row.0, token)
 }
@@ -209,7 +209,7 @@ async fn create_admin_user(pool: &sqlx::PgPool, jwt_secret: &str) -> (Uuid, Stri
     .expect("insert admin user");
 
     let token =
-        api::auth::jwt::encode_access_token(row.0, "admin", jwt_secret, 3600).expect("encode JWT");
+        api::auth::jwt::encode_access_token(row.0, "admin", jwt_secret, "http://localhost:5173", 3600).expect("encode JWT");
 
     (row.0, token)
 }

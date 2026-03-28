@@ -11,6 +11,7 @@ pub struct Claims {
     pub role: String,
     pub exp: i64,
     pub iat: i64,
+    pub iss: String,
 }
 
 /// Create a signed JWT access token for the given user.
@@ -18,6 +19,7 @@ pub fn encode_access_token(
     user_id: Uuid,
     role: &str,
     secret: &str,
+    issuer: &str,
     expiry_seconds: u64,
 ) -> Result<String, jsonwebtoken::errors::Error> {
     let now = chrono::Utc::now().timestamp();
@@ -26,6 +28,7 @@ pub fn encode_access_token(
         role: role.to_string(),
         exp: now + expiry_seconds as i64,
         iat: now,
+        iss: issuer.to_string(),
     };
     encode(
         &Header::default(),
@@ -38,9 +41,11 @@ pub fn encode_access_token(
 pub fn decode_access_token(
     token: &str,
     secret: &str,
+    issuer: &str,
 ) -> Result<Claims, jsonwebtoken::errors::Error> {
     let mut validation = Validation::new(jsonwebtoken::Algorithm::HS256);
     validation.validate_exp = true;
+    validation.set_issuer(&[issuer]);
     let token_data = decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
@@ -57,17 +62,20 @@ mod tests {
     fn roundtrip_encode_decode() {
         let user_id = Uuid::new_v4();
         let secret = "test-secret-at-least-32-bytes-long";
-        let token = encode_access_token(user_id, "user", secret, 3600).unwrap();
-        let claims = decode_access_token(&token, secret).unwrap();
+        let issuer = "http://localhost:5173";
+        let token = encode_access_token(user_id, "user", secret, issuer, 3600).unwrap();
+        let claims = decode_access_token(&token, secret, issuer).unwrap();
         assert_eq!(claims.sub, user_id);
         assert_eq!(claims.role, "user");
+        assert_eq!(claims.iss, "http://localhost:5173");
     }
 
     #[test]
     fn wrong_secret_fails() {
         let user_id = Uuid::new_v4();
-        let token = encode_access_token(user_id, "user", "correct-secret", 3600).unwrap();
-        let result = decode_access_token(&token, "wrong-secret");
+        let issuer = "http://localhost:5173";
+        let token = encode_access_token(user_id, "user", "correct-secret", issuer, 3600).unwrap();
+        let result = decode_access_token(&token, "wrong-secret", issuer);
         assert!(result.is_err());
     }
 
@@ -82,6 +90,7 @@ mod tests {
             role: "user".to_string(),
             exp: now - 3600,
             iat: now - 7200,
+            iss: "http://localhost:5173".to_string(),
         };
         let token = encode(
             &Header::default(),
@@ -89,7 +98,7 @@ mod tests {
             &EncodingKey::from_secret(secret.as_bytes()),
         )
         .unwrap();
-        let result = decode_access_token(&token, secret);
+        let result = decode_access_token(&token, secret, "http://localhost:5173");
         assert!(result.is_err());
     }
 
@@ -102,14 +111,14 @@ mod tests {
         let now = chrono::Utc::now().timestamp();
         let user_id = Uuid::new_v4();
         let payload = URL_SAFE_NO_PAD.encode(format!(
-            r#"{{"sub":"{}","role":"admin","exp":{},"iat":{}}}"#,
+            r#"{{"sub":"{}","role":"admin","exp":{},"iat":{},"iss":"http://localhost:5173"}}"#,
             user_id,
             now + 3600,
             now
         ));
         let token = format!("{}.{}.", header, payload); // empty signature
 
-        let result = decode_access_token(&token, "any-secret");
+        let result = decode_access_token(&token, "any-secret", "http://localhost:5173");
         assert!(result.is_err(), "alg:none token must be rejected");
     }
 
@@ -125,6 +134,7 @@ mod tests {
             role: "user".to_string(),
             exp: now + 3600,
             iat: now,
+            iss: "http://localhost:5173".to_string(),
         };
 
         // Encode with HS384 (not HS256)
@@ -135,7 +145,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = decode_access_token(&token, "test-secret");
+        let result = decode_access_token(&token, "test-secret", "http://localhost:5173");
         assert!(
             result.is_err(),
             "HS384 token must be rejected when HS256 is expected"
@@ -146,8 +156,28 @@ mod tests {
     fn role_admin_roundtrips() {
         let user_id = Uuid::new_v4();
         let secret = "test-secret-at-least-32-bytes-long";
-        let token = encode_access_token(user_id, "admin", secret, 3600).unwrap();
-        let claims = decode_access_token(&token, secret).unwrap();
+        let issuer = "http://localhost:5173";
+        let token = encode_access_token(user_id, "admin", secret, issuer, 3600).unwrap();
+        let claims = decode_access_token(&token, secret, issuer).unwrap();
         assert_eq!(claims.role, "admin");
+    }
+
+    #[test]
+    fn wrong_issuer_rejected() {
+        let user_id = Uuid::new_v4();
+        let secret = "test-secret-at-least-32-bytes-long";
+        let token = encode_access_token(
+            user_id,
+            "user",
+            secret,
+            "https://app.staging.ownpulse.health",
+            3600,
+        )
+        .unwrap();
+        let result = decode_access_token(&token, secret, "https://app.ownpulse.health");
+        assert!(
+            result.is_err(),
+            "token minted for staging must be rejected on production"
+        );
     }
 }
