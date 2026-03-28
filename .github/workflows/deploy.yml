@@ -5,6 +5,11 @@ on:
     workflows: [Backend, Web, User Docs]
     types: [completed]
     branches: [main]
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy.yml'
+      - 'helm/**'
   workflow_dispatch:
     inputs:
       sha:
@@ -21,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
       github.event.workflow_run.conclusion == 'success'
     outputs:
       api-tag: ${{ steps.tags.outputs.api }}
@@ -53,9 +59,10 @@ jobs:
               return;
             }
 
-            // Manual dispatch without SHA — use each service's latest successful build
-            if (context.eventName === 'workflow_dispatch') {
-              core.info('Manual dispatch: resolving latest successful build per service');
+            // Manual dispatch without SHA or push (Helm/workflow changes) —
+            // use each service's latest successful build
+            if (context.eventName === 'workflow_dispatch' || context.eventName === 'push') {
+              core.info(`${context.eventName}: resolving latest successful build per service`);
               for (const svc of services) {
                 const runs = await github.rest.actions.listWorkflowRuns({
                   owner: context.repo.owner,
