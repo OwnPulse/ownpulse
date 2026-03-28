@@ -27,7 +27,7 @@ ingress:
     secretName: ownpulse-web-tls
 
 env:
-  API_UPSTREAM: api-ownpulse-api:80
+  API_UPSTREAM: api-ownpulse-api.ownpulse.svc.cluster.local:80
 
 resources:
   requests:

@@ -8,7 +8,7 @@ RUN npm run build
 FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
-ENV API_UPSTREAM=api-ownpulse-api:80
+ENV API_UPSTREAM=api-ownpulse-api.ownpulse.svc.cluster.local:80
 # Only substitute API_UPSTREAM — leave nginx variables ($host, $uri, etc.) intact
 ENV NGINX_ENVSUBST_FILTER=API_UPSTREAM
 EXPOSE 80
