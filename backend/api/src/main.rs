@@ -72,7 +72,8 @@ fn init_tracing() {
 /// `OTEL_EXPORTER_OTLP_ENDPOINT` env var. Returns `None` when the var is
 /// unset or the exporter fails to initialise — the server continues without
 /// trace export in that case.
-fn build_otel_layer<S>() -> Option<tracing_opentelemetry::OpenTelemetryLayer<S, opentelemetry_sdk::trace::SdkTracer>>
+fn build_otel_layer<S>()
+-> Option<tracing_opentelemetry::OpenTelemetryLayer<S, opentelemetry_sdk::trace::SdkTracer>>
 where
     S: tracing::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
 {
@@ -113,7 +114,9 @@ fn build_otlp_exporter(endpoint: &str) -> Option<opentelemetry_otlp::SpanExporte
         let pem = match std::fs::read_to_string(ca_path) {
             Ok(p) => p,
             Err(err) => {
-                eprintln!("failed to read OTLP CA cert at {ca_path} ({err}), continuing without trace export");
+                eprintln!(
+                    "failed to read OTLP CA cert at {ca_path} ({err}), continuing without trace export"
+                );
                 return None;
             }
         };
@@ -126,13 +129,18 @@ fn build_otlp_exporter(endpoint: &str) -> Option<opentelemetry_otlp::SpanExporte
             std::env::var("OTEL_EXPORTER_OTLP_CLIENT_CERTIFICATE"),
             std::env::var("OTEL_EXPORTER_OTLP_CLIENT_KEY"),
         ) {
-            match (std::fs::read_to_string(&cert_path), std::fs::read_to_string(&key_path)) {
+            match (
+                std::fs::read_to_string(&cert_path),
+                std::fs::read_to_string(&key_path),
+            ) {
                 (Ok(cert_pem), Ok(key_pem)) => {
                     let identity = tonic::transport::Identity::from_pem(cert_pem, key_pem);
                     tls_config = tls_config.identity(identity);
                 }
                 (Err(err), _) | (_, Err(err)) => {
-                    eprintln!("failed to read OTLP client cert/key ({err}), continuing without mTLS");
+                    eprintln!(
+                        "failed to read OTLP client cert/key ({err}), continuing without mTLS"
+                    );
                 }
             }
         }
@@ -161,7 +169,9 @@ fn build_otlp_exporter(endpoint: &str) -> Option<opentelemetry_otlp::SpanExporte
         {
             Ok(e) => Some(e),
             Err(err) => {
-                eprintln!("failed to create OTLP exporter ({err}), continuing without trace export");
+                eprintln!(
+                    "failed to create OTLP exporter ({err}), continuing without trace export"
+                );
                 None
             }
         }
@@ -174,7 +184,9 @@ fn build_otlp_exporter(endpoint: &str) -> Option<opentelemetry_otlp::SpanExporte
         {
             Ok(e) => Some(e),
             Err(err) => {
-                eprintln!("failed to create OTLP exporter ({err}), continuing without trace export");
+                eprintln!(
+                    "failed to create OTLP exporter ({err}), continuing without trace export"
+                );
                 None
             }
         }
