@@ -134,8 +134,7 @@ export const useExploreStore = create<ExploreState>((set) => ({
 
   setDateRange: (r) =>
     set(() => {
-      const resolution =
-        r.type === "preset" ? defaultResolutionForPreset(r.preset) : "daily";
+      const resolution = r.type === "preset" ? defaultResolutionForPreset(r.preset) : "daily";
       return { dateRange: r, resolution };
     }),
 
@@ -163,9 +162,9 @@ export const useExploreStore = create<ExploreState>((set) => ({
       } else {
         dateRange = { type: "preset", preset: "30d" };
       }
-      const resolution = (["daily", "weekly", "monthly"].includes(config.resolution)
-        ? config.resolution
-        : "daily") as Resolution;
+      const resolution = (
+        ["daily", "weekly", "monthly"].includes(config.resolution) ? config.resolution : "daily"
+      ) as Resolution;
       return {
         selectedMetrics: metrics,
         hiddenMetrics: new Set<string>(),

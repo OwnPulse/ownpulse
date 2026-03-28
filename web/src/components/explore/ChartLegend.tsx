@@ -45,13 +45,9 @@ export function ChartLegend({ series }: ChartLegendProps) {
             onClick={() => toggleVisibility(key)}
             aria-label={`Toggle ${s.field} visibility`}
           >
-            <span
-              className={styles.swatch}
-              style={{ backgroundColor: color }}
-            />
+            <span className={styles.swatch} style={{ backgroundColor: color }} />
             <span className={styles.label}>
-              {s.field} ({s.unit})
-              {!hasData && <span className={styles.noData}> - no data</span>}
+              {s.field} ({s.unit}){!hasData && <span className={styles.noData}> - no data</span>}
             </span>
           </button>
         );

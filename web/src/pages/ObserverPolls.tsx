@@ -7,8 +7,8 @@ import {
   type CreatePollRequest,
   type ObserverPollView,
   type OwnerResponseView,
-  type Poll,
   observerPollsApi,
+  type Poll,
 } from "../api/observer-polls";
 import styles from "./ObserverPolls.module.css";
 
@@ -29,10 +29,7 @@ function CreatePollForm({ onCreated }: { onCreated: () => void }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [customPrompt, setCustomPrompt] = useState("");
-  const [selectedDimensions, setSelectedDimensions] = useState<string[]>([
-    "energy",
-    "mood",
-  ]);
+  const [selectedDimensions, setSelectedDimensions] = useState<string[]>(["energy", "mood"]);
   const [error, setError] = useState<string | null>(null);
 
   const createMutation = useMutation({
@@ -52,9 +49,7 @@ function CreatePollForm({ onCreated }: { onCreated: () => void }) {
 
   const toggleDimension = (value: string) => {
     setSelectedDimensions((prev) =>
-      prev.includes(value)
-        ? prev.filter((v) => v !== value)
-        : [...prev, value],
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
     );
   };
 
@@ -85,10 +80,7 @@ function CreatePollForm({ onCreated }: { onCreated: () => void }) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className={`op-card ${styles.createForm}`}
-    >
+    <form onSubmit={handleSubmit} className={`op-card ${styles.createForm}`}>
       <h3>Create Poll</h3>
       <div className="op-form-field">
         <label htmlFor="poll-name" className="op-label">
@@ -133,16 +125,10 @@ function CreatePollForm({ onCreated }: { onCreated: () => void }) {
           ))}
         </div>
       </div>
-      <button
-        type="submit"
-        className="op-btn op-btn-primary"
-        disabled={createMutation.isPending}
-      >
+      <button type="submit" className="op-btn op-btn-primary" disabled={createMutation.isPending}>
         {createMutation.isPending ? "Creating..." : "Create"}
       </button>
-      {error && (
-        <p className={`op-error-msg ${styles.errorMsg}`}>{error}</p>
-      )}
+      {error && <p className={`op-error-msg ${styles.errorMsg}`}>{error}</p>}
     </form>
   );
 }
@@ -184,17 +170,10 @@ function PollCard({ poll }: { poll: Poll }) {
 
   return (
     <div className={`op-card ${styles.pollCard}`}>
-      <div
+      <button
+        type="button"
         className={styles.pollCardHeader}
         onClick={() => setExpanded(!expanded)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setExpanded(!expanded);
-          }
-        }}
         aria-expanded={expanded}
       >
         <div className={styles.pollCardInfo}>
@@ -207,11 +186,11 @@ function PollCard({ poll }: { poll: Poll }) {
             ))}
           </div>
           <div className={styles.pollCardMeta}>
-            {poll.members.length} member{poll.members.length !== 1 ? "s" : ""}{" "}
-            &middot; Created {new Date(poll.created_at).toLocaleDateString()}
+            {poll.members.length} member{poll.members.length !== 1 ? "s" : ""} &middot; Created{" "}
+            {new Date(poll.created_at).toLocaleDateString()}
           </div>
         </div>
-      </div>
+      </button>
 
       {expanded && (
         <div className={styles.pollCardDetails}>
@@ -219,9 +198,7 @@ function PollCard({ poll }: { poll: Poll }) {
           <div className={styles.memberList}>
             <strong>Members</strong>
             {poll.members.length === 0 && (
-              <p className={styles.emptyText}>
-                No members yet. Generate an invite link.
-              </p>
+              <p className={styles.emptyText}>No members yet. Generate an invite link.</p>
             )}
             {poll.members.map((m) => (
               <div key={m.id} className={styles.memberItem}>
@@ -242,9 +219,7 @@ function PollCard({ poll }: { poll: Poll }) {
             onClick={() => inviteMutation.mutate()}
             disabled={inviteMutation.isPending}
           >
-            {inviteMutation.isPending
-              ? "Generating..."
-              : "Generate Invite Link"}
+            {inviteMutation.isPending ? "Generating..." : "Generate Invite Link"}
           </button>
           {inviteUrl && (
             <div className={styles.inviteLinkBox}>
@@ -252,12 +227,7 @@ function PollCard({ poll }: { poll: Poll }) {
                 Invite link (share with your observer):
               </span>
               <div className={styles.inviteLinkRow}>
-                <input
-                  type="text"
-                  readOnly
-                  value={inviteUrl}
-                  className={styles.inviteLinkInput}
-                />
+                <input type="text" readOnly value={inviteUrl} className={styles.inviteLinkInput} />
                 <button
                   type="button"
                   className="op-btn op-btn-ghost op-btn-sm"
@@ -273,20 +243,16 @@ function PollCard({ poll }: { poll: Poll }) {
           <div className={styles.responsesTable}>
             <strong>Responses</strong>
             {responsesQuery.isLoading && <p>Loading responses...</p>}
-            {responsesQuery.isError && (
-              <p className="op-error-msg">Error loading responses.</p>
+            {responsesQuery.isError && <p className="op-error-msg">Error loading responses.</p>}
+            {responsesQuery.data && responsesQuery.data.responses.length === 0 && (
+              <p className={styles.emptyText}>No responses yet.</p>
             )}
-            {responsesQuery.data &&
-              responsesQuery.data.responses.length === 0 && (
-                <p className={styles.emptyText}>No responses yet.</p>
-              )}
-            {responsesQuery.data &&
-              responsesQuery.data.responses.length > 0 && (
-                <ResponsesTable
-                  responses={responsesQuery.data.responses}
-                  dimensions={poll.dimensions}
-                />
-              )}
+            {responsesQuery.data && responsesQuery.data.responses.length > 0 && (
+              <ResponsesTable
+                responses={responsesQuery.data.responses}
+                dimensions={poll.dimensions}
+              />
+            )}
           </div>
 
           {/* Delete */}
@@ -351,9 +317,7 @@ function ObserverResponseForm({ poll }: { poll: ObserverPollView }) {
     mutationFn: () =>
       observerPollsApi.respond(poll.id, {
         date,
-        scores: Object.fromEntries(
-          Object.entries(scores).map(([k, v]) => [k, parseInt(v, 10)]),
-        ),
+        scores: Object.fromEntries(Object.entries(scores).map(([k, v]) => [k, parseInt(v, 10)])),
       }),
     onSuccess: () => {
       setSuccess(true);
@@ -372,9 +336,7 @@ function ObserverResponseForm({ poll }: { poll: ObserverPollView }) {
     mutation.mutate();
   };
 
-  const prompt =
-    poll.custom_prompt ||
-    `How would you rate ${poll.owner_display} today?`;
+  const prompt = poll.custom_prompt || `How would you rate ${poll.owner_display} today?`;
 
   return (
     <form
@@ -401,38 +363,26 @@ function ObserverResponseForm({ poll }: { poll: ObserverPollView }) {
         <div key={d} className={styles.sliderField}>
           <div className={styles.sliderLabel}>
             <span className={styles.sliderLabelText}>{d}</span>
-            <span className={styles.sliderValue}>
-              {scores[d]}/10
-            </span>
+            <span className={styles.sliderValue}>{scores[d]}/10</span>
           </div>
           <input
             type="range"
             min="1"
             max="10"
             value={scores[d]}
-            onChange={(e) =>
-              setScores((prev) => ({ ...prev, [d]: e.target.value }))
-            }
+            onChange={(e) => setScores((prev) => ({ ...prev, [d]: e.target.value }))}
             className="op-slider"
             aria-label={d}
           />
         </div>
       ))}
-      <button
-        type="submit"
-        className="op-btn op-btn-primary"
-        disabled={mutation.isPending}
-      >
+      <button type="submit" className="op-btn op-btn-primary" disabled={mutation.isPending}>
         {mutation.isPending ? "Submitting..." : "Submit"}
       </button>
       {mutation.isError && (
-        <p className={`op-error-msg ${styles.errorMsg}`}>
-          Error: {mutation.error.message}
-        </p>
+        <p className={`op-error-msg ${styles.errorMsg}`}>Error: {mutation.error.message}</p>
       )}
-      {success && (
-        <p className={styles.successMsg}>Response saved!</p>
-      )}
+      {success && <p className={styles.successMsg}>Response saved!</p>}
     </form>
   );
 }
@@ -466,13 +416,9 @@ function ObserverCard({ poll }: { poll: ObserverPollView }) {
     <div className={`op-card ${styles.observerCard}`}>
       <div className={styles.observerCardHeader}>
         <h3>{poll.name}</h3>
-        <div className={styles.observerCardMeta}>
-          by {poll.owner_display}
-        </div>
+        <div className={styles.observerCardMeta}>by {poll.owner_display}</div>
         {poll.custom_prompt && (
-          <div className={styles.observerCardPrompt}>
-            {poll.custom_prompt}
-          </div>
+          <div className={styles.observerCardPrompt}>{poll.custom_prompt}</div>
         )}
         <div className={styles.pills}>
           {poll.dimensions.map((d) => (
@@ -510,38 +456,32 @@ function ObserverCard({ poll }: { poll: ObserverPollView }) {
       {showResponses && (
         <div className={styles.responsesTable}>
           {responsesQuery.isLoading && <p>Loading responses...</p>}
-          {responsesQuery.isError && (
-            <p className="op-error-msg">Error loading responses.</p>
+          {responsesQuery.isError && <p className="op-error-msg">Error loading responses.</p>}
+          {responsesQuery.data && responsesQuery.data.responses.length === 0 && (
+            <p className={styles.emptyText}>No responses yet.</p>
           )}
-          {responsesQuery.data &&
-            responsesQuery.data.responses.length === 0 && (
-              <p className={styles.emptyText}>
-                No responses yet.
-              </p>
-            )}
-          {responsesQuery.data &&
-            responsesQuery.data.responses.length > 0 && (
-              <table className="op-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
+          {responsesQuery.data && responsesQuery.data.responses.length > 0 && (
+            <table className="op-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  {poll.dimensions.map((d) => (
+                    <th key={d}>{d}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {responsesQuery.data.responses.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.date}</td>
                     {poll.dimensions.map((d) => (
-                      <th key={d}>{d}</th>
+                      <td key={d}>{r.scores[d] ?? "-"}</td>
                     ))}
                   </tr>
-                </thead>
-                <tbody>
-                  {responsesQuery.data.responses.map((r) => (
-                    <tr key={r.id}>
-                      <td>{r.date}</td>
-                      {poll.dimensions.map((d) => (
-                        <td key={d}>{r.scores[d] ?? "-"}</td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       )}
     </div>
@@ -549,9 +489,7 @@ function ObserverCard({ poll }: { poll: ObserverPollView }) {
 }
 
 export default function ObserverPolls() {
-  const [activeTab, setActiveTab] = useState<"my-polls" | "observe">(
-    "my-polls",
-  );
+  const [activeTab, setActiveTab] = useState<"my-polls" | "observe">("my-polls");
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   const pollsQuery = useQuery({
@@ -599,18 +537,12 @@ export default function ObserverPolls() {
               {showCreateForm ? "Cancel" : "Create Poll"}
             </button>
 
-            {showCreateForm && (
-              <CreatePollForm
-                onCreated={() => setShowCreateForm(false)}
-              />
-            )}
+            {showCreateForm && <CreatePollForm onCreated={() => setShowCreateForm(false)} />}
 
             {pollsQuery.isLoading && <p>Loading...</p>}
             {pollsQuery.isError && <p className="op-error-msg">Error loading polls.</p>}
             {pollsQuery.data && pollsQuery.data.length === 0 && (
-              <p className={styles.emptyText}>
-                No polls yet. Create one to get started.
-              </p>
+              <p className={styles.emptyText}>No polls yet. Create one to get started.</p>
             )}
             {pollsQuery.data?.map((poll) => (
               <PollCard key={poll.id} poll={poll} />
@@ -621,13 +553,10 @@ export default function ObserverPolls() {
         {activeTab === "observe" && (
           <>
             {myPollsQuery.isLoading && <p>Loading...</p>}
-            {myPollsQuery.isError && (
-              <p className="op-error-msg">Error loading polls.</p>
-            )}
+            {myPollsQuery.isError && <p className="op-error-msg">Error loading polls.</p>}
             {myPollsQuery.data && myPollsQuery.data.length === 0 && (
               <p className={styles.emptyText}>
-                You are not observing any polls. Accept an invite link
-                to get started.
+                You are not observing any polls. Accept an invite link to get started.
               </p>
             )}
             {myPollsQuery.data?.map((poll) => (

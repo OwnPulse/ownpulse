@@ -56,12 +56,8 @@ describe("ObserverAccept page", () => {
       expect(screen.getByText("Observer Invite Accepted")).toBeDefined();
     });
 
-    expect(
-      screen.getByText(/added as an observer/),
-    ).toBeDefined();
-    expect(
-      screen.getByRole("link", { name: /go to observer polls/i }),
-    ).toBeDefined();
+    expect(screen.getByText(/added as an observer/)).toBeDefined();
+    expect(screen.getByRole("link", { name: /go to observer polls/i })).toBeDefined();
   });
 
   it("shows message for acknowledged status", async () => {
@@ -72,9 +68,7 @@ describe("ObserverAccept page", () => {
       expect(screen.getByText("Invite No Longer Valid")).toBeDefined();
     });
 
-    expect(
-      screen.getByText(/no longer valid/),
-    ).toBeDefined();
+    expect(screen.getByText(/no longer valid/)).toBeDefined();
   });
 
   it("shows error state on failure", async () => {
@@ -92,9 +86,7 @@ describe("ObserverAccept page", () => {
     renderWithToken(null);
 
     expect(screen.getByText("Invalid Link")).toBeDefined();
-    expect(
-      screen.getByText("No invite token found in this link."),
-    ).toBeDefined();
+    expect(screen.getByText("No invite token found in this link.")).toBeDefined();
   });
 
   it("calls accept with the token from URL", async () => {

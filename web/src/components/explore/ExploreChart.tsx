@@ -111,19 +111,19 @@ export function ExploreChart({ series }: ExploreChartProps) {
         })}
         <VisAxis<ChartDatum> type="x" tickFormat={formatDate} />
         <VisAxis<ChartDatum> type="y" label={units[0] ?? ""} />
-        {hasDualAxes && (
-          <VisAxis<ChartDatum> type="y" label={units[1]} position="right" />
-        )}
-        <VisCrosshair<ChartDatum> template={(d: ChartDatum) => {
-          const date = new Date(d.timestamp).toLocaleDateString();
-          const lines = visibleSeries.map((s, i) => {
-            const key = `${s.source}:${s.field}`;
-            const val = d.values[key];
-            const color = CHART_COLORS[i % CHART_COLORS.length];
-            return `<div style="color:${color}">${s.field}: ${val != null ? val : "N/A"} ${s.unit}</div>`;
-          });
-          return `<div><strong>${date}</strong>${lines.join("")}</div>`;
-        }} />
+        {hasDualAxes && <VisAxis<ChartDatum> type="y" label={units[1]} position="right" />}
+        <VisCrosshair<ChartDatum>
+          template={(d: ChartDatum) => {
+            const date = new Date(d.timestamp).toLocaleDateString();
+            const lines = visibleSeries.map((s, i) => {
+              const key = `${s.source}:${s.field}`;
+              const val = d.values[key];
+              const color = CHART_COLORS[i % CHART_COLORS.length];
+              return `<div style="color:${color}">${s.field}: ${val != null ? val : "N/A"} ${s.unit}</div>`;
+            });
+            return `<div><strong>${date}</strong>${lines.join("")}</div>`;
+          }}
+        />
         <VisTooltip />
       </VisXYContainer>
     </div>

@@ -133,9 +133,7 @@ describe("ObserverPolls page", () => {
       renderPage();
 
       await waitFor(() => {
-        expect(
-          screen.getByText("No polls yet. Create one to get started."),
-        ).toBeDefined();
+        expect(screen.getByText("No polls yet. Create one to get started.")).toBeDefined();
       });
     });
 
@@ -219,10 +217,7 @@ describe("ObserverPolls page", () => {
 
       await user.click(screen.getByRole("button", { name: /create poll/i }));
       await user.type(screen.getByLabelText(/name/i), "My new poll");
-      await user.type(
-        screen.getByLabelText(/custom prompt/i),
-        "How am I doing?",
-      );
+      await user.type(screen.getByLabelText(/custom prompt/i), "How am I doing?");
 
       await user.click(screen.getByRole("button", { name: /^create$/i }));
 
@@ -277,12 +272,8 @@ describe("ObserverPolls page", () => {
       });
 
       expect(screen.getByText("accepted")).toBeDefined();
-      expect(
-        screen.getByRole("button", { name: /generate invite link/i }),
-      ).toBeDefined();
-      expect(
-        screen.getByRole("button", { name: /delete poll/i }),
-      ).toBeDefined();
+      expect(screen.getByRole("button", { name: /generate invite link/i })).toBeDefined();
+      expect(screen.getByRole("button", { name: /delete poll/i })).toBeDefined();
     });
 
     it("generates invite link and shows URL", async () => {
@@ -303,23 +294,17 @@ describe("ObserverPolls page", () => {
       await user.click(screen.getByText("Daily mood check"));
 
       await waitFor(() => {
-        expect(
-          screen.getByRole("button", { name: /generate invite link/i }),
-        ).toBeDefined();
+        expect(screen.getByRole("button", { name: /generate invite link/i })).toBeDefined();
       });
 
-      await user.click(
-        screen.getByRole("button", { name: /generate invite link/i }),
-      );
+      await user.click(screen.getByRole("button", { name: /generate invite link/i }));
 
       await waitFor(() => {
         expect(mockInvite).toHaveBeenCalledWith("poll-1");
       });
 
       await waitFor(() => {
-        const input = screen.getByDisplayValue(
-          "http://localhost/observe/accept?token=test-token",
-        );
+        const input = screen.getByDisplayValue("http://localhost/observe/accept?token=test-token");
         expect(input).toBeDefined();
       });
 
@@ -373,9 +358,7 @@ describe("ObserverPolls page", () => {
       await user.click(screen.getByText("Daily mood check"));
 
       await waitFor(() => {
-        expect(
-          screen.getByRole("button", { name: /delete poll/i }),
-        ).toBeDefined();
+        expect(screen.getByRole("button", { name: /delete poll/i })).toBeDefined();
       });
 
       await user.click(screen.getByRole("button", { name: /delete poll/i }));
@@ -394,18 +377,14 @@ describe("ObserverPolls page", () => {
       renderPage();
       const user = userEvent.setup();
 
-      await user.click(
-        screen.getByRole("button", { name: /polls i observe/i }),
-      );
+      await user.click(screen.getByRole("button", { name: /polls i observe/i }));
 
       await waitFor(() => {
         expect(screen.getByText("Partner wellness")).toBeDefined();
       });
 
       expect(screen.getByText(/J\*\*\*/)).toBeDefined();
-      expect(
-        screen.getByText("How is your partner doing?"),
-      ).toBeDefined();
+      expect(screen.getByText("How is your partner doing?")).toBeDefined();
     });
 
     it("shows loading state for observer polls", async () => {
@@ -414,9 +393,7 @@ describe("ObserverPolls page", () => {
       renderPage();
       const user = userEvent.setup();
 
-      await user.click(
-        screen.getByRole("button", { name: /polls i observe/i }),
-      );
+      await user.click(screen.getByRole("button", { name: /polls i observe/i }));
 
       expect(screen.getByText("Loading...")).toBeDefined();
     });
@@ -427,9 +404,7 @@ describe("ObserverPolls page", () => {
       renderPage();
       const user = userEvent.setup();
 
-      await user.click(
-        screen.getByRole("button", { name: /polls i observe/i }),
-      );
+      await user.click(screen.getByRole("button", { name: /polls i observe/i }));
 
       await waitFor(() => {
         expect(screen.getByText("Error loading polls.")).toBeDefined();
@@ -442,14 +417,10 @@ describe("ObserverPolls page", () => {
       renderPage();
       const user = userEvent.setup();
 
-      await user.click(
-        screen.getByRole("button", { name: /polls i observe/i }),
-      );
+      await user.click(screen.getByRole("button", { name: /polls i observe/i }));
 
       await waitFor(() => {
-        expect(
-          screen.getByText(/not observing any polls/i),
-        ).toBeDefined();
+        expect(screen.getByText(/not observing any polls/i)).toBeDefined();
       });
     });
 
@@ -457,9 +428,7 @@ describe("ObserverPolls page", () => {
       renderPage();
       const user = userEvent.setup();
 
-      await user.click(
-        screen.getByRole("button", { name: /polls i observe/i }),
-      );
+      await user.click(screen.getByRole("button", { name: /polls i observe/i }));
 
       await waitFor(() => {
         expect(screen.getByText("Partner wellness")).toBeDefined();
@@ -485,9 +454,7 @@ describe("ObserverPolls page", () => {
       renderPage();
       const user = userEvent.setup();
 
-      await user.click(
-        screen.getByRole("button", { name: /polls i observe/i }),
-      );
+      await user.click(screen.getByRole("button", { name: /polls i observe/i }));
 
       await waitFor(() => {
         expect(screen.getByText("Partner wellness")).toBeDefined();
@@ -519,9 +486,7 @@ describe("ObserverPolls page", () => {
       renderPage();
       const user = userEvent.setup();
 
-      await user.click(
-        screen.getByRole("button", { name: /polls i observe/i }),
-      );
+      await user.click(screen.getByRole("button", { name: /polls i observe/i }));
 
       await waitFor(() => {
         expect(screen.getByText("Partner wellness")).toBeDefined();

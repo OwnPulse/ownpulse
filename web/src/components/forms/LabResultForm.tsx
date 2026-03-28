@@ -6,9 +6,13 @@ import { useState } from "react";
 import { type CreateLabResult, labsApi } from "../../api/labs";
 import forms from "./forms.module.css";
 
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function LabResultForm() {
   const queryClient = useQueryClient();
-  const [panelDate, setPanelDate] = useState("");
+  const [panelDate, setPanelDate] = useState(todayDate);
   const [labName, setLabName] = useState("");
   const [marker, setMarker] = useState("");
   const [value, setValue] = useState("");
@@ -20,7 +24,7 @@ export default function LabResultForm() {
     mutationFn: (data: CreateLabResult) => labsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["labs"] });
-      setPanelDate("");
+      setPanelDate(todayDate());
       setLabName("");
       setMarker("");
       setValue("");

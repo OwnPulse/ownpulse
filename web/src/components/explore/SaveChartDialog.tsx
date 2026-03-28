@@ -50,9 +50,16 @@ export function SaveChartDialog({ open, onClose }: SaveChartDialogProps) {
   };
 
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: overlay dismiss is standard modal UX
+    // biome-ignore lint/a11y/noStaticElementInteractions: overlay dismiss is standard modal UX
     <div className={styles.overlay} onClick={onClose}>
-      {/* biome-ignore lint: overlay click is intentional */}
-      <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: dialog stops propagation */}
+      {/* biome-ignore lint/a11y/useKeyWithClickEvents: keyboard handled by Escape */}
+      <div
+        className={styles.dialog}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.key === "Escape" && onClose()}
+      >
         <h2>Save Chart</h2>
         <form onSubmit={handleSubmit}>
           <div className="op-form-field">
@@ -66,6 +73,7 @@ export function SaveChartDialog({ open, onClose }: SaveChartDialogProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="My chart..."
+              // biome-ignore lint/a11y/noAutofocus: dialog focus management
               autoFocus
             />
           </div>
@@ -73,11 +81,7 @@ export function SaveChartDialog({ open, onClose }: SaveChartDialogProps) {
             <p className="op-error-msg">Failed to save chart. Please try again.</p>
           )}
           <div className={styles.actions}>
-            <button
-              type="button"
-              className="op-btn op-btn-ghost"
-              onClick={onClose}
-            >
+            <button type="button" className="op-btn op-btn-ghost" onClick={onClose}>
               Cancel
             </button>
             <button

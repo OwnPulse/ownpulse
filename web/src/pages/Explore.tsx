@@ -71,11 +71,7 @@ export default function Explore() {
       <div className="op-page-header">
         <h1>Explore</h1>
         {selectedMetrics.length > 0 && (
-          <button
-            type="button"
-            className="op-btn op-btn-primary"
-            onClick={() => setSaveOpen(true)}
-          >
+          <button type="button" className="op-btn op-btn-primary" onClick={() => setSaveOpen(true)}>
             Save Chart
           </button>
         )}

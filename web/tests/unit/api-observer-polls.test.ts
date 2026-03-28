@@ -46,9 +46,7 @@ describe("observerPollsApi", () => {
 
   describe("list", () => {
     it("GETs /api/v1/observer-polls and returns poll list", async () => {
-      server.use(
-        http.get("/api/v1/observer-polls", () => HttpResponse.json([mockPoll])),
-      );
+      server.use(http.get("/api/v1/observer-polls", () => HttpResponse.json([mockPoll])));
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
       const result = await observerPollsApi.list();
@@ -129,9 +127,9 @@ describe("observerPollsApi", () => {
       );
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
-      await expect(
-        observerPollsApi.create({ name: "test", dimensions: ["mood"] }),
-      ).rejects.toThrow("Unauthorized");
+      await expect(observerPollsApi.create({ name: "test", dimensions: ["mood"] })).rejects.toThrow(
+        "Unauthorized",
+      );
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
 
@@ -152,9 +150,7 @@ describe("observerPollsApi", () => {
 
   describe("get", () => {
     it("GETs /api/v1/observer-polls/:id", async () => {
-      server.use(
-        http.get("/api/v1/observer-polls/poll-1", () => HttpResponse.json(mockPoll)),
-      );
+      server.use(http.get("/api/v1/observer-polls/poll-1", () => HttpResponse.json(mockPoll)));
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
       const result = await observerPollsApi.get("poll-1");
@@ -218,9 +214,9 @@ describe("observerPollsApi", () => {
       );
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
-      await expect(
-        observerPollsApi.update("poll-1", { name: "test" }),
-      ).rejects.toThrow("Unauthorized");
+      await expect(observerPollsApi.update("poll-1", { name: "test" })).rejects.toThrow(
+        "Unauthorized",
+      );
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
 
@@ -233,9 +229,10 @@ describe("observerPollsApi", () => {
       );
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
-      await expect(
-        observerPollsApi.update("poll-1", { name: "test" }),
-      ).rejects.toMatchObject({ name: "ApiError", status: 500 });
+      await expect(observerPollsApi.update("poll-1", { name: "test" })).rejects.toMatchObject({
+        name: "ApiError",
+        status: 500,
+      });
     });
   });
 
@@ -350,9 +347,7 @@ describe("observerPollsApi", () => {
       };
 
       server.use(
-        http.get("/api/v1/observer-polls/poll-1/responses", () =>
-          HttpResponse.json(responseData),
-        ),
+        http.get("/api/v1/observer-polls/poll-1/responses", () => HttpResponse.json(responseData)),
       );
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
@@ -473,9 +468,7 @@ describe("observerPollsApi", () => {
   describe("myPolls", () => {
     it("GETs /api/v1/observer-polls/my-polls", async () => {
       server.use(
-        http.get("/api/v1/observer-polls/my-polls", () =>
-          HttpResponse.json([mockObserverPoll]),
-        ),
+        http.get("/api/v1/observer-polls/my-polls", () => HttpResponse.json([mockObserverPoll])),
       );
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
@@ -578,14 +571,17 @@ describe("observerPollsApi", () => {
     it("GETs /api/v1/observer-polls/:id/my-responses", async () => {
       const data = {
         responses: [
-          { id: "r1", date: "2026-03-27", scores: { energy: 7 }, created_at: "2026-03-27T10:00:00Z" },
+          {
+            id: "r1",
+            date: "2026-03-27",
+            scores: { energy: 7 },
+            created_at: "2026-03-27T10:00:00Z",
+          },
         ],
       };
 
       server.use(
-        http.get("/api/v1/observer-polls/poll-1/my-responses", () =>
-          HttpResponse.json(data),
-        ),
+        http.get("/api/v1/observer-polls/poll-1/my-responses", () => HttpResponse.json(data)),
       );
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
@@ -682,9 +678,7 @@ describe("observerPollsApi", () => {
         ],
       };
 
-      server.use(
-        http.get("/api/v1/observer-polls/export", () => HttpResponse.json(data)),
-      );
+      server.use(http.get("/api/v1/observer-polls/export", () => HttpResponse.json(data)));
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
       const result = await observerPollsApi.exportResponses();

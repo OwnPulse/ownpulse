@@ -4,7 +4,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse } from "msw";
+import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -217,9 +217,7 @@ describe("ResolutionToggle", () => {
 
   it("marks active button with aria-pressed", () => {
     render(<ResolutionToggle />, { wrapper: createWrapper() });
-    expect(screen.getByRole("button", { name: "Daily" }).getAttribute("aria-pressed")).toBe(
-      "true",
-    );
+    expect(screen.getByRole("button", { name: "Daily" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "Weekly" }).getAttribute("aria-pressed")).toBe(
       "false",
     );
@@ -238,19 +236,13 @@ describe("ExploreChart", () => {
 
   it("shows empty message when no series provided", () => {
     render(<ExploreChart series={[]} />, { wrapper: createWrapper() });
-    expect(
-      screen.getByText("Select metrics from the picker to start exploring."),
-    ).toBeDefined();
+    expect(screen.getByText("Select metrics from the picker to start exploring.")).toBeDefined();
   });
 
   it("shows no data message when series have no points", () => {
-    const series = [
-      { source: "checkins", field: "energy", unit: "score", points: [] },
-    ];
+    const series = [{ source: "checkins", field: "energy", unit: "score", points: [] }];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    expect(
-      screen.getByText("No data available for the selected metrics and range."),
-    ).toBeDefined();
+    expect(screen.getByText("No data available for the selected metrics and range.")).toBeDefined();
   });
 
   it("renders chart container when data is provided", () => {

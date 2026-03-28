@@ -72,8 +72,7 @@ export interface SubmitResponseRequest {
 
 export const observerPollsApi = {
   // Owner endpoints
-  create: (data: CreatePollRequest) =>
-    api.post<Poll>("/api/v1/observer-polls", data),
+  create: (data: CreatePollRequest) => api.post<Poll>("/api/v1/observer-polls", data),
 
   list: () => api.get<Poll[]>("/api/v1/observer-polls"),
 
@@ -82,19 +81,12 @@ export const observerPollsApi = {
   update: (id: string, data: UpdatePollRequest) =>
     api.patch<Poll>(`/api/v1/observer-polls/${id}`, data),
 
-  delete: (id: string) =>
-    api.delete<void>(`/api/v1/observer-polls/${id}`),
+  delete: (id: string) => api.delete<void>(`/api/v1/observer-polls/${id}`),
 
   invite: (pollId: string) =>
-    api.post<InviteResponse>(
-      `/api/v1/observer-polls/${pollId}/invite`,
-      {},
-    ),
+    api.post<InviteResponse>(`/api/v1/observer-polls/${pollId}/invite`, {}),
 
-  getResponses: (
-    pollId: string,
-    params?: { start?: string; end?: string },
-  ) => {
+  getResponses: (pollId: string, params?: { start?: string; end?: string }) => {
     const searchParams = new URLSearchParams();
     if (params?.start) searchParams.set("start", params.start);
     if (params?.end) searchParams.set("end", params.end);
@@ -104,22 +96,15 @@ export const observerPollsApi = {
   },
 
   // Observer endpoints
-  accept: (token: string) =>
-    api.post<AcceptResponse>("/api/v1/observer-polls/accept", { token }),
+  accept: (token: string) => api.post<AcceptResponse>("/api/v1/observer-polls/accept", { token }),
 
-  myPolls: () =>
-    api.get<ObserverPollView[]>("/api/v1/observer-polls/my-polls"),
+  myPolls: () => api.get<ObserverPollView[]>("/api/v1/observer-polls/my-polls"),
 
   respond: (pollId: string, data: SubmitResponseRequest) =>
-    api.put<ObserverResponseView>(
-      `/api/v1/observer-polls/${pollId}/respond`,
-      data,
-    ),
+    api.put<ObserverResponseView>(`/api/v1/observer-polls/${pollId}/respond`, data),
 
   myResponses: (pollId: string) =>
-    api.get<{ responses: ObserverResponseView[] }>(
-      `/api/v1/observer-polls/${pollId}/my-responses`,
-    ),
+    api.get<{ responses: ObserverResponseView[] }>(`/api/v1/observer-polls/${pollId}/my-responses`),
 
   deleteResponse: (responseId: string) =>
     api.delete<void>(`/api/v1/observer-polls/responses/${responseId}`),

@@ -56,7 +56,12 @@ async function mockExploreApis(page: import("@playwright/test").Page) {
         body: JSON.stringify({
           id: "chart-1",
           name: "Test Chart",
-          config: { version: 1, metrics: [{ source: "checkins", field: "energy" }], range: { preset: "30d" }, resolution: "daily" },
+          config: {
+            version: 1,
+            metrics: [{ source: "checkins", field: "energy" }],
+            range: { preset: "30d" },
+            resolution: "daily",
+          },
           created_at: "2026-03-01T00:00:00Z",
           updated_at: "2026-03-01T00:00:00Z",
         }),
@@ -110,7 +115,9 @@ test.describe("Explore page", () => {
     await expect(page.getByText("Explore")).toBeVisible();
     await expect(page.getByText("Check-ins")).toBeVisible();
     await expect(page.getByText("Energy")).toBeVisible();
-    await expect(page.getByText("Select metrics from the picker to start exploring.")).toBeVisible();
+    await expect(
+      page.getByText("Select metrics from the picker to start exploring."),
+    ).toBeVisible();
   });
 
   test("selecting a metric fetches and displays chart data", async ({ page }) => {
@@ -121,7 +128,9 @@ test.describe("Explore page", () => {
     await page.getByLabel("Energy").check();
 
     // Chart should now render (unovis SVG container)
-    await expect(page.getByText("Select metrics from the picker to start exploring.")).not.toBeVisible();
+    await expect(
+      page.getByText("Select metrics from the picker to start exploring."),
+    ).not.toBeVisible();
   });
 
   test("date range preset buttons work", async ({ page }) => {
@@ -140,10 +149,19 @@ test.describe("Explore page", () => {
     await mockExploreApis(page);
     await page.goto("/explore");
 
-    await expect(page.getByRole("button", { name: "Daily" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Daily" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     await page.getByRole("button", { name: "Weekly" }).click();
-    await expect(page.getByRole("button", { name: "Weekly" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByRole("button", { name: "Daily" })).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByRole("button", { name: "Weekly" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByRole("button", { name: "Daily" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   test("search filters metrics", async ({ page }) => {

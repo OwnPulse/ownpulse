@@ -6,13 +6,17 @@ import { useState } from "react";
 import { type CreateIntervention, interventionsApi } from "../../api/interventions";
 import forms from "./forms.module.css";
 
+function nowLocal() {
+  return new Date().toISOString().slice(0, 16);
+}
+
 export default function InterventionForm() {
   const queryClient = useQueryClient();
   const [substance, setSubstance] = useState("");
   const [dose, setDose] = useState("");
   const [unit, setUnit] = useState("");
   const [route, setRoute] = useState("");
-  const [administeredAt, setAdministeredAt] = useState("");
+  const [administeredAt, setAdministeredAt] = useState(nowLocal);
   const [fasted, setFasted] = useState(false);
   const [notes, setNotes] = useState("");
 
@@ -24,7 +28,7 @@ export default function InterventionForm() {
       setDose("");
       setUnit("");
       setRoute("");
-      setAdministeredAt("");
+      setAdministeredAt(nowLocal());
       setFasted(false);
       setNotes("");
     },

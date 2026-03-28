@@ -25,23 +25,14 @@ export function SavedChartCard({ chart, onLoad, onDelete }: SavedChartCardProps)
   };
 
   return (
-    <div
-      className={styles.card}
-      onClick={onLoad}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onLoad();
-        }
-      }}
-    >
-      <div className={styles.name}>{chart.name}</div>
-      <div className={styles.meta}>
-        {metricCount} metric{metricCount !== 1 ? "s" : ""} &middot; {rangeLabel} &middot;{" "}
-        {chart.config.resolution}
-      </div>
+    <div className={styles.card}>
+      <button type="button" className={styles.loadBtn} onClick={onLoad}>
+        <div className={styles.name}>{chart.name}</div>
+        <div className={styles.meta}>
+          {metricCount} metric{metricCount !== 1 ? "s" : ""} &middot; {rangeLabel} &middot;{" "}
+          {chart.config.resolution}
+        </div>
+      </button>
       <button
         type="button"
         className={`op-btn op-btn-sm op-btn-danger ${styles.deleteBtn}`}

@@ -15,7 +15,7 @@ export function ResolutionToggle() {
   const setResolution = useExploreStore((s) => s.setResolution);
 
   return (
-    <div className={styles.toggle} role="group" aria-label="Resolution">
+    <fieldset className={styles.toggle} aria-label="Resolution">
       {RESOLUTIONS.map((r) => (
         <button
           key={r.value}
@@ -27,6 +27,6 @@ export function ResolutionToggle() {
           {r.label}
         </button>
       ))}
-    </div>
+    </fieldset>
   );
 }

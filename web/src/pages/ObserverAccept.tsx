@@ -11,9 +11,9 @@ export default function ObserverAccept() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [status, setStatus] = useState<
-    "loading" | "accepted" | "acknowledged" | "error"
-  >("loading");
+  const [status, setStatus] = useState<"loading" | "accepted" | "acknowledged" | "error">(
+    "loading",
+  );
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
@@ -41,12 +41,7 @@ export default function ObserverAccept() {
 
   if (!isAuthenticated) {
     const returnUrl = `/observe/accept?token=${encodeURIComponent(token ?? "")}`;
-    return (
-      <Navigate
-        to={`/login?returnTo=${encodeURIComponent(returnUrl)}`}
-        replace
-      />
-    );
+    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnUrl)}`} replace />;
   }
 
   if (!token) {
@@ -70,20 +65,14 @@ export default function ObserverAccept() {
       {status === "accepted" && (
         <>
           <h1>Observer Invite Accepted</h1>
-          <p>
-            You&apos;ve been added as an observer! Go to Observer Polls
-            to start rating.
-          </p>
+          <p>You&apos;ve been added as an observer! Go to Observer Polls to start rating.</p>
           <Link to="/observer-polls">Go to Observer Polls</Link>
         </>
       )}
       {status === "acknowledged" && (
         <>
           <h1>Invite No Longer Valid</h1>
-          <p>
-            This invite link is no longer valid. Ask the poll owner for
-            a new link.
-          </p>
+          <p>This invite link is no longer valid. Ask the poll owner for a new link.</p>
           <Link to="/observer-polls">Go to Observer Polls</Link>
         </>
       )}

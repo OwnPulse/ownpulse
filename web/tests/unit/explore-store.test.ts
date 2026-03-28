@@ -2,11 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { beforeEach, describe, expect, it } from "vitest";
-import {
-  dateRangeToParams,
-  metricKey,
-  useExploreStore,
-} from "../../src/stores/exploreStore";
+import { dateRangeToParams, metricKey, useExploreStore } from "../../src/stores/exploreStore";
 
 describe("metricKey", () => {
   it("returns source:field format", () => {

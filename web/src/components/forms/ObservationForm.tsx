@@ -16,11 +16,15 @@ const OBSERVATION_TYPES = [
   "environmental",
 ] as const;
 
+function nowLocal() {
+  return new Date().toISOString().slice(0, 16);
+}
+
 export default function ObservationForm() {
   const queryClient = useQueryClient();
   const [type, setType] = useState<string>("event_instant");
   const [name, setName] = useState("");
-  const [startTime, setStartTime] = useState("");
+  const [startTime, setStartTime] = useState(nowLocal);
   const [endTime, setEndTime] = useState("");
   const [notesText, setNotesText] = useState("");
   const [numeric, setNumeric] = useState("");
@@ -33,7 +37,7 @@ export default function ObservationForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["observations"] });
       setName("");
-      setStartTime("");
+      setStartTime(nowLocal());
       setEndTime("");
       setNotesText("");
       setNumeric("");
