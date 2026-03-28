@@ -16,14 +16,16 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import Admin from "./pages/Admin";
 import Dashboard from "./pages/Dashboard";
 import DataEntry from "./pages/DataEntry";
+import Explore from "./pages/Explore";
 import Friends from "./pages/Friends";
 import FriendView from "./pages/FriendView";
 import Login from "./pages/Login";
+import ObserverAccept from "./pages/ObserverAccept";
+import ObserverPolls from "./pages/ObserverPolls";
 import Register from "./pages/Register";
 import Settings from "./pages/Settings";
 import ShareAccept from "./pages/ShareAccept";
 import Sources from "./pages/Sources";
-import Timeline from "./pages/Timeline";
 
 const queryClient = new QueryClient();
 
@@ -39,14 +41,17 @@ ReactDOM.createRoot(rootEl).render(
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
-              <Route path="/timeline" element={<Timeline />} />
+              <Route path="/explore" element={<Explore />} />
+              <Route path="/explore/:chartId" element={<Explore />} />
               <Route path="/entry" element={<DataEntry />} />
               <Route path="/sources" element={<Sources />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/friends" element={<Friends />} />
               <Route path="/friends/:friendId" element={<FriendView />} />
+              <Route path="/observer-polls" element={<ObserverPolls />} />
             </Route>
             <Route path="/share/accept" element={<ShareAccept />} />
+            <Route path="/observe/accept" element={<ObserverAccept />} />
             <Route element={<AdminRoute />}>
               <Route element={<Layout />}>
                 <Route path="/admin" element={<Admin />} />

@@ -11,6 +11,8 @@ pub mod audit;
 pub mod auth;
 pub mod checkins;
 pub mod dashboard;
+pub mod events;
+pub mod explore;
 pub mod export;
 pub mod friends;
 pub mod health_records;
@@ -19,13 +21,14 @@ pub mod integrations;
 pub mod interventions;
 pub mod labs;
 pub mod observations;
+pub mod observer_polls;
 pub mod sleep;
 pub mod source_preferences;
 pub mod waitlist;
 
 use axum::{
     Router,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
 };
 
 use crate::AppState;
@@ -148,4 +151,55 @@ fn base_routes() -> Router<AppState> {
             patch(friends::update_permissions),
         )
         .route("/friends/:friend_id/data", get(friends::get_friend_data))
+        // Explore — metrics, time-series, saved charts
+        .route("/explore/metrics", get(explore::metrics))
+        .route("/explore/series", get(explore::series_get))
+        .route("/explore/series", post(explore::series_post))
+        .route("/explore/charts", post(explore::create_chart))
+        .route("/explore/charts", get(explore::list_charts))
+        .route("/explore/charts/:id", get(explore::get_chart))
+        .route(
+            "/explore/charts/:id",
+            axum::routing::put(explore::update_chart),
+        )
+        .route("/explore/charts/:id", delete(explore::delete_chart))
+        // SSE events (auth via query param, not middleware)
+        .route("/events", get(events::events_stream))
+        // Observer polls — owner endpoints
+        .route("/observer-polls", post(observer_polls::create_poll))
+        .route("/observer-polls", get(observer_polls::list_polls))
+        // Observer polls — observer endpoints (must be before :id routes)
+        .route(
+            "/observer-polls/accept",
+            post(observer_polls::accept_invite),
+        )
+        .route("/observer-polls/my-polls", get(observer_polls::my_polls))
+        .route(
+            "/observer-polls/export",
+            get(observer_polls::export_responses),
+        )
+        .route(
+            "/observer-polls/responses/:response_id",
+            delete(observer_polls::delete_response),
+        )
+        // Observer polls — :id routes
+        .route("/observer-polls/:id", get(observer_polls::get_poll))
+        .route("/observer-polls/:id", patch(observer_polls::update_poll))
+        .route("/observer-polls/:id", delete(observer_polls::delete_poll))
+        .route(
+            "/observer-polls/:id/invite",
+            post(observer_polls::create_invite),
+        )
+        .route(
+            "/observer-polls/:id/responses",
+            get(observer_polls::list_responses),
+        )
+        .route(
+            "/observer-polls/:id/respond",
+            put(observer_polls::submit_response),
+        )
+        .route(
+            "/observer-polls/:id/my-responses",
+            get(observer_polls::my_responses),
+        )
 }

@@ -6,9 +6,13 @@ import { useState } from "react";
 import { checkinsApi, type UpsertCheckin } from "../../api/checkins";
 import forms from "./forms.module.css";
 
+function todayDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function CheckinForm() {
   const queryClient = useQueryClient();
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(todayDate);
   const [energy, setEnergy] = useState("5");
   const [mood, setMood] = useState("5");
   const [focus, setFocus] = useState("5");
@@ -20,7 +24,7 @@ export default function CheckinForm() {
     mutationFn: (data: UpsertCheckin) => checkinsApi.upsert(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["checkins"] });
-      setDate("");
+      setDate(todayDate());
       setEnergy("5");
       setMood("5");
       setFocus("5");

@@ -13,6 +13,7 @@ use crate::db::health_records as db_hr;
 use crate::db::healthkit as db_healthkit;
 use crate::error::ApiError;
 use crate::models::health_record::{CreateHealthRecord, HealthRecordQuery, HealthRecordRow};
+use crate::routes::events::publish_event;
 
 /// POST /health-records
 pub async fn create(
@@ -41,6 +42,13 @@ pub async fn create(
     };
 
     let row = db_hr::insert(&state.pool, user_id, &body, duplicate_of).await?;
+
+    publish_event(
+        &state.event_tx,
+        user_id,
+        "health_records",
+        Some(&body.record_type),
+    );
 
     // If source is not healthkit, enqueue for HealthKit write-back (non-fatal)
     if body.source != "healthkit" {

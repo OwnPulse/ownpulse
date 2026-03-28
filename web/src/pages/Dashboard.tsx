@@ -53,10 +53,10 @@ export default function Dashboard() {
           { label: "Interventions", value: data.intervention_count_7d },
           { label: "Observations", value: data.observation_count_7d },
         ].map((s) => (
-          <div key={s.label} className="op-card">
+          <Link key={s.label} to="/explore" className={`op-card ${styles.statLink}`}>
             <div className={styles.statValue}>{s.value}</div>
             <div className={styles.statLabel}>{s.label} (7 days)</div>
-          </div>
+          </Link>
         ))}
       </div>
 

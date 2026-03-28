@@ -200,6 +200,149 @@
       }
     },
     {
+      "description": "a request to list available explore metrics",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/explore/metrics",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "sources": [
+            {
+              "source": "checkins",
+              "label": "Check-ins",
+              "metrics": [
+                { "field": "energy", "label": "Energy", "unit": "score" }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "a request to fetch batch series data",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/explore/series",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "metrics": [{ "source": "checkins", "field": "energy" }],
+          "start": "2026-03-01",
+          "end": "2026-03-07",
+          "resolution": "daily"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "series": [
+            {
+              "source": "checkins",
+              "field": "energy",
+              "unit": "score",
+              "points": [
+                { "t": "2026-03-01T00:00:00Z", "v": 7, "n": 1 }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "a request to list saved charts",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/explore/charts",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "uuid-1",
+            "name": "My Chart",
+            "config": {
+              "version": 1,
+              "metrics": [{ "source": "checkins", "field": "energy" }],
+              "range": { "preset": "30d" },
+              "resolution": "daily"
+            },
+            "created_at": "2026-03-10T08:00:00Z",
+            "updated_at": "2026-03-10T08:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to create a saved chart",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/explore/charts",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "My Chart",
+          "config": {
+            "version": 1,
+            "metrics": [{ "source": "checkins", "field": "energy" }],
+            "range": { "preset": "30d" },
+            "resolution": "daily"
+          }
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "uuid-1",
+          "name": "My Chart",
+          "config": {
+            "version": 1,
+            "metrics": [{ "source": "checkins", "field": "energy" }],
+            "range": { "preset": "30d" },
+            "resolution": "daily"
+          },
+          "created_at": "2026-03-10T08:00:00Z",
+          "updated_at": "2026-03-10T08:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to delete a saved chart",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/explore/charts/uuid-1",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
       "description": "a request to unlink an auth provider",
       "request": {
         "method": "DELETE",
@@ -221,6 +364,195 @@
             "created_at": "2026-03-10T08:00:00Z"
           }
         ]
+      }
+    },
+    {
+      "description": "a request to list observer polls",
+      "providerState": "observer polls exist",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/observer-polls",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "uuid-1",
+            "name": "Daily mood check",
+            "custom_prompt": "How did I seem today?",
+            "dimensions": ["energy", "mood"],
+            "members": [],
+            "created_at": "2026-03-01T00:00:00Z",
+            "deleted_at": null
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to create an observer poll",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/observer-polls",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "Daily mood check",
+          "dimensions": ["energy", "mood"]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "uuid-1",
+          "name": "Daily mood check",
+          "custom_prompt": null,
+          "dimensions": ["energy", "mood"],
+          "members": [],
+          "created_at": "2026-03-01T00:00:00Z",
+          "deleted_at": null
+        }
+      }
+    },
+    {
+      "description": "a request to generate an observer poll invite",
+      "providerState": "observer poll exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/observer-polls/uuid-1/invite",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "invite_token": "some-invite-token",
+          "invite_expires_at": "2026-04-01T00:00:00Z",
+          "invite_url": "https://app.example.com/observe/accept?token=some-invite-token"
+        }
+      }
+    },
+    {
+      "description": "a request to accept an observer poll invite",
+      "providerState": "a valid observer poll invite exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/observer-polls/accept",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "token": "some-invite-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "status": "accepted"
+        }
+      }
+    },
+    {
+      "description": "a request to list polls I observe",
+      "providerState": "user is an observer on polls",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/observer-polls/my-polls",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "uuid-1",
+            "owner_display": "J***",
+            "name": "Daily mood check",
+            "custom_prompt": null,
+            "dimensions": ["energy", "mood"]
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to submit an observer poll response",
+      "providerState": "user is an observer on a poll",
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/observer-polls/uuid-1/respond",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "date": "2026-03-28",
+          "scores": { "energy": 7, "mood": 8 }
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "uuid-resp-1",
+          "date": "2026-03-28",
+          "scores": { "energy": 7, "mood": 8 },
+          "created_at": "2026-03-28T10:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to get observer poll responses as owner",
+      "providerState": "observer poll exists with responses",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/observer-polls/uuid-1/responses",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "responses": [
+            {
+              "id": "uuid-resp-1",
+              "member_id": "uuid-member-1",
+              "observer_email": "s***@example.com",
+              "date": "2026-03-28",
+              "scores": { "energy": 7, "mood": 8 },
+              "created_at": "2026-03-28T10:00:00Z"
+            }
+          ]
+        }
       }
     }
   ],

@@ -252,11 +252,14 @@ async fn run_server() -> anyhow::Result<()> {
         api::migration_check::spawn_migration_recheck(pool.clone(), migrations_ready.clone());
     }
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
+
     let state = api::AppState {
         pool: pool.clone(),
         config,
         http_client: reqwest::Client::new(),
         migrations_ready,
+        event_tx,
     };
 
     let app = api::build_app(state);

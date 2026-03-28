@@ -7,6 +7,8 @@
 
 pub mod audit;
 pub mod checkins;
+pub mod explore;
+pub mod explore_charts;
 pub mod friend_shares;
 pub mod health_records;
 pub mod healthkit;
@@ -15,6 +17,7 @@ pub mod interventions;
 pub mod invites;
 pub mod lab_results;
 pub mod observations;
+pub mod observer_polls;
 pub mod refresh_tokens;
 pub mod source_preferences;
 pub mod user_auth_methods;

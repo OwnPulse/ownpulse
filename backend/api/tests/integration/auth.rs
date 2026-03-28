@@ -335,11 +335,13 @@ async fn test_google_callback_pkce_redirects_to_custom_scheme() {
         .mount(&mock_server)
         .await;
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 
@@ -448,11 +450,13 @@ async fn test_google_callback_state_ios_no_longer_bypasses_csrf() {
         require_invite: false,
     };
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config,
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 
@@ -514,11 +518,13 @@ async fn test_google_callback_no_verifier_no_cookie_returns_400() {
         require_invite: false,
     };
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config,
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 
@@ -567,11 +573,13 @@ async fn test_google_callback_web_redirects_with_cookies() {
         .mount(&mock_server)
         .await;
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
 
     let app = api::build_app_without_metrics(state);
@@ -639,11 +647,13 @@ async fn test_google_callback_rejects_mismatched_csrf_state() {
 
     // Point token URL at a port-0 address — the handler must reject before
     // it ever makes a network call.
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config("http://127.0.0.1:0"),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
 
     let app = api::build_app_without_metrics(state);
@@ -785,11 +795,13 @@ async fn test_google_callback_email_collision_redirects_with_error() {
 
     let mock_server = setup_google_mock("google-collision-sub", email).await;
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 
@@ -836,11 +848,13 @@ async fn test_google_callback_email_collision_pkce_redirects_with_error() {
 
     let mock_server = setup_google_mock("google-pkce-collision-sub", email).await;
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 
@@ -901,11 +915,13 @@ async fn test_google_link_flow_succeeds() {
 
     let mock_server = setup_google_mock("google-link-sub", "linker-google@example.com").await;
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 
@@ -989,11 +1005,13 @@ async fn test_google_link_already_linked_to_other_user_fails() {
     let mock_server =
         setup_google_mock("google-already-linked-sub", "first-google@example.com").await;
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 
@@ -1043,11 +1061,13 @@ async fn test_google_link_unauthenticated_redirects_to_login() {
 
     let mock_server = setup_google_mock("google-unauth-sub", "unauth@example.com").await;
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 
@@ -1110,11 +1130,13 @@ async fn test_google_link_idempotent_same_user() {
     let mock_server =
         setup_google_mock("google-idempotent-sub", "idempotent-google@example.com").await;
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 
@@ -1188,11 +1210,13 @@ async fn test_google_link_disabled_user_fails() {
     )
     .await;
 
+    let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let state = api::AppState {
         pool: test_app.pool.clone(),
         config: google_config(&mock_server.uri()),
         http_client: reqwest::Client::new(),
         migrations_ready: common::migrations_ready_flag(),
+        event_tx,
     };
     let app = api::build_app_without_metrics(state);
 

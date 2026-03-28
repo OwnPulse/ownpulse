@@ -6,13 +6,17 @@ import { useState } from "react";
 import { type CreateHealthRecord, healthRecordsApi } from "../../api/health-records";
 import forms from "./forms.module.css";
 
+function nowLocal() {
+  return new Date().toISOString().slice(0, 16);
+}
+
 export default function HealthRecordForm() {
   const queryClient = useQueryClient();
   const [source, setSource] = useState("");
   const [recordType, setRecordType] = useState("");
   const [value, setValue] = useState("");
   const [unit, setUnit] = useState("");
-  const [startTime, setStartTime] = useState("");
+  const [startTime, setStartTime] = useState(nowLocal);
 
   const mutation = useMutation({
     mutationFn: (data: CreateHealthRecord) => healthRecordsApi.create(data),
@@ -22,7 +26,7 @@ export default function HealthRecordForm() {
       setRecordType("");
       setValue("");
       setUnit("");
-      setStartTime("");
+      setStartTime(nowLocal());
     },
   });
 

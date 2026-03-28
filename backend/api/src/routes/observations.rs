@@ -13,6 +13,7 @@ use crate::error::ApiError;
 use crate::models::observation::{
     CreateObservation, ObservationQuery, ObservationRow, is_valid_observation_type,
 };
+use crate::routes::events::publish_event;
 
 /// POST /observations — validates observation type before insert.
 pub async fn create(
@@ -28,6 +29,7 @@ pub async fn create(
     }
 
     let row = db::insert(&state.pool, user_id, &body).await?;
+    publish_event(&state.event_tx, user_id, "observations", None);
     Ok((StatusCode::CREATED, Json(row)))
 }
 

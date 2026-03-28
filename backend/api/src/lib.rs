@@ -25,6 +25,7 @@ use axum::{Json, Router, routing::get};
 use axum_prometheus::PrometheusMetricLayer;
 use config::Config;
 use migration_check::MigrationsReady;
+use models::explore::DataChangedEvent;
 use serde_json::json;
 use sqlx::PgPool;
 use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
@@ -37,6 +38,7 @@ pub struct AppState {
     pub config: Config,
     pub http_client: reqwest::Client,
     pub migrations_ready: MigrationsReady,
+    pub event_tx: tokio::sync::broadcast::Sender<(uuid::Uuid, DataChangedEvent)>,
 }
 
 /// Liveness probe — always returns 200 if the process is running.
