@@ -127,136 +127,139 @@ async function mockApis(page: import("@playwright/test").Page) {
   await page.route("**/api/v1/source-preferences", (route) =>
     route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
   );
+
+  // Mock SSE events endpoint to avoid connection errors
+  await page.route("**/api/v1/events*", (route) =>
+    route.fulfill({ status: 200, contentType: "text/event-stream", body: "" }),
+  );
 }
 
-// TODO: Fix E2E tests to work without a running backend (use built app + route mocking)
-test.describe
-  .skip("Observer Polls page", () => {
-    test("renders My Polls tab with poll list", async ({ page }) => {
-      await mockApis(page);
-      await page.goto("/observer-polls");
+test.describe("Observer Polls page", () => {
+  test("renders My Polls tab with poll list", async ({ page }) => {
+    await mockApis(page);
+    await page.goto("/observer-polls");
 
-      await expect(page.getByText("Daily mood check")).toBeVisible();
-      await expect(page.getByText("energy")).toBeVisible();
-      await expect(page.getByText("mood")).toBeVisible();
-      await expect(page.getByText(/1 member/)).toBeVisible();
-    });
+    await expect(page.getByText("Daily mood check")).toBeVisible();
+    await expect(page.locator(".op-pill", { hasText: "energy" })).toBeVisible();
+    await expect(page.locator(".op-pill", { hasText: "mood" })).toBeVisible();
+    await expect(page.getByText(/1 member/)).toBeVisible();
+  });
 
-    test("create poll flow", async ({ page }) => {
-      await mockApis(page);
+  test("create poll flow", async ({ page }) => {
+    await mockApis(page);
 
-      // After creation, re-fetch returns the new poll
-      let created = false;
-      await page.route("**/api/v1/observer-polls", (route) => {
-        if (route.request().method() === "GET") {
-          const polls = created
-            ? [
-                ...mockPolls,
-                {
-                  id: "poll-new",
-                  name: "New poll",
-                  custom_prompt: null,
-                  dimensions: ["energy", "mood"],
-                  members: [],
-                  created_at: new Date().toISOString(),
-                  deleted_at: null,
-                },
-              ]
-            : mockPolls;
-          return route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body: JSON.stringify(polls),
-          });
-        }
-        if (route.request().method() === "POST") {
-          created = true;
-          return route.fulfill({
-            status: 201,
-            contentType: "application/json",
-            body: JSON.stringify({
-              id: "poll-new",
-              name: "New poll",
-              custom_prompt: null,
-              dimensions: ["energy", "mood"],
-              members: [],
-              created_at: new Date().toISOString(),
-              deleted_at: null,
-            }),
-          });
-        }
-        return route.fallback();
-      });
-
-      await page.goto("/observer-polls");
-      await expect(page.getByText("Daily mood check")).toBeVisible();
-
-      await page.getByRole("button", { name: /create poll/i }).click();
-      await page.getByLabel(/name/i).fill("New poll");
-      await page.getByRole("button", { name: /^create$/i }).click();
-
-      await expect(page.getByText("New poll")).toBeVisible();
-    });
-
-    test("generate invite link flow", async ({ page }) => {
-      await mockApis(page);
-      await page.goto("/observer-polls");
-
-      await expect(page.getByText("Daily mood check")).toBeVisible();
-      await page.getByText("Daily mood check").click();
-
-      await expect(page.getByRole("button", { name: /generate invite link/i })).toBeVisible();
-      await page.getByRole("button", { name: /generate invite link/i }).click();
-
-      await expect(
-        page.getByDisplayValue("http://localhost:5173/observe/accept?token=test-token"),
-      ).toBeVisible();
-    });
-
-    test("Polls I Observe tab shows observer polls", async ({ page }) => {
-      await mockApis(page);
-      await page.goto("/observer-polls");
-
-      await page.getByRole("button", { name: /polls i observe/i }).click();
-
-      await expect(page.getByText("Partner wellness")).toBeVisible();
-      await expect(page.getByText("J***")).toBeVisible();
-    });
-
-    test("observer accept page shows success", async ({ page }) => {
-      await mockApis(page);
-      await page.goto("/observe/accept?token=valid-token");
-
-      await expect(page.getByText("Observer Invite Accepted")).toBeVisible();
-      await expect(page.getByText(/added as an observer/)).toBeVisible();
-    });
-
-    test("observer accept page shows error for invalid token", async ({ page }) => {
-      const jwt = userJwt();
-
-      await page.route("**/api/v1/auth/refresh", (route) =>
-        route.fulfill({
+    // After creation, re-fetch returns the new poll
+    let created = false;
+    await page.route("**/api/v1/observer-polls", (route) => {
+      if (route.request().method() === "GET") {
+        const polls = created
+          ? [
+              ...mockPolls,
+              {
+                id: "poll-new",
+                name: "New poll",
+                custom_prompt: null,
+                dimensions: ["energy", "mood"],
+                members: [],
+                created_at: new Date().toISOString(),
+                deleted_at: null,
+              },
+            ]
+          : mockPolls;
+        return route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ access_token: jwt, token_type: "bearer", expires_in: 3600 }),
-        }),
-      );
-
-      await page.route("**/api/v1/observer-polls/accept", (route) =>
-        route.fulfill({
-          status: 400,
-          contentType: "text/plain",
-          body: "Invalid or expired token",
-        }),
-      );
-
-      await page.route("**/api/v1/source-preferences", (route) =>
-        route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
-      );
-
-      await page.goto("/observe/accept?token=bad-token");
-
-      await expect(page.getByText("Error")).toBeVisible();
-      await expect(page.getByText("Invalid or expired token")).toBeVisible();
+          body: JSON.stringify(polls),
+        });
+      }
+      if (route.request().method() === "POST") {
+        created = true;
+        return route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify({
+            id: "poll-new",
+            name: "New poll",
+            custom_prompt: null,
+            dimensions: ["energy", "mood"],
+            members: [],
+            created_at: new Date().toISOString(),
+            deleted_at: null,
+          }),
+        });
+      }
+      return route.fallback();
     });
+
+    await page.goto("/observer-polls");
+    await expect(page.getByText("Daily mood check")).toBeVisible();
+
+    await page.getByRole("button", { name: /create poll/i }).click();
+    await page.getByLabel(/name/i).fill("New poll");
+    await page.getByRole("button", { name: /^create$/i }).click();
+
+    await expect(page.getByText("New poll")).toBeVisible();
   });
+
+  test("generate invite link flow", async ({ page }) => {
+    await mockApis(page);
+    await page.goto("/observer-polls");
+
+    await expect(page.getByText("Daily mood check")).toBeVisible();
+    await page.getByText("Daily mood check").click();
+
+    await expect(page.getByRole("button", { name: /generate invite link/i })).toBeVisible();
+    await page.getByRole("button", { name: /generate invite link/i }).click();
+
+    await expect(page.getByRole("textbox").first()).toHaveValue(
+      /observe\/accept\?token=test-token/,
+    );
+  });
+
+  test("Polls I Observe tab shows observer polls", async ({ page }) => {
+    await mockApis(page);
+    await page.goto("/observer-polls");
+
+    await page.getByRole("button", { name: /polls i observe/i }).click();
+
+    await expect(page.getByText("Partner wellness")).toBeVisible();
+    await expect(page.getByText("J***")).toBeVisible();
+  });
+
+  test("observer accept page shows success", async ({ page }) => {
+    await mockApis(page);
+    await page.goto("/observe/accept?token=valid-token");
+
+    await expect(page.getByText("Observer Invite Accepted")).toBeVisible();
+    await expect(page.getByText(/added as an observer/)).toBeVisible();
+  });
+
+  test("observer accept page shows error for invalid token", async ({ page }) => {
+    const jwt = userJwt();
+
+    await page.route("**/api/v1/auth/refresh", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ access_token: jwt, token_type: "bearer", expires_in: 3600 }),
+      }),
+    );
+
+    await page.route("**/api/v1/observer-polls/accept", (route) =>
+      route.fulfill({
+        status: 400,
+        contentType: "text/plain",
+        body: "Invalid or expired token",
+      }),
+    );
+
+    await page.route("**/api/v1/source-preferences", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+    );
+
+    await page.goto("/observe/accept?token=bad-token");
+
+    await expect(page.getByText("Error")).toBeVisible();
+    await expect(page.getByText("Invalid or expired token")).toBeVisible();
+  });
+});
