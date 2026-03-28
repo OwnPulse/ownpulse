@@ -99,6 +99,7 @@ jobs:
           badge-file: web-coverage.json
 
   result:
+    name: Web / result
     if: always()
     needs: [changes, test]
     runs-on: ubuntu-latest
