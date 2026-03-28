@@ -76,6 +76,9 @@ export default function Layout() {
           <NavLink to="/friends" className={navLinkClass} onClick={closeSidebar}>
             Friends
           </NavLink>
+          <NavLink to="/observer-polls" className={navLinkClass} onClick={closeSidebar}>
+            Observer Polls
+          </NavLink>
           <NavLink to="/settings" className={navLinkClass} onClick={closeSidebar}>
             Settings
           </NavLink>

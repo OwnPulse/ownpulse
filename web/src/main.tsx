@@ -19,6 +19,8 @@ import DataEntry from "./pages/DataEntry";
 import Friends from "./pages/Friends";
 import FriendView from "./pages/FriendView";
 import Login from "./pages/Login";
+import ObserverAccept from "./pages/ObserverAccept";
+import ObserverPolls from "./pages/ObserverPolls";
 import Register from "./pages/Register";
 import Settings from "./pages/Settings";
 import ShareAccept from "./pages/ShareAccept";
@@ -46,8 +48,10 @@ ReactDOM.createRoot(rootEl).render(
               <Route path="/settings" element={<Settings />} />
               <Route path="/friends" element={<Friends />} />
               <Route path="/friends/:friendId" element={<FriendView />} />
+              <Route path="/observer-polls" element={<ObserverPolls />} />
             </Route>
             <Route path="/share/accept" element={<ShareAccept />} />
+            <Route path="/observe/accept" element={<ObserverAccept />} />
             <Route element={<AdminRoute />}>
               <Route element={<Layout />}>
                 <Route path="/admin" element={<Admin />} />
