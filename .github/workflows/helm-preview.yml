@@ -1,0 +1,178 @@
+name: Helm Preview
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "helm/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  helm-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+
+      - name: Checkout head
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: head
+
+      - name: Install Helm
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
+
+      - name: Install yq
+        run: |
+          YQ_VERSION="v4.44.1"
+          YQ_SHA256="6dc2d0cd4e0caca5aeffd0d784a48263591080e4a0895abe69f3a76eb50d1ba3"
+          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /tmp/yq
+          echo "${YQ_SHA256}  /tmp/yq" | sha256sum -c
+          chmod +x /tmp/yq && sudo mv /tmp/yq /usr/local/bin/yq
+
+      - name: Detect changed charts
+        id: detect
+        run: |
+          touch /tmp/changed-charts.txt
+
+          # Charts that exist in base — check for modifications or deletions
+          for chart_dir in base/helm/*/; do
+            [ -d "$chart_dir" ] || continue
+            chart=$(basename "$chart_dir")
+            if [ -d "head/helm/$chart" ]; then
+              if ! diff -rq "base/helm/$chart" "head/helm/$chart" > /dev/null 2>&1; then
+                echo "$chart" >> /tmp/changed-charts.txt
+              fi
+            else
+              echo "$chart" >> /tmp/changed-charts.txt
+            fi
+          done
+
+          # Charts that are new in head
+          for chart_dir in head/helm/*/; do
+            [ -d "$chart_dir" ] || continue
+            chart=$(basename "$chart_dir")
+            if [ ! -d "base/helm/$chart" ]; then
+              echo "$chart" >> /tmp/changed-charts.txt
+            fi
+          done
+
+          sort -u /tmp/changed-charts.txt -o /tmp/changed-charts.txt
+
+          if [ ! -s /tmp/changed-charts.txt ]; then
+            echo "No chart directories changed."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Changed charts: $(tr '\n' ' ' < /tmp/changed-charts.txt)"
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Render and diff
+        if: steps.detect.outputs.has_changes == 'true'
+        run: |
+          # Map chart name to staging release name (matches deploy.yml)
+          release_name() {
+            case "$1" in
+              api)           echo "api-staging" ;;
+              web)           echo "web-staging" ;;
+              userdocs)      echo "userdocs-staging" ;;
+              postgres)      echo "postgres-staging" ;;
+              observability) echo "observability" ;;
+              *)             echo "$1" ;;
+            esac
+          }
+
+          # Charts that use a top-level image.tag for application builds.
+          # We pin these to a dummy value so the diff reflects template
+          # changes, not tag differences between builds.
+          needs_image_tag_override() {
+            case "$1" in
+              api|web|userdocs) return 0 ;;
+              *)                return 1 ;;
+            esac
+          }
+
+          # Render a chart, stripping Secret resources from the output.
+          # $1 = side (base|head), $2 = chart name, $3 = output file
+          render_chart() {
+            local side="$1" chart="$2" outfile="$3"
+            local chart_path="${side}/helm/${chart}"
+
+            if [ ! -d "$chart_path" ]; then
+              touch "$outfile"
+              return
+            fi
+
+            local release
+            release=$(release_name "$chart")
+
+            local values_args=()
+            if [ -f "${chart_path}/values-staging.yaml" ]; then
+              values_args+=(-f "${chart_path}/values-staging.yaml")
+            fi
+
+            local set_args=()
+            if needs_image_tag_override "$chart"; then
+              set_args+=(--set image.tag=preview)
+            fi
+
+            local rendered
+            rendered=$(helm template "$release" "$chart_path" \
+              "${values_args[@]}" \
+              "${set_args[@]}" 2>/dev/null) || rendered=""
+
+            # Filter out Secret resources from multi-document YAML using yq.
+            # yq is YAML-aware, so it handles formatting variations (quoted kinds,
+            # extra whitespace, missing separators) that would bypass regex filters.
+            printf '%s' "$rendered" | \
+              yq eval 'select(.kind != "Secret")' - > "$outfile" 2>/dev/null || \
+              printf '%s' "$rendered" > "$outfile"
+          }
+
+          AGGREGATE="/tmp/helm-diff.txt"
+          : > "$AGGREGATE"
+          any_diff=false
+
+          while IFS= read -r chart; do
+            render_chart base "$chart" "/tmp/base-${chart}.yaml"
+            render_chart head "$chart" "/tmp/head-${chart}.yaml"
+
+            {
+              echo "=== helm/${chart} ==="
+              echo ""
+            } >> "$AGGREGATE"
+
+            chart_diff=$(diff -u "/tmp/base-${chart}.yaml" "/tmp/head-${chart}.yaml" || true)
+
+            if [ -z "$chart_diff" ]; then
+              echo "No changes to rendered manifests." >> "$AGGREGATE"
+            else
+              any_diff=true
+              echo "$chart_diff" >> "$AGGREGATE"
+            fi
+
+            echo "" >> "$AGGREGATE"
+          done < /tmp/changed-charts.txt
+
+          if [ "$any_diff" = false ]; then
+            echo "No changes to rendered Kubernetes manifests (Secret templates excluded from preview)." > "$AGGREGATE"
+          fi
+
+          # Truncate to 256 KB to stay well within GitHub API limits (65535 chars
+          # for a comment body, but we also need room for the markdown wrapper).
+          truncate -s '<256K' "$AGGREGATE"
+
+      - name: Post PR comment
+        if: steps.detect.outputs.has_changes == 'true'
+        uses: OwnPulse/gh-actions/helm-diff-comment@v1
+        with:
+          mode: pr-comment
+          diff-file: /tmp/helm-diff.txt

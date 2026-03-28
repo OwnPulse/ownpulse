@@ -203,6 +203,10 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
+      - name: Install helm-diff plugin
+        run: |
+          helm plugin install https://github.com/databus23/helm-diff --version v3.15.3
+
       - name: Resolve image tag for ${{ matrix.service }}
         id: tag
         run: |
@@ -211,6 +215,26 @@ jobs:
             web) echo "tag=$WEB_TAG" >> "$GITHUB_OUTPUT" ;;
             userdocs) echo "tag=$USERDOCS_TAG" >> "$GITHUB_OUTPUT" ;;
           esac
+
+      - name: Preview staging changes
+        run: |
+          VALUES_ARG=""
+          if [ -n "${{ matrix.values }}" ]; then
+            VALUES_ARG="-f ${{ matrix.values }}"
+          fi
+          helm diff upgrade "${{ matrix.release }}" "${{ matrix.chart }}" \
+            -n ownpulse-staging \
+            $VALUES_ARG \
+            --set "image.tag=${{ steps.tag.outputs.tag }}" \
+            --suppress-secrets \
+            --three-way-merge \
+            2>&1 | head -c 100000 > /tmp/diff-output.txt || true
+
+      - name: Post diff to step summary
+        uses: OwnPulse/gh-actions/helm-diff-comment@v1
+        with:
+          mode: step-summary
+          diff-file: /tmp/diff-output.txt
 
       - uses: OwnPulse/gh-actions/helm-deploy@v1
         with:
@@ -315,6 +339,10 @@ jobs:
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
 
+      - name: Install helm-diff plugin
+        run: |
+          helm plugin install https://github.com/databus23/helm-diff --version v3.15.3
+
       - name: Resolve image tag for ${{ matrix.service }}
         id: tag
         run: |
@@ -323,6 +351,21 @@ jobs:
             web) echo "tag=$WEB_TAG" >> "$GITHUB_OUTPUT" ;;
             userdocs) echo "tag=$USERDOCS_TAG" >> "$GITHUB_OUTPUT" ;;
           esac
+
+      - name: Preview production changes
+        run: |
+          helm diff upgrade "${{ matrix.release }}" "${{ matrix.chart }}" \
+            -n ownpulse \
+            --set "image.tag=${{ steps.tag.outputs.tag }}" \
+            --suppress-secrets \
+            --three-way-merge \
+            2>&1 | head -c 100000 > /tmp/diff-output.txt || true
+
+      - name: Post diff to step summary
+        uses: OwnPulse/gh-actions/helm-diff-comment@v1
+        with:
+          mode: step-summary
+          diff-file: /tmp/diff-output.txt
 
       - uses: OwnPulse/gh-actions/helm-deploy@v1
         with:
