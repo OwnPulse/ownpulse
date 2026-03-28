@@ -225,7 +225,9 @@ async fn create_poll_unauthenticated_returns_401() {
         .method("POST")
         .uri("/api/v1/observer-polls")
         .header("content-type", "application/json")
-        .body(axum::body::Body::from(serde_json::to_string(&body).unwrap()))
+        .body(axum::body::Body::from(
+            serde_json::to_string(&body).unwrap(),
+        ))
         .unwrap();
 
     let resp = app.app.clone().oneshot(req).await.unwrap();
@@ -465,18 +467,19 @@ async fn create_invite_returns_token_and_url() {
     assert_eq!(resp.status(), 201);
     let json = common::body_json(resp).await;
     assert!(!json["invite_token"].as_str().unwrap().is_empty());
-    assert!(json["invite_url"]
-        .as_str()
-        .unwrap()
-        .contains("observer-polls/accept"));
+    assert!(
+        json["invite_url"]
+            .as_str()
+            .unwrap()
+            .contains("observer-polls/accept")
+    );
     assert!(!json["invite_expires_at"].as_str().unwrap().is_empty());
 }
 
 #[tokio::test]
 async fn accept_invite_valid_token_returns_accepted() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -532,8 +535,7 @@ async fn accept_invite_valid_token_returns_accepted() {
 #[tokio::test]
 async fn accept_invite_same_token_again_returns_acknowledged() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -625,8 +627,7 @@ async fn accept_invite_random_uuid_returns_acknowledged() {
 #[tokio::test]
 async fn accept_invite_expired_returns_acknowledged() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -744,8 +745,7 @@ async fn setup_poll_with_observer(
 #[tokio::test]
 async fn submit_response_valid_returns_201() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -775,8 +775,7 @@ async fn submit_response_valid_returns_201() {
 #[tokio::test]
 async fn submit_response_same_date_returns_200_upsert() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -823,8 +822,7 @@ async fn submit_response_same_date_returns_200_upsert() {
 #[tokio::test]
 async fn submit_response_invalid_dimension_returns_400() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -852,8 +850,7 @@ async fn submit_response_invalid_dimension_returns_400() {
 #[tokio::test]
 async fn submit_response_score_zero_returns_400() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -881,8 +878,7 @@ async fn submit_response_score_zero_returns_400() {
 #[tokio::test]
 async fn submit_response_score_eleven_returns_400() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -910,8 +906,7 @@ async fn submit_response_score_eleven_returns_400() {
 #[tokio::test]
 async fn submit_response_future_date_returns_400() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -942,8 +937,7 @@ async fn submit_response_future_date_returns_400() {
 #[tokio::test]
 async fn submit_response_non_member_returns_403() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_stranger_id, stranger_token) =
         create_user_with_email(&app, &unique_email("stranger")).await;
 
@@ -988,10 +982,8 @@ async fn submit_response_non_member_returns_403() {
 #[tokio::test]
 async fn owner_sees_responses_with_masked_email() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
-    let (_observer_id, observer_token) =
-        create_user_with_email(&app, "observer@example.com").await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
+    let (_observer_id, observer_token) = create_user_with_email(&app, "observer@example.com").await;
 
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
@@ -1038,8 +1030,7 @@ async fn owner_sees_responses_with_masked_email() {
 #[tokio::test]
 async fn owner_filters_responses_by_date_range() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -1090,8 +1081,7 @@ async fn owner_filters_responses_by_date_range() {
 #[tokio::test]
 async fn observer_sees_own_responses() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -1132,8 +1122,7 @@ async fn observer_sees_own_responses() {
 #[tokio::test]
 async fn observer_deletes_own_response() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -1205,8 +1194,7 @@ async fn observer_deletes_own_response() {
 #[tokio::test]
 async fn observer_exports_all_responses() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -1249,8 +1237,7 @@ async fn observer_exports_all_responses() {
 #[tokio::test]
 async fn observer_my_polls_shows_accepted_polls() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -1285,10 +1272,8 @@ async fn observer_my_polls_shows_accepted_polls() {
 #[tokio::test]
 async fn idor_get_other_users_poll_returns_404() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
-    let (_other_id, other_token) =
-        create_user_with_email(&app, &unique_email("other")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
+    let (_other_id, other_token) = create_user_with_email(&app, &unique_email("other")).await;
 
     let body = json!({"name": "Poll", "dimensions": ["energy"]});
     let resp = app
@@ -1323,10 +1308,8 @@ async fn idor_get_other_users_poll_returns_404() {
 #[tokio::test]
 async fn idor_patch_other_users_poll_returns_404() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
-    let (_other_id, other_token) =
-        create_user_with_email(&app, &unique_email("other")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
+    let (_other_id, other_token) = create_user_with_email(&app, &unique_email("other")).await;
 
     let body = json!({"name": "Poll", "dimensions": ["energy"]});
     let resp = app
@@ -1360,10 +1343,8 @@ async fn idor_patch_other_users_poll_returns_404() {
 #[tokio::test]
 async fn idor_delete_other_users_poll_returns_404() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
-    let (_other_id, other_token) =
-        create_user_with_email(&app, &unique_email("other")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
+    let (_other_id, other_token) = create_user_with_email(&app, &unique_email("other")).await;
 
     let body = json!({"name": "Poll", "dimensions": ["energy"]});
     let resp = app
@@ -1397,10 +1378,8 @@ async fn idor_delete_other_users_poll_returns_404() {
 #[tokio::test]
 async fn idor_get_other_users_poll_responses_returns_404() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
-    let (_other_id, other_token) =
-        create_user_with_email(&app, &unique_email("other")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
+    let (_other_id, other_token) = create_user_with_email(&app, &unique_email("other")).await;
 
     let body = json!({"name": "Poll", "dimensions": ["energy"]});
     let resp = app
@@ -1434,10 +1413,8 @@ async fn idor_get_other_users_poll_responses_returns_404() {
 #[tokio::test]
 async fn idor_invite_to_other_users_poll_returns_404() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
-    let (_other_id, other_token) =
-        create_user_with_email(&app, &unique_email("other")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
+    let (_other_id, other_token) = create_user_with_email(&app, &unique_email("other")).await;
 
     let body = json!({"name": "Poll", "dimensions": ["energy"]});
     let resp = app
@@ -1475,8 +1452,7 @@ async fn idor_invite_to_other_users_poll_returns_404() {
 #[tokio::test]
 async fn observer_cannot_access_owner_detail_endpoint() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -1500,8 +1476,7 @@ async fn observer_cannot_access_owner_detail_endpoint() {
 #[tokio::test]
 async fn observer_cannot_access_owner_responses_endpoint() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 
@@ -1524,8 +1499,7 @@ async fn observer_cannot_access_owner_responses_endpoint() {
 #[tokio::test]
 async fn observer_my_polls_does_not_contain_health_data() {
     let app = common::setup().await;
-    let (_owner_id, owner_token) =
-        create_user_with_email(&app, &unique_email("owner")).await;
+    let (_owner_id, owner_token) = create_user_with_email(&app, &unique_email("owner")).await;
     let (_observer_id, observer_token) =
         create_user_with_email(&app, &unique_email("observer")).await;
 

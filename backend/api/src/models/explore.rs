@@ -524,9 +524,7 @@ pub fn validate_chart_config(config: &ChartConfig) -> Result<(), ApiError> {
 }
 
 fn is_valid_hex_color(s: &str) -> bool {
-    s.len() == 7
-        && s.starts_with('#')
-        && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+    s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
 // ---------------------------------------------------------------------------

@@ -158,7 +158,10 @@ fn base_routes() -> Router<AppState> {
         .route("/explore/charts", post(explore::create_chart))
         .route("/explore/charts", get(explore::list_charts))
         .route("/explore/charts/:id", get(explore::get_chart))
-        .route("/explore/charts/:id", axum::routing::put(explore::update_chart))
+        .route(
+            "/explore/charts/:id",
+            axum::routing::put(explore::update_chart),
+        )
         .route("/explore/charts/:id", delete(explore::delete_chart))
         // SSE events (auth via query param, not middleware)
         .route("/events", get(events::events_stream))
@@ -166,9 +169,15 @@ fn base_routes() -> Router<AppState> {
         .route("/observer-polls", post(observer_polls::create_poll))
         .route("/observer-polls", get(observer_polls::list_polls))
         // Observer polls — observer endpoints (must be before :id routes)
-        .route("/observer-polls/accept", post(observer_polls::accept_invite))
+        .route(
+            "/observer-polls/accept",
+            post(observer_polls::accept_invite),
+        )
         .route("/observer-polls/my-polls", get(observer_polls::my_polls))
-        .route("/observer-polls/export", get(observer_polls::export_responses))
+        .route(
+            "/observer-polls/export",
+            get(observer_polls::export_responses),
+        )
         .route(
             "/observer-polls/responses/:response_id",
             delete(observer_polls::delete_response),

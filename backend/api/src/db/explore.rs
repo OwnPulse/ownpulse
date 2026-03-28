@@ -245,11 +245,12 @@ pub async fn distinct_lab_markers(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<Vec<String>, sqlx::Error> {
-    let rows: Vec<(String,)> =
-        sqlx::query_as("SELECT DISTINCT marker FROM lab_results WHERE user_id = $1 ORDER BY marker")
-            .bind(user_id)
-            .fetch_all(pool)
-            .await?;
+    let rows: Vec<(String,)> = sqlx::query_as(
+        "SELECT DISTINCT marker FROM lab_results WHERE user_id = $1 ORDER BY marker",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
 
     Ok(rows.into_iter().map(|(m,)| m).collect())
 }

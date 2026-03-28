@@ -43,7 +43,12 @@ pub async fn create(
 
     let row = db_hr::insert(&state.pool, user_id, &body, duplicate_of).await?;
 
-    publish_event(&state.event_tx, user_id, "health_records", Some(&body.record_type));
+    publish_event(
+        &state.event_tx,
+        user_id,
+        "health_records",
+        Some(&body.record_type),
+    );
 
     // If source is not healthkit, enqueue for HealthKit write-back (non-fatal)
     if body.source != "healthkit" {

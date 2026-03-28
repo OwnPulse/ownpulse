@@ -28,9 +28,12 @@ pub async fn events_stream(
     Query(query): Query<EventsQuery>,
 ) -> Result<Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>>, ApiError> {
     // Validate JWT from query param
-    let claims =
-        decode_access_token(&query.token, &state.config.jwt_secret, &state.config.web_origin)
-            .map_err(|_| ApiError::Unauthorized)?;
+    let claims = decode_access_token(
+        &query.token,
+        &state.config.jwt_secret,
+        &state.config.web_origin,
+    )
+    .map_err(|_| ApiError::Unauthorized)?;
 
     // Verify user exists and is active
     let user = users::find_by_id(&state.pool, claims.sub)
@@ -64,11 +67,12 @@ pub async fn events_stream(
                         tracing::info!(user_id = %user_id, "SSE: token expired, closing");
                         break;
                     }
-                    if let Ok(u) = users::find_by_id(&pool, user_id).await {
-                        if u.status != "active" {
-                            tracing::info!(user_id = %user_id, "SSE: user inactive, closing");
-                            break;
-                        }
+                    if users::find_by_id(&pool, user_id)
+                        .await
+                        .is_ok_and(|u| u.status != "active")
+                    {
+                        tracing::info!(user_id = %user_id, "SSE: user inactive, closing");
+                        break;
                     }
                 }
                 result = rx.recv() => {

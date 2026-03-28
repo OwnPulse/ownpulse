@@ -86,7 +86,6 @@ export function dateRangeToParams(range: DateRange): { start: string; end: strin
       startDate = d.toISOString().slice(0, 10);
       break;
     }
-    case "all":
     default:
       startDate = "2020-01-01";
       break;

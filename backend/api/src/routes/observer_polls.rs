@@ -39,11 +39,7 @@ fn strip_html_tags(input: &str) -> String {
 
 /// Dimension name pattern: alphanumeric + underscore, 1-50 chars.
 fn is_valid_dimension(dim: &str) -> bool {
-    !dim.is_empty()
-        && dim.len() <= 50
-        && dim
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+    !dim.is_empty() && dim.len() <= 50 && dim.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 fn parse_dimensions(dimensions: &serde_json::Value) -> Result<Vec<String>, ApiError> {
@@ -110,9 +106,9 @@ fn validate_scores(
                 "unknown dimension in scores: {key}"
             )));
         }
-        let v = value.as_i64().ok_or_else(|| {
-            ApiError::BadRequest(format!("score for {key} must be an integer"))
-        })?;
+        let v = value
+            .as_i64()
+            .ok_or_else(|| ApiError::BadRequest(format!("score for {key} must be an integer")))?;
         if !(1..=10).contains(&v) {
             return Err(ApiError::BadRequest(format!(
                 "score for {key} must be between 1 and 10"
@@ -137,8 +133,8 @@ pub async fn create_poll(
 
     validate_create_poll(&body)?;
 
-    let dimensions_json = serde_json::to_value(&body.dimensions)
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    let dimensions_json =
+        serde_json::to_value(&body.dimensions).map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let poll = db::observer_polls::create_poll(
         &state.pool,
@@ -338,10 +334,7 @@ pub async fn list_responses(
 
     // Mask emails in responses
     for resp in &mut responses {
-        resp.observer_email = resp
-            .observer_email
-            .as_deref()
-            .map(mask_email);
+        resp.observer_email = resp.observer_email.as_deref().map(mask_email);
     }
 
     Ok(Json(serde_json::json!({ "responses": responses })))
@@ -428,9 +421,14 @@ pub async fn submit_response(
         ));
     }
 
-    let (response, is_new) =
-        db::observer_polls::upsert_response(&state.pool, poll_id, member_id, body.date, &body.scores)
-            .await?;
+    let (response, is_new) = db::observer_polls::upsert_response(
+        &state.pool,
+        poll_id,
+        member_id,
+        body.date,
+        &body.scores,
+    )
+    .await?;
 
     let status = if is_new {
         StatusCode::CREATED
@@ -488,10 +486,7 @@ mod tests {
 
     #[test]
     fn test_strip_html_tags() {
-        assert_eq!(
-            strip_html_tags("<script>alert(1)</script>"),
-            "alert(1)"
-        );
+        assert_eq!(strip_html_tags("<script>alert(1)</script>"), "alert(1)");
         assert_eq!(strip_html_tags("no tags"), "no tags");
         assert_eq!(
             strip_html_tags("<b>bold</b> and <i>italic</i>"),

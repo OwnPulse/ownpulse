@@ -39,11 +39,7 @@ pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<ChartRow>, sqlx::E
 }
 
 /// Get a single chart by id, scoped to user (IDOR protection).
-pub async fn get_by_id(
-    pool: &PgPool,
-    user_id: Uuid,
-    id: Uuid,
-) -> Result<ChartRow, sqlx::Error> {
+pub async fn get_by_id(pool: &PgPool, user_id: Uuid, id: Uuid) -> Result<ChartRow, sqlx::Error> {
     sqlx::query_as::<_, ChartRow>(
         "SELECT id, user_id, name, config, created_at, updated_at
          FROM explore_charts

@@ -11,7 +11,7 @@ use crate::auth::extractor::AuthUser;
 use crate::db::{explore as db_explore, explore_charts as db_charts};
 use crate::error::ApiError;
 use crate::models::explore::{
-    BatchSeriesRequest, CalendarField, CheckinField, ChartRow, CreateChart, HealthRecordField,
+    BatchSeriesRequest, CalendarField, ChartRow, CheckinField, CreateChart, HealthRecordField,
     MetricOption, MetricSource, MetricSourceGroup, MetricsResponse, SeriesQuery, SeriesResponse,
     SleepField, UpdateChart, validate_chart_config,
 };
@@ -96,9 +96,15 @@ pub async fn series_get(
     Query(query): Query<SeriesQuery>,
 ) -> Result<Json<SeriesResponse>, ApiError> {
     let metric = MetricSource::parse(&query.source, &query.field)?;
-    let result =
-        db_explore::query_series(&state.pool, user_id, &metric, query.start, query.end, query.resolution)
-            .await?;
+    let result = db_explore::query_series(
+        &state.pool,
+        user_id,
+        &metric,
+        query.start,
+        query.end,
+        query.resolution,
+    )
+    .await?;
     Ok(Json(result))
 }
 
@@ -130,7 +136,14 @@ pub async fn series_post(
     let futures: Vec<_> = parsed
         .iter()
         .map(|metric| {
-            db_explore::query_series(&state.pool, user_id, metric, body.start, body.end, body.resolution)
+            db_explore::query_series(
+                &state.pool,
+                user_id,
+                metric,
+                body.start,
+                body.end,
+                body.resolution,
+            )
         })
         .collect();
 
@@ -190,11 +203,9 @@ pub async fn update_chart(
     let config_json = match &body.config {
         Some(config) => {
             validate_chart_config(config)?;
-            Some(
-                serde_json::to_value(config).map_err(|e| {
-                    ApiError::Internal(format!("failed to serialize chart config: {e}"))
-                })?,
-            )
+            Some(serde_json::to_value(config).map_err(|e| {
+                ApiError::Internal(format!("failed to serialize chart config: {e}"))
+            })?)
         }
         None => None,
     };
