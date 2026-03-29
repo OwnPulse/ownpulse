@@ -1399,8 +1399,34 @@ pub async fn forgot_password(
         Err(_) => return Ok(StatusCode::OK),
     };
 
-    // Only allow reset for local-auth users with a password and active status
-    if user.password_hash.is_none() || user.status != "active" {
+    // Disabled users get nothing
+    if user.status != "active" {
+        return Ok(StatusCode::OK);
+    }
+
+    // OAuth-only users (no password) get a helpful notice instead of a reset link
+    if user.password_hash.is_none() {
+        let provider = match user.auth_provider.as_str() {
+            "google" => "Google",
+            "apple" => "Apple",
+            other => other,
+        };
+        let html_body = format!(
+            "<p>Someone requested a password reset for your OwnPulse account.</p>\
+             <p>Your account uses <strong>{provider}</strong> sign-in, so there is no password to reset. \
+             Just use the \"{provider}\" button on the login page.</p>\
+             <p>If you did not request this, you can safely ignore this email.</p>"
+        );
+        if let Err(e) = crate::email::send_email(
+            &state.config,
+            &user.email,
+            "OwnPulse password reset request",
+            &html_body,
+        )
+        .await
+        {
+            tracing::error!(error = %e, "failed to send OAuth notice email");
+        }
         return Ok(StatusCode::OK);
     }
 
