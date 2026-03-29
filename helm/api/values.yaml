@@ -49,3 +49,5 @@ secret:
     - DATABASE_URL
     - JWT_SECRET
     - ENCRYPTION_KEY
+
+smtpSecret: ownpulse-smtp-secrets
