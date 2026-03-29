@@ -67,6 +67,7 @@ struct DashboardModelsTests {
     func latestCheckinIsToday() {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = .current
         let todayStr = formatter.string(from: Date())
 
         let checkin = LatestCheckin(
@@ -76,11 +77,33 @@ struct DashboardModelsTests {
         #expect(checkin.isToday == true)
     }
 
+    @Test("LatestCheckin.isToday handles date that is today in local timezone")
+    func latestCheckinIsTodayLocalTimezone() {
+        // Use the first 10 chars of today's date in the current timezone
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        let todayString = formatter.string(from: Date())
+
+        // Construct a full ISO 8601 string — isToday uses only prefix(10)
+        let checkin = LatestCheckin(
+            energy: 5, mood: 5, focus: 5, recovery: 5, libido: 5,
+            date: "\(todayString)T23:59:59Z"
+        )
+        #expect(checkin.isToday == true)
+    }
+
     @Test("LatestCheckin.isToday returns false for yesterday")
     func latestCheckinNotToday() {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
+        let yesterdayString = formatter.string(from: yesterday)
+
         let checkin = LatestCheckin(
             energy: 7, mood: 8, focus: 6, recovery: 7, libido: 5,
-            date: "2025-01-01"
+            date: "\(yesterdayString)T12:00:00Z"
         )
         #expect(checkin.isToday == false)
     }

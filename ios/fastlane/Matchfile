@@ -1,0 +1,5 @@
+git_url "git@github.com:OwnPulse/ownpulse-infra.git"
+storage_mode "git"
+git_branch "match"
+type "appstore"
+app_identifier ["health.ownpulse.app", "health.ownpulse.app.staging"]
