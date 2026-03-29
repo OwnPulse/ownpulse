@@ -40,6 +40,7 @@ lettre = { version = "0.11", default-features = false, features = ["tokio1-rustl
 rand = "0.8"
 async-stream = "0.3"
 tokio-stream = "0.1"
+tokio-util = "0.7"
 regex = "1"
 
 [dev-dependencies]

@@ -12,6 +12,7 @@ pub mod explore_charts;
 pub mod friend_shares;
 pub mod health_records;
 pub mod healthkit;
+pub mod insights;
 pub mod integration_tokens;
 pub mod interventions;
 pub mod invites;

@@ -76,6 +76,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0017_password_reset_tokens.sql",
         include_str!("../../../db/migrations/0017_password_reset_tokens.sql"),
     ),
+    (
+        "0019_insights.sql",
+        include_str!("../../../db/migrations/0019_insights.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -291,6 +295,10 @@ async fn detect_applied_migrations(pool: &PgPool) -> Result<(), MigrateError> {
         (
             "0016_observer_polls.sql",
             "SELECT to_regclass('public.observer_polls') IS NOT NULL",
+        ),
+        (
+            "0017_insights.sql",
+            "SELECT to_regclass('public.insights') IS NOT NULL",
         ),
     ];
 
