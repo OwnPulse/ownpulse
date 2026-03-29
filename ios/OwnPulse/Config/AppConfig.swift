@@ -31,4 +31,10 @@ enum AppConfig {
     static var googleRedirectURI: String {
         "\(apiBaseURL)/api/v1/auth/google/callback"
     }
+
+    static var versionString: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        return "\(version) (\(build))"
+    }
 }

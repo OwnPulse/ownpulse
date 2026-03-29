@@ -36,6 +36,7 @@ struct LatestCheckin: Codable, Sendable {
     var isToday: Bool {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = .current
         guard let checkinDate = formatter.date(from: String(date.prefix(10))) else {
             return false
         }

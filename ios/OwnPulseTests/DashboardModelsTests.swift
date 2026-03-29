@@ -67,6 +67,7 @@ struct DashboardModelsTests {
     func latestCheckinIsToday() {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = .current
         let todayStr = formatter.string(from: Date())
 
         let checkin = LatestCheckin(

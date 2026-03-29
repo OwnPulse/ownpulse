@@ -158,6 +158,16 @@ struct SettingsView: View {
                     .accessibilityIdentifier("openDashboardLink")
             }
 
+            Section("About") {
+                HStack {
+                    Text("Version")
+                    Spacer()
+                    Text(AppConfig.versionString)
+                        .foregroundStyle(.secondary)
+                }
+                .accessibilityIdentifier("appVersion")
+            }
+
             Section {
                 Button("Sign Out", role: .destructive) {
                     showLogoutConfirmation = true
