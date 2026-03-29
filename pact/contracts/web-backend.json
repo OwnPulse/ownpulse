@@ -555,6 +555,90 @@
         }
       }
     }
+    ,
+    {
+      "description": "a request to list insights",
+      "providerState": "insights exist for the user",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/insights",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "uuid-1",
+            "insight_type": "trend",
+            "headline": "Energy trending up 15%",
+            "detail": "Average went from 5.2 to 6.0",
+            "metadata": {
+              "explore_params": {
+                "source": "checkins",
+                "field": "energy",
+                "preset": "30d"
+              }
+            },
+            "created_at": "2026-03-28T06:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to dismiss an insight",
+      "providerState": "insight exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/insights/uuid-1/dismiss",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
+      "description": "a request to generate insights",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/insights/generate",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {}
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "uuid-1",
+            "insight_type": "trend",
+            "headline": "Energy trending up 15%",
+            "detail": "Average went from 5.2 to 6.0",
+            "metadata": {
+              "explore_params": {
+                "source": "checkins",
+                "field": "energy",
+                "preset": "30d"
+              }
+            },
+            "created_at": "2026-03-28T06:00:00Z"
+          }
+        ]
+      }
+    }
   ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }
 }
