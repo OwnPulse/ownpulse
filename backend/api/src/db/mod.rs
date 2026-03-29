@@ -18,6 +18,7 @@ pub mod invites;
 pub mod lab_results;
 pub mod observations;
 pub mod observer_polls;
+pub mod password_reset_tokens;
 pub mod refresh_tokens;
 pub mod source_preferences;
 pub mod user_auth_methods;

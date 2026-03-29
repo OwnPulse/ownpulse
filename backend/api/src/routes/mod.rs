@@ -42,6 +42,8 @@ fn auth_routes() -> Router<AppState> {
         .route("/auth/google/login", get(auth::google_login))
         .route("/auth/google/callback", get(auth::google_callback))
         .route("/auth/apple/callback", post(auth::apple_callback))
+        .route("/auth/forgot-password", post(auth::forgot_password))
+        .route("/auth/reset-password", post(auth::reset_password))
 }
 
 /// Build the versioned API router with rate limiting on auth endpoints.

@@ -81,6 +81,17 @@ pub struct Config {
 
     #[serde(default = "default_require_invite")]
     pub require_invite: bool,
+
+    #[serde(default)]
+    pub smtp_host: Option<String>,
+    #[serde(default = "default_smtp_port")]
+    pub smtp_port: u16,
+    #[serde(default)]
+    pub smtp_username: Option<String>,
+    #[serde(default)]
+    pub smtp_password: Option<String>,
+    #[serde(default)]
+    pub smtp_from: Option<String>,
 }
 
 fn default_jwt_secret() -> String {
@@ -125,6 +136,10 @@ fn default_rust_log() -> String {
 
 fn default_require_invite() -> bool {
     true
+}
+
+fn default_smtp_port() -> u16 {
+    587
 }
 
 impl Config {
@@ -202,6 +217,11 @@ mod tests {
             web_origin: default_web_origin(),
             rust_log: default_rust_log(),
             require_invite: default_require_invite(),
+            smtp_host: None,
+            smtp_port: default_smtp_port(),
+            smtp_username: None,
+            smtp_password: None,
+            smtp_from: None,
         }
     }
 

@@ -103,6 +103,17 @@ pub struct LinkAuthRequest {
     pub password: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct ForgotPasswordRequest {
+    pub email: String,
+}
+
+#[derive(Deserialize)]
+pub struct ResetPasswordRequest {
+    pub token: String,
+    pub password: String,
+}
+
 /// Token response that includes the refresh token in the JSON body.
 ///
 /// Used for iOS clients that store tokens in the Keychain rather than
