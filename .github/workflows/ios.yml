@@ -1,29 +1,107 @@
 name: iOS
 
-# Manual-only until self-hosted macOS runner has Xcode.
-# Tests verified passing on macos-15 (2026-03-21).
-
 on:
+  push:
+    branches: [main]
+    paths: ['ios/**']
+    tags: ['v*']
+  pull_request:
+    paths: ['ios/**']
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Build environment'
+        required: true
+        default: 'both'
+        type: choice
+        options: [staging, release, both]
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: macos-15
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@v4
 
-      - name: Resolve SPM dependencies
-        working-directory: ios
-        run: >
-          xcodebuild -resolvePackageDependencies
-          -scheme OwnPulse
-          -clonedSourcePackagesDirPath .spm-cache
+      - uses: actions/cache@v4
+        with:
+          path: ios/.build
+          key: spm-${{ hashFiles('ios/OwnPulse.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-
 
-      - name: Run Xcode tests
+      - name: Run tests
         working-directory: ios
-        run: >
-          xcodebuild test
-          -scheme OwnPulse
-          -destination 'platform=iOS Simulator,name=iPhone 16'
-          -clonedSourcePackagesDirPath .spm-cache
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -scheme OwnPulse \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -clonedSourcePackagesDirPath .build \
+            | xcbeautify || true
+
+  build-and-upload:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: macos-15
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        include:
+          - scheme: OwnPulse
+            configuration: Release
+            app_identifier: health.ownpulse.app
+            environment: release
+          - scheme: OwnPulse-Staging
+            configuration: Staging
+            app_identifier: health.ownpulse.app.staging
+            environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: OwnPulse/ownpulse-infra
+          path: infra
+          ssh-key: ${{ secrets.INFRA_DEPLOY_KEY }}
+
+      - uses: OwnPulse/gh-actions/sops-setup@v1
+        with:
+          age-key: ${{ secrets.SOPS_AGE_KEY }}
+
+      - name: Decrypt iOS secrets
+        run: |
+          sops -d infra/secrets/ios/appstore-connect.sops.yaml > /tmp/ios-secrets.yaml
+          echo "ASC_KEY_ID=$(yq '.key_id' /tmp/ios-secrets.yaml)" >> $GITHUB_ENV
+          echo "ASC_ISSUER_ID=$(yq '.issuer_id' /tmp/ios-secrets.yaml)" >> $GITHUB_ENV
+          sops -d --output /tmp/AuthKey.p8 infra/secrets/ios/AuthKey.p8.sops
+          echo "ASC_KEY_PATH=/tmp/AuthKey.p8" >> $GITHUB_ENV
+          echo "MATCH_PASSWORD=$(sops -d --extract '["match_password"]' infra/secrets/ios/appstore-connect.sops.yaml)" >> $GITHUB_ENV
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+          working-directory: ios
+
+      - uses: actions/cache@v4
+        with:
+          path: ios/.build
+          key: spm-${{ hashFiles('ios/OwnPulse.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-
+
+      - name: Build and upload to TestFlight
+        if: >
+          matrix.environment == github.event.inputs.environment ||
+          github.event.inputs.environment == 'both' ||
+          github.event.inputs.environment == '' ||
+          startsWith(github.ref, 'refs/tags/v')
+        working-directory: ios
+        run: |
+          bundle exec fastlane beta \
+            scheme:"${{ matrix.scheme }}" \
+            configuration:"${{ matrix.configuration }}" \
+            app_identifier:"${{ matrix.app_identifier }}"
