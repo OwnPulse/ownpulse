@@ -12,6 +12,7 @@ mod explore;
 mod export;
 mod friends;
 mod health_records;
+mod integrations;
 mod interventions;
 mod labs;
 mod observations;
