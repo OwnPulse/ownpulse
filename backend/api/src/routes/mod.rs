@@ -27,12 +27,115 @@ pub mod source_preferences;
 pub mod stats;
 pub mod waitlist;
 
+use axum::http;
 use axum::{
     Router,
     routing::{delete, get, patch, post, put},
 };
+use tower_governor::errors::GovernorError;
+use tower_governor::key_extractor::KeyExtractor;
 
 use crate::AppState;
+
+/// A [`KeyExtractor`] that extracts the user ID from the JWT `sub` claim
+/// in the `Authorization: Bearer <token>` header.
+///
+/// This performs a *lightweight* base64 decode of the JWT payload to read the
+/// `sub` field — it does **not** verify the signature. Full verification happens
+/// later in the [`AuthUser`](crate::auth::extractor::AuthUser) extractor. The
+/// rate limiter only needs a consistent key; an invalid/expired token will be
+/// rejected by the handler before any real work is done.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct JwtSubjectKeyExtractor;
+
+impl KeyExtractor for JwtSubjectKeyExtractor {
+    type Key = String;
+
+    fn extract<T>(&self, req: &http::Request<T>) -> Result<Self::Key, GovernorError> {
+        let header = req
+            .headers()
+            .get(http::header::AUTHORIZATION)
+            .and_then(|v: &http::HeaderValue| v.to_str().ok())
+            .and_then(|v: &str| v.strip_prefix("Bearer "))
+            .ok_or(GovernorError::UnableToExtractKey)?;
+
+        // JWT is three base64url segments separated by dots.
+        let payload_b64 = header
+            .split('.')
+            .nth(1)
+            .ok_or(GovernorError::UnableToExtractKey)?;
+
+        // base64url decode (JWT uses URL-safe alphabet, no padding).
+        let payload_bytes =
+            base64url_decode(payload_b64).map_err(|_| GovernorError::UnableToExtractKey)?;
+
+        // Extract the `sub` field with minimal parsing.
+        #[derive(serde::Deserialize)]
+        struct Sub {
+            sub: String,
+        }
+
+        let parsed: Sub = serde_json::from_slice(&payload_bytes)
+            .map_err(|_| GovernorError::UnableToExtractKey)?;
+
+        Ok(parsed.sub)
+    }
+}
+
+/// Decode base64url (RFC 4648 section 5) without padding, as used in JWTs.
+fn base64url_decode(input: &str) -> Result<Vec<u8>, ()> {
+    // Replace URL-safe chars with standard base64 chars and add padding.
+    let mut s = input.replace('-', "+").replace('_', "/");
+    match s.len() % 4 {
+        2 => s.push_str("=="),
+        3 => s.push('='),
+        0 => {}
+        _ => return Err(()),
+    }
+    // Use a minimal inline base64 decoder via the data_encoding-style approach.
+    // Since we already have the `hex` crate but not `base64` in prod deps,
+    // we can use a small manual decoder or leverage serde_json indirectly.
+    // Actually, we can use the engine from jsonwebtoken's dependency.
+    // Simplest: manual decode using a lookup table.
+    decode_base64_standard(&s)
+}
+
+fn decode_base64_standard(input: &str) -> Result<Vec<u8>, ()> {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    let mut out = Vec::with_capacity(input.len() * 3 / 4);
+    let bytes: Vec<u8> = input
+        .bytes()
+        .filter(|&b| b != b'=')
+        .map(|b| {
+            TABLE
+                .iter()
+                .position(|&c| c == b)
+                .map(|p| p as u8)
+                .ok_or(())
+        })
+        .collect::<Result<_, _>>()?;
+
+    for chunk in bytes.chunks(4) {
+        match chunk.len() {
+            4 => {
+                out.push((chunk[0] << 2) | (chunk[1] >> 4));
+                out.push((chunk[1] << 4) | (chunk[2] >> 2));
+                out.push((chunk[2] << 6) | chunk[3]);
+            }
+            3 => {
+                out.push((chunk[0] << 2) | (chunk[1] >> 4));
+                out.push((chunk[1] << 4) | (chunk[2] >> 2));
+            }
+            2 => {
+                out.push((chunk[0] << 2) | (chunk[1] >> 4));
+            }
+            _ => return Err(()),
+        }
+    }
+
+    Ok(out)
+}
 
 fn auth_routes() -> Router<AppState> {
     Router::new()
@@ -47,19 +150,19 @@ fn auth_routes() -> Router<AppState> {
         .route("/auth/reset-password", post(auth::reset_password))
 }
 
-/// Build the versioned API router with rate limiting on auth endpoints.
-/// Mounted under `/api/v1` by `build_app`.
+/// Build the versioned API router with rate limiting on auth, explore, and
+/// observer-poll endpoints. Mounted under `/api/v1` by `build_app`.
 pub fn api_routes() -> Router<AppState> {
     use tower_governor::{
         GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
     };
 
-    // 5 requests per 60 seconds per IP on auth endpoints.
+    // --- Auth: 5 req/min per IP ---
     // SmartIpKeyExtractor checks X-Forwarded-For/X-Real-IP headers first,
     // falling back to peer address. Required when behind a reverse proxy.
     let auth_governor_conf = GovernorConfigBuilder::default()
         .key_extractor(SmartIpKeyExtractor)
-        .per_second(12) // replenish 1 token every 12s → 5/min
+        .per_second(12) // replenish 1 token every 12s -> 5/min
         .burst_size(5)
         .finish()
         .expect("failed to build governor config");
@@ -68,13 +171,87 @@ pub fn api_routes() -> Router<AppState> {
         config: auth_governor_conf.into(),
     });
 
-    base_routes().merge(rate_limited_auth)
+    // --- Explore: 30 req/min per user (JWT sub) ---
+    let explore_governor_conf = GovernorConfigBuilder::default()
+        .key_extractor(JwtSubjectKeyExtractor)
+        .per_second(2) // replenish 1 token every 2s -> 30/min
+        .burst_size(30)
+        .finish()
+        .expect("failed to build explore governor config");
+
+    let rate_limited_explore = explore_routes().layer(GovernorLayer {
+        config: explore_governor_conf.into(),
+    });
+
+    // --- Observer poll accept: 10 req/min per IP ---
+    let poll_accept_governor_conf = GovernorConfigBuilder::default()
+        .key_extractor(SmartIpKeyExtractor)
+        .per_second(6) // replenish 1 token every 6s -> 10/min
+        .burst_size(10)
+        .finish()
+        .expect("failed to build poll accept governor config");
+
+    let rate_limited_poll_accept = poll_accept_routes().layer(GovernorLayer {
+        config: poll_accept_governor_conf.into(),
+    });
+
+    // --- Observer poll respond: 10 req/min per user (JWT sub) ---
+    let poll_respond_governor_conf = GovernorConfigBuilder::default()
+        .key_extractor(JwtSubjectKeyExtractor)
+        .per_second(6) // replenish 1 token every 6s -> 10/min
+        .burst_size(10)
+        .finish()
+        .expect("failed to build poll respond governor config");
+
+    let rate_limited_poll_respond = poll_respond_routes().layer(GovernorLayer {
+        config: poll_respond_governor_conf.into(),
+    });
+
+    base_routes()
+        .merge(rate_limited_auth)
+        .merge(rate_limited_explore)
+        .merge(rate_limited_poll_accept)
+        .merge(rate_limited_poll_respond)
 }
 
 /// Build the versioned API router without rate limiting.
 /// Used by integration tests where `ConnectInfo` is not available.
 pub fn api_routes_without_rate_limit() -> Router<AppState> {
-    base_routes().merge(auth_routes())
+    base_routes()
+        .merge(auth_routes())
+        .merge(explore_routes())
+        .merge(poll_accept_routes())
+        .merge(poll_respond_routes())
+}
+
+fn explore_routes() -> Router<AppState> {
+    Router::new()
+        .route("/explore/interventions", get(explore::interventions))
+        .route("/explore/metrics", get(explore::metrics))
+        .route("/explore/series", get(explore::series_get))
+        .route("/explore/series", post(explore::series_post))
+        .route("/explore/charts", post(explore::create_chart))
+        .route("/explore/charts", get(explore::list_charts))
+        .route("/explore/charts/:id", get(explore::get_chart))
+        .route(
+            "/explore/charts/:id",
+            axum::routing::put(explore::update_chart),
+        )
+        .route("/explore/charts/:id", delete(explore::delete_chart))
+}
+
+fn poll_accept_routes() -> Router<AppState> {
+    Router::new().route(
+        "/observer-polls/accept",
+        post(observer_polls::accept_invite),
+    )
+}
+
+fn poll_respond_routes() -> Router<AppState> {
+    Router::new().route(
+        "/observer-polls/:id/respond",
+        put(observer_polls::submit_response),
+    )
 }
 
 fn base_routes() -> Router<AppState> {
@@ -158,29 +335,14 @@ fn base_routes() -> Router<AppState> {
         .route("/stats/before-after", post(stats::before_after))
         .route("/stats/correlate", post(stats::correlate))
         .route("/stats/lag-correlate", post(stats::lag_correlate))
-        // Explore — metrics, time-series, saved charts, intervention markers
-        .route("/explore/interventions", get(explore::interventions))
-        .route("/explore/metrics", get(explore::metrics))
-        .route("/explore/series", get(explore::series_get))
-        .route("/explore/series", post(explore::series_post))
-        .route("/explore/charts", post(explore::create_chart))
-        .route("/explore/charts", get(explore::list_charts))
-        .route("/explore/charts/:id", get(explore::get_chart))
-        .route(
-            "/explore/charts/:id",
-            axum::routing::put(explore::update_chart),
-        )
-        .route("/explore/charts/:id", delete(explore::delete_chart))
+        // Explore routes are in explore_routes() for rate limiting
         // SSE events (auth via query param, not middleware)
         .route("/events", get(events::events_stream))
         // Observer polls — owner endpoints
         .route("/observer-polls", post(observer_polls::create_poll))
         .route("/observer-polls", get(observer_polls::list_polls))
         // Observer polls — observer endpoints (must be before :id routes)
-        .route(
-            "/observer-polls/accept",
-            post(observer_polls::accept_invite),
-        )
+        // observer-polls/accept is in poll_accept_routes() for rate limiting
         .route("/observer-polls/my-polls", get(observer_polls::my_polls))
         .route(
             "/observer-polls/export",
@@ -202,10 +364,7 @@ fn base_routes() -> Router<AppState> {
             "/observer-polls/:id/responses",
             get(observer_polls::list_responses),
         )
-        .route(
-            "/observer-polls/:id/respond",
-            put(observer_polls::submit_response),
-        )
+        // observer-polls/:id/respond is in poll_respond_routes() for rate limiting
         .route(
             "/observer-polls/:id/my-responses",
             get(observer_polls::my_responses),

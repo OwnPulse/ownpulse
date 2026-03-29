@@ -42,6 +42,7 @@ async-stream = "0.3"
 tokio-stream = "0.1"
 regex = "1"
 statrs = "0.17"
+ammonia = "4"
 
 [dev-dependencies]
 base64 = "0.22"
