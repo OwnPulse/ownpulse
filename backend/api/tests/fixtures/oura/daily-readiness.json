@@ -1,0 +1,18 @@
+{
+  "data": [
+    {
+      "id": "readiness-2026-03-28",
+      "day": "2026-03-28",
+      "score": 85.0,
+      "temperature_deviation": 0.12,
+      "timestamp": "2026-03-28T07:00:00+00:00",
+      "contributors": {
+        "resting_heart_rate": 62.0,
+        "hrv_balance": 45.0,
+        "body_temperature": 0.12,
+        "recovery_index": 90.0
+      }
+    }
+  ],
+  "next_token": null
+}

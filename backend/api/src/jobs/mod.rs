@@ -6,6 +6,7 @@
 //! Tokio background tasks — one file per integration sync job.
 //! Jobs: Google Calendar sync, Garmin sync, Oura sync, Dexcom sync (Phase 2).
 
+<<<<<<< HEAD
 pub mod insight_generator;
 
 use sqlx::PgPool;
@@ -40,3 +41,7 @@ pub fn spawn_insight_job(pool: PgPool, cancel: CancellationToken) {
         }
     });
 }
+=======
+pub mod garmin_sync;
+pub mod oura_sync;
+>>>>>>> 85867c6 (feat(backend): add Garmin and Oura integrations with OAuth and sync jobs)

@@ -1,0 +1,22 @@
+[
+  {
+    "calendarDate": "2026-03-27",
+    "totalSteps": 8543,
+    "restingHeartRate": 62.0,
+    "maxHeartRate": 145,
+    "averageStressLevel": 32.5,
+    "bodyBatteryHighestValue": 95.0,
+    "bodyBatteryLowestValue": 22.0,
+    "totalKilocalories": 2150.0
+  },
+  {
+    "calendarDate": "2026-03-28",
+    "totalSteps": 12301,
+    "restingHeartRate": 58.0,
+    "maxHeartRate": 162,
+    "averageStressLevel": 28.0,
+    "bodyBatteryHighestValue": 98.0,
+    "bodyBatteryLowestValue": 30.0,
+    "totalKilocalories": 2480.0
+  }
+]
