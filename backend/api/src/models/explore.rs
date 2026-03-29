@@ -20,6 +20,14 @@ pub enum MetricSource {
     Lab(String),
     Calendar(CalendarField),
     Sleep(SleepField),
+    ObserverPoll(ObserverPollField),
+}
+
+/// An observer poll metric field: the poll UUID and the dimension name.
+#[derive(Debug, Clone)]
+pub struct ObserverPollField {
+    pub poll_id: Uuid,
+    pub dimension: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -342,6 +350,37 @@ impl MetricSource {
             "sleep" => SleepField::parse(field)
                 .map(MetricSource::Sleep)
                 .ok_or_else(|| ApiError::BadRequest(format!("invalid sleep field: {field}"))),
+            "observer_polls" => {
+                // Field format: "<poll_id>:<dimension>"
+                let (poll_id_str, dimension) = field.split_once(':').ok_or_else(|| {
+                    ApiError::BadRequest(
+                        "observer_polls field must be <poll_id>:<dimension>".to_string(),
+                    )
+                })?;
+                let poll_id = Uuid::parse_str(poll_id_str).map_err(|_| {
+                    ApiError::BadRequest(format!("invalid poll_id in field: {poll_id_str}"))
+                })?;
+                if dimension.is_empty() {
+                    return Err(ApiError::BadRequest(
+                        "observer_polls dimension must not be empty".to_string(),
+                    ));
+                }
+                // Safety: dimension is interpolated into a JSONB key selector
+                // via format!. Restrict to alphanumeric + underscore to prevent
+                // any SQL injection through the key name.
+                if !dimension
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_')
+                {
+                    return Err(ApiError::BadRequest(
+                        "observer_polls dimension must contain only alphanumeric characters and underscores".to_string(),
+                    ));
+                }
+                Ok(MetricSource::ObserverPoll(ObserverPollField {
+                    poll_id,
+                    dimension: dimension.to_string(),
+                }))
+            }
             _ => Err(ApiError::BadRequest(format!("invalid source: {source}"))),
         }
     }
@@ -354,6 +393,7 @@ impl MetricSource {
             MetricSource::Lab(_) => "value".to_string(),
             MetricSource::Calendar(f) => f.unit().to_string(),
             MetricSource::Sleep(f) => f.unit().to_string(),
+            MetricSource::ObserverPoll(_) => "score".to_string(),
         }
     }
 }
@@ -525,6 +565,25 @@ pub fn validate_chart_config(config: &ChartConfig) -> Result<(), ApiError> {
 
 fn is_valid_hex_color(s: &str) -> bool {
     s.len() == 7 && s.starts_with('#') && s[1..].chars().all(|c| c.is_ascii_hexdigit())
+}
+
+// ---------------------------------------------------------------------------
+// Intervention marker types
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct InterventionMarkersQuery {
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct InterventionMarker {
+    pub t: DateTime<Utc>,
+    pub substance: String,
+    pub dose: Option<f64>,
+    pub unit: Option<String>,
+    pub route: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -768,6 +827,49 @@ mod tests {
             resolution: Resolution::Daily,
         };
         assert!(validate_chart_config(&config).is_err());
+    }
+
+    #[test]
+    fn parse_valid_observer_polls_field() {
+        let poll_id = Uuid::new_v4();
+        let field = format!("{poll_id}:energy");
+        let result = MetricSource::parse("observer_polls", &field);
+        assert!(result.is_ok());
+        if let MetricSource::ObserverPoll(f) = result.unwrap() {
+            assert_eq!(f.poll_id, poll_id);
+            assert_eq!(f.dimension, "energy");
+        } else {
+            panic!("expected ObserverPoll variant");
+        }
+    }
+
+    #[test]
+    fn parse_observer_polls_invalid_format() {
+        let result = MetricSource::parse("observer_polls", "not-a-uuid-colon-dim");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_observer_polls_missing_dimension() {
+        let poll_id = Uuid::new_v4();
+        let field = format!("{poll_id}:");
+        let result = MetricSource::parse("observer_polls", &field);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_observer_polls_no_colon() {
+        let result = MetricSource::parse("observer_polls", "just-a-string");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_observer_polls_rejects_injection() {
+        let poll_id = Uuid::new_v4();
+        // Attempt SQL injection via dimension name
+        let field = format!("{poll_id}:energy' OR '1'='1");
+        let result = MetricSource::parse("observer_polls", &field);
+        assert!(result.is_err());
     }
 
     #[test]
