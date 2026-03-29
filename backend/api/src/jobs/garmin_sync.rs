@@ -80,10 +80,14 @@ async fn run_sync(
         http_client.clone(),
     );
 
-    let tokens =
-        integration_tokens::list_for_user_by_source(pool, "garmin", &encryption_key, prev_key.as_ref())
-            .await
-            .map_err(|e| format!("failed to list Garmin tokens: {e}"))?;
+    let tokens = integration_tokens::list_for_user_by_source(
+        pool,
+        "garmin",
+        &encryption_key,
+        prev_key.as_ref(),
+    )
+    .await
+    .map_err(|e| format!("failed to list Garmin tokens: {e}"))?;
 
     for token_row in tokens {
         let user_id = token_row.user_id;
@@ -107,10 +111,7 @@ async fn sync_user(
 
     let access_token = AccessToken {
         oauth_token: token_row.access_token.clone(),
-        oauth_token_secret: token_row
-            .refresh_token
-            .clone()
-            .unwrap_or_default(),
+        oauth_token_secret: token_row.refresh_token.clone().unwrap_or_default(),
     };
 
     // Determine the date range to sync: since last sync or last 7 days.
@@ -126,14 +127,18 @@ async fn sync_user(
     let mut records_inserted = 0u32;
 
     // Fetch daily summaries
-    match client.get_daily_summary(&access_token, &start_str, &end_str).await {
+    match client
+        .get_daily_summary(&access_token, &start_str, &end_str)
+        .await
+    {
         Ok(summaries) => {
             for summary in summaries {
-                records_inserted +=
-                    insert_daily_summary_records(pool, user_id, &summary).await;
+                records_inserted += insert_daily_summary_records(pool, user_id, &summary).await;
             }
         }
-        Err(e) => tracing::warn!(user_id = %user_id, error = %e, "Garmin daily summary fetch failed"),
+        Err(e) => {
+            tracing::warn!(user_id = %user_id, error = %e, "Garmin daily summary fetch failed")
+        }
     }
 
     // Fetch sleep data
@@ -157,7 +162,10 @@ async fn sync_user(
     }
 
     // Fetch body composition
-    match client.get_body_comp(&access_token, &start_str, &end_str).await {
+    match client
+        .get_body_comp(&access_token, &start_str, &end_str)
+        .await
+    {
         Ok(body_comps) => {
             for bc in body_comps {
                 records_inserted += insert_body_comp_records(pool, user_id, &bc).await;
@@ -424,15 +432,13 @@ async fn try_insert_health_record(
                 }
             }
         }
-        Ok(None) => {
-            match health_records::insert(pool, user_id, record, None).await {
-                Ok(_) => true,
-                Err(e) => {
-                    tracing::warn!(error = %e, record_type = %record.record_type, "failed to insert health record from Garmin");
-                    false
-                }
+        Ok(None) => match health_records::insert(pool, user_id, record, None).await {
+            Ok(_) => true,
+            Err(e) => {
+                tracing::warn!(error = %e, record_type = %record.record_type, "failed to insert health record from Garmin");
+                false
             }
-        }
+        },
         Err(e) => {
             tracing::warn!(error = %e, "failed to check for duplicate health record");
             false

@@ -126,8 +126,7 @@ impl OuraClient {
         Self {
             client_id,
             client_secret,
-            api_base_url: api_base_url
-                .unwrap_or_else(|| "https://api.ouraring.com".to_string()),
+            api_base_url: api_base_url.unwrap_or_else(|| "https://api.ouraring.com".to_string()),
             auth_base_url: auth_base_url
                 .unwrap_or_else(|| "https://cloud.ouraring.com".to_string()),
             http,
@@ -222,8 +221,12 @@ impl OuraClient {
         end_date: &str,
     ) -> Result<OuraPaginatedResponse<OuraReadiness>, String> {
         let url = format!("{}/v2/usercollection/daily_readiness", self.api_base_url);
-        self.authenticated_get(&url, access_token, &[("start_date", start_date), ("end_date", end_date)])
-            .await
+        self.authenticated_get(
+            &url,
+            access_token,
+            &[("start_date", start_date), ("end_date", end_date)],
+        )
+        .await
     }
 
     /// Fetch daily sleep data for a date range.
@@ -234,8 +237,12 @@ impl OuraClient {
         end_date: &str,
     ) -> Result<OuraPaginatedResponse<OuraSleep>, String> {
         let url = format!("{}/v2/usercollection/daily_sleep", self.api_base_url);
-        self.authenticated_get(&url, access_token, &[("start_date", start_date), ("end_date", end_date)])
-            .await
+        self.authenticated_get(
+            &url,
+            access_token,
+            &[("start_date", start_date), ("end_date", end_date)],
+        )
+        .await
     }
 
     /// Fetch daily activity data for a date range.
@@ -246,8 +253,12 @@ impl OuraClient {
         end_date: &str,
     ) -> Result<OuraPaginatedResponse<OuraActivity>, String> {
         let url = format!("{}/v2/usercollection/daily_activity", self.api_base_url);
-        self.authenticated_get(&url, access_token, &[("start_date", start_date), ("end_date", end_date)])
-            .await
+        self.authenticated_get(
+            &url,
+            access_token,
+            &[("start_date", start_date), ("end_date", end_date)],
+        )
+        .await
     }
 
     /// Fetch heart rate data for a date range.
@@ -258,8 +269,12 @@ impl OuraClient {
         end_date: &str,
     ) -> Result<OuraPaginatedResponse<OuraHeartRate>, String> {
         let url = format!("{}/v2/usercollection/heartrate", self.api_base_url);
-        self.authenticated_get(&url, access_token, &[("start_date", start_date), ("end_date", end_date)])
-            .await
+        self.authenticated_get(
+            &url,
+            access_token,
+            &[("start_date", start_date), ("end_date", end_date)],
+        )
+        .await
     }
 
     /// Make an authenticated GET request and deserialize the JSON response.

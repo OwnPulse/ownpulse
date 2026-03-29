@@ -155,9 +155,7 @@ async fn oura_callback_exchanges_code_and_stores_tokens() {
         .app
         .clone()
         .oneshot(get_with_auth_and_cookies(
-            &format!(
-                "/api/v1/auth/oura/callback?code=test-auth-code&state={csrf_state}"
-            ),
+            &format!("/api/v1/auth/oura/callback?code=test-auth-code&state={csrf_state}"),
             &token,
             &format!("oura_oauth_state={csrf_state}"),
         ))
@@ -377,8 +375,9 @@ async fn garmin_callback_exchanges_tokens_and_stores() {
     Mock::given(method("POST"))
         .and(path("/oauth-service/oauth/access_token"))
         .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_string("oauth_token=access-token-789&oauth_token_secret=access-secret-012"),
+            ResponseTemplate::new(200).set_body_string(
+                "oauth_token=access-token-789&oauth_token_secret=access-secret-012",
+            ),
         )
         .mount(&garmin_mock)
         .await;
@@ -592,10 +591,7 @@ async fn disconnect_nonexistent_returns_204() {
     let response = app
         .app
         .clone()
-        .oneshot(delete_with_auth(
-            "/api/v1/integrations/garmin",
-            &token,
-        ))
+        .oneshot(delete_with_auth("/api/v1/integrations/garmin", &token))
         .await
         .unwrap();
 
@@ -722,11 +718,7 @@ async fn oura_client_fetches_daily_readiness() {
     assert_eq!(response.data.len(), 1);
     assert_eq!(response.data[0].score, Some(85.0));
     assert_eq!(
-        response.data[0]
-            .contributors
-            .as_ref()
-            .unwrap()
-            .hrv_balance,
+        response.data[0].contributors.as_ref().unwrap().hrv_balance,
         Some(45.0)
     );
 }
@@ -1007,13 +999,12 @@ async fn integration_tokens_upsert_encrypts_and_round_trips() {
     assert_eq!(row.refresh_token.as_deref(), Some("my-secret"));
 
     // But the database has encrypted values.
-    let db_row = sqlx::query_as::<_, (String,)>(
-        "SELECT access_token FROM integration_tokens WHERE id = $1",
-    )
-    .bind(row.id)
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
+    let db_row =
+        sqlx::query_as::<_, (String,)>("SELECT access_token FROM integration_tokens WHERE id = $1")
+            .bind(row.id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
 
     assert_ne!(db_row.0, "my-access-token");
     assert!(db_row.0.starts_with("v1:"));
@@ -1128,17 +1119,9 @@ async fn integration_tokens_update_sync_status() {
     )
     .unwrap();
 
-    api::db::integration_tokens::upsert(
-        &app.pool,
-        user_id,
-        "garmin",
-        "token",
-        None,
-        None,
-        &key,
-    )
-    .await
-    .unwrap();
+    api::db::integration_tokens::upsert(&app.pool, user_id, "garmin", "token", None, None, &key)
+        .await
+        .unwrap();
 
     // Update last_synced_at.
     api::db::integration_tokens::update_last_synced(&app.pool, user_id, "garmin")

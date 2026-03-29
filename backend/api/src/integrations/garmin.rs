@@ -199,8 +199,7 @@ fn build_oauth_header(
 
 /// Base64-encode bytes (standard alphabet, with padding).
 fn base64_encode(data: &[u8]) -> String {
-    const ALPHABET: &[u8] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut result = String::new();
     let chunks = data.chunks(3);
     for chunk in chunks {
@@ -254,10 +253,7 @@ impl GarminClient {
     }
 
     /// Step 1 of OAuth 1.0a: get a request token.
-    pub async fn get_request_token(
-        &self,
-        callback_url: &str,
-    ) -> Result<RequestToken, String> {
+    pub async fn get_request_token(&self, callback_url: &str) -> Result<RequestToken, String> {
         let url = format!("{}/oauth-service/oauth/request_token", self.base_url);
 
         let header = build_oauth_header(
@@ -367,8 +363,12 @@ impl GarminClient {
         end_date: &str,
     ) -> Result<Vec<GarminDailySummary>, String> {
         let url = format!("{}/wellness-api/rest/dailies", self.base_url);
-        self.signed_get(&url, token, &[("calendarDate", start_date), ("calendarDateEnd", end_date)])
-            .await
+        self.signed_get(
+            &url,
+            token,
+            &[("calendarDate", start_date), ("calendarDateEnd", end_date)],
+        )
+        .await
     }
 
     /// Fetch sleep data for a date range.
@@ -379,8 +379,12 @@ impl GarminClient {
         end_date: &str,
     ) -> Result<Vec<GarminSleep>, String> {
         let url = format!("{}/wellness-api/rest/sleeps", self.base_url);
-        self.signed_get(&url, token, &[("calendarDate", start_date), ("calendarDateEnd", end_date)])
-            .await
+        self.signed_get(
+            &url,
+            token,
+            &[("calendarDate", start_date), ("calendarDateEnd", end_date)],
+        )
+        .await
     }
 
     /// Fetch HRV data for a date range.
@@ -391,8 +395,12 @@ impl GarminClient {
         end_date: &str,
     ) -> Result<Vec<GarminHrv>, String> {
         let url = format!("{}/wellness-api/rest/hrv", self.base_url);
-        self.signed_get(&url, token, &[("calendarDate", start_date), ("calendarDateEnd", end_date)])
-            .await
+        self.signed_get(
+            &url,
+            token,
+            &[("calendarDate", start_date), ("calendarDateEnd", end_date)],
+        )
+        .await
     }
 
     /// Fetch body composition data for a date range.
@@ -403,8 +411,12 @@ impl GarminClient {
         end_date: &str,
     ) -> Result<Vec<GarminBodyComp>, String> {
         let url = format!("{}/wellness-api/rest/bodyComps", self.base_url);
-        self.signed_get(&url, token, &[("startDate", start_date), ("endDate", end_date)])
-            .await
+        self.signed_get(
+            &url,
+            token,
+            &[("startDate", start_date), ("endDate", end_date)],
+        )
+        .await
     }
 
     /// Make a signed GET request and deserialize the JSON response.

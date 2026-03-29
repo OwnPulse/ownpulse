@@ -81,10 +81,14 @@ async fn run_sync(
         http_client.clone(),
     );
 
-    let tokens =
-        integration_tokens::list_for_user_by_source(pool, "oura", &encryption_key, prev_key.as_ref())
-            .await
-            .map_err(|e| format!("failed to list Oura tokens: {e}"))?;
+    let tokens = integration_tokens::list_for_user_by_source(
+        pool,
+        "oura",
+        &encryption_key,
+        prev_key.as_ref(),
+    )
+    .await
+    .map_err(|e| format!("failed to list Oura tokens: {e}"))?;
 
     for token_row in tokens {
         let user_id = token_row.user_id;
@@ -155,7 +159,10 @@ async fn sync_user(
     let mut records_inserted = 0u32;
 
     // Fetch daily readiness
-    match client.get_daily_readiness(&access_token, &start_str, &end_str).await {
+    match client
+        .get_daily_readiness(&access_token, &start_str, &end_str)
+        .await
+    {
         Ok(response) => {
             for readiness in response.data {
                 records_inserted += insert_readiness_records(pool, user_id, &readiness).await;
@@ -165,7 +172,10 @@ async fn sync_user(
     }
 
     // Fetch daily sleep
-    match client.get_daily_sleep(&access_token, &start_str, &end_str).await {
+    match client
+        .get_daily_sleep(&access_token, &start_str, &end_str)
+        .await
+    {
         Ok(response) => {
             for sleep in response.data {
                 records_inserted += insert_oura_sleep(pool, user_id, &sleep).await;
@@ -175,7 +185,10 @@ async fn sync_user(
     }
 
     // Fetch daily activity
-    match client.get_daily_activity(&access_token, &start_str, &end_str).await {
+    match client
+        .get_daily_activity(&access_token, &start_str, &end_str)
+        .await
+    {
         Ok(response) => {
             for activity in response.data {
                 records_inserted += insert_activity_records(pool, user_id, &activity).await;

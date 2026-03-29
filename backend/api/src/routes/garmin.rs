@@ -164,10 +164,12 @@ pub async fn garmin_callback(
     } else {
         ""
     };
-    let clear_secret =
-        format!("garmin_oauth_secret=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
-    let clear_token =
-        format!("garmin_oauth_token=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
+    let clear_secret = format!(
+        "garmin_oauth_secret=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
+    );
+    let clear_token = format!(
+        "garmin_oauth_token=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
+    );
 
     let redirect_url = format!("{}/settings?connected=garmin", state.config.web_origin);
     let mut response = Redirect::to(&redirect_url).into_response();
