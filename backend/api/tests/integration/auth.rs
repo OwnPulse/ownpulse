@@ -1271,3 +1271,74 @@ async fn test_google_link_disabled_user_fails() {
         response.status()
     );
 }
+
+// ─── First-user bootstrap (invite bypass) ──────────────────────────────────────
+
+#[tokio::test]
+async fn test_register_first_user_without_invite_when_require_invite_enabled() {
+    let test_app = common::setup_with_config(|cfg| {
+        cfg.require_invite = true;
+    })
+    .await;
+
+    // No users exist — registration should succeed without an invite code.
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/register",
+            &json!({
+                "email": "first@example.com",
+                "password": "strongpassword123"
+            }),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        200,
+        "first user should register without invite code"
+    );
+    let json = body_json(response).await;
+    assert!(json["access_token"].is_string());
+}
+
+#[tokio::test]
+async fn test_register_second_user_without_invite_fails_when_require_invite_enabled() {
+    let test_app = common::setup_with_config(|cfg| {
+        cfg.require_invite = true;
+    })
+    .await;
+
+    // Insert an existing user so the table is no longer empty.
+    insert_test_user(&test_app.pool, "existing@example.com", "somepassword").await;
+
+    // Second registration without invite code should fail.
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/register",
+            &json!({
+                "email": "second@example.com",
+                "password": "strongpassword123"
+            }),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        400,
+        "second user without invite should be rejected"
+    );
+    let json = body_json(response).await;
+    assert!(
+        json["error"]
+            .as_str()
+            .unwrap_or("")
+            .contains("invite code required"),
+        "error message should mention invite code requirement"
+    );
+}

@@ -158,8 +158,17 @@ pub async fn register(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
+    // Skip invite requirement when this is the very first user (bootstrap).
+    let is_first_user = users::is_empty_tx(&mut tx)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    if is_first_user {
+        tracing::info!("first user registration — invite requirement bypassed");
+    }
+
     // Validate and claim invite code if required
-    let claimed_invite = if state.config.require_invite {
+    let claimed_invite = if state.config.require_invite && !is_first_user {
         let code = body
             .invite_code
             .as_deref()
@@ -623,8 +632,17 @@ pub async fn google_callback(
                 }
             }
 
+            // Skip invite requirement when this is the very first user (bootstrap).
+            let is_first_user = users::is_empty_tx(&mut tx)
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            if is_first_user {
+                tracing::info!("first user registration — invite requirement bypassed");
+            }
+
             // Claim invite if required, then create.
-            let claimed_invite = if state.config.require_invite {
+            let claimed_invite = if state.config.require_invite && !is_first_user {
                 let code = invite_code_cookie.ok_or_else(|| {
                     ApiError::BadRequest("invite code required for new account registration".into())
                 })?;
@@ -823,8 +841,17 @@ pub async fn apple_callback(
                 ));
             }
 
+            // Skip invite requirement when this is the very first user (bootstrap).
+            let is_first_user = users::is_empty_tx(&mut tx)
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            if is_first_user {
+                tracing::info!("first user registration — invite requirement bypassed");
+            }
+
             // Claim invite if required, then create.
-            let claimed_invite = if state.config.require_invite {
+            let claimed_invite = if state.config.require_invite && !is_first_user {
                 let code = body.invite_code.as_deref().ok_or_else(|| {
                     ApiError::BadRequest("invite code required for new account registration".into())
                 })?;
