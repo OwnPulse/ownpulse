@@ -22,6 +22,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import Friends from "./pages/Friends";
 import FriendView from "./pages/FriendView";
 import Genetics from "./pages/Genetics";
+import InviteLanding from "./pages/InviteLanding";
 import Login from "./pages/Login";
 import ObserverAccept from "./pages/ObserverAccept";
 import ObserverPolls from "./pages/ObserverPolls";
@@ -30,6 +31,7 @@ import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import ShareAccept from "./pages/ShareAccept";
 import Sources from "./pages/Sources";
+import Welcome from "./pages/Welcome";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +44,7 @@ ReactDOM.createRoot(rootEl).render(
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/invite/:code" element={<InviteLanding />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route element={<ProtectedRoute />}>
@@ -58,6 +61,7 @@ ReactDOM.createRoot(rootEl).render(
               <Route path="/friends/:friendId" element={<FriendView />} />
               <Route path="/observer-polls" element={<ObserverPolls />} />
             </Route>
+            <Route path="/welcome" element={<Welcome />} />
             <Route path="/share/accept" element={<ShareAccept />} />
             <Route path="/observe/accept" element={<ObserverAccept />} />
             <Route element={<AdminRoute />}>

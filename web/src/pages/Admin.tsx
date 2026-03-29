@@ -4,6 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type AdminUser, adminApi, type InviteCode } from "../api/admin";
+import { type InviteClaim, invitesApi } from "../api/invites";
 import { useAuthStore } from "../store/auth";
 import styles from "./Admin.module.css";
 
@@ -17,11 +18,16 @@ function decodeJwtSub(token: string | null): string | null {
   }
 }
 
-function statusBadge(status: string): React.ReactNode {
-  const isActive = status === "active";
-  return (
-    <span className={`op-badge ${isActive ? "op-badge-success" : "op-badge-error"}`}>{status}</span>
-  );
+function inviteStatusLabel(inv: InviteCode): "Active" | "Revoked" | "Expired" {
+  if (inv.revoked_at) return "Revoked";
+  if (inv.expires_at && new Date(inv.expires_at) < new Date()) return "Expired";
+  return "Active";
+}
+
+function statusBadgeClass(status: "Active" | "Revoked" | "Expired"): string {
+  if (status === "Active") return "op-badge op-badge-success";
+  if (status === "Revoked") return "op-badge op-badge-error";
+  return "op-badge op-badge-error";
 }
 
 function UsersSection() {
@@ -84,7 +90,13 @@ function UsersSection() {
                     <option value="user">user</option>
                   </select>
                 </td>
-                <td>{statusBadge(u.status)}</td>
+                <td>
+                  <span
+                    className={`op-badge ${u.status === "active" ? "op-badge-success" : "op-badge-error"}`}
+                  >
+                    {u.status}
+                  </span>
+                </td>
                 <td>{new Date(u.created_at).toLocaleDateString()}</td>
                 <td>
                   {!isSelf && (
@@ -123,6 +135,127 @@ function UsersSection() {
   );
 }
 
+function InviteStats({ invites }: { invites: InviteCode[] }) {
+  const active = invites.filter((i) => inviteStatusLabel(i) === "Active").length;
+  const expired = invites.filter((i) => inviteStatusLabel(i) === "Expired").length;
+  const revoked = invites.filter((i) => inviteStatusLabel(i) === "Revoked").length;
+  const totalUsed = invites.reduce((sum, i) => sum + i.use_count, 0);
+
+  return (
+    <div className={styles.statsSummary}>
+      <span className={styles.statItem}>
+        <span className={styles.statCount}>{active}</span> active
+      </span>
+      <span className={styles.statItem}>
+        <span className={styles.statCount}>{totalUsed}</span> used
+      </span>
+      <span className={styles.statItem}>
+        <span className={styles.statCount}>{expired}</span> expired
+      </span>
+      <span className={styles.statItem}>
+        <span className={styles.statCount}>{revoked}</span> revoked
+      </span>
+    </div>
+  );
+}
+
+function InviteClaimsList({ inviteId }: { inviteId: string }) {
+  const { data: claims, isLoading } = useQuery({
+    queryKey: ["invite-claims", inviteId],
+    queryFn: () => invitesApi.getClaims(inviteId),
+  });
+
+  if (isLoading) return <span className={styles.claimsLoading}>Loading...</span>;
+  if (!claims || claims.length === 0) return null;
+
+  return (
+    <ul className={styles.claimsList}>
+      {claims.map((c: InviteClaim) => (
+        <li key={c.user_email} className={styles.claimItem}>
+          {c.user_email}{" "}
+          <span className={styles.claimDate}>{new Date(c.claimed_at).toLocaleDateString()}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function UsageBar({ used, max }: { used: number; max: number }) {
+  const pct = Math.min(100, (used / max) * 100);
+  return (
+    <div className={styles.usageBarWrap}>
+      <div className={styles.usageBar}>
+        <div
+          className={styles.usageBarFill}
+          style={{ width: `${pct}%` }}
+          role="progressbar"
+          aria-valuenow={used}
+          aria-valuemin={0}
+          aria-valuemax={max}
+        />
+      </div>
+      <span className={styles.usageText}>
+        {used}/{max}
+      </span>
+    </div>
+  );
+}
+
+function InviteShareUrl({ code }: { code: string }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${window.location.origin}/invite/${code}`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className={styles.shareUrlWrap}>
+      <code className={styles.shareUrl}>{url}</code>
+      <button type="button" className="op-btn op-btn-ghost op-btn-sm" onClick={handleCopy}>
+        {copied ? "Copied!" : "Copy Link"}
+      </button>
+    </div>
+  );
+}
+
+function SendEmailForm({ inviteId }: { inviteId: string }) {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: (emailAddr: string) => invitesApi.sendEmail(inviteId, { email: emailAddr }),
+    onSuccess: () => {
+      setSent(true);
+      setEmail("");
+      setTimeout(() => setSent(false), 3000);
+    },
+  });
+
+  return (
+    <div className={styles.sendEmailRow}>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="recipient@example.com"
+        className={styles.createFormInput}
+        aria-label="Recipient email"
+      />
+      <button
+        type="button"
+        className="op-btn op-btn-ghost op-btn-sm"
+        disabled={!email || mutation.isPending}
+        onClick={() => mutation.mutate(email)}
+      >
+        {sent ? "Sent!" : "Send Email"}
+      </button>
+    </div>
+  );
+}
+
 function InvitesSection() {
   const queryClient = useQueryClient();
   const { data: invites, isLoading } = useQuery({
@@ -133,17 +266,24 @@ function InvitesSection() {
   const [label, setLabel] = useState("");
   const [maxUses, setMaxUses] = useState("");
   const [expiresInHours, setExpiresInHours] = useState("");
-  const [copied, setCopied] = useState<string | null>(null);
+  const [sendEmail, setSendEmail] = useState("");
+  const [createdInvite, setCreatedInvite] = useState<InviteCode | null>(null);
+  const [expandedClaims, setExpandedClaims] = useState<Set<string>>(new Set());
 
   const createMutation = useMutation({
     mutationFn: (data: { label?: string; max_uses?: number; expires_in_hours?: number }) =>
       adminApi.createInvite(data),
-    onSuccess: () => {
+    onSuccess: (invite) => {
       queryClient.invalidateQueries({ queryKey: ["admin-invites"] });
+      setCreatedInvite(invite);
       setShowForm(false);
       setLabel("");
       setMaxUses("");
       setExpiresInHours("");
+      if (sendEmail) {
+        invitesApi.sendEmail(invite.id, { email: sendEmail });
+        setSendEmail("");
+      }
     },
   });
   const revokeMutation = useMutation({
@@ -160,16 +300,16 @@ function InvitesSection() {
     });
   };
 
-  const copyUrl = (code: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}/register?invite=${code}`);
-    setCopied(code);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const inviteStatus = (inv: InviteCode): string => {
-    if (inv.revoked_at) return "Revoked";
-    if (inv.expires_at && new Date(inv.expires_at) < new Date()) return "Expired";
-    return "Active";
+  const toggleClaims = (id: string) => {
+    setExpandedClaims((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   return (
@@ -179,11 +319,16 @@ function InvitesSection() {
         <button
           type="button"
           className="op-btn op-btn-primary op-btn-sm"
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setShowForm(!showForm);
+            setCreatedInvite(null);
+          }}
         >
           {showForm ? "Cancel" : "Create Invite"}
         </button>
       </div>
+
+      {invites && invites.length > 0 && <InviteStats invites={invites} />}
 
       {showForm && (
         <form onSubmit={handleCreate} className={styles.createForm}>
@@ -228,6 +373,19 @@ function InvitesSection() {
               className={styles.createFormInputNarrow}
             />
           </div>
+          <div className={styles.createFormField}>
+            <label htmlFor="invite-send-email" className={styles.createFormLabel}>
+              Send via email (optional)
+            </label>
+            <input
+              id="invite-send-email"
+              type="email"
+              value={sendEmail}
+              onChange={(e) => setSendEmail(e.target.value)}
+              placeholder="recipient@example.com"
+              className={styles.createFormInput}
+            />
+          </div>
           <button
             type="submit"
             disabled={createMutation.isPending}
@@ -236,6 +394,14 @@ function InvitesSection() {
             Create
           </button>
         </form>
+      )}
+
+      {createdInvite && (
+        <div className={styles.createdInviteCard}>
+          <p className={styles.createdInviteTitle}>Invite created</p>
+          <InviteShareUrl code={createdInvite.code} />
+          <SendEmailForm inviteId={createdInvite.id} />
+        </div>
       )}
 
       <div className={styles.section}>
@@ -254,37 +420,60 @@ function InvitesSection() {
               </tr>
             </thead>
             <tbody>
-              {invites?.map((inv: InviteCode) => (
-                <tr key={inv.id}>
-                  <td className={styles.codeCell}>{inv.code}</td>
-                  <td>{inv.label || "\u2014"}</td>
-                  <td>
-                    {inv.use_count}/{inv.max_uses ?? "\u221E"}
-                  </td>
-                  <td>{inv.expires_at ? new Date(inv.expires_at).toLocaleString() : "Never"}</td>
-                  <td>{statusBadge(inviteStatus(inv) === "Active" ? "active" : "disabled")}</td>
-                  <td>
-                    <span className={styles.actions}>
-                      <button
-                        type="button"
-                        className="op-btn op-btn-ghost op-btn-sm"
-                        onClick={() => copyUrl(inv.code)}
-                      >
-                        {copied === inv.code ? "Copied!" : "Copy URL"}
-                      </button>
-                      {inviteStatus(inv) === "Active" && (
+              {invites?.map((inv: InviteCode) => {
+                const status = inviteStatusLabel(inv);
+                return (
+                  <tr key={inv.id}>
+                    <td className={styles.codeCell}>{inv.code}</td>
+                    <td>{inv.label || "\u2014"}</td>
+                    <td>
+                      {inv.max_uses ? (
+                        <UsageBar used={inv.use_count} max={inv.max_uses} />
+                      ) : (
+                        <span>{inv.use_count}/\u221E</span>
+                      )}
+                    </td>
+                    <td>{inv.expires_at ? new Date(inv.expires_at).toLocaleString() : "Never"}</td>
+                    <td>
+                      <span className={statusBadgeClass(status)}>{status.toLowerCase()}</span>
+                    </td>
+                    <td>
+                      <span className={styles.actions}>
                         <button
                           type="button"
-                          className="op-btn op-btn-danger op-btn-sm"
-                          onClick={() => revokeMutation.mutate(inv.id)}
+                          className="op-btn op-btn-ghost op-btn-sm"
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              `${window.location.origin}/invite/${inv.code}`,
+                            );
+                          }}
                         >
-                          Revoke
+                          Copy Link
                         </button>
-                      )}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                        {inv.use_count > 0 && (
+                          <button
+                            type="button"
+                            className="op-btn op-btn-ghost op-btn-sm"
+                            onClick={() => toggleClaims(inv.id)}
+                          >
+                            {expandedClaims.has(inv.id) ? "Hide Claims" : "Show Claims"}
+                          </button>
+                        )}
+                        {status === "Active" && (
+                          <button
+                            type="button"
+                            className="op-btn op-btn-danger op-btn-sm"
+                            onClick={() => revokeMutation.mutate(inv.id)}
+                          >
+                            Revoke
+                          </button>
+                        )}
+                      </span>
+                      {expandedClaims.has(inv.id) && <InviteClaimsList inviteId={inv.id} />}
+                    </td>
+                  </tr>
+                );
+              })}
               {invites?.length === 0 && (
                 <tr>
                   <td colSpan={6} className="op-empty">
