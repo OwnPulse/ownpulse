@@ -5,14 +5,6 @@ use crate::models::user::UserRow;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Returns true if no users exist in the database.
-pub async fn is_empty(pool: &PgPool) -> Result<bool, sqlx::Error> {
-    let (exists,): (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users)")
-        .fetch_one(pool)
-        .await?;
-    Ok(!exists)
-}
-
 /// Returns true if no users exist in the database (transaction-aware variant).
 pub async fn is_empty_tx(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -21,6 +13,29 @@ pub async fn is_empty_tx(
         .fetch_one(&mut **tx)
         .await?;
     Ok(!exists)
+}
+
+/// Acquire a transaction-scoped advisory lock for first-user bootstrap.
+/// Prevents two concurrent registrations from both bypassing the invite requirement.
+pub async fn acquire_bootstrap_lock_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("SELECT pg_advisory_xact_lock(1)")
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
+}
+
+/// Promote a user to admin role within a transaction.
+pub async fn promote_to_admin_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query("UPDATE users SET role = 'admin' WHERE id = $1")
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await?;
+    Ok(())
 }
 
 /// Find a user by primary key.
