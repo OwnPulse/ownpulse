@@ -8,6 +8,7 @@ pub mod db;
 pub mod email;
 pub mod error;
 pub mod export;
+pub mod genetics;
 pub mod integrations;
 pub mod jobs;
 pub mod migrate;

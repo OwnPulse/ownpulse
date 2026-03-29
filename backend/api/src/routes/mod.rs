@@ -16,6 +16,7 @@ pub mod explore;
 pub mod export;
 pub mod friends;
 pub mod garmin;
+pub mod genetics;
 pub mod health_records;
 pub mod healthkit;
 pub mod insights;
@@ -312,6 +313,12 @@ fn base_routes() -> Router<AppState> {
         // Integrations
         .route("/integrations", get(integrations::list))
         .route("/integrations/:source", delete(integrations::disconnect))
+        // Genetics
+        .route("/genetics/upload", post(genetics::upload))
+        .route("/genetics/summary", get(genetics::summary))
+        .route("/genetics/interpretations", get(genetics::interpretations))
+        .route("/genetics", get(genetics::list))
+        .route("/genetics", delete(genetics::delete_all))
         // Insights
         .route("/insights", get(insights::list))
         .route("/insights/generate", post(insights::generate))

@@ -5,6 +5,7 @@ pub mod checkin;
 pub mod event;
 pub mod explore;
 pub mod friend_share;
+pub mod genetics;
 pub mod health_record;
 pub mod healthkit;
 pub mod insight;

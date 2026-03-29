@@ -9,6 +9,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::models::checkin::CheckinRow;
+use crate::models::genetics::GeneticRecordRow;
 use crate::models::health_record::HealthRecordRow;
 use crate::models::intervention::InterventionRow;
 use crate::models::lab_result::LabResultRow;
@@ -67,7 +68,17 @@ pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sq
     .fetch_all(pool)
     .await?;
 
-    let payload = serde_json::json!({
+    // Only include genetic records if the user has any (avoid empty array for non-uploaders)
+    let genetic_records = sqlx::query_as::<_, GeneticRecordRow>(
+        "SELECT id, user_id, source, rsid, chromosome, position, genotype, \
+         uploaded_file_id, created_at \
+         FROM genetic_records WHERE user_id = $1 ORDER BY chromosome, position",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    let mut payload = serde_json::json!({
         "schema_version": "0.1.0",
         "exported_at": Utc::now(),
         "health_records": health_records,
@@ -76,6 +87,11 @@ pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sq
         "lab_results": lab_results,
         "observations": observations,
     });
+
+    if !genetic_records.is_empty() {
+        payload["genetic_records"] = serde_json::to_value(&genetic_records)
+            .expect("serialization of genetic records should not fail");
+    }
 
     let json_bytes =
         serde_json::to_vec(&payload).expect("serialization of export payload should not fail");

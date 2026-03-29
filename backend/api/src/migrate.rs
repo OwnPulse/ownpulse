@@ -84,6 +84,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0019_insights.sql",
         include_str!("../../../db/migrations/0019_insights.sql"),
     ),
+    (
+        "0020_snp_annotations.sql",
+        include_str!("../../../db/migrations/0020_snp_annotations.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -307,6 +311,10 @@ async fn detect_applied_migrations(pool: &PgPool) -> Result<(), MigrateError> {
         (
             "0019_insights.sql",
             "SELECT to_regclass('public.insights') IS NOT NULL",
+        ),
+        (
+            "0020_snp_annotations.sql",
+            "SELECT to_regclass('public.snp_annotations') IS NOT NULL",
         ),
     ];
 
