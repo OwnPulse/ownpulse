@@ -1,0 +1,139 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 3rem 2rem;
+  border: 2px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-elevated);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.dropzone:hover {
+  border-color: var(--color-primary);
+}
+
+.dragOver {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.dropzoneCompact {
+  padding: 1.5rem;
+}
+
+.compact {
+  margin-bottom: 1rem;
+}
+
+.heading {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+}
+
+.subtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.chooseBtn {
+  pointer-events: none;
+}
+
+.selected {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.fileName {
+  flex: 1;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  margin: 0;
+}
+
+.progress {
+  margin-top: 1rem;
+}
+
+.progressBar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-primary-light);
+  overflow: hidden;
+  position: relative;
+}
+
+.progressBar::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 40%;
+  background: var(--color-primary);
+  border-radius: 2px;
+  animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes indeterminate {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.progressText {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 0.5rem 0 0;
+  text-align: center;
+}
+
+.result {
+  margin-top: 1rem;
+}
+
+.resultStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 0.75rem;
+  margin: 0.75rem 0 0;
+}
+
+.resultStats dt {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.resultStats dd {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0;
+}

@@ -554,23 +554,14 @@
           ]
         }
       }
-    }
-    ,
+    },
     {
-<<<<<<< HEAD
       "description": "a request to list interventions with date filters",
       "providerState": "interventions exist",
       "request": {
         "method": "GET",
         "path": "/api/v1/interventions",
         "query": "start=2026-03-01T00%3A00%3A00Z&end=2026-03-07T23%3A59%3A59Z",
-=======
-      "description": "a request to list insights",
-      "providerState": "insights exist for the user",
-      "request": {
-        "method": "GET",
-        "path": "/api/v1/insights",
->>>>>>> 3abc0a5 (feat(web): add insight cards on dashboard — trend, anomaly, streak, missing data)
         "headers": {
           "Authorization": "Bearer some-jwt-token"
         }
@@ -583,7 +574,6 @@
         "body": [
           {
             "id": "uuid-1",
-<<<<<<< HEAD
             "user_id": "user-1",
             "substance": "Caffeine",
             "dose": 200,
@@ -592,7 +582,28 @@
             "administered_at": "2026-03-02T08:00:00Z",
             "fasted": false,
             "created_at": "2026-03-02T08:00:00Z"
-=======
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to list insights",
+      "providerState": "insights exist for the user",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/insights",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "uuid-1",
             "insight_type": "trend",
             "headline": "Energy trending up 15%",
             "detail": "Average went from 5.2 to 6.0",
@@ -604,39 +615,11 @@
               }
             },
             "created_at": "2026-03-28T06:00:00Z"
->>>>>>> 3abc0a5 (feat(web): add insight cards on dashboard — trend, anomaly, streak, missing data)
           }
         ]
       }
     },
     {
-<<<<<<< HEAD
-      "description": "a request to fetch explore metrics including observer polls",
-      "providerState": "observer polls exist with explore metrics",
-      "request": {
-        "method": "GET",
-        "path": "/api/v1/explore/metrics",
-        "headers": {
-          "Authorization": "Bearer some-jwt-token"
-=======
-      "description": "a request to run before-after analysis",
-      "providerState": "interventions and health records exist",
-      "request": {
-        "method": "POST",
-        "path": "/api/v1/stats/before-after",
-        "headers": {
-          "Authorization": "Bearer some-jwt-token",
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "intervention_substance": "Magnesium",
-          "metric": { "source": "checkins", "field": "energy" },
-          "before_days": 30,
-          "after_days": 30,
-          "resolution": "daily"
->>>>>>> 9552073 (feat(web): add Analyze page — before/after, correlation, lag analysis)
-        }
-=======
       "description": "a request to dismiss an insight",
       "providerState": "insight exists",
       "request": {
@@ -662,16 +645,46 @@
           "Content-Type": "application/json"
         },
         "body": {}
->>>>>>> 3abc0a5 (feat(web): add insight cards on dashboard — trend, anomaly, streak, missing data)
       },
       "response": {
         "status": 200,
         "headers": {
           "Content-Type": "application/json"
         },
-<<<<<<< HEAD
+        "body": [
+          {
+            "id": "uuid-1",
+            "insight_type": "trend",
+            "headline": "Energy trending up 15%",
+            "detail": "Average went from 5.2 to 6.0",
+            "metadata": {
+              "explore_params": {
+                "source": "checkins",
+                "field": "energy",
+                "preset": "30d"
+              }
+            },
+            "created_at": "2026-03-28T06:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to fetch explore metrics including observer polls",
+      "providerState": "observer polls exist with explore metrics",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/explore/metrics",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
         "body": {
-<<<<<<< HEAD
           "sources": [
             {
               "source": "checkins",
@@ -688,7 +701,33 @@
               ]
             }
           ]
-=======
+        }
+      }
+    },
+    {
+      "description": "a request to run before-after analysis",
+      "providerState": "interventions and health records exist",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/stats/before-after",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "intervention_substance": "Magnesium",
+          "metric": { "source": "checkins", "field": "energy" },
+          "before_days": 30,
+          "after_days": 30,
+          "resolution": "daily"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
           "intervention_substance": "Magnesium",
           "first_dose": "2026-01-15T08:00:00Z",
           "last_dose": null,
@@ -783,26 +822,138 @@
           ],
           "best_lag": { "lag": 1, "r": 0.72, "p_value": 0.001, "n": 59 },
           "method": "pearson"
->>>>>>> 9552073 (feat(web): add Analyze page — before/after, correlation, lag analysis)
         }
-=======
-        "body": [
-          {
-            "id": "uuid-1",
-            "insight_type": "trend",
-            "headline": "Energy trending up 15%",
-            "detail": "Average went from 5.2 to 6.0",
-            "metadata": {
-              "explore_params": {
-                "source": "checkins",
-                "field": "energy",
-                "preset": "30d"
-              }
-            },
-            "created_at": "2026-03-28T06:00:00Z"
-          }
-        ]
->>>>>>> 3abc0a5 (feat(web): add insight cards on dashboard — trend, anomaly, streak, missing data)
+      }
+    },
+    {
+      "description": "a request to get genetic data summary",
+      "providerState": "genetic data exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/genetics/summary",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "total_variants": 650000,
+          "source": "23andMe",
+          "uploaded_at": "2026-03-20T10:00:00Z",
+          "chromosomes": { "1": 50000, "22": 30000, "X": 20000 },
+          "annotated_count": 42
+        }
+      }
+    },
+    {
+      "description": "a request to list genetic records",
+      "providerState": "genetic data exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/genetics",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "records": [
+            {
+              "rsid": "rs1801133",
+              "chromosome": "1",
+              "position": 11856378,
+              "genotype": "CT",
+              "created_at": "2026-03-20T10:00:00Z"
+            }
+          ],
+          "total": 650000,
+          "page": 1,
+          "per_page": 50
+        }
+      }
+    },
+    {
+      "description": "a request to get genetic interpretations",
+      "providerState": "genetic data exists with interpretations",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/genetics/interpretations",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "interpretations": [
+            {
+              "rsid": "rs1801133",
+              "gene": "MTHFR",
+              "chromosome": "1",
+              "position": 11856378,
+              "user_genotype": "CT",
+              "category": "health_risk",
+              "title": "MTHFR C677T Variant",
+              "summary": "You carry one copy of the C677T variant.",
+              "risk_level": "moderate",
+              "significance": "Associated with reduced folate metabolism",
+              "evidence_level": "strong",
+              "source": "ClinVar",
+              "source_id": "3520",
+              "population_frequency": 0.34,
+              "details": {}
+            }
+          ],
+          "disclaimer": "This information is for educational purposes only and should not be used for medical decisions."
+        }
+      }
+    },
+    {
+      "description": "a request to upload genetic data",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/genetics/upload",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "total_variants": 650000,
+          "new_variants": 649500,
+          "duplicates_skipped": 500,
+          "format": "23andMe_v5",
+          "source": "23andMe"
+        }
+      }
+    },
+    {
+      "description": "a request to delete all genetic data",
+      "providerState": "genetic data exists",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/genetics",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 204
       }
     }
   ],

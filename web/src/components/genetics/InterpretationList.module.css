@@ -1,0 +1,12 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.section {
+  margin-top: 2rem;
+}
+
+.heading {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  margin: 0 0 1rem;
+  color: var(--color-text);
+}
