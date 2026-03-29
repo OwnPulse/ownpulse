@@ -1305,6 +1305,107 @@ async fn test_register_first_user_without_invite_when_require_invite_enabled() {
 }
 
 #[tokio::test]
+async fn test_register_first_user_gets_admin_role() {
+    let test_app = common::setup_with_config(|cfg| {
+        cfg.require_invite = true;
+    })
+    .await;
+
+    // No users exist — first user should be promoted to admin.
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/register",
+            &json!({
+                "email": "admin-first@example.com",
+                "password": "strongpassword123"
+            }),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200, "first user should register successfully");
+    let json = body_json(response).await;
+    let access_token = json["access_token"].as_str().expect("access_token missing");
+
+    // Decode the JWT to verify the role claim is "admin"
+    let claims = api::auth::jwt::decode_access_token(
+        access_token,
+        "test-jwt-secret-at-least-32-bytes-long",
+        "http://localhost:5173",
+    )
+    .expect("failed to decode access token");
+    assert_eq!(claims.role, "admin", "first user should have admin role in JWT");
+
+    // Also verify the database row was updated
+    let row: (String,) =
+        sqlx::query_as("SELECT role FROM users WHERE email = 'admin-first@example.com'")
+            .fetch_one(&test_app.pool)
+            .await
+            .expect("failed to query user");
+    assert_eq!(row.0, "admin", "first user should have admin role in database");
+}
+
+#[tokio::test]
+async fn test_register_second_user_gets_user_role() {
+    let test_app = common::setup_with_config(|cfg| {
+        cfg.require_invite = false;
+    })
+    .await;
+
+    // Create the first user (will become admin).
+    let first_response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/register",
+            &json!({
+                "email": "first-user@example.com",
+                "password": "strongpassword123"
+            }),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first_response.status(), 200);
+
+    // Second user registration — should get "user" role, not "admin".
+    let response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/register",
+            &json!({
+                "email": "second-user@example.com",
+                "password": "strongpassword456"
+            }),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200, "second user should register successfully");
+    let json = body_json(response).await;
+    let access_token = json["access_token"].as_str().expect("access_token missing");
+
+    // Decode the JWT to verify the role claim is "user"
+    let claims = api::auth::jwt::decode_access_token(
+        access_token,
+        "test-jwt-secret-at-least-32-bytes-long",
+        "http://localhost:5173",
+    )
+    .expect("failed to decode access token");
+    assert_eq!(claims.role, "user", "second user should have user role in JWT");
+
+    // Also verify the database row
+    let row: (String,) =
+        sqlx::query_as("SELECT role FROM users WHERE email = 'second-user@example.com'")
+            .fetch_one(&test_app.pool)
+            .await
+            .expect("failed to query user");
+    assert_eq!(row.0, "user", "second user should have user role in database");
+}
+
+#[tokio::test]
 async fn test_register_second_user_without_invite_fails_when_require_invite_enabled() {
     let test_app = common::setup_with_config(|cfg| {
         cfg.require_invite = true;

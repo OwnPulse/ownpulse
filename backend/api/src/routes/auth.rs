@@ -163,6 +163,19 @@ pub async fn register(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
+    // If first user, acquire advisory lock and re-check to prevent TOCTOU race
+    let is_first_user = if is_first_user {
+        users::acquire_bootstrap_lock_tx(&mut tx)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        // Re-check after acquiring lock — another request may have created a user
+        users::is_empty_tx(&mut tx)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?
+    } else {
+        false
+    };
+
     if is_first_user {
         tracing::info!("first user registration — invite requirement bypassed");
     }
@@ -224,11 +237,22 @@ pub async fn register(
             .map_err(|e| ApiError::Internal(e.to_string()))?;
     }
 
+    // Promote first user to admin so they can create invite codes
+    let role = if is_first_user {
+        users::promote_to_admin_tx(&mut tx, user.id)
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+        tracing::info!(user_id = %user.id, "first user promoted to admin");
+        "admin"
+    } else {
+        &user.role
+    };
+
     tx.commit()
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    issue_tokens(&state, user.id, &user.role).await
+    issue_tokens(&state, user.id, role).await
 }
 
 /// POST /auth/refresh — rotate refresh token, issue new access + refresh.
@@ -595,13 +619,13 @@ pub async fn google_callback(
     let existing_user =
         users::find_google_user_tx(&mut tx, &google_user.sub, &google_user.email).await;
 
-    let user = match existing_user {
+    let (user, google_is_first_user) = match existing_user {
         Ok(user) => {
             // Existing user — no invite needed.
             tx.commit()
                 .await
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
-            user
+            (user, false)
         }
         Err(sqlx::Error::RowNotFound) => {
             // New user — before creating, check for email collision with an
@@ -636,6 +660,19 @@ pub async fn google_callback(
             let is_first_user = users::is_empty_tx(&mut tx)
                 .await
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            // If first user, acquire advisory lock and re-check to prevent TOCTOU race
+            let is_first_user = if is_first_user {
+                users::acquire_bootstrap_lock_tx(&mut tx)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                // Re-check after acquiring lock — another request may have created a user
+                users::is_empty_tx(&mut tx)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?
+            } else {
+                false
+            };
 
             if is_first_user {
                 tracing::info!("first user registration — invite requirement bypassed");
@@ -676,19 +713,34 @@ pub async fn google_callback(
                     .map_err(|e| ApiError::Internal(e.to_string()))?;
             }
 
+            // Promote first user to admin so they can create invite codes
+            if is_first_user {
+                users::promote_to_admin_tx(&mut tx, user.id)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                tracing::info!(user_id = %user.id, "first user promoted to admin");
+            }
+
             tx.commit()
                 .await
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
-            user
+            (user, is_first_user)
         }
         Err(e) => return Err(ApiError::Internal(e.to_string())),
+    };
+
+    // Use "admin" for token if first user was promoted, since the struct still has "user"
+    let effective_role = if google_is_first_user {
+        "admin"
+    } else {
+        &user.role
     };
 
     if user.status != "active" {
         // Disabled users get a short-lived access token only (no refresh token,
         // no refresh cookie). This lets them reach export and self-delete routes
         // before the token expires — same behaviour as password login.
-        return issue_access_token_only(&state, user.id, &user.role).await;
+        return issue_access_token_only(&state, user.id, effective_role).await;
     }
 
     // Issue tokens and build the response (shared by both invite and non-invite paths).
@@ -703,7 +755,7 @@ pub async fn google_callback(
 
     let access_token = encode_access_token(
         user.id,
-        &user.role,
+        effective_role,
         &state.config.jwt_secret,
         &state.config.web_origin,
         state.config.jwt_expiry_seconds,
@@ -815,13 +867,13 @@ pub async fn apple_callback(
     // Check if user already exists *inside* the transaction.
     let existing_user = users::find_apple_user_tx(&mut tx, &apple_user.sub, Some(email)).await;
 
-    let user = match existing_user {
+    let (user, apple_is_first_user) = match existing_user {
         Ok(user) => {
             // Existing user — no invite needed.
             tx.commit()
                 .await
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
-            user
+            (user, false)
         }
         Err(sqlx::Error::RowNotFound) => {
             // New user — before creating, check for email collision with an
@@ -845,6 +897,19 @@ pub async fn apple_callback(
             let is_first_user = users::is_empty_tx(&mut tx)
                 .await
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            // If first user, acquire advisory lock and re-check to prevent TOCTOU race
+            let is_first_user = if is_first_user {
+                users::acquire_bootstrap_lock_tx(&mut tx)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                // Re-check after acquiring lock — another request may have created a user
+                users::is_empty_tx(&mut tx)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?
+            } else {
+                false
+            };
 
             if is_first_user {
                 tracing::info!("first user registration — invite requirement bypassed");
@@ -886,23 +951,38 @@ pub async fn apple_callback(
                     .map_err(|e| ApiError::Internal(e.to_string()))?;
             }
 
+            // Promote first user to admin so they can create invite codes
+            if is_first_user {
+                users::promote_to_admin_tx(&mut tx, user.id)
+                    .await
+                    .map_err(|e| ApiError::Internal(e.to_string()))?;
+                tracing::info!(user_id = %user.id, "first user promoted to admin");
+            }
+
             tx.commit()
                 .await
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
-            user
+            (user, is_first_user)
         }
         Err(e) => return Err(ApiError::Internal(e.to_string())),
+    };
+
+    // Use "admin" for token if first user was promoted, since the struct still has "user"
+    let effective_role = if apple_is_first_user {
+        "admin"
+    } else {
+        &user.role
     };
 
     if user.status != "active" {
         // Disabled users get a short-lived access token only (no refresh token,
         // no refresh cookie). This lets them reach export and self-delete routes
         // before the token expires — same behaviour as password login.
-        return issue_access_token_only(&state, user.id, &user.role).await;
+        return issue_access_token_only(&state, user.id, effective_role).await;
     }
 
     let is_web = body.platform == "web";
-    issue_tokens_response(&state, user.id, &user.role, is_web).await
+    issue_tokens_response(&state, user.id, effective_role, is_web).await
 }
 
 /// POST /auth/link — link a new auth provider to the authenticated user's account.

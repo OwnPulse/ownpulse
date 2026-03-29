@@ -32,6 +32,8 @@ All endpoints require JWT authentication unless marked as public. Tokens are iss
 
 Register a new account. When the instance requires invites (`REQUIRE_INVITE=true`, the default), a valid invite code must be provided.
 
+**First-user exception:** When the users table is empty (fresh instance), the first registration bypasses the invite requirement and the user is automatically promoted to admin. This is protected by a PostgreSQL advisory lock to prevent race conditions.
+
 **Request body:**
 
 ```json

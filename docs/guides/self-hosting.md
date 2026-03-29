@@ -74,6 +74,8 @@ kubectl get pods -n ownpulse
 
 Open `https://app.yourdomain.com` in your browser and create your account.
 
+> **First-user bootstrap:** The first user to register on a fresh instance is automatically promoted to admin and does not need an invite code. After that, the admin can create invite codes for other users.
+
 ## Configuration
 
 ### Environment variables
