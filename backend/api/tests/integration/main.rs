@@ -11,6 +11,7 @@ mod common;
 mod explore;
 mod export;
 mod friends;
+mod genetics;
 mod health_records;
 mod insights;
 mod integrations;
