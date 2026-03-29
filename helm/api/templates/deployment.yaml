@@ -44,6 +44,10 @@ spec:
                 name: {{ include "ownpulse-api.fullname" . }}
             - secretRef:
                 name: {{ .Values.secret.name }}
+            {{- if .Values.smtpSecret }}
+            - secretRef:
+                name: {{ .Values.smtpSecret }}
+            {{- end }}
           {{- if or .Values.otelEndpoint .Values.otelTlsSecret }}
           env:
             {{- if .Values.otelEndpoint }}
