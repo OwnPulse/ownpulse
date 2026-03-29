@@ -5,6 +5,24 @@ use crate::models::user::UserRow;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+/// Returns true if no users exist in the database.
+pub async fn is_empty(pool: &PgPool) -> Result<bool, sqlx::Error> {
+    let (exists,): (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users)")
+        .fetch_one(pool)
+        .await?;
+    Ok(!exists)
+}
+
+/// Returns true if no users exist in the database (transaction-aware variant).
+pub async fn is_empty_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+) -> Result<bool, sqlx::Error> {
+    let (exists,): (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users)")
+        .fetch_one(&mut **tx)
+        .await?;
+    Ok(!exists)
+}
+
 /// Find a user by primary key.
 pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(

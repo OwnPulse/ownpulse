@@ -170,6 +170,9 @@ async fn test_register_without_invite_when_required() {
     })
     .await;
 
+    // Insert an existing user so the first-user bootstrap does not apply.
+    common::create_test_user(&app).await;
+
     let response = app
         .app
         .clone()
@@ -206,6 +209,9 @@ async fn test_register_with_invalid_invite() {
         c.require_invite = true;
     })
     .await;
+
+    // Insert an existing user so the first-user bootstrap does not apply.
+    common::create_test_user(&app).await;
 
     let response = app
         .app
