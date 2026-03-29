@@ -17,6 +17,7 @@ pub mod export;
 pub mod friends;
 pub mod health_records;
 pub mod healthkit;
+pub mod insights;
 pub mod integrations;
 pub mod interventions;
 pub mod labs;
@@ -305,6 +306,10 @@ fn base_routes() -> Router<AppState> {
         // Integrations
         .route("/integrations", get(integrations::list))
         .route("/integrations/:source", delete(integrations::disconnect))
+        // Insights
+        .route("/insights", get(insights::list))
+        .route("/insights/generate", post(insights::generate))
+        .route("/insights/:id/dismiss", post(insights::dismiss))
         // Dashboard
         .route("/dashboard/summary", get(dashboard::summary))
         // Admin

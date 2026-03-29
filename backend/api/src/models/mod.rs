@@ -7,6 +7,7 @@ pub mod explore;
 pub mod friend_share;
 pub mod health_record;
 pub mod healthkit;
+pub mod insight;
 pub mod intervention;
 pub mod invite;
 pub mod lab_result;
