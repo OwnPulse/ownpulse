@@ -1,0 +1,32 @@
+appId: health.ownpulse.app
+---
+# Verify tab navigation between all 4 tabs
+- assertVisible:
+    id: "mainTabView"
+
+# Start on Dashboard tab
+- assertVisible:
+    id: "checkinSummaryCard"
+    optional: true
+
+# Switch to Log tab
+- tapOn:
+    text: "Log"
+- assertVisible:
+    id: "logTabPicker"
+
+# Switch to Explore tab
+- tapOn:
+    text: "Explore"
+- assertVisible:
+    id: "exploreWebView"
+
+# Switch to Settings tab
+- tapOn:
+    text: "Settings"
+- assertVisible:
+    id: "logoutButton"
+
+# Switch back to Dashboard
+- tapOn:
+    text: "Dashboard"

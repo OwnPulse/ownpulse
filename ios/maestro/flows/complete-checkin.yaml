@@ -1,0 +1,35 @@
+appId: health.ownpulse.app
+---
+# Complete a daily check-in via the Log tab
+- assertVisible:
+    id: "mainTabView"
+
+# Navigate to Log tab
+- tapOn:
+    text: "Log"
+- assertVisible:
+    id: "logTabPicker"
+
+# Verify we're on the Check-in form (default tab)
+- assertVisible:
+    id: "scoreSlider-energy"
+- assertVisible:
+    id: "scoreSlider-mood"
+- assertVisible:
+    id: "scoreSlider-focus"
+- assertVisible:
+    id: "scoreSlider-recovery"
+- assertVisible:
+    id: "scoreSlider-libido"
+- assertVisible:
+    id: "checkinNotesField"
+- assertVisible:
+    id: "saveCheckinButton"
+
+# Submit the check-in
+- tapOn:
+    id: "saveCheckinButton"
+- extendedWaitUntil:
+    visible:
+      id: "submitSuccess"
+    timeout: 10000

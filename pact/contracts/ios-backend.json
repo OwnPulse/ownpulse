@@ -519,6 +519,201 @@
           "created_at": "2026-01-01T00:00:00Z"
         }
       }
+    },
+    {
+      "description": "a request to get the dashboard summary",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/dashboard/summary",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "latest_checkin": {
+            "energy": 7,
+            "mood": 8,
+            "focus": 6,
+            "recovery": 7,
+            "libido": 5,
+            "date": "2026-03-28"
+          },
+          "checkin_count_7d": 5,
+          "health_record_count_7d": 42,
+          "intervention_count_7d": 3,
+          "observation_count_7d": 2,
+          "latest_lab_date": null,
+          "pending_friend_shares": 0
+        }
+      }
+    },
+    {
+      "description": "a request to fetch batch series for sparklines",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/explore/batch-series",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "metrics": [
+            {"source": "checkins", "field": "energy"}
+          ],
+          "start": "2026-03-21T00:00:00Z",
+          "end": "2026-03-28T00:00:00Z",
+          "resolution": "1d"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "series": [
+            {
+              "source": "checkins",
+              "field": "energy",
+              "unit": "",
+              "points": [
+                {"t": "2026-03-21", "v": 6.0, "n": 1},
+                {"t": "2026-03-22", "v": 7.0, "n": 1}
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "a request to get insights",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/insights",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "ins-1",
+            "insight_type": "correlation",
+            "headline": "Sleep correlates with mood",
+            "detail": "Your mood scores are higher after 7+ hours of sleep.",
+            "created_at": "2026-03-28T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to upsert a daily check-in",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/checkins",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "date": "2026-03-28",
+          "energy": 7,
+          "mood": 8,
+          "focus": 6,
+          "recovery": 7,
+          "libido": 5,
+          "notes": null
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "some-uuid",
+          "date": "2026-03-28",
+          "energy": 7,
+          "mood": 8,
+          "focus": 6,
+          "recovery": 7,
+          "libido": 5
+        }
+      }
+    },
+    {
+      "description": "a request to create an intervention",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/interventions",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "substance": "Caffeine",
+          "dose": 200.0,
+          "unit": "mg",
+          "route": "oral",
+          "administered_at": "2026-03-28T08:00:00Z",
+          "fasted": false,
+          "notes": null
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "some-uuid",
+          "substance": "Caffeine"
+        }
+      }
+    },
+    {
+      "description": "a request to create an observation",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/observations",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "type": "event_instant",
+          "name": "Sauna",
+          "start_time": "2026-03-28T10:00:00Z",
+          "end_time": null,
+          "value": {}
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "some-uuid",
+          "type": "event_instant",
+          "name": "Sauna"
+        }
+      }
     }
   ],
   "metadata": {
