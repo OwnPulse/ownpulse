@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { exploreApi } from "../api/explore";
+import { interventionsApi } from "../api/interventions";
 import { ChartLegend } from "../components/explore/ChartLegend";
 import { DateRangeBar } from "../components/explore/DateRangeBar";
 import { ExploreChart } from "../components/explore/ExploreChart";
@@ -58,6 +59,13 @@ export default function Explore() {
     enabled: selectedMetrics.length > 0,
   });
 
+  // Fetch interventions for the visible range
+  const interventionsQuery = useQuery({
+    queryKey: ["explore-interventions", start, end],
+    queryFn: () => interventionsApi.list({ start, end }),
+    enabled: selectedMetrics.length > 0,
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => exploreApi.deleteChart(id),
     onSuccess: () => {
@@ -66,6 +74,7 @@ export default function Explore() {
   });
 
   const seriesData = seriesQuery.data?.series ?? [];
+  const interventionsData = interventionsQuery.data ?? [];
 
   return (
     <main className="op-page">
@@ -99,7 +108,7 @@ export default function Explore() {
         <div className={styles.chartArea}>
           {seriesQuery.isLoading && selectedMetrics.length > 0 && <p>Loading chart data...</p>}
           {seriesQuery.isError && <p className="op-error-msg">Error loading chart data.</p>}
-          <ExploreChart series={seriesData} />
+          <ExploreChart series={seriesData} interventions={interventionsData} />
           <ChartLegend series={seriesData} />
         </div>
       </div>
