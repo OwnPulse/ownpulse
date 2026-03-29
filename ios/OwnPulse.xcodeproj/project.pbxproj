@@ -53,6 +53,7 @@
 		BD32558E97047E465F0AD65B /* WeeklySummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF7F419A2EFD4A51FD23A3C4 /* WeeklySummaryCard.swift */; };
 		C05D5F589E6E424566CE709E /* HealthKitTypeMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */; };
 		C0BEAECB10367E37B9ECBA54 /* PKCEHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */; };
+		C61339D33CC14D51DE65164F /* AppConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */; };
 		CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA76F6599478222F387A59 /* Migrations.swift */; };
 		DD05735EFCA7651A0C730B6E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 06208BEB784209E228C86FC6 /* GRDB */; };
 		E0D8A7044773E3267198A68B /* JWTDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */; };
@@ -153,6 +154,7 @@
 		F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProvider.swift; sourceTree = "<group>"; };
 		F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAuthService.swift; sourceTree = "<group>"; };
 		FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTypeMap.swift; sourceTree = "<group>"; };
+		FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigTests.swift; sourceTree = "<group>"; };
 		FFBC7A34027D30D960D2A518 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -244,6 +246,7 @@
 				54949C1E6E149322C32F0B1B /* AdminServiceTests.swift */,
 				E5DB85C7B75B2B3CCCDFF201 /* AnchorStoreTests.swift */,
 				B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */,
+				FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */,
 				C7928246CBD1BDB2F72B47DB /* AuthServiceTests.swift */,
 				3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */,
 				A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */,
@@ -527,6 +530,7 @@
 				29D6DD6A5FFAD5FD2B951CD9 /* APIModelsTests.swift in Sources */,
 				2CBC758F6DF27FCAB1722851 /* AdminServiceTests.swift in Sources */,
 				FC991521672354702B6079B8 /* AnchorStoreTests.swift in Sources */,
+				C61339D33CC14D51DE65164F /* AppConfigTests.swift in Sources */,
 				0C3C7A807E0BA9C70B684B65 /* AuthServiceTests.swift in Sources */,
 				9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */,
 				77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */,

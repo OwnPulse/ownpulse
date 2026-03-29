@@ -30,3 +30,7 @@ appId: health.ownpulse.app
 - assertVisible:
     id: "linkAppleButton"
     optional: true
+
+# Version string should be visible in the About section
+- assertVisible:
+    id: "appVersion"
