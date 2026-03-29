@@ -21,6 +21,7 @@ import Explore from "./pages/Explore";
 import ForgotPassword from "./pages/ForgotPassword";
 import Friends from "./pages/Friends";
 import FriendView from "./pages/FriendView";
+import Genetics from "./pages/Genetics";
 import Login from "./pages/Login";
 import ObserverAccept from "./pages/ObserverAccept";
 import ObserverPolls from "./pages/ObserverPolls";
@@ -49,6 +50,7 @@ ReactDOM.createRoot(rootEl).render(
               <Route path="/explore" element={<Explore />} />
               <Route path="/explore/:chartId" element={<Explore />} />
               <Route path="/analyze" element={<Analyze />} />
+              <Route path="/genetics" element={<Genetics />} />
               <Route path="/entry" element={<DataEntry />} />
               <Route path="/sources" element={<Sources />} />
               <Route path="/settings" element={<Settings />} />
