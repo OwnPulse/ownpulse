@@ -4,6 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { dashboardApi } from "../api/dashboard";
+import { InsightCards } from "../components/dashboard/InsightCards";
 import { SparklineRow } from "../components/dashboard/SparklineRow";
 import styles from "./Dashboard.module.css";
 
@@ -82,6 +83,8 @@ export default function Dashboard() {
           </p>
         </div>
       )}
+      {/* Insights */}
+      <InsightCards />
     </main>
   );
 }
