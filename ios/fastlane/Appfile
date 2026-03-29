@@ -1,1 +1,3 @@
+# Default app identifier (production). Staging builds override this
+# via the app_identifier option in the beta lane.
 app_identifier "health.ownpulse.app"

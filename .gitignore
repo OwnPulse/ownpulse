@@ -30,6 +30,13 @@ Thumbs.db
 web/coverage/
 ios/.spm-cache/
 
+# Fastlane
+ios/fastlane/report.xml
+ios/fastlane/screenshots/
+ios/fastlane/test_output/
+ios/fastlane/README.md
+ios/vendor/
+
 # Agent symlinks (machine-local, recreated by opdev setup)
 .claude/agents/
 .claude/worktrees/
