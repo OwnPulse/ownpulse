@@ -80,6 +80,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0018_user_preferences.sql",
         include_str!("../../../db/migrations/0018_user_preferences.sql"),
     ),
+    (
+        "0019_insights.sql",
+        include_str!("../../../db/migrations/0019_insights.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -299,6 +303,10 @@ async fn detect_applied_migrations(pool: &PgPool) -> Result<(), MigrateError> {
         (
             "0018_user_preferences.sql",
             "SELECT to_regclass('public.user_preferences') IS NOT NULL",
+        ),
+        (
+            "0019_insights.sql",
+            "SELECT to_regclass('public.insights') IS NOT NULL",
         ),
     ];
 
