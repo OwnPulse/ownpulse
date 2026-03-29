@@ -482,6 +482,536 @@ Only keys for permitted data types are included. Possible keys: `checkins`, `hea
 
 **Errors:** `403` if there is no accepted share granting access to any data types.
 
+### Explore
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| GET | `/explore/metrics` | List available metrics grouped by source | 1 |
+| GET | `/explore/series` | Fetch a single time series with aggregation | 1 |
+| POST | `/explore/series` | Batch fetch multiple time series | 1 |
+| POST | `/explore/charts` | Save a chart configuration | 1 |
+| GET | `/explore/charts` | List saved charts | 1 |
+| GET | `/explore/charts/:id` | Get a saved chart by ID | 1 |
+| PUT | `/explore/charts/:id` | Update a saved chart | 1 |
+| DELETE | `/explore/charts/:id` | Delete a saved chart | 1 |
+
+#### `GET /explore/metrics`
+
+List all metric sources and fields available for the authenticated user. Lab markers are dynamically populated from the user's existing lab results.
+
+**Response:** `200 OK`
+
+```json
+{
+  "sources": [
+    {
+      "source": "health_records",
+      "label": "Health Records",
+      "metrics": [
+        { "field": "heart_rate", "label": "Heart Rate", "unit": "bpm" },
+        { "field": "heart_rate_variability", "label": "Heart Rate Variability", "unit": "ms" }
+      ]
+    },
+    {
+      "source": "checkins",
+      "label": "Check-ins",
+      "metrics": [
+        { "field": "energy", "label": "Energy", "unit": "score" }
+      ]
+    },
+    {
+      "source": "labs",
+      "label": "Lab Results",
+      "metrics": [
+        { "field": "testosterone", "label": "testosterone", "unit": "value" }
+      ]
+    },
+    {
+      "source": "calendar",
+      "label": "Calendar",
+      "metrics": [
+        { "field": "meeting_minutes", "label": "Meeting Minutes", "unit": "min" }
+      ]
+    },
+    {
+      "source": "sleep",
+      "label": "Sleep",
+      "metrics": [
+        { "field": "duration_minutes", "label": "Sleep Duration", "unit": "min" }
+      ]
+    }
+  ]
+}
+```
+
+**Metric sources and fields:**
+
+| Source | Fields |
+|--------|--------|
+| `health_records` | `heart_rate`, `heart_rate_variability`, `resting_heart_rate`, `body_mass`, `body_fat_percentage`, `body_temperature`, `blood_pressure_systolic`, `blood_pressure_diastolic`, `blood_glucose`, `blood_oxygen`, `respiratory_rate`, `steps`, `active_energy`, `basal_energy`, `vo2_max` |
+| `checkins` | `energy`, `mood`, `focus`, `recovery`, `libido` |
+| `labs` | Dynamic — any lab test name the user has recorded |
+| `calendar` | `meeting_minutes`, `meeting_count` |
+| `sleep` | `duration_minutes`, `deep_minutes`, `rem_minutes`, `score` |
+
+#### `GET /explore/series`
+
+Fetch a single time series with aggregation.
+
+**Query parameters:**
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `source` | string | yes | Metric source (e.g. `health_records`, `checkins`) |
+| `field` | string | yes | Metric field (e.g. `heart_rate`, `energy`) |
+| `start` | ISO 8601 datetime | yes | Start of date range |
+| `end` | ISO 8601 datetime | yes | End of date range |
+| `resolution` | string | yes | `daily`, `weekly`, or `monthly` |
+
+**Response:** `200 OK`
+
+```json
+{
+  "source": "health_records",
+  "field": "heart_rate",
+  "unit": "bpm",
+  "points": [
+    { "t": "2026-03-01T00:00:00Z", "v": 62.5, "n": 24 },
+    { "t": "2026-03-02T00:00:00Z", "v": 64.1, "n": 18 }
+  ]
+}
+```
+
+Each point contains: `t` (bucket timestamp), `v` (average value), `n` (number of raw records in the bucket).
+
+**Errors:** `400` if source or field is invalid.
+
+#### `POST /explore/series`
+
+Batch fetch multiple time series in a single request. Queries run in parallel on the server.
+
+**Request body:**
+
+```json
+{
+  "metrics": [
+    { "source": "health_records", "field": "heart_rate" },
+    { "source": "checkins", "field": "energy" }
+  ],
+  "start": "2026-01-01T00:00:00Z",
+  "end": "2026-03-28T00:00:00Z",
+  "resolution": "daily"
+}
+```
+
+- `metrics` — 1 to 8 metric specs.
+
+**Response:** `200 OK`
+
+```json
+{
+  "series": [
+    {
+      "source": "health_records",
+      "field": "heart_rate",
+      "unit": "bpm",
+      "points": [...]
+    },
+    {
+      "source": "checkins",
+      "field": "energy",
+      "unit": "score",
+      "points": [...]
+    }
+  ]
+}
+```
+
+**Errors:** `400` if `metrics` is empty, has more than 8 items, or contains invalid source/field combinations.
+
+#### `POST /explore/charts`
+
+Save a chart configuration.
+
+**Request body:**
+
+```json
+{
+  "name": "Morning vitals",
+  "config": {
+    "version": 1,
+    "metrics": [
+      { "source": "health_records", "field": "heart_rate", "color": "#ff0000" },
+      { "source": "checkins", "field": "energy" }
+    ],
+    "range": { "preset": "30d" },
+    "resolution": "daily"
+  }
+}
+```
+
+- `name` — 1 to 200 characters.
+- `config.version` — must be `1`.
+- `config.metrics` — 1 to 8 metrics. `color` is optional (`#rrggbb` format).
+- `config.range` — either `{"preset": "7d|30d|90d|1y|all"}` or `{"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"}`.
+- `config.resolution` — `daily`, `weekly`, or `monthly`.
+
+**Response:** `201 Created` — `ChartRow`
+
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "name": "Morning vitals",
+  "config": { ... },
+  "created_at": "2026-03-28T00:00:00Z",
+  "updated_at": "2026-03-28T00:00:00Z"
+}
+```
+
+**Errors:** `400` if name is empty/too long, config version is unsupported, metrics are invalid, or range preset is unknown.
+
+#### `GET /explore/charts`
+
+List all saved charts for the authenticated user.
+
+**Response:** `200 OK` — `ChartRow[]`
+
+#### `GET /explore/charts/:id`
+
+Get a saved chart by ID. Only the owner can access their charts.
+
+**Response:** `200 OK` — `ChartRow`
+
+**Errors:** `404` if chart not found or not owned by user.
+
+#### `PUT /explore/charts/:id`
+
+Update a saved chart's name and/or config. Both fields are optional — only provided fields are updated.
+
+**Request body:**
+
+```json
+{
+  "name": "Updated name",
+  "config": { ... }
+}
+```
+
+**Response:** `200 OK` — `ChartRow` (updated)
+
+**Errors:** `404` if chart not found. `400` if config is invalid.
+
+#### `DELETE /explore/charts/:id`
+
+Delete a saved chart. Returns `204 No Content` on success, `404` if not found.
+
+### Observer Polls
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| POST | `/observer-polls` | Create a poll | 1 |
+| GET | `/observer-polls` | List polls owned by user | 1 |
+| GET | `/observer-polls/:id` | Get poll detail with members | 1 |
+| PATCH | `/observer-polls/:id` | Update poll name/prompt | 1 |
+| DELETE | `/observer-polls/:id` | Soft-delete poll | 1 |
+| POST | `/observer-polls/:id/invite` | Generate invite link | 1 |
+| POST | `/observer-polls/accept` | Accept invite | 1 |
+| GET | `/observer-polls/my-polls` | List polls where caller is observer | 1 |
+| PUT | `/observer-polls/:id/respond` | Submit daily scores | 1 |
+| GET | `/observer-polls/:id/responses` | Owner views responses | 1 |
+| GET | `/observer-polls/:id/my-responses` | Observer views own responses | 1 |
+| DELETE | `/observer-polls/responses/:id` | Observer deletes own response | 1 |
+| GET | `/observer-polls/export` | Observer exports all responses | 1 |
+
+#### `POST /observer-polls`
+
+Create a new observer poll.
+
+**Request body:**
+
+```json
+{
+  "name": "Daily wellbeing check",
+  "custom_prompt": "Rate how Tony seems today",
+  "dimensions": ["energy", "mood", "focus"]
+}
+```
+
+- `name` — 1 to 100 characters.
+- `custom_prompt` — optional, max 500 characters. HTML tags are stripped.
+- `dimensions` — 1 to 10 items. Each must be 1-50 alphanumeric/underscore characters.
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "uuid",
+  "name": "Daily wellbeing check",
+  "custom_prompt": "Rate how Tony seems today",
+  "dimensions": ["energy", "mood", "focus"],
+  "members": [],
+  "created_at": "2026-03-28T00:00:00Z",
+  "deleted_at": null
+}
+```
+
+**Errors:** `400` for validation failures (empty name, too many dimensions, invalid dimension characters, prompt too long).
+
+#### `GET /observer-polls`
+
+List all polls owned by the authenticated user (excludes soft-deleted polls).
+
+**Response:** `200 OK` — array of `PollResponse` (members array is empty in list view).
+
+#### `GET /observer-polls/:id`
+
+Get poll detail with members. Only the poll owner can access this. Observer emails are masked (e.g., `t***@example.com`).
+
+**Response:** `200 OK`
+
+```json
+{
+  "id": "uuid",
+  "name": "Daily wellbeing check",
+  "custom_prompt": "Rate how Tony seems today",
+  "dimensions": ["energy", "mood", "focus"],
+  "members": [
+    {
+      "id": "uuid",
+      "observer_email": "j***@example.com",
+      "accepted_at": "2026-03-28T00:00:00Z",
+      "created_at": "2026-03-27T00:00:00Z"
+    }
+  ],
+  "created_at": "2026-03-28T00:00:00Z",
+  "deleted_at": null
+}
+```
+
+**Errors:** `404` if poll not found or not owned by user.
+
+#### `PATCH /observer-polls/:id`
+
+Update poll name and/or custom prompt. Only the owner can update.
+
+**Request body:**
+
+```json
+{
+  "name": "Updated name",
+  "custom_prompt": "Updated prompt"
+}
+```
+
+Both fields are optional. HTML tags in `custom_prompt` are stripped.
+
+**Response:** `200 OK` — `PollResponse` (members array is empty).
+
+**Errors:** `404` if not found. `400` if name is empty/too long or prompt exceeds 500 characters.
+
+#### `DELETE /observer-polls/:id`
+
+Soft-delete a poll (sets `deleted_at`). Only the owner can delete.
+
+**Response:** `204 No Content`
+
+**Errors:** `404` if not found or not owned by user.
+
+#### `POST /observer-polls/:id/invite`
+
+Generate an invite link for the poll. The invite token is a UUID valid for 7 days. Only the poll owner can generate invites.
+
+**Response:** `201 Created`
+
+```json
+{
+  "invite_token": "uuid",
+  "invite_expires_at": "2026-04-04T00:00:00Z",
+  "invite_url": "https://app.ownpulse.health/observer-polls/accept?token=uuid"
+}
+```
+
+**Errors:** `404` if poll not found or not owned by user.
+
+#### `POST /observer-polls/accept`
+
+Accept an observer poll invite. The response is uniform regardless of whether the token was valid, expired, or already used — this prevents token enumeration.
+
+**Request body:**
+
+```json
+{
+  "token": "uuid"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "status": "accepted"
+}
+```
+
+If the token is invalid or expired, the response is still `200 OK` with `{"status": "acknowledged"}`.
+
+#### `GET /observer-polls/my-polls`
+
+List polls where the caller is an accepted observer. The poll owner's email is masked.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "id": "uuid",
+    "owner_display": "t***@example.com",
+    "name": "Daily wellbeing check",
+    "custom_prompt": "Rate how Tony seems today",
+    "dimensions": ["energy", "mood", "focus"]
+  }
+]
+```
+
+#### `PUT /observer-polls/:id/respond`
+
+Submit daily scores for a poll. The caller must be an accepted member. Scores are upserted — submitting for the same date replaces previous scores.
+
+**Request body:**
+
+```json
+{
+  "date": "2026-03-28",
+  "scores": {
+    "energy": 7,
+    "mood": 8,
+    "focus": 6
+  }
+}
+```
+
+- `date` — cannot be in the future.
+- `scores` — must contain exactly the poll's dimensions, each with an integer value from 1 to 10.
+
+**Response:** `201 Created` (new) or `200 OK` (updated) — the response row.
+
+```json
+{
+  "id": "uuid",
+  "poll_id": "uuid",
+  "member_id": "uuid",
+  "date": "2026-03-28",
+  "scores": { "energy": 7, "mood": 8, "focus": 6 },
+  "created_at": "2026-03-28T00:00:00Z"
+}
+```
+
+**Errors:** `403` if caller is not an accepted member. `400` if scores are invalid or date is in the future.
+
+#### `GET /observer-polls/:id/responses`
+
+Owner views all responses for a poll. Observer emails are masked.
+
+**Query parameters:**
+
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `start` | date (YYYY-MM-DD) | no | Filter responses from this date |
+| `end` | date (YYYY-MM-DD) | no | Filter responses up to this date |
+
+**Response:** `200 OK`
+
+```json
+{
+  "responses": [
+    {
+      "id": "uuid",
+      "member_id": "uuid",
+      "observer_email": "j***@example.com",
+      "date": "2026-03-28",
+      "scores": { "energy": 7, "mood": 8, "focus": 6 },
+      "created_at": "2026-03-28T00:00:00Z"
+    }
+  ]
+}
+```
+
+**Errors:** `404` if poll not found or not owned by user.
+
+#### `GET /observer-polls/:id/my-responses`
+
+Observer views their own responses for a poll.
+
+**Response:** `200 OK`
+
+```json
+{
+  "responses": [
+    {
+      "id": "uuid",
+      "date": "2026-03-28",
+      "scores": { "energy": 7, "mood": 8, "focus": 6 },
+      "created_at": "2026-03-28T00:00:00Z"
+    }
+  ]
+}
+```
+
+**Errors:** `403` if caller is not an accepted member of the poll.
+
+#### `DELETE /observer-polls/responses/:id`
+
+Observer deletes their own response. Only the observer who submitted the response can delete it.
+
+**Response:** `204 No Content`
+
+**Errors:** `404` if response not found or not owned by caller.
+
+#### `GET /observer-polls/export`
+
+Observer exports all their responses across all polls.
+
+**Response:** `200 OK`
+
+```json
+{
+  "responses": [
+    {
+      "id": "uuid",
+      "poll_name": "Daily wellbeing check",
+      "date": "2026-03-28",
+      "scores": { "energy": 7, "mood": 8, "focus": 6 },
+      "created_at": "2026-03-28T00:00:00Z"
+    }
+  ]
+}
+```
+
+### Server-Sent Events (SSE)
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| GET | `/events?token=<JWT>` | SSE stream for real-time data change notifications | 1 |
+
+#### `GET /events?token=<JWT>`
+
+Opens a Server-Sent Events stream for the authenticated user. Authentication is via the `token` query parameter because the browser `EventSource` API does not support custom headers.
+
+The server sends `data_changed` events when the user's data is modified (e.g., new health records, check-ins, or sync completions). The connection includes a 30-second keepalive. The server re-validates the JWT and user status every 5 minutes, closing the stream if the token has expired or the user has been disabled.
+
+**Event format:**
+
+```
+event: data_changed
+data: {"source":"health_records","record_type":"heart_rate"}
+```
+
+- `source` — which data source changed (e.g. `health_records`, `checkins`, `interventions`).
+- `record_type` — optional; the specific record type within the source.
+
+**Errors:** `401` if the JWT is invalid. `403` if the user is disabled.
+
 ## Planned (Phase 2+)
 
 ### Auth (Phase 2+)
