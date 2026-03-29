@@ -47,8 +47,11 @@ fn test_config(database_url: &str) -> api::config::Config {
         apple_jwks_url: api::config::default_apple_jwks_url(),
         garmin_client_id: None,
         garmin_client_secret: None,
+        garmin_base_url: None,
         oura_client_id: None,
         oura_client_secret: None,
+        oura_api_base_url: None,
+        oura_auth_base_url: None,
         dexcom_client_id: None,
         dexcom_client_secret: None,
         encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"

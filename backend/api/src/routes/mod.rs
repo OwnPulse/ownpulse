@@ -15,6 +15,7 @@ pub mod events;
 pub mod explore;
 pub mod export;
 pub mod friends;
+pub mod garmin;
 pub mod health_records;
 pub mod healthkit;
 pub mod integrations;
@@ -22,6 +23,7 @@ pub mod interventions;
 pub mod labs;
 pub mod observations;
 pub mod observer_polls;
+pub mod oura;
 pub mod sleep;
 pub mod source_preferences;
 pub mod waitlist;
@@ -42,6 +44,10 @@ fn auth_routes() -> Router<AppState> {
         .route("/auth/google/login", get(auth::google_login))
         .route("/auth/google/callback", get(auth::google_callback))
         .route("/auth/apple/callback", post(auth::apple_callback))
+        .route("/auth/garmin/login", get(garmin::garmin_login))
+        .route("/auth/garmin/callback", get(garmin::garmin_callback))
+        .route("/auth/oura/login", get(oura::oura_login))
+        .route("/auth/oura/callback", get(oura::oura_callback))
 }
 
 /// Build the versioned API router with rate limiting on auth endpoints.
