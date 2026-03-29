@@ -34,8 +34,12 @@ pub async fn send_email(
         .header(ContentType::TEXT_HTML)
         .body(html_body.to_string())?;
 
-    let mut transport_builder =
-        AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(smtp_host)?.port(config.smtp_port);
+    // Port 465 uses implicit TLS; port 587 uses STARTTLS
+    let mut transport_builder = if config.smtp_port == 465 {
+        AsyncSmtpTransport::<Tokio1Executor>::relay(smtp_host)?.port(465)
+    } else {
+        AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(smtp_host)?.port(config.smtp_port)
+    };
 
     if let (Some(username), Some(password)) = (
         config.smtp_username.as_deref(),
