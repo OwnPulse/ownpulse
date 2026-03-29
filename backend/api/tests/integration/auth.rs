@@ -1325,7 +1325,11 @@ async fn test_register_first_user_gets_admin_role() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 200, "first user should register successfully");
+    assert_eq!(
+        response.status(),
+        200,
+        "first user should register successfully"
+    );
     let json = body_json(response).await;
     let access_token = json["access_token"].as_str().expect("access_token missing");
 
@@ -1336,7 +1340,10 @@ async fn test_register_first_user_gets_admin_role() {
         "http://localhost:5173",
     )
     .expect("failed to decode access token");
-    assert_eq!(claims.role, "admin", "first user should have admin role in JWT");
+    assert_eq!(
+        claims.role, "admin",
+        "first user should have admin role in JWT"
+    );
 
     // Also verify the database row was updated
     let row: (String,) =
@@ -1344,7 +1351,10 @@ async fn test_register_first_user_gets_admin_role() {
             .fetch_one(&test_app.pool)
             .await
             .expect("failed to query user");
-    assert_eq!(row.0, "admin", "first user should have admin role in database");
+    assert_eq!(
+        row.0, "admin",
+        "first user should have admin role in database"
+    );
 }
 
 #[tokio::test]
@@ -1383,7 +1393,11 @@ async fn test_register_second_user_gets_user_role() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 200, "second user should register successfully");
+    assert_eq!(
+        response.status(),
+        200,
+        "second user should register successfully"
+    );
     let json = body_json(response).await;
     let access_token = json["access_token"].as_str().expect("access_token missing");
 
@@ -1394,7 +1408,10 @@ async fn test_register_second_user_gets_user_role() {
         "http://localhost:5173",
     )
     .expect("failed to decode access token");
-    assert_eq!(claims.role, "user", "second user should have user role in JWT");
+    assert_eq!(
+        claims.role, "user",
+        "second user should have user role in JWT"
+    );
 
     // Also verify the database row
     let row: (String,) =
@@ -1402,7 +1419,10 @@ async fn test_register_second_user_gets_user_role() {
             .fetch_one(&test_app.pool)
             .await
             .expect("failed to query user");
-    assert_eq!(row.0, "user", "second user should have user role in database");
+    assert_eq!(
+        row.0, "user",
+        "second user should have user role in database"
+    );
 }
 
 #[tokio::test]
