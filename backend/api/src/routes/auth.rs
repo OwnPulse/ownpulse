@@ -15,13 +15,14 @@ use crate::auth::extractor::AuthUser;
 use crate::auth::jwt::{decode_access_token, encode_access_token};
 use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
 use crate::db::invites;
+use crate::db::password_reset_tokens;
 use crate::db::refresh_tokens;
 use crate::db::user_auth_methods;
 use crate::db::users;
 use crate::error::ApiError;
 use crate::models::user::{
-    AppleCallbackRequest, AuthMethodRow, LinkAuthRequest, LoginRequest, RefreshRequest,
-    RegisterRequest, TokenResponse, TokenResponseWithRefresh,
+    AppleCallbackRequest, AuthMethodRow, ForgotPasswordRequest, LinkAuthRequest, LoginRequest,
+    RefreshRequest, RegisterRequest, ResetPasswordRequest, TokenResponse, TokenResponseWithRefresh,
 };
 
 /// Return `"; Secure"` when the web origin uses HTTPS, empty string otherwise.
@@ -1249,6 +1250,126 @@ async fn issue_tokens_response(
             .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
     );
     Ok(response)
+}
+
+/// POST /auth/forgot-password — request a password reset link.
+///
+/// Always returns 200 to prevent email enumeration.
+pub async fn forgot_password(
+    State(state): State<AppState>,
+    Json(body): Json<ForgotPasswordRequest>,
+) -> Result<StatusCode, ApiError> {
+    // Validate email format (basic check)
+    if body.email.len() > 254 || !body.email.contains('@') {
+        return Ok(StatusCode::OK);
+    }
+
+    // Look up user
+    let user = match users::find_by_email(&state.pool, &body.email).await {
+        Ok(u) => u,
+        Err(_) => return Ok(StatusCode::OK),
+    };
+
+    // Only allow reset for local-auth users with a password and active status
+    if user.password_hash.is_none() || user.status != "active" {
+        return Ok(StatusCode::OK);
+    }
+
+    // Generate token
+    let raw_token = Uuid::new_v4().to_string();
+    let token_hash = hash_refresh_token(&raw_token, &state.config.jwt_secret);
+
+    // Invalidate previous tokens for this user
+    password_reset_tokens::invalidate_all_for_user(&state.pool, user.id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Insert new token (expires in 1 hour)
+    let expires_at = Utc::now() + chrono::Duration::hours(1);
+    password_reset_tokens::insert(&state.pool, user.id, &token_hash, expires_at)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Build reset URL and send email
+    let reset_url = format!(
+        "{}/reset-password?token={}",
+        state.config.web_origin, raw_token
+    );
+    let html_body = format!(
+        "<p>You requested a password reset for your OwnPulse account.</p>\
+         <p><a href=\"{reset_url}\">Reset your password</a></p>\
+         <p>Or copy this link: {reset_url}</p>\
+         <p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>"
+    );
+
+    if let Err(e) = crate::email::send_email(
+        &state.config,
+        &body.email,
+        "Reset your OwnPulse password",
+        &html_body,
+    )
+    .await
+    {
+        tracing::error!(error = %e, "failed to send password reset email");
+    }
+
+    Ok(StatusCode::OK)
+}
+
+/// POST /auth/reset-password — validate token and set new password.
+pub async fn reset_password(
+    State(state): State<AppState>,
+    Json(body): Json<ResetPasswordRequest>,
+) -> Result<StatusCode, ApiError> {
+    // Validate password length
+    if body.password.len() < 8 {
+        return Err(ApiError::BadRequest(
+            "password must be at least 8 characters".into(),
+        ));
+    }
+
+    // Hash the incoming token and look it up
+    let token_hash = hash_refresh_token(&body.token, &state.config.jwt_secret);
+    let token_row = password_reset_tokens::find_valid_by_hash(&state.pool, &token_hash)
+        .await
+        .map_err(|_| ApiError::BadRequest("invalid or expired reset token".into()))?;
+
+    // Hash new password (before transaction — bcrypt is slow)
+    let new_password_hash = bcrypt::hash(&body.password, bcrypt::DEFAULT_COST)
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Begin transaction
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Mark token as claimed
+    password_reset_tokens::mark_claimed_tx(&mut tx, token_row.id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Update password
+    sqlx::query("UPDATE users SET password_hash = $2 WHERE id = $1")
+        .bind(token_row.user_id)
+        .bind(&new_password_hash)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    // Revoke all refresh tokens (log out all sessions)
+    sqlx::query("DELETE FROM refresh_tokens WHERE user_id = $1")
+        .bind(token_row.user_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    Ok(StatusCode::OK)
 }
 
 #[cfg(test)]

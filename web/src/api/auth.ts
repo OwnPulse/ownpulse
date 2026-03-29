@@ -42,6 +42,14 @@ export async function register(email: string, password: string, inviteCode: stri
   useAuthStore.getState().login(data.access_token);
 }
 
+export async function forgotPassword(email: string): Promise<void> {
+  await api.post("/api/v1/auth/forgot-password", { email });
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await api.post("/api/v1/auth/reset-password", { token, password });
+}
+
 export async function logout(): Promise<void> {
   try {
     const token = useAuthStore.getState().token;

@@ -17,12 +17,14 @@ import Admin from "./pages/Admin";
 import Dashboard from "./pages/Dashboard";
 import DataEntry from "./pages/DataEntry";
 import Explore from "./pages/Explore";
+import ForgotPassword from "./pages/ForgotPassword";
 import Friends from "./pages/Friends";
 import FriendView from "./pages/FriendView";
 import Login from "./pages/Login";
 import ObserverAccept from "./pages/ObserverAccept";
 import ObserverPolls from "./pages/ObserverPolls";
 import Register from "./pages/Register";
+import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
 import ShareAccept from "./pages/ShareAccept";
 import Sources from "./pages/Sources";
@@ -38,6 +40,8 @@ ReactDOM.createRoot(rootEl).render(
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />

@@ -61,6 +61,11 @@ fn test_config(database_url: &str) -> api::config::Config {
         rust_log: "info".to_string(),
         encryption_key_previous: None,
         require_invite: false,
+        smtp_host: None,
+        smtp_port: 587,
+        smtp_username: None,
+        smtp_password: None,
+        smtp_from: None,
     }
 }
 

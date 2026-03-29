@@ -305,6 +305,11 @@ fn google_config(mock_uri: &str) -> api::config::Config {
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
         require_invite: false,
+        smtp_host: None,
+        smtp_port: 587,
+        smtp_username: None,
+        smtp_password: None,
+        smtp_from: None,
     }
 }
 
@@ -448,6 +453,11 @@ async fn test_google_callback_state_ios_no_longer_bypasses_csrf() {
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
         require_invite: false,
+        smtp_host: None,
+        smtp_port: 587,
+        smtp_username: None,
+        smtp_password: None,
+        smtp_from: None,
     };
 
     let (event_tx, _) = tokio::sync::broadcast::channel(256);
@@ -516,6 +526,11 @@ async fn test_google_callback_no_verifier_no_cookie_returns_400() {
         web_origin: "http://localhost:5173".to_string(),
         rust_log: "info".to_string(),
         require_invite: false,
+        smtp_host: None,
+        smtp_port: 587,
+        smtp_username: None,
+        smtp_password: None,
+        smtp_from: None,
     };
 
     let (event_tx, _) = tokio::sync::broadcast::channel(256);

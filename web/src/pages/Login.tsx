@@ -128,6 +128,11 @@ export default function Login() {
             />
           </div>
           {error && <div className={styles.error}>{error}</div>}
+          <div className={styles.forgotLink}>
+            <Link to="/forgot-password" className={styles.footerLink}>
+              Forgot your password?
+            </Link>
+          </div>
           <button type="submit" disabled={submitting} className={styles.submit}>
             {submitting ? "Signing in\u2026" : "Sign In"}
           </button>

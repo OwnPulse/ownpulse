@@ -72,6 +72,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0016_observer_polls.sql",
         include_str!("../../../db/migrations/0016_observer_polls.sql"),
     ),
+    (
+        "0017_password_reset_tokens.sql",
+        include_str!("../../../db/migrations/0017_password_reset_tokens.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]

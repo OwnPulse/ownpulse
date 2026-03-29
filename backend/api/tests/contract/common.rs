@@ -52,6 +52,11 @@ fn test_config(database_url: &str) -> api::config::Config {
         apple_client_id: None,
         apple_jwks_url: "https://appleid.apple.com/auth/keys".to_string(),
         require_invite: false,
+        smtp_host: None,
+        smtp_port: 587,
+        smtp_username: None,
+        smtp_password: None,
+        smtp_from: None,
     }
 }
 
