@@ -6,8 +6,9 @@
 //! Tokio background tasks — one file per integration sync job.
 //! Jobs: Google Calendar sync, Garmin sync, Oura sync, Dexcom sync (Phase 2).
 
-<<<<<<< HEAD
+pub mod garmin_sync;
 pub mod insight_generator;
+pub mod oura_sync;
 
 use sqlx::PgPool;
 use tokio_util::sync::CancellationToken;
@@ -17,7 +18,6 @@ use tracing::{error, info};
 pub fn spawn_insight_job(pool: PgPool, cancel: CancellationToken) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
-        // Skip the first immediate tick — let the server warm up.
         interval.tick().await;
 
         loop {
@@ -41,7 +41,3 @@ pub fn spawn_insight_job(pool: PgPool, cancel: CancellationToken) {
         }
     });
 }
-=======
-pub mod garmin_sync;
-pub mod oura_sync;
->>>>>>> 85867c6 (feat(backend): add Garmin and Oura integrations with OAuth and sync jobs)
