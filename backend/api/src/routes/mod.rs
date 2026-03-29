@@ -215,11 +215,24 @@ pub fn api_routes() -> Router<AppState> {
         config: poll_respond_governor_conf.into(),
     });
 
+    // --- Invite check: 10 req/min per IP ---
+    let invite_check_governor_conf = GovernorConfigBuilder::default()
+        .key_extractor(SmartIpKeyExtractor)
+        .per_second(6) // replenish 1 token every 6s -> 10/min
+        .burst_size(10)
+        .finish()
+        .expect("failed to build invite check governor config");
+
+    let rate_limited_invite_check = invite_check_routes().layer(GovernorLayer {
+        config: invite_check_governor_conf.into(),
+    });
+
     base_routes()
         .merge(rate_limited_auth)
         .merge(rate_limited_explore)
         .merge(rate_limited_poll_accept)
         .merge(rate_limited_poll_respond)
+        .merge(rate_limited_invite_check)
 }
 
 /// Build the versioned API router without rate limiting.
@@ -230,6 +243,7 @@ pub fn api_routes_without_rate_limit() -> Router<AppState> {
         .merge(explore_routes())
         .merge(poll_accept_routes())
         .merge(poll_respond_routes())
+        .merge(invite_check_routes())
 }
 
 fn explore_routes() -> Router<AppState> {
@@ -260,6 +274,10 @@ fn poll_respond_routes() -> Router<AppState> {
         "/observer-polls/:id/respond",
         put(observer_polls::submit_response),
     )
+}
+
+fn invite_check_routes() -> Router<AppState> {
+    Router::new().route("/invites/:code/check", get(admin::check_invite))
 }
 
 fn base_routes() -> Router<AppState> {
@@ -332,6 +350,8 @@ fn base_routes() -> Router<AppState> {
         .route("/admin/users/:id", delete(admin::delete_user))
         .route("/admin/invites", post(admin::create_invite))
         .route("/admin/invites", get(admin::list_invites))
+        .route("/admin/invites/stats", get(admin::invite_stats))
+        .route("/admin/invites/:id/claims", get(admin::invite_claims))
         .route("/admin/invites/:id", delete(admin::revoke_invite))
         // Auth methods (authenticated)
         .route("/auth/methods", get(auth::list_auth_methods))

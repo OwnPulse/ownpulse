@@ -14,7 +14,10 @@ use crate::AppState;
 use crate::auth::extractor::AdminUser;
 use crate::db::{invites, refresh_tokens, users};
 use crate::error::ApiError;
-use crate::models::invite::{CreateInviteRequest, InviteResponse};
+use crate::models::invite::{
+    CreateInviteRequest, InviteCheckResponse, InviteClaimResponse, InviteResponse,
+    InviteStatsResponse,
+};
 use crate::models::user::UserResponse;
 
 /// GET /admin/users — list all users (admin only).
@@ -176,4 +179,98 @@ pub async fn revoke_invite(
 ) -> Result<Json<InviteResponse>, ApiError> {
     let row = invites::revoke_invite(&state.pool, invite_id).await?;
     Ok(Json(InviteResponse::from(row)))
+}
+
+/// GET /invites/:code/check — public endpoint to validate an invite code.
+pub async fn check_invite(
+    State(state): State<AppState>,
+    Path(code): Path<String>,
+) -> Result<Json<InviteCheckResponse>, ApiError> {
+    let row = invites::check_invite(&state.pool, &code).await?;
+
+    let response = match row {
+        None => InviteCheckResponse {
+            valid: false,
+            label: None,
+            expires_at: None,
+            inviter_name: None,
+            reason: Some("not_found".to_string()),
+        },
+        Some(r) if r.revoked_at.is_some() => InviteCheckResponse {
+            valid: false,
+            label: None,
+            expires_at: None,
+            inviter_name: None,
+            reason: Some("revoked".to_string()),
+        },
+        Some(r) if r.expires_at.is_some() && r.expires_at.unwrap() < Utc::now() => {
+            InviteCheckResponse {
+                valid: false,
+                label: None,
+                expires_at: None,
+                inviter_name: None,
+                reason: Some("expired".to_string()),
+            }
+        }
+        Some(r) if r.max_uses.is_some() && r.use_count >= r.max_uses.unwrap() => {
+            InviteCheckResponse {
+                valid: false,
+                label: None,
+                expires_at: None,
+                inviter_name: None,
+                reason: Some("exhausted".to_string()),
+            }
+        }
+        Some(r) => InviteCheckResponse {
+            valid: true,
+            label: r.label,
+            expires_at: r.expires_at,
+            inviter_name: r.inviter_name,
+            reason: None,
+        },
+    };
+
+    Ok(Json(response))
+}
+
+/// Mask an email address: "tony@example.com" → "t***@example.com".
+fn mask_email(email: &str) -> String {
+    match email.split_once('@') {
+        Some((local, domain)) if !local.is_empty() => {
+            format!("{}***@{}", &local[..1], domain)
+        }
+        _ => "***".to_string(),
+    }
+}
+
+/// GET /admin/invites/:id/claims — list users who claimed an invite code (admin only).
+pub async fn invite_claims(
+    State(state): State<AppState>,
+    AdminUser(_): AdminUser,
+    Path(invite_id): Path<Uuid>,
+) -> Result<Json<Vec<InviteClaimResponse>>, ApiError> {
+    let rows = invites::list_claims(&state.pool, invite_id).await?;
+    let claims = rows
+        .into_iter()
+        .map(|r| InviteClaimResponse {
+            user_email: mask_email(&r.user_email),
+            claimed_at: r.claimed_at,
+        })
+        .collect();
+    Ok(Json(claims))
+}
+
+/// GET /admin/invites/stats — invite summary stats (admin only).
+pub async fn invite_stats(
+    State(state): State<AppState>,
+    AdminUser(_): AdminUser,
+) -> Result<Json<InviteStatsResponse>, ApiError> {
+    let row = invites::invite_stats(&state.pool).await?;
+    Ok(Json(InviteStatsResponse {
+        total: row.total,
+        active: row.active,
+        used: row.used,
+        expired: row.expired,
+        revoked: row.revoked,
+    }))
 }

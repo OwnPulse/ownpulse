@@ -2,10 +2,39 @@
 // Copyright (C) OwnPulse Contributors
 
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 use crate::models::invite::InviteRow;
+
+/// Raw DB row for invite check queries (includes inviter info via JOIN).
+#[derive(FromRow)]
+pub struct InviteCheckRow {
+    pub id: Uuid,
+    pub label: Option<String>,
+    pub max_uses: Option<i32>,
+    pub use_count: i32,
+    pub expires_at: Option<DateTime<Utc>>,
+    pub revoked_at: Option<DateTime<Utc>>,
+    pub inviter_name: Option<String>,
+}
+
+/// Raw DB row for invite claim queries.
+#[derive(FromRow)]
+pub struct ClaimRow {
+    pub user_email: String,
+    pub claimed_at: DateTime<Utc>,
+}
+
+/// Aggregated invite stats row.
+#[derive(FromRow)]
+pub struct InviteStatsRow {
+    pub total: i64,
+    pub active: i64,
+    pub used: i64,
+    pub expired: i64,
+    pub revoked: i64,
+}
 
 /// Create a new invite code.
 pub async fn create_invite(
@@ -90,6 +119,64 @@ pub async fn revoke_invite(pool: &PgPool, invite_id: Uuid) -> Result<InviteRow, 
                    expires_at, revoked_at, created_at",
     )
     .bind(invite_id)
+    .fetch_one(pool)
+    .await
+}
+
+/// Look up an invite code by its code string, returning validity metadata.
+/// JOINs with `users` to get the inviter's username/email.
+pub async fn check_invite(
+    pool: &PgPool,
+    code: &str,
+) -> Result<Option<InviteCheckRow>, sqlx::Error> {
+    sqlx::query_as::<_, InviteCheckRow>(
+        "SELECT ic.id, ic.label, ic.max_uses, ic.use_count, ic.expires_at,
+                ic.revoked_at,
+                COALESCE(u.username, u.email) AS inviter_name
+         FROM invite_codes ic
+         JOIN users u ON u.id = ic.created_by
+         WHERE ic.code = $1",
+    )
+    .bind(code)
+    .fetch_optional(pool)
+    .await
+}
+
+/// List all users who claimed a specific invite code, with masked emails.
+pub async fn list_claims(
+    pool: &PgPool,
+    invite_code_id: Uuid,
+) -> Result<Vec<ClaimRow>, sqlx::Error> {
+    sqlx::query_as::<_, ClaimRow>(
+        "SELECT u.email AS user_email, ic.claimed_at
+         FROM invite_claims ic
+         JOIN users u ON u.id = ic.user_id
+         WHERE ic.invite_code_id = $1
+         ORDER BY ic.claimed_at ASC",
+    )
+    .bind(invite_code_id)
+    .fetch_all(pool)
+    .await
+}
+
+/// Return aggregate invite code stats.
+pub async fn invite_stats(pool: &PgPool) -> Result<InviteStatsRow, sqlx::Error> {
+    sqlx::query_as::<_, InviteStatsRow>(
+        "SELECT
+            COUNT(*)::bigint AS total,
+            COUNT(*) FILTER (
+                WHERE revoked_at IS NULL
+                  AND (expires_at IS NULL OR expires_at > now())
+                  AND (max_uses IS NULL OR use_count < max_uses)
+            )::bigint AS active,
+            COUNT(*) FILTER (WHERE use_count > 0)::bigint AS used,
+            COUNT(*) FILTER (
+                WHERE expires_at IS NOT NULL AND expires_at <= now()
+                  AND revoked_at IS NULL
+            )::bigint AS expired,
+            COUNT(*) FILTER (WHERE revoked_at IS NOT NULL)::bigint AS revoked
+         FROM invite_codes",
+    )
     .fetch_one(pool)
     .await
 }
