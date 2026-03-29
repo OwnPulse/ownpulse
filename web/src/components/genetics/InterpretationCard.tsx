@@ -66,6 +66,25 @@ export function InterpretationCard({ interpretation }: { interpretation: Interpr
           </>
         )}
       </p>
+
+      {interpretation.references && interpretation.references.length > 0 && (
+        <div className={styles.references}>
+          <p className={styles.referencesLabel}>References:</p>
+          <ul className={styles.referencesList}>
+            {interpretation.references.map((ref) => (
+              <li key={ref.pmid}>
+                <a href={ref.url} target="_blank" rel="noopener noreferrer">
+                  {ref.title}
+                </a>
+                <span className={styles.refMeta}>
+                  {" "}
+                  — {ref.journal} ({ref.year}) · PMID: {ref.pmid}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

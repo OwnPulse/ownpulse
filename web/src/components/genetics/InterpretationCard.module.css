@@ -56,3 +56,41 @@
 .evidence a:hover {
   text-decoration: underline;
 }
+
+.references {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--color-border, #e5e5e5);
+}
+
+.referencesLabel {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin: 0 0 0.25rem;
+}
+
+.referencesList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.referencesList li {
+  font-size: var(--text-xs);
+  margin-bottom: 0.25rem;
+  line-height: 1.4;
+}
+
+.referencesList a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.referencesList a:hover {
+  text-decoration: underline;
+}
+
+.refMeta {
+  color: var(--color-text-muted);
+}

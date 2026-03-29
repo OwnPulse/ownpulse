@@ -58,6 +58,13 @@ export interface Interpretation {
   source_id: string | null;
   population_frequency: number | null;
   details: Record<string, unknown>;
+  references: Array<{
+    pmid: string;
+    title: string;
+    journal: string;
+    year: number;
+    url: string;
+  }>;
 }
 
 export interface InterpretationsResponse {
