@@ -42,7 +42,7 @@ struct ContentView: View {
 
     var body: some View {
         if dependencies.authService.isAuthenticated {
-            HomeView()
+            MainTabView()
         } else {
             LoginView()
         }

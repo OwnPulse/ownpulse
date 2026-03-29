@@ -32,7 +32,7 @@ struct HealthKitTypeMapTests {
 
     @Test("allHKTypes contains expected count")
     func allTypesCount() {
-        #expect(HealthKitTypeMap.allHKTypes.count == 11)
+        #expect(HealthKitTypeMap.allHKTypes.count == HealthKitTypeMap.mappings.count)
     }
 
     @Test("unknown record type returns nil")

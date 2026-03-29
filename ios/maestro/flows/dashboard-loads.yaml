@@ -1,0 +1,19 @@
+appId: health.ownpulse.app
+---
+# Verify the dashboard tab loads after authentication
+- assertVisible:
+    id: "mainTabView"
+- assertVisible:
+    id: "dashboardLoading"
+    optional: true
+# Wait for dashboard data to load
+- extendedWaitUntil:
+    visible:
+      id: "checkinSummaryCard"
+    timeout: 10000
+- assertVisible:
+    id: "checkinSummaryCard"
+- assertVisible:
+    id: "weeklySummaryCard"
+- assertVisible:
+    id: "syncStatus"

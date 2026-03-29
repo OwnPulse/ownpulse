@@ -1,0 +1,37 @@
+appId: health.ownpulse.app
+---
+# Log an intervention via the Log tab
+- assertVisible:
+    id: "mainTabView"
+
+# Navigate to Log tab
+- tapOn:
+    text: "Log"
+- assertVisible:
+    id: "logTabPicker"
+
+# Switch to Intervention tab
+- tapOn:
+    text: "Intervention"
+- assertVisible:
+    id: "substanceField"
+- assertVisible:
+    id: "doseField"
+- assertVisible:
+    id: "saveInterventionButton"
+
+# Fill in the form
+- tapOn:
+    id: "substanceField"
+- inputText: "Caffeine"
+- tapOn:
+    id: "doseField"
+- inputText: "200"
+
+# Submit
+- tapOn:
+    id: "saveInterventionButton"
+- extendedWaitUntil:
+    visible:
+      id: "submitSuccess"
+    timeout: 10000
