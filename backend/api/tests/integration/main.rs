@@ -18,4 +18,5 @@ mod observations;
 mod observer_polls;
 mod security_fixes;
 mod sleep;
+mod stats;
 mod waitlist;

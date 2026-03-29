@@ -21,5 +21,6 @@ pub mod observer_polls;
 pub mod password_reset_tokens;
 pub mod refresh_tokens;
 pub mod source_preferences;
+pub mod stats;
 pub mod user_auth_methods;
 pub mod users;

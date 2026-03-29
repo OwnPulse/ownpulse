@@ -14,4 +14,5 @@ pub mod observation;
 pub mod observer_poll;
 pub mod sleep;
 pub mod source_preference;
+pub mod stats;
 pub mod user;
