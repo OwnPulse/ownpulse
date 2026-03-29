@@ -1,0 +1,12 @@
+[
+  {
+    "calendarDate": "2026-03-28",
+    "sleepStartTimestampGMT": 1774926000000,
+    "sleepEndTimestampGMT": 1774951200000,
+    "deepSleepSeconds": 4800,
+    "lightSleepSeconds": 10800,
+    "remSleepSeconds": 5400,
+    "awakeSleepSeconds": 1200,
+    "overallScore": 82.0
+  }
+]

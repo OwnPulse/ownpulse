@@ -125,6 +125,71 @@ pub async fn upsert(
     Ok(row)
 }
 
+/// List all integration tokens for a given source across all users, decrypting token fields.
+/// Used by background sync jobs.
+pub async fn list_for_user_by_source(
+    pool: &PgPool,
+    source: &str,
+    encryption_key: &[u8; 32],
+    previous_key: Option<&[u8; 32]>,
+) -> Result<Vec<IntegrationTokenRow>, sqlx::Error> {
+    let mut rows = sqlx::query_as::<_, IntegrationTokenRow>(
+        "SELECT id, user_id, source, access_token, refresh_token,
+                expires_at, last_synced_at, last_sync_error, updated_at
+         FROM integration_tokens
+         WHERE source = $1
+         ORDER BY updated_at",
+    )
+    .bind(source)
+    .fetch_all(pool)
+    .await?;
+
+    for row in &mut rows {
+        decrypt_row(row, encryption_key, previous_key).map_err(|e| {
+            tracing::error!(error = %e, source = %row.source, "failed to decrypt integration token");
+            sqlx::Error::Protocol(format!("token decryption failed: {e}"))
+        })?;
+    }
+
+    Ok(rows)
+}
+
+/// Update the last_synced_at timestamp for a source.
+pub async fn update_last_synced(
+    pool: &PgPool,
+    user_id: Uuid,
+    source: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE integration_tokens SET last_synced_at = now(), last_sync_error = NULL, updated_at = now()
+         WHERE user_id = $1 AND source = $2",
+    )
+    .bind(user_id)
+    .bind(source)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+/// Update the last_sync_error for a source.
+pub async fn update_sync_error(
+    pool: &PgPool,
+    user_id: Uuid,
+    source: &str,
+    error: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "UPDATE integration_tokens SET last_sync_error = $3, updated_at = now()
+         WHERE user_id = $1 AND source = $2",
+    )
+    .bind(user_id)
+    .bind(source)
+    .bind(error)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 /// Delete an integration token (disconnect a source).
 pub async fn delete(pool: &PgPool, user_id: Uuid, source: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query("DELETE FROM integration_tokens WHERE user_id = $1 AND source = $2")

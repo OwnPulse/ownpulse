@@ -1,0 +1,29 @@
+{
+  "data": [
+    {
+      "id": "sleep-2026-03-28",
+      "day": "2026-03-28",
+      "score": 88.0,
+      "timestamp": "2026-03-28T07:00:00+00:00",
+      "contributors": {
+        "deep_sleep": 80.0,
+        "efficiency": 92.0,
+        "latency": 85.0,
+        "rem_sleep": 75.0,
+        "restfulness": 88.0,
+        "timing": 90.0,
+        "total_sleep": 95.0
+      },
+      "deep_sleep_duration": 4800,
+      "light_sleep_duration": 10800,
+      "rem_sleep_duration": 5400,
+      "awake_time": 1200,
+      "total_sleep_duration": 25200,
+      "bedtime_start": "2026-03-27T22:30:00+00:00",
+      "bedtime_end": "2026-03-28T06:30:00+00:00",
+      "average_heart_rate": 55.0,
+      "lowest_heart_rate": 48.0
+    }
+  ],
+  "next_token": null
+}

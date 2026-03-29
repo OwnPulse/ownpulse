@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "id": "activity-2026-03-28",
+      "day": "2026-03-28",
+      "score": 78.0,
+      "active_calories": 450,
+      "total_calories": 2150,
+      "steps": 9200,
+      "equivalent_walking_distance": 7500.0,
+      "timestamp": "2026-03-28T23:59:59+00:00"
+    }
+  ],
+  "next_token": null
+}

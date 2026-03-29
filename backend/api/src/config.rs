@@ -43,11 +43,20 @@ pub struct Config {
     pub garmin_client_id: Option<String>,
     #[serde(default)]
     pub garmin_client_secret: Option<String>,
+    /// Override Garmin API base URL for testing. Defaults to `https://apis.garmin.com`.
+    #[serde(default)]
+    pub garmin_base_url: Option<String>,
 
     #[serde(default)]
     pub oura_client_id: Option<String>,
     #[serde(default)]
     pub oura_client_secret: Option<String>,
+    /// Override Oura API base URL for testing. Defaults to `https://api.ouraring.com`.
+    #[serde(default)]
+    pub oura_api_base_url: Option<String>,
+    /// Override Oura auth base URL for testing. Defaults to `https://cloud.ouraring.com`.
+    #[serde(default)]
+    pub oura_auth_base_url: Option<String>,
 
     #[serde(default)]
     pub dexcom_client_id: Option<String>,
@@ -200,8 +209,11 @@ mod tests {
             google_redirect_uri: None,
             garmin_client_id: None,
             garmin_client_secret: None,
+            garmin_base_url: None,
             oura_client_id: None,
             oura_client_secret: None,
+            oura_api_base_url: None,
+            oura_auth_base_url: None,
             dexcom_client_id: None,
             dexcom_client_secret: None,
             encryption_key: default_encryption_key(),
