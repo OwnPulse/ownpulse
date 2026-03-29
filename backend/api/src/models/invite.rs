@@ -54,3 +54,34 @@ pub struct CreateInviteRequest {
     pub max_uses: Option<i32>,
     pub expires_in_hours: Option<i64>,
 }
+
+/// Response for `GET /invites/:code/check`.
+#[derive(Serialize)]
+pub struct InviteCheckResponse {
+    pub valid: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inviter_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+/// A single invite claim returned by `GET /admin/invites/:id/claims`.
+#[derive(Serialize)]
+pub struct InviteClaimResponse {
+    pub user_email: String,
+    pub claimed_at: DateTime<Utc>,
+}
+
+/// Summary stats returned by `GET /admin/invites/stats`.
+#[derive(Serialize)]
+pub struct InviteStatsResponse {
+    pub total: i64,
+    pub active: i64,
+    pub used: i64,
+    pub expired: i64,
+    pub revoked: i64,
+}
