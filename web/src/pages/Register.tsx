@@ -6,19 +6,27 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { register } from "../api/auth";
 import styles from "./Register.module.css";
 
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  invite_required:
+    "An invite code is required to create an account. Enter your invite code below, then try signing in with Google again.",
+};
+
 export default function Register() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const inviteFromUrl = searchParams.get("invite") || "";
+  const errorFromUrl = searchParams.get("error") || "";
 
   const [inviteCode, setInviteCode] = useState(inviteFromUrl);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    errorFromUrl in OAUTH_ERROR_MESSAGES ? OAUTH_ERROR_MESSAGES[errorFromUrl] : "",
+  );
   const [submitting, setSubmitting] = useState(false);
 
-  if (!inviteFromUrl && !inviteCode) {
+  if (!inviteFromUrl && !inviteCode && !errorFromUrl) {
     return (
       <div className="op-auth-page">
         <main className="op-auth-card">
@@ -60,6 +68,8 @@ export default function Register() {
     <div className="op-auth-page">
       <main className="op-auth-card">
         <h1>Create Account</h1>
+
+        {error && <div className={`op-error-msg ${styles.errorMsg}`}>{error}</div>}
 
         <a
           href={`/api/v1/auth/google/login?invite_code=${encodeURIComponent(inviteCode)}`}
@@ -126,7 +136,6 @@ export default function Register() {
               className="op-input"
             />
           </div>
-          {error && <div className={`op-error-msg ${styles.errorMsg}`}>{error}</div>}
           <button
             type="submit"
             disabled={submitting}

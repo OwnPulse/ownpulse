@@ -680,9 +680,31 @@ pub async fn google_callback(
 
             // Claim invite if required, then create.
             let claimed_invite = if state.config.require_invite && !is_first_user {
-                let code = invite_code_cookie.ok_or_else(|| {
-                    ApiError::BadRequest("invite code required for new account registration".into())
-                })?;
+                let code = match invite_code_cookie {
+                    Some(c) => c,
+                    None => {
+                        tx.rollback()
+                            .await
+                            .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+                        if query.code_verifier.is_some() {
+                            let redirect_url = "ownpulse://auth?error=invite_required";
+                            let mut response = Redirect::to(redirect_url).into_response();
+                            append_cookie(&mut response, &clear_state_cookie)?;
+                            append_cookie(&mut response, &clear_invite_cookie)?;
+                            return Ok(response);
+                        } else {
+                            let redirect_url = format!(
+                                "{}/register?error=invite_required",
+                                state.config.web_origin
+                            );
+                            let mut response = Redirect::to(&redirect_url).into_response();
+                            append_cookie(&mut response, &clear_state_cookie)?;
+                            append_cookie(&mut response, &clear_invite_cookie)?;
+                            return Ok(response);
+                        }
+                    }
+                };
 
                 let invite = invites::claim_invite_code_tx(&mut tx, &code)
                     .await
