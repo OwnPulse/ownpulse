@@ -1302,8 +1302,13 @@ pub async fn forgot_password(
          <p>This link expires in 1 hour. If you did not request this, you can ignore this email.</p>"
     );
 
-    if let Err(e) =
-        crate::email::send_email(&state.config, &body.email, "Reset your OwnPulse password", &html_body).await
+    if let Err(e) = crate::email::send_email(
+        &state.config,
+        &body.email,
+        "Reset your OwnPulse password",
+        &html_body,
+    )
+    .await
     {
         tracing::error!(error = %e, "failed to send password reset email");
     }

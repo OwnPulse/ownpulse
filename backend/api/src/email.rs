@@ -35,15 +35,14 @@ pub async fn send_email(
         .body(html_body.to_string())?;
 
     let mut transport_builder =
-        AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(smtp_host)?
-            .port(config.smtp_port);
+        AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(smtp_host)?.port(config.smtp_port);
 
     if let (Some(username), Some(password)) = (
         config.smtp_username.as_deref(),
         config.smtp_password.as_deref(),
     ) {
-        transport_builder =
-            transport_builder.credentials(Credentials::new(username.to_string(), password.to_string()));
+        transport_builder = transport_builder
+            .credentials(Credentials::new(username.to_string(), password.to_string()));
     }
 
     let mailer = transport_builder.build();

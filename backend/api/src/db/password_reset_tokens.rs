@@ -62,10 +62,7 @@ pub async fn mark_claimed_tx(
 }
 
 /// Invalidate all unclaimed tokens for a user (cancel previous reset requests).
-pub async fn invalidate_all_for_user(
-    pool: &PgPool,
-    user_id: Uuid,
-) -> Result<(), sqlx::Error> {
+pub async fn invalidate_all_for_user(pool: &PgPool, user_id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query(
         "UPDATE password_reset_tokens SET claimed_at = now()
          WHERE user_id = $1 AND claimed_at IS NULL",
