@@ -3,7 +3,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { exploreApi } from "../api/explore";
 import { ChartLegend } from "../components/explore/ChartLegend";
 import { DateRangeBar } from "../components/explore/DateRangeBar";
@@ -17,6 +17,7 @@ import styles from "./Explore.module.css";
 
 export default function Explore() {
   const { chartId } = useParams<{ chartId?: string }>();
+  const navigate = useNavigate();
   const [saveOpen, setSaveOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -71,11 +72,34 @@ export default function Explore() {
     <main className="op-page">
       <div className="op-page-header">
         <h1>Explore</h1>
-        {selectedMetrics.length > 0 && (
-          <button type="button" className="op-btn op-btn-primary" onClick={() => setSaveOpen(true)}>
-            Save Chart
-          </button>
-        )}
+        <div>
+          {selectedMetrics.length >= 2 && (
+            <button
+              type="button"
+              className="op-btn op-btn-secondary"
+              onClick={() => {
+                const params = new URLSearchParams({
+                  mode: "correlation",
+                  metricA: `${selectedMetrics[0].source}:${selectedMetrics[0].field}`,
+                  metricB: `${selectedMetrics[1].source}:${selectedMetrics[1].field}`,
+                });
+                navigate(`/analyze?${params.toString()}`);
+              }}
+              style={{ marginRight: "0.5rem" }}
+            >
+              Correlate
+            </button>
+          )}
+          {selectedMetrics.length > 0 && (
+            <button
+              type="button"
+              className="op-btn op-btn-primary"
+              onClick={() => setSaveOpen(true)}
+            >
+              Save Chart
+            </button>
+          )}
+        </div>
       </div>
 
       <div className={styles.controls}>

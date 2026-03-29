@@ -14,6 +14,7 @@ import AdminRoute from "./components/AdminRoute";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Admin from "./pages/Admin";
+import Analyze from "./pages/Analyze";
 import Dashboard from "./pages/Dashboard";
 import DataEntry from "./pages/DataEntry";
 import Explore from "./pages/Explore";
@@ -43,6 +44,7 @@ ReactDOM.createRoot(rootEl).render(
               <Route path="/" element={<Dashboard />} />
               <Route path="/explore" element={<Explore />} />
               <Route path="/explore/:chartId" element={<Explore />} />
+              <Route path="/analyze" element={<Analyze />} />
               <Route path="/entry" element={<DataEntry />} />
               <Route path="/sources" element={<Sources />} />
               <Route path="/settings" element={<Settings />} />
