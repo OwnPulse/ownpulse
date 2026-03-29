@@ -24,6 +24,7 @@ pub mod observations;
 pub mod observer_polls;
 pub mod sleep;
 pub mod source_preferences;
+pub mod stats;
 pub mod waitlist;
 
 use axum::{
@@ -153,6 +154,10 @@ fn base_routes() -> Router<AppState> {
             patch(friends::update_permissions),
         )
         .route("/friends/:friend_id/data", get(friends::get_friend_data))
+        // Stats — correlation explorer
+        .route("/stats/before-after", post(stats::before_after))
+        .route("/stats/correlate", post(stats::correlate))
+        .route("/stats/lag-correlate", post(stats::lag_correlate))
         // Explore — metrics, time-series, saved charts, intervention markers
         .route("/explore/interventions", get(explore::interventions))
         .route("/explore/metrics", get(explore::metrics))
