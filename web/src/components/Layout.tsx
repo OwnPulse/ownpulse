@@ -67,6 +67,9 @@ export default function Layout() {
           <NavLink to="/explore" className={navLinkClass} onClick={closeSidebar}>
             Explore
           </NavLink>
+          <NavLink to="/analyze" className={navLinkClass} onClick={closeSidebar}>
+            Analyze
+          </NavLink>
           <NavLink to="/entry" className={navLinkClass} onClick={closeSidebar}>
             Data Entry
           </NavLink>

@@ -1,0 +1,39 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.form {
+  margin-bottom: 1.5rem;
+}
+
+.row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.row > * {
+  flex: 1;
+  min-width: 160px;
+}
+
+.toggleGroup {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.disclaimer {
+  margin-top: 0.75rem;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .row {
+    flex-direction: column;
+  }
+
+  .row > * {
+    min-width: 100%;
+  }
+}

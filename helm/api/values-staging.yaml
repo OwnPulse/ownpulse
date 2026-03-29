@@ -19,6 +19,8 @@ configmap:
 secret:
   name: ownpulse-staging-api-secrets
 
+smtpSecret: ownpulse-smtp-secrets
+
 resources:
   requests:
     memory: "128Mi"

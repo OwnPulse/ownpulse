@@ -557,20 +557,12 @@
     }
     ,
     {
-<<<<<<< HEAD
       "description": "a request to list interventions with date filters",
       "providerState": "interventions exist",
       "request": {
         "method": "GET",
         "path": "/api/v1/interventions",
         "query": "start=2026-03-01T00%3A00%3A00Z&end=2026-03-07T23%3A59%3A59Z",
-=======
-      "description": "a request to list insights",
-      "providerState": "insights exist for the user",
-      "request": {
-        "method": "GET",
-        "path": "/api/v1/insights",
->>>>>>> 3abc0a5 (feat(web): add insight cards on dashboard — trend, anomaly, streak, missing data)
         "headers": {
           "Authorization": "Bearer some-jwt-token"
         }
@@ -583,7 +575,6 @@
         "body": [
           {
             "id": "uuid-1",
-<<<<<<< HEAD
             "user_id": "user-1",
             "substance": "Caffeine",
             "dose": 200,
@@ -592,25 +583,11 @@
             "administered_at": "2026-03-02T08:00:00Z",
             "fasted": false,
             "created_at": "2026-03-02T08:00:00Z"
-=======
-            "insight_type": "trend",
-            "headline": "Energy trending up 15%",
-            "detail": "Average went from 5.2 to 6.0",
-            "metadata": {
-              "explore_params": {
-                "source": "checkins",
-                "field": "energy",
-                "preset": "30d"
-              }
-            },
-            "created_at": "2026-03-28T06:00:00Z"
->>>>>>> 3abc0a5 (feat(web): add insight cards on dashboard — trend, anomaly, streak, missing data)
           }
         ]
       }
     },
     {
-<<<<<<< HEAD
       "description": "a request to fetch explore metrics including observer polls",
       "providerState": "observer polls exist with explore metrics",
       "request": {
@@ -618,60 +595,14 @@
         "path": "/api/v1/explore/metrics",
         "headers": {
           "Authorization": "Bearer some-jwt-token"
-=======
-      "description": "a request to run before-after analysis",
-      "providerState": "interventions and health records exist",
-      "request": {
-        "method": "POST",
-        "path": "/api/v1/stats/before-after",
-        "headers": {
-          "Authorization": "Bearer some-jwt-token",
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "intervention_substance": "Magnesium",
-          "metric": { "source": "checkins", "field": "energy" },
-          "before_days": 30,
-          "after_days": 30,
-          "resolution": "daily"
->>>>>>> 9552073 (feat(web): add Analyze page — before/after, correlation, lag analysis)
         }
-=======
-      "description": "a request to dismiss an insight",
-      "providerState": "insight exists",
-      "request": {
-        "method": "POST",
-        "path": "/api/v1/insights/uuid-1/dismiss",
-        "headers": {
-          "Authorization": "Bearer some-jwt-token",
-          "Content-Type": "application/json"
-        },
-        "body": {}
-      },
-      "response": {
-        "status": 204
-      }
-    },
-    {
-      "description": "a request to generate insights",
-      "request": {
-        "method": "POST",
-        "path": "/api/v1/insights/generate",
-        "headers": {
-          "Authorization": "Bearer some-jwt-token",
-          "Content-Type": "application/json"
-        },
-        "body": {}
->>>>>>> 3abc0a5 (feat(web): add insight cards on dashboard — trend, anomaly, streak, missing data)
       },
       "response": {
         "status": 200,
         "headers": {
           "Content-Type": "application/json"
         },
-<<<<<<< HEAD
         "body": {
-<<<<<<< HEAD
           "sources": [
             {
               "source": "checkins",
@@ -688,121 +619,7 @@
               ]
             }
           ]
-=======
-          "intervention_substance": "Magnesium",
-          "first_dose": "2026-01-15T08:00:00Z",
-          "last_dose": null,
-          "metric": { "source": "checkins", "field": "energy" },
-          "before": {
-            "mean": 5.2,
-            "std_dev": 1.1,
-            "n": 30,
-            "points": [{ "t": "2026-01-01T00:00:00Z", "v": 5.0 }]
-          },
-          "after": {
-            "mean": 6.8,
-            "std_dev": 0.9,
-            "n": 30,
-            "points": [{ "t": "2026-01-16T00:00:00Z", "v": 7.0 }]
-          },
-          "change_pct": 30.8,
-          "p_value": 0.003,
-          "significant": true,
-          "test_used": "welch_t"
         }
-      }
-    },
-    {
-      "description": "a request to run correlation analysis",
-      "providerState": "health records exist for two metrics",
-      "request": {
-        "method": "POST",
-        "path": "/api/v1/stats/correlate",
-        "headers": {
-          "Authorization": "Bearer some-jwt-token",
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "metric_a": { "source": "checkins", "field": "energy" },
-          "metric_b": { "source": "checkins", "field": "mood" },
-          "start": "2026-01-01T00:00:00Z",
-          "end": "2026-03-01T23:59:59Z",
-          "resolution": "daily",
-          "method": "pearson"
-        }
-      },
-      "response": {
-        "status": 200,
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "metric_a": { "source": "checkins", "field": "energy" },
-          "metric_b": { "source": "checkins", "field": "mood" },
-          "r": 0.72,
-          "p_value": 0.001,
-          "n": 60,
-          "significant": true,
-          "method": "pearson",
-          "interpretation": "Strong positive correlation",
-          "scatter": [{ "a": 5.0, "b": 6.0, "t": "2026-01-01T00:00:00Z" }]
-        }
-      }
-    },
-    {
-      "description": "a request to run lag correlation analysis",
-      "providerState": "health records exist for two metrics",
-      "request": {
-        "method": "POST",
-        "path": "/api/v1/stats/lag-correlate",
-        "headers": {
-          "Authorization": "Bearer some-jwt-token",
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "metric_a": { "source": "checkins", "field": "energy" },
-          "metric_b": { "source": "checkins", "field": "mood" },
-          "start": "2026-01-01T00:00:00Z",
-          "end": "2026-03-01T23:59:59Z",
-          "resolution": "daily",
-          "max_lag_days": 7,
-          "method": "pearson"
-        }
-      },
-      "response": {
-        "status": 200,
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "metric_a": { "source": "checkins", "field": "energy" },
-          "metric_b": { "source": "checkins", "field": "mood" },
-          "lags": [
-            { "lag": 0, "r": 0.5, "p_value": 0.01, "n": 60 },
-            { "lag": 1, "r": 0.72, "p_value": 0.001, "n": 59 }
-          ],
-          "best_lag": { "lag": 1, "r": 0.72, "p_value": 0.001, "n": 59 },
-          "method": "pearson"
->>>>>>> 9552073 (feat(web): add Analyze page — before/after, correlation, lag analysis)
-        }
-=======
-        "body": [
-          {
-            "id": "uuid-1",
-            "insight_type": "trend",
-            "headline": "Energy trending up 15%",
-            "detail": "Average went from 5.2 to 6.0",
-            "metadata": {
-              "explore_params": {
-                "source": "checkins",
-                "field": "energy",
-                "preset": "30d"
-              }
-            },
-            "created_at": "2026-03-28T06:00:00Z"
-          }
-        ]
->>>>>>> 3abc0a5 (feat(web): add insight cards on dashboard — trend, anomaly, streak, missing data)
       }
     }
   ],
