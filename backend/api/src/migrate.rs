@@ -89,8 +89,12 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!("../../../db/migrations/0020_snp_annotations.sql"),
     ),
     (
-        "0021_protocols.sql",
-        include_str!("../../../db/migrations/0021_protocols.sql"),
+        "0021_lab_results_source_id.sql",
+        include_str!("../../../db/migrations/0021_lab_results_source_id.sql"),
+    ),
+    (
+        "0022_protocols.sql",
+        include_str!("../../../db/migrations/0022_protocols.sql"),
     ),
 ];
 
