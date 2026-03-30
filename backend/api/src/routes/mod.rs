@@ -26,6 +26,7 @@ pub mod labs;
 pub mod observations;
 pub mod observer_polls;
 pub mod oura;
+pub mod protocols;
 pub mod sleep;
 pub mod source_preferences;
 pub mod stats;
@@ -370,6 +371,21 @@ fn base_routes() -> Router<AppState> {
             patch(friends::update_permissions),
         )
         .route("/friends/:friend_id/data", get(friends::get_friend_data))
+        // Protocols — shared/import routes before :id to avoid UUID matching
+        .route(
+            "/protocols/shared/:token",
+            get(protocols::get_shared_protocol),
+        )
+        .route("/protocols/import/:token", post(protocols::import_protocol))
+        .route("/protocols/todays-doses", get(protocols::todays_doses))
+        .route("/protocols", post(protocols::create_protocol))
+        .route("/protocols", get(protocols::list_protocols))
+        .route("/protocols/:id", get(protocols::get_protocol))
+        .route("/protocols/:id", patch(protocols::update_protocol))
+        .route("/protocols/:id", delete(protocols::delete_protocol))
+        .route("/protocols/:id/doses/log", post(protocols::log_dose))
+        .route("/protocols/:id/doses/skip", post(protocols::skip_dose))
+        .route("/protocols/:id/share", post(protocols::share_protocol))
         // Stats — correlation explorer
         .route("/stats/before-after", post(stats::before_after))
         .route("/stats/correlate", post(stats::correlate))

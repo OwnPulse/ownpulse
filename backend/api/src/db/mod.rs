@@ -21,6 +21,7 @@ pub mod lab_results;
 pub mod observations;
 pub mod observer_polls;
 pub mod password_reset_tokens;
+pub mod protocols;
 pub mod refresh_tokens;
 pub mod snp_seed;
 pub mod source_preferences;

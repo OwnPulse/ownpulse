@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import { dashboardApi } from "../api/dashboard";
 import { InsightCards } from "../components/dashboard/InsightCards";
 import { SparklineRow } from "../components/dashboard/SparklineRow";
+import { TodaysDoses } from "../components/dashboard/TodaysDoses";
 import styles from "./Dashboard.module.css";
 
 export default function Dashboard() {
@@ -46,6 +47,9 @@ export default function Dashboard() {
           </p>
         )}
       </div>
+
+      {/* Today's protocol doses */}
+      <TodaysDoses />
 
       {/* 7-day sparklines */}
       <SparklineRow />

@@ -1,0 +1,97 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.headerRow {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.headerRow > * {
+  flex: 1;
+  min-width: 140px;
+}
+
+.linesSection {
+  margin-bottom: 1.5rem;
+}
+
+.lineCard {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-elevated);
+  position: relative;
+}
+
+.lineFields {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.lineFields > * {
+  flex: 1;
+  min-width: 100px;
+}
+
+.lineFields > *:first-child {
+  flex: 2;
+}
+
+.removeBtn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  line-height: 1;
+  padding: 0.25rem;
+}
+
+.removeBtn:hover {
+  color: var(--color-error);
+}
+
+.patternRow {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.gridSection {
+  margin-bottom: 1.5rem;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .lineFields {
+    flex-direction: column;
+  }
+
+  .lineFields > * {
+    min-width: unset;
+  }
+
+  .lineFields input,
+  .lineFields select {
+    padding: 12px;
+  }
+}

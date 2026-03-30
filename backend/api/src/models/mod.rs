@@ -14,6 +14,7 @@ pub mod invite;
 pub mod lab_result;
 pub mod observation;
 pub mod observer_poll;
+pub mod protocol;
 pub mod sleep;
 pub mod source_preference;
 pub mod stats;

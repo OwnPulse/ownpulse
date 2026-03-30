@@ -990,6 +990,100 @@ Observer exports all their responses across all polls.
 }
 ```
 
+### Protocols
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| POST | `/protocols` | Create protocol with lines | 1 |
+| GET | `/protocols` | List user's protocols | 1 |
+| GET | `/protocols/:id` | Get protocol with lines + dose status | 1 |
+| PATCH | `/protocols/:id` | Update protocol | 1 |
+| DELETE | `/protocols/:id` | Delete protocol | 1 |
+| POST | `/protocols/:id/log` | Log a dose | 1 |
+| POST | `/protocols/:id/skip` | Skip a dose | 1 |
+| POST | `/protocols/:id/share` | Generate share link | 1 |
+| GET | `/protocols/shared/:token` | View shared protocol (public) | 1 |
+| POST | `/protocols/import/:token` | Copy shared protocol | 1 |
+
+#### `POST /protocols`
+
+Create a new protocol with one or more lines and a day schedule.
+
+**Request body:**
+
+```json
+{
+  "name": "BPC-157 — 4 weeks",
+  "start_date": "2026-04-01",
+  "duration_days": 28,
+  "lines": [
+    {
+      "substance": "BPC-157",
+      "dose": "250 mcg",
+      "route": "subcutaneous",
+      "timing": "AM",
+      "active_days": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+    }
+  ]
+}
+```
+
+- `duration_days` — total days in the protocol.
+- `lines[].active_days` — array of 1-indexed day numbers within the duration when the dose is scheduled.
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "uuid",
+  "name": "BPC-157 — 4 weeks",
+  "start_date": "2026-04-01",
+  "duration_days": 28,
+  "lines": [
+    {
+      "id": "uuid",
+      "substance": "BPC-157",
+      "dose": "250 mcg",
+      "route": "subcutaneous",
+      "timing": "AM",
+      "active_days": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
+    }
+  ],
+  "created_at": "2026-03-27T00:00:00Z"
+}
+```
+
+**Errors:** `400` if name is empty, duration is zero, or lines array is empty.
+
+#### `POST /protocols/:id/log`
+
+Log a completed dose for a protocol line on a specific day.
+
+**Request body:**
+
+```json
+{
+  "line_id": "uuid",
+  "day": 3,
+  "logged_at": "2026-04-03T08:30:00Z"
+}
+```
+
+**Response:** `201 Created`
+
+```json
+{
+  "id": "uuid",
+  "protocol_id": "uuid",
+  "line_id": "uuid",
+  "day": 3,
+  "status": "completed",
+  "logged_at": "2026-04-03T08:30:00Z"
+}
+```
+
+**Errors:** `400` if the day is not an active day for the line. `404` if protocol or line not found.
+
 ### Server-Sent Events (SSE)
 
 | Method | Path | Description | Phase |

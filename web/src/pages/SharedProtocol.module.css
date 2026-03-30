@@ -1,0 +1,70 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.page {
+  max-width: 48rem;
+}
+
+.header {
+  margin-bottom: 1rem;
+}
+
+.header h1 {
+  margin: 0 0 0.25rem;
+}
+
+.description {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.linesSection {
+  margin-bottom: 1.5rem;
+}
+
+.linesSection h2 {
+  margin: 0 0 0.75rem;
+}
+
+.lineItem {
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.lineSubstance {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.lineMeta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin-top: 0.125rem;
+}
+
+.schedulePreview {
+  display: flex;
+  gap: 2px;
+  margin-top: 0.375rem;
+}
+
+.scheduleDay {
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-elevated);
+}
+
+.scheduleDayOn {
+  background: var(--color-primary);
+}
+
+.actions {
+  margin-top: 1.5rem;
+}
+
+.loginMsg {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
