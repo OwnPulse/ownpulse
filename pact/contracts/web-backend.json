@@ -956,6 +956,58 @@
         "status": 204
       }
     }
+    ,
+    {
+      "description": "a request to create an invite with email",
+      "providerState": "admin user is authenticated",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/admin/invites",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "label": "For a friend",
+          "max_uses": 1,
+          "send_to_email": "friend@example.com"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "uuid-inv-1",
+          "code": "INVITE-XYZ",
+          "label": "For a friend",
+          "max_uses": 1,
+          "use_count": 0,
+          "expires_at": null,
+          "revoked_at": null,
+          "created_at": "2026-03-28T10:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to send an invite email",
+      "providerState": "admin user is authenticated and invite exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/admin/invites/uuid-inv-1/send-email",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "email": "friend@example.com"
+        }
+      },
+      "response": {
+        "status": 204
+      }
+    }
   ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }
 }

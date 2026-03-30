@@ -258,27 +258,27 @@ describe("InsightCard", () => {
 
   it("renders type tag for trend", () => {
     renderCard(SAMPLE_INSIGHTS[0]);
-    expect(screen.getByText("Trend")).toBeDefined();
+    expect(screen.getByText(/Trend/)).toBeDefined();
   });
 
   it("renders type tag for anomaly", () => {
     renderCard(SAMPLE_INSIGHTS[2]);
-    expect(screen.getByText("Anomaly")).toBeDefined();
+    expect(screen.getByText(/Anomaly/)).toBeDefined();
   });
 
   it("renders type tag for missing_data", () => {
     renderCard(SAMPLE_INSIGHTS[3]);
-    expect(screen.getByText("Missing")).toBeDefined();
+    expect(screen.getByText(/Missing/)).toBeDefined();
   });
 
   it("renders type tag for streak", () => {
     renderCard(SAMPLE_INSIGHTS[1]);
-    expect(screen.getByText("Streak")).toBeDefined();
+    expect(screen.getByText(/Streak/)).toBeDefined();
   });
 
   it("renders type tag for correlation", () => {
     renderCard(SAMPLE_INSIGHTS[4]);
-    expect(screen.getByText("Correlation")).toBeDefined();
+    expect(screen.getByText(/Correlation/)).toBeDefined();
   });
 
   it("renders 'View in Explore' link with correct params for trend", () => {

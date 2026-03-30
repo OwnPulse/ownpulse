@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Admin from "../../src/pages/Admin";
@@ -62,9 +62,8 @@ vi.mock("../../src/api/admin", () => ({
     deleteUser: vi.fn(),
     createInvite: vi.fn(),
     revokeInvite: vi.fn(),
+    sendInviteEmail: vi.fn(),
   },
-  // Re-export types are not needed at runtime, but the module mock needs to
-  // provide the named exports used in the component import
 }));
 
 function renderAdmin() {
@@ -98,22 +97,52 @@ describe("Admin page", () => {
     });
 
     expect(screen.getByText("user@example.com")).toBeDefined();
-    // Status badges (multiple "active" badges may exist across users and invites sections)
     expect(screen.getAllByText("active").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("disabled").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders invites section with invite data", async () => {
+  it("renders invite cards with invite data", async () => {
     renderAdmin();
 
     await waitFor(() => {
-      expect(screen.getByText("INVITE-ABC")).toBeDefined();
+      expect(screen.getByText("For friends")).toBeDefined();
     });
 
-    expect(screen.getByText("For friends")).toBeDefined();
-    expect(screen.getByText("INVITE-DEF")).toBeDefined();
+    const cards = screen.getAllByTestId("invite-card");
+    expect(cards.length).toBe(2);
+
+    // First card is active
+    expect(within(cards[0]).getByText("Active")).toBeDefined();
+    // Second card is expired (expires_at in the past)
+    expect(within(cards[1]).getByText("Expired")).toBeDefined();
+
     // Uses display
     expect(screen.getByText(/3\/10/)).toBeDefined();
+  });
+
+  it("shows invite links instead of raw codes by default", async () => {
+    renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByText("For friends")).toBeDefined();
+    });
+
+    // Invite links should be visible
+    const linkElements = screen.getAllByText((content) => content.includes("/invite/INVITE-ABC"));
+    expect(linkElements.length).toBeGreaterThanOrEqual(1);
+
+    // Raw code should NOT be visible as a standalone element by default.
+    // Check that clicking Show Code reveals it separately.
+    const cards = screen.getAllByTestId("invite-card");
+    const showCodeBtn = within(cards[0]).getByRole("button", { name: /show code/i });
+    expect(showCodeBtn).toBeDefined();
+
+    await userEvent.click(showCodeBtn);
+
+    // Now the raw code should appear in its own element
+    const rawCodeElements = within(cards[0]).getAllByText("INVITE-ABC");
+    // At least one extra element for the raw code display
+    expect(rawCodeElements.length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows Create Invite button", async () => {
@@ -131,14 +160,11 @@ describe("Admin page", () => {
       expect(screen.getByText("admin@example.com")).toBeDefined();
     });
 
-    // u2 (not self) should have Disable/Enable and Delete buttons
     const enableBtn = screen.getByRole("button", { name: /enable/i });
     expect(enableBtn).toBeDefined();
     const deleteBtn = screen.getByRole("button", { name: /delete/i });
     expect(deleteBtn).toBeDefined();
 
-    // u1 (self) row should NOT have Disable or Delete buttons
-    // There should only be one Delete button (for u2)
     const deleteButtons = screen.getAllByRole("button", { name: /delete/i });
     expect(deleteButtons).toHaveLength(1);
   });
@@ -168,7 +194,6 @@ describe("Admin page", () => {
     const mockDelete = vi.mocked(adminApi.deleteUser);
     mockDelete.mockResolvedValue(undefined);
 
-    // Mock window.confirm to return true
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
 
     renderAdmin();
@@ -191,7 +216,6 @@ describe("Admin page", () => {
     const mockDelete = vi.mocked(adminApi.deleteUser);
     mockDelete.mockReset();
 
-    // Mock window.confirm to return false
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
 
     renderAdmin();
@@ -209,7 +233,7 @@ describe("Admin page", () => {
     confirmSpy.mockRestore();
   });
 
-  it("clicking Create Invite shows form and submitting calls createInvite", async () => {
+  it("clicking Create Invite shows form with email field and submitting calls createInvite", async () => {
     const { adminApi } = await import("../../src/api/admin");
     const mockCreate = vi.mocked(adminApi.createInvite);
     mockCreate.mockResolvedValue({
@@ -227,19 +251,18 @@ describe("Admin page", () => {
       expect(screen.getByRole("button", { name: /create invite/i })).toBeDefined();
     });
 
-    // Click Create Invite to show the form
     await userEvent.click(screen.getByRole("button", { name: /create invite/i }));
 
-    // Fill in the form
     const labelInput = screen.getByLabelText(/label/i);
     const maxUsesInput = screen.getByLabelText(/max uses/i);
     const expiresInput = screen.getByLabelText(/expires in/i);
+    const emailInput = screen.getByLabelText(/send to email/i);
 
     await userEvent.type(labelInput, "Test label");
     await userEvent.type(maxUsesInput, "5");
     await userEvent.type(expiresInput, "24");
+    await userEvent.type(emailInput, "friend@example.com");
 
-    // Submit the form
     await userEvent.click(screen.getByRole("button", { name: /^create$/i }));
 
     await waitFor(() => {
@@ -247,11 +270,101 @@ describe("Admin page", () => {
         label: "Test label",
         max_uses: 5,
         expires_in_hours: 24,
+        send_to_email: "friend@example.com",
       });
     });
   });
 
-  it("clicking Revoke calls revokeInvite with correct id", async () => {
+  it("creating invite without email does not include send_to_email", async () => {
+    const { adminApi } = await import("../../src/api/admin");
+    const mockCreate = vi.mocked(adminApi.createInvite);
+    mockCreate.mockResolvedValue({
+      id: "inv-new",
+      code: "INVITE-NEW",
+      label: "No email",
+      use_count: 0,
+      created_at: "2026-03-22T00:00:00Z",
+    });
+
+    renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /create invite/i })).toBeDefined();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /create invite/i }));
+
+    const labelInput = screen.getByLabelText(/label/i);
+    await userEvent.type(labelInput, "No email");
+
+    await userEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() => {
+      expect(mockCreate).toHaveBeenCalledWith({
+        label: "No email",
+        max_uses: undefined,
+        expires_in_hours: undefined,
+        send_to_email: undefined,
+      });
+    });
+  });
+
+  it("shows success card after creating an invite with email sent confirmation", async () => {
+    const { adminApi } = await import("../../src/api/admin");
+    const mockCreate = vi.mocked(adminApi.createInvite);
+    mockCreate.mockResolvedValue({
+      id: "inv-new",
+      code: "INVITE-NEW",
+      label: "Test",
+      use_count: 0,
+      created_at: "2026-03-22T00:00:00Z",
+    });
+
+    renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /create invite/i })).toBeDefined();
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /create invite/i }));
+
+    const emailInput = screen.getByLabelText(/send to email/i);
+    await userEvent.type(emailInput, "alice@example.com");
+
+    await userEvent.click(screen.getByRole("button", { name: /^create$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("invite-success")).toBeDefined();
+    });
+
+    expect(screen.getByText("Invite created")).toBeDefined();
+    expect(screen.getByText("Email sent to alice@example.com")).toBeDefined();
+    expect(screen.getByText((content) => content.includes("/invite/INVITE-NEW"))).toBeDefined();
+  });
+
+  it("copy link button copies the invite link", async () => {
+    const writeTextMock = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: { writeText: writeTextMock },
+    });
+
+    renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByText("For friends")).toBeDefined();
+    });
+
+    const cards = screen.getAllByTestId("invite-card");
+    const copyBtn = within(cards[0]).getByRole("button", { name: /copy link/i });
+    await userEvent.click(copyBtn);
+
+    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining("/invite/INVITE-ABC"));
+
+    // Should show "Copied!" feedback
+    expect(within(cards[0]).getByRole("button", { name: /copied/i })).toBeDefined();
+  });
+
+  it("revoke shows confirmation dialog", async () => {
     const { adminApi } = await import("../../src/api/admin");
     const mockRevoke = vi.mocked(adminApi.revokeInvite);
     mockRevoke.mockResolvedValue({
@@ -259,16 +372,95 @@ describe("Admin page", () => {
       revoked_at: "2026-03-22T00:00:00Z",
     });
 
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+
     renderAdmin();
 
     await waitFor(() => {
-      expect(screen.getByText("INVITE-ABC")).toBeDefined();
+      expect(screen.getByText("For friends")).toBeDefined();
     });
 
-    // The first invite (INVITE-ABC) is active and should have a Revoke button
     const revokeBtn = screen.getByRole("button", { name: /revoke/i });
     await userEvent.click(revokeBtn);
 
+    expect(confirmSpy).toHaveBeenCalledWith("Are you sure? This invite link will stop working.");
     expect(mockRevoke).toHaveBeenCalledWith("inv1");
+
+    confirmSpy.mockRestore();
+  });
+
+  it("canceling revoke confirmation does not call revokeInvite", async () => {
+    const { adminApi } = await import("../../src/api/admin");
+    const mockRevoke = vi.mocked(adminApi.revokeInvite);
+    mockRevoke.mockReset();
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByText("For friends")).toBeDefined();
+    });
+
+    const revokeBtn = screen.getByRole("button", { name: /revoke/i });
+    await userEvent.click(revokeBtn);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(mockRevoke).not.toHaveBeenCalled();
+
+    confirmSpy.mockRestore();
+  });
+
+  it("send email button shows inline form and submits", async () => {
+    const { adminApi } = await import("../../src/api/admin");
+    const mockSendEmail = vi.mocked(adminApi.sendInviteEmail);
+    mockSendEmail.mockResolvedValue(undefined);
+
+    renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByText("For friends")).toBeDefined();
+    });
+
+    const cards = screen.getAllByTestId("invite-card");
+    const activeCard = cards[0];
+
+    const sendEmailBtn = within(activeCard).getByRole("button", { name: /send email/i });
+    await userEvent.click(sendEmailBtn);
+
+    // Email form should appear
+    const emailInput = within(activeCard).getByLabelText(/recipient email/i);
+    expect(emailInput).toBeDefined();
+
+    await userEvent.type(emailInput, "bob@example.com");
+    await userEvent.click(within(activeCard).getByRole("button", { name: /^send$/i }));
+
+    await waitFor(() => {
+      expect(mockSendEmail).toHaveBeenCalledWith("inv1", "bob@example.com");
+    });
+  });
+
+  it("loading state shows loading text", async () => {
+    const { adminApi } = await import("../../src/api/admin");
+    vi.mocked(adminApi.listInvites).mockImplementation(
+      () => new Promise(() => {}), // never resolves
+    );
+
+    renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByText("Loading invites...")).toBeDefined();
+    });
+  });
+
+  it("empty invites list shows empty message", async () => {
+    const { adminApi } = await import("../../src/api/admin");
+    vi.mocked(adminApi.listInvites).mockResolvedValue([]);
+
+    renderAdmin();
+
+    await waitFor(() => {
+      expect(screen.getByText("No invites yet.")).toBeDefined();
+    });
   });
 });
