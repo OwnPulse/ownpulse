@@ -53,6 +53,12 @@ pub struct CreateInviteRequest {
     pub label: Option<String>,
     pub max_uses: Option<i32>,
     pub expires_in_hours: Option<i64>,
+    pub send_to_email: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct SendInviteEmailRequest {
+    pub email: String,
 }
 
 /// Response for `GET /invites/:code/check`.
