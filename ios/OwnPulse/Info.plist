@@ -31,6 +31,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSHealthClinicalHealthRecordsShareUsageDescription</key>
+	<string>OwnPulse reads your health records to import lab results from your healthcare providers.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>OwnPulse reads your health data so you can view and sync it with your personal data cooperative.</string>
 	<key>NSHealthUpdateUsageDescription</key>

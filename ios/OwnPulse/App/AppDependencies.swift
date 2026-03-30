@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import Foundation
+import HealthKit
 import Observation
 
 @Observable
@@ -14,6 +15,7 @@ final class AppDependencies {
     let databaseManager: DatabaseManager
     let offlineQueue: OfflineQueueProtocol
     let anchorStore: AnchorStore
+    let clinicalRecordProvider: ClinicalRecordProviderProtocol?
     let syncEngine: SyncEngine
     let syncScheduler: SyncScheduler
     let adminService: AdminService
@@ -36,6 +38,9 @@ final class AppDependencies {
 
         self.healthKitProvider = healthKitProvider ?? HealthKitProvider()
 
+        self.clinicalRecordProvider = HKHealthStore.isHealthDataAvailable()
+            ? ClinicalRecordProvider() : nil
+
         self.databaseManager = DatabaseManager()
 
         self.offlineQueue = OfflineQueue(databaseManager: databaseManager)
@@ -44,6 +49,7 @@ final class AppDependencies {
         self.syncEngine = SyncEngine(
             networkClient: network,
             healthKitProvider: self.healthKitProvider,
+            clinicalRecordProvider: self.clinicalRecordProvider,
             offlineQueue: offlineQueue,
             anchorStore: anchorStore
         )

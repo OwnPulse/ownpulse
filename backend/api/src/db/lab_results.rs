@@ -17,11 +17,11 @@ pub async fn insert(
     sqlx::query_as::<_, LabResultRow>(
         "INSERT INTO lab_results
             (user_id, panel_date, lab_name, marker, value, unit,
-             reference_low, reference_high, source, uploaded_file_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             reference_low, reference_high, source, source_id, uploaded_file_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING id, user_id, panel_date, lab_name, marker, value, unit,
                    reference_low, reference_high, out_of_range, source,
-                   uploaded_file_id, created_at",
+                   source_id, uploaded_file_id, created_at",
     )
     .bind(user_id)
     .bind(lab.panel_date)
@@ -32,6 +32,7 @@ pub async fn insert(
     .bind(lab.reference_low)
     .bind(lab.reference_high)
     .bind(&lab.source)
+    .bind(&lab.source_id)
     .bind(None::<Uuid>) // uploaded_file_id — not on CreateLabResult, nullable in DB
     .fetch_one(pool)
     .await
@@ -47,7 +48,7 @@ pub async fn list(
     sqlx::query_as::<_, LabResultRow>(
         "SELECT id, user_id, panel_date, lab_name, marker, value, unit,
                 reference_low, reference_high, out_of_range, source,
-                uploaded_file_id, created_at
+                source_id, uploaded_file_id, created_at
          FROM lab_results
          WHERE user_id = $1
            AND ($2::date IS NULL OR panel_date >= $2)
@@ -71,7 +72,7 @@ pub async fn get_by_id(
     sqlx::query_as::<_, LabResultRow>(
         "SELECT id, user_id, panel_date, lab_name, marker, value, unit,
                 reference_low, reference_high, out_of_range, source,
-                uploaded_file_id, created_at
+                source_id, uploaded_file_id, created_at
          FROM lab_results
          WHERE id = $1 AND user_id = $2",
     )
@@ -79,6 +80,49 @@ pub async fn get_by_id(
     .bind(user_id)
     .fetch_one(pool)
     .await
+}
+
+/// Bulk insert lab results, skipping duplicates by source_id.
+/// Used by clinical records sync from Apple Health Records.
+pub async fn bulk_insert(
+    pool: &PgPool,
+    user_id: Uuid,
+    labs: &[CreateLabResult],
+) -> Result<Vec<LabResultRow>, sqlx::Error> {
+    let mut results = Vec::with_capacity(labs.len());
+    for lab in labs {
+        // Use ON CONFLICT DO NOTHING for idempotent sync
+        let row = sqlx::query_as::<_, LabResultRow>(
+            "INSERT INTO lab_results
+                (user_id, panel_date, lab_name, marker, value, unit,
+                 reference_low, reference_high, source, source_id, uploaded_file_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             ON CONFLICT (user_id, source, marker, panel_date, source_id)
+                WHERE source_id IS NOT NULL
+             DO NOTHING
+             RETURNING id, user_id, panel_date, lab_name, marker, value, unit,
+                       reference_low, reference_high, out_of_range, source,
+                       source_id, uploaded_file_id, created_at",
+        )
+        .bind(user_id)
+        .bind(lab.panel_date)
+        .bind(&lab.lab_name)
+        .bind(&lab.marker)
+        .bind(lab.value)
+        .bind(&lab.unit)
+        .bind(lab.reference_low)
+        .bind(lab.reference_high)
+        .bind(&lab.source)
+        .bind(&lab.source_id)
+        .bind(None::<Uuid>)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(row) = row {
+            results.push(row);
+        }
+    }
+    Ok(results)
 }
 
 /// Delete a lab result. Returns true if a row was actually deleted.

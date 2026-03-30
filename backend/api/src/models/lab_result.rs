@@ -19,6 +19,7 @@ pub struct LabResultRow {
     pub reference_high: Option<f64>,
     pub out_of_range: Option<bool>,
     pub source: String,
+    pub source_id: Option<String>,
     pub uploaded_file_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
@@ -33,6 +34,12 @@ pub struct CreateLabResult {
     pub reference_low: Option<f64>,
     pub reference_high: Option<f64>,
     pub source: Option<String>,
+    pub source_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct BulkCreateLabResults {
+    pub records: Vec<CreateLabResult>,
 }
 
 #[derive(Deserialize)]
