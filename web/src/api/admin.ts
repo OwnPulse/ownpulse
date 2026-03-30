@@ -25,6 +25,13 @@ export interface InviteCode {
   created_at: string;
 }
 
+export interface CreateInviteRequest {
+  label?: string;
+  max_uses?: number;
+  expires_in_hours?: number;
+  send_to_email?: string;
+}
+
 export const adminApi = {
   listUsers: () => api.get<AdminUser[]>("/api/v1/admin/users"),
   updateRole: (userId: string, role: string) =>
@@ -33,7 +40,8 @@ export const adminApi = {
     api.patch<AdminUser>(`/api/v1/admin/users/${userId}/status`, { status }),
   deleteUser: (userId: string) => api.delete<void>(`/api/v1/admin/users/${userId}`),
   listInvites: () => api.get<InviteCode[]>("/api/v1/admin/invites"),
-  createInvite: (data: { label?: string; max_uses?: number; expires_in_hours?: number }) =>
-    api.post<InviteCode>("/api/v1/admin/invites", data),
+  createInvite: (data: CreateInviteRequest) => api.post<InviteCode>("/api/v1/admin/invites", data),
   revokeInvite: (id: string) => api.delete<InviteCode>(`/api/v1/admin/invites/${id}`),
+  sendInviteEmail: (id: string, email: string) =>
+    api.post<void>(`/api/v1/admin/invites/${id}/send-email`, { email }),
 };

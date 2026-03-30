@@ -287,6 +287,34 @@ describe("adminApi", () => {
       expect(result).toEqual(createdInvite);
     });
 
+    it("includes send_to_email when provided", async () => {
+      let capturedBody: unknown;
+
+      server.use(
+        http.post("/api/v1/admin/invites", async ({ request }) => {
+          capturedBody = await request.json();
+          return HttpResponse.json({
+            id: "inv-new",
+            code: "INVITE-NEW",
+            label: "With email",
+            use_count: 0,
+            created_at: "2026-03-22T00:00:00Z",
+          });
+        }),
+      );
+
+      const { adminApi } = await import("../../src/api/admin");
+      await adminApi.createInvite({
+        label: "With email",
+        send_to_email: "friend@example.com",
+      });
+
+      expect(capturedBody).toEqual({
+        label: "With email",
+        send_to_email: "friend@example.com",
+      });
+    });
+
     it("throws on 401 and triggers logout", async () => {
       server.use(
         http.post("/api/v1/admin/invites", () => new HttpResponse("Unauthorized", { status: 401 })),
@@ -410,6 +438,75 @@ describe("adminApi", () => {
       await expect(adminApi.updateRole("u2", "admin")).rejects.toMatchObject({
         name: "ApiError",
         status: 500,
+      });
+    });
+  });
+
+  describe("sendInviteEmail", () => {
+    it("POSTs /api/v1/admin/invites/:id/send-email with correct body", async () => {
+      let capturedId: string | undefined;
+      let capturedBody: unknown;
+
+      server.use(
+        http.post("/api/v1/admin/invites/:id/send-email", async ({ params, request }) => {
+          capturedId = params.id as string;
+          capturedBody = await request.json();
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
+
+      const { adminApi } = await import("../../src/api/admin");
+      await adminApi.sendInviteEmail("inv1", "bob@example.com");
+
+      expect(capturedId).toBe("inv1");
+      expect(capturedBody).toEqual({ email: "bob@example.com" });
+    });
+
+    it("throws on 401 and triggers logout", async () => {
+      server.use(
+        http.post(
+          "/api/v1/admin/invites/:id/send-email",
+          () => new HttpResponse("Unauthorized", { status: 401 }),
+        ),
+      );
+
+      const { adminApi } = await import("../../src/api/admin");
+
+      await expect(adminApi.sendInviteEmail("inv1", "test@example.com")).rejects.toThrow(
+        "Unauthorized",
+      );
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+    });
+
+    it("throws ApiError on 500", async () => {
+      server.use(
+        http.post(
+          "/api/v1/admin/invites/:id/send-email",
+          () => new HttpResponse("Server error", { status: 500 }),
+        ),
+      );
+
+      const { adminApi } = await import("../../src/api/admin");
+
+      await expect(adminApi.sendInviteEmail("inv1", "test@example.com")).rejects.toMatchObject({
+        name: "ApiError",
+        status: 500,
+      });
+    });
+
+    it("throws ApiError on 403", async () => {
+      server.use(
+        http.post(
+          "/api/v1/admin/invites/:id/send-email",
+          () => new HttpResponse("Forbidden", { status: 403 }),
+        ),
+      );
+
+      const { adminApi } = await import("../../src/api/admin");
+
+      await expect(adminApi.sendInviteEmail("inv1", "test@example.com")).rejects.toMatchObject({
+        name: "ApiError",
+        status: 403,
       });
     });
   });
