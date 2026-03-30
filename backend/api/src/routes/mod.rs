@@ -307,6 +307,7 @@ fn base_routes() -> Router<AppState> {
         // Lab results
         .route("/labs", post(labs::create))
         .route("/labs", get(labs::list))
+        .route("/labs/bulk", post(labs::bulk_create))
         .route("/labs/:id", get(labs::get))
         .route("/labs/:id", delete(labs::delete))
         // HealthKit sync

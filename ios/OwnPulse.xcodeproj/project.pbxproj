@@ -28,6 +28,8 @@
 		4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CF4D7068AEF598DB5632A8 /* SleepChartView.swift */; };
 		63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FF64D436027417304D659C /* MockNetworkClient.swift */; };
 		64D12DC15E48D8140ADCFF91 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 510AACF348448F516940B31C /* MainTabView.swift */; };
+		4A1B2C3D4E5F6A7B8C9D0E1F /* ClinicalRecordProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F7A8B9C0D1E2F /* ClinicalRecordProvider.swift */; };
+		5B2C3D4E5F6A7B8C9D0E1F2A /* ClinicalRecordSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3C4D5E6F7A8B9C0D1E2F3A /* ClinicalRecordSettings.swift */; };
 		669E3589FB26EF4E8DE81475 /* HealthKitProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */; };
 		6BC1D9A839BA460B9371B98F /* CreateInviteSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDBC022C75CBDEC3C059973B /* CreateInviteSheet.swift */; };
 		6CCCBF48696234499FC0585E /* LoginViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C3DFD3320220CCEDFA00910 /* LoginViewModelTests.swift */; };
@@ -151,6 +153,8 @@
 		E6049367D20366FC7493CBC2 /* OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueue.swift; sourceTree = "<group>"; };
 		E75554390D361CB2DC5B1694 /* OfflineQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueTests.swift; sourceTree = "<group>"; };
 		EDBC022C75CBDEC3C059973B /* CreateInviteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateInviteSheet.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F7A8B9C0D1E2F /* ClinicalRecordProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalRecordProvider.swift; sourceTree = "<group>"; };
+		2B3C4D5E6F7A8B9C0D1E2F3A /* ClinicalRecordSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalRecordSettings.swift; sourceTree = "<group>"; };
 		F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProvider.swift; sourceTree = "<group>"; };
 		F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAuthService.swift; sourceTree = "<group>"; };
 		FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTypeMap.swift; sourceTree = "<group>"; };
@@ -285,6 +289,8 @@
 		74B8AD7814FB15C73444D6CB /* HealthKit */ = {
 			isa = PBXGroup;
 			children = (
+				1A2B3C4D5E6F7A8B9C0D1E2F /* ClinicalRecordProvider.swift */,
+				2B3C4D5E6F7A8B9C0D1E2F3A /* ClinicalRecordSettings.swift */,
 				F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */,
 				FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */,
 			);
@@ -493,6 +499,8 @@
 				019A14B3D183E10882BE4E49 /* DatabaseManager.swift in Sources */,
 				0C32E3221E220A0D26228854 /* Endpoints.swift in Sources */,
 				7728D01A6C178F913A0D4F3F /* ExploreWebView.swift in Sources */,
+				4A1B2C3D4E5F6A7B8C9D0E1F /* ClinicalRecordProvider.swift in Sources */,
+				5B2C3D4E5F6A7B8C9D0E1F2A /* ClinicalRecordSettings.swift in Sources */,
 				669E3589FB26EF4E8DE81475 /* HealthKitProvider.swift in Sources */,
 				C05D5F589E6E424566CE709E /* HealthKitTypeMap.swift in Sources */,
 				79B3A1F2679F920C71ABA808 /* HeroMetricCard.swift in Sources */,

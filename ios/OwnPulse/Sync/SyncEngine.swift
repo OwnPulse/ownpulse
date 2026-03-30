@@ -24,6 +24,7 @@ final class SyncState {
 actor SyncEngine {
     private let networkClient: NetworkClientProtocol
     private let healthKitProvider: HealthKitProviderProtocol
+    private let clinicalRecordProvider: ClinicalRecordProviderProtocol?
     private let offlineQueue: OfflineQueueProtocol
     private let anchorStore: AnchorStore
     private let batchSize = 100
@@ -40,11 +41,13 @@ actor SyncEngine {
     init(
         networkClient: NetworkClientProtocol,
         healthKitProvider: HealthKitProviderProtocol,
+        clinicalRecordProvider: ClinicalRecordProviderProtocol? = nil,
         offlineQueue: OfflineQueueProtocol,
         anchorStore: AnchorStore
     ) {
         self.networkClient = networkClient
         self.healthKitProvider = healthKitProvider
+        self.clinicalRecordProvider = clinicalRecordProvider
         self.offlineQueue = offlineQueue
         self.anchorStore = anchorStore
     }
@@ -65,7 +68,18 @@ actor SyncEngine {
                 try await syncType(mapping)
             }
 
-            // 3. Process write-back queue
+            // 3. Sync clinical records (lab results from Apple Health Records) if enabled
+            if let clinicalProvider = clinicalRecordProvider,
+               ClinicalRecordSettings.isSyncEnabled {
+                do {
+                    try await syncClinicalRecords(clinicalProvider)
+                } catch {
+                    // Don't fail the entire sync if clinical records fail
+                    _lastError = "Clinical records sync failed: \(error.localizedDescription)"
+                }
+            }
+
+            // 4. Process write-back queue
             try await processWriteBack()
 
             _lastSyncDate = Date()
@@ -141,6 +155,53 @@ actor SyncEngine {
 
         if let newAnchor = result.newAnchor {
             try anchorStore.saveAnchor(newAnchor, forRecordType: mapping.recordType)
+        }
+    }
+
+    private func syncClinicalRecords(_ provider: ClinicalRecordProviderProtocol) async throws {
+        let anchor = try anchorStore.anchor(forRecordType: "clinical_lab_result")
+        let result = try await provider.queryLabResults(anchor: anchor)
+
+        guard !result.results.isEmpty else {
+            if let newAnchor = result.newAnchor {
+                try anchorStore.saveAnchor(newAnchor, forRecordType: "clinical_lab_result")
+            }
+            return
+        }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        dateFormatter.timeZone = TimeZone(identifier: "UTC")
+
+        let batches = stride(from: 0, to: result.results.count, by: batchSize).map {
+            Array(result.results[$0..<min($0 + batchSize, result.results.count)])
+        }
+
+        for batch in batches {
+            let records = batch.map { lab in
+                CreateLabResultRecord(
+                    panelDate: dateFormatter.string(from: lab.panelDate),
+                    labName: lab.labName,
+                    marker: lab.marker,
+                    value: lab.value,
+                    unit: lab.unit,
+                    referenceLow: lab.referenceLow,
+                    referenceHigh: lab.referenceHigh,
+                    source: "apple_health_records",
+                    sourceId: lab.sourceId
+                )
+            }
+            let body = BulkCreateLabResults(records: records)
+            let _: [LabResultResponse] = try await networkClient.request(
+                method: "POST",
+                path: Endpoints.labsBulk,
+                body: body
+            )
+        }
+
+        if let newAnchor = result.newAnchor {
+            try anchorStore.saveAnchor(newAnchor, forRecordType: "clinical_lab_result")
         }
     }
 
