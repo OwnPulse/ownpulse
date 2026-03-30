@@ -32,6 +32,9 @@ pub async fn create_protocol(
         ));
     }
     for line in &body.lines {
+        if line.substance.trim().is_empty() {
+            return Err(ApiError::BadRequest("substance must not be empty".to_string()));
+        }
         if line.schedule_pattern.len() != body.duration_days as usize {
             return Err(ApiError::BadRequest(format!(
                 "schedule_pattern length ({}) must equal duration_days ({})",
@@ -143,7 +146,11 @@ pub async fn get_shared_protocol(
     State(state): State<AppState>,
     Path(token): Path<String>,
 ) -> Result<Json<ProtocolResponse>, ApiError> {
-    let response = db::get_shared(&state.pool, &token).await?;
+    let mut response = db::get_shared(&state.pool, &token).await?;
+    // Strip private fields from public response
+    response.user_id = Uuid::nil();
+    response.share_token = None;
+    response.share_expires_at = None;
     Ok(Json(response))
 }
 
