@@ -175,6 +175,16 @@ pub async fn run_migrations(pool: &PgPool) -> Result<(), MigrateError> {
         info!(filename, "migration applied successfully");
     }
 
+    // Seed reference data (idempotent)
+    info!("seeding SNP annotations...");
+    crate::db::snp_seed::seed_annotations(pool)
+        .await
+        .map_err(|e| MigrateError::Apply {
+            filename: "snp_seed".to_string(),
+            source: e,
+        })?;
+    info!("SNP annotation seeding complete");
+
     info!("migration runner complete");
     Ok(())
 }
