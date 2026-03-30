@@ -125,8 +125,16 @@
   margin-top: 0.75rem;
 }
 
+.successMsg::before {
+  content: "\2713  ";
+}
+
 .errorMsg {
   color: var(--color-error);
   font-size: var(--text-sm);
   margin-top: 0.75rem;
+}
+
+.errorMsg::before {
+  content: "\2717  ";
 }

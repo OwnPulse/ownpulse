@@ -7,13 +7,13 @@ import styles from "./RiskBadge.module.css";
 type RiskLevel = Interpretation["risk_level"];
 
 const RISK_LABELS: Record<RiskLevel, string> = {
-  high: "High",
-  moderate: "Moderate",
-  low: "Low",
-  normal: "Normal",
-  poor_metabolizer: "Poor Metabolizer",
-  intermediate: "Intermediate",
-  rapid: "Rapid",
+  high: "\u26A0\uFE0F High",
+  moderate: "\u26A1 Moderate",
+  low: "\u2713 Low",
+  normal: "\u2713 Normal",
+  poor_metabolizer: "\u26A0\uFE0F Poor Metabolizer",
+  intermediate: "\u26A1 Intermediate",
+  rapid: "\uD83D\uDD04 Rapid",
 };
 
 function riskColorClass(level: RiskLevel): string {

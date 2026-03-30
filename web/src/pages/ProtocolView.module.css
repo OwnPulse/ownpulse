@@ -28,11 +28,11 @@
 }
 
 .badgeActive {
-  background: #22c55e;
+  background: #009e73;
 }
 
 .badgePaused {
-  background: #eab308;
+  background: #e69f00;
 }
 
 .badgeCompleted {
@@ -59,7 +59,7 @@
 
 .progressFill {
   height: 100%;
-  background: #22c55e;
+  background: #009e73;
   transition: width 0.3s ease;
 }
 
@@ -124,13 +124,13 @@
 }
 
 .statusCompleted {
-  color: #22c55e;
-  background: rgba(34, 197, 94, 0.1);
+  color: #0072b2;
+  background: rgba(0, 114, 178, 0.1);
 }
 
 .statusSkipped {
-  color: #93c5fd;
-  background: rgba(147, 197, 253, 0.1);
+  color: #cc79a7;
+  background: rgba(204, 121, 167, 0.1);
 }
 
 .actions {

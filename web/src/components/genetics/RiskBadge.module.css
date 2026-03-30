@@ -9,26 +9,26 @@
   text-transform: capitalize;
 }
 
-/* high / poor_metabolizer — terracotta */
+/* high / poor_metabolizer — vermillion */
 .high {
-  background: rgba(194, 101, 74, 0.15);
-  color: var(--chart-1);
+  background: rgba(213, 94, 0, 0.15);
+  color: #d55e00;
 }
 
-/* moderate / intermediate — gold */
+/* moderate / intermediate — orange */
 .moderate {
-  background: rgba(196, 154, 60, 0.15);
-  color: var(--chart-3);
+  background: rgba(230, 159, 0, 0.15);
+  color: #e69f00;
 }
 
-/* low / normal — sage */
+/* low / normal — bluish green */
 .low {
-  background: rgba(90, 138, 90, 0.15);
-  color: var(--chart-4);
+  background: rgba(0, 158, 115, 0.15);
+  color: #009e73;
 }
 
-/* rapid — teal */
+/* rapid — blue */
 .rapid {
-  background: rgba(61, 139, 139, 0.15);
-  color: var(--chart-2);
+  background: rgba(0, 114, 178, 0.15);
+  color: #0072b2;
 }

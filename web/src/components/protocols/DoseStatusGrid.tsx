@@ -13,6 +13,14 @@ interface DoseStatusGridProps {
 
 type CellStatus = "completed" | "missed" | "skipped" | "upcoming" | "off";
 
+const STATUS_SYMBOLS: Record<CellStatus, string> = {
+  completed: "\u2713",
+  missed: "\u2717",
+  skipped: "\u2192",
+  upcoming: "\u00B7",
+  off: "",
+};
+
 function getCellStatus(line: ProtocolLine, dayIndex: number, todayDayNumber: number): CellStatus {
   const scheduled = line.schedule_pattern[dayIndex] ?? false;
   if (!scheduled) return "off";
@@ -65,7 +73,9 @@ export function DoseStatusGrid({ lines, startDate, durationDays }: DoseStatusGri
                 key={d}
                 className={`${styles.cell} ${styles[status]} ${isToday ? styles.today : ""}`}
                 title={`Day ${d + 1}: ${status}`}
-              />
+              >
+                {STATUS_SYMBOLS[status]}
+              </div>
             );
           })}
         </React.Fragment>

@@ -6,19 +6,21 @@ import { metricKey, useExploreStore } from "../../stores/exploreStore";
 import styles from "./ChartLegend.module.css";
 
 const CHART_COLORS = [
-  "#c2654a",
-  "#3d8b8b",
-  "#c49a3c",
-  "#5a8a5a",
-  "#9b59b6",
-  "#1abc9c",
-  "#f39c12",
-  "#2980b9",
-  "#d35400",
-  "#27ae60",
-  "#8e44ad",
-  "#e74c3c",
+  "#000000",
+  "#E69F00",
+  "#56B4E9",
+  "#009E73",
+  "#F0E442",
+  "#0072B2",
+  "#D55E00",
+  "#CC79A7",
+  "#332288",
+  "#88CCEE",
+  "#44AA99",
+  "#DDCC77",
 ];
+
+const SWATCH_PATTERNS = ["", styles.swatchPattern1, styles.swatchPattern2, styles.swatchPattern3];
 
 interface ChartLegendProps {
   series: SeriesResponse[];
@@ -45,7 +47,10 @@ export function ChartLegend({ series }: ChartLegendProps) {
             onClick={() => toggleVisibility(key)}
             aria-label={`Toggle ${s.field} visibility`}
           >
-            <span className={styles.swatch} style={{ backgroundColor: color }} />
+            <span
+              className={`${styles.swatch} ${SWATCH_PATTERNS[i % SWATCH_PATTERNS.length]}`}
+              style={{ backgroundColor: color }}
+            />
             <span className={styles.label}>
               {s.field} ({s.unit}){!hasData && <span className={styles.noData}> - no data</span>}
             </span>
