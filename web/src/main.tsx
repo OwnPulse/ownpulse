@@ -25,13 +25,13 @@ import Genetics from "./pages/Genetics";
 import Login from "./pages/Login";
 import ObserverAccept from "./pages/ObserverAccept";
 import ObserverPolls from "./pages/ObserverPolls";
-import ProtocolView from "./pages/ProtocolView";
 import Protocols from "./pages/Protocols";
+import ProtocolView from "./pages/ProtocolView";
 import Register from "./pages/Register";
 import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
-import SharedProtocol from "./pages/SharedProtocol";
 import ShareAccept from "./pages/ShareAccept";
+import SharedProtocol from "./pages/SharedProtocol";
 import Sources from "./pages/Sources";
 
 const queryClient = new QueryClient();

@@ -40,7 +40,12 @@ export default function PatternSelector({ durationDays, onSelect }: PatternSelec
   };
 
   return (
-    <select onChange={handleChange} defaultValue="" className="op-select" aria-label="Schedule pattern">
+    <select
+      onChange={handleChange}
+      defaultValue=""
+      className="op-select"
+      aria-label="Schedule pattern"
+    >
       <option value="" disabled>
         Pattern...
       </option>

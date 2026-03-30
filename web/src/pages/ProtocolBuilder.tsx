@@ -5,9 +5,9 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { type CreateProtocol, type CreateProtocolLine, protocolsApi } from "../api/protocols";
+import forms from "../components/forms/forms.module.css";
 import PatternSelector from "../components/protocols/PatternSelector";
 import SequencerGrid from "../components/protocols/SequencerGrid";
-import forms from "../components/forms/forms.module.css";
 import styles from "./ProtocolBuilder.module.css";
 
 const ROUTES = ["SubQ", "IM", "Oral", "Topical", "Nasal", "IV"] as const;
@@ -191,7 +191,7 @@ export default function ProtocolBuilder() {
         <div className={styles.linesSection}>
           <h2>Lines</h2>
           {lines.map((line, idx) => (
-            <div key={idx} className={styles.lineCard}>
+            <div key={line.substance || `line-${idx}`} className={styles.lineCard}>
               {lines.length > 1 && (
                 <button
                   type="button"
@@ -303,20 +303,14 @@ export default function ProtocolBuilder() {
 
         {/* Actions */}
         <div className={styles.actions}>
-          <button
-            type="submit"
-            disabled={mutation.isPending}
-            className="op-btn op-btn-primary"
-          >
+          <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
             {mutation.isPending ? "Creating..." : "Create Protocol"}
           </button>
           <Link to="/protocols" className="op-btn op-btn-ghost">
             Cancel
           </Link>
         </div>
-        {mutation.isError && (
-          <p className={forms.errorMsg}>Error: {mutation.error.message}</p>
-        )}
+        {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
       </form>
     </main>
   );

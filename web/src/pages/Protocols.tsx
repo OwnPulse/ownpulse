@@ -32,9 +32,7 @@ function computeProgress(p: ProtocolListItem): number {
 }
 
 function getNextDoseLabel(p: ProtocolListItem): string {
-  const todayDay = Math.floor(
-    (Date.now() - new Date(p.start_date).getTime()) / 86400000,
-  );
+  const todayDay = Math.floor((Date.now() - new Date(p.start_date).getTime()) / 86400000);
   if (todayDay < 0 || todayDay >= p.duration_days) return "Protocol ended";
 
   for (const line of p.lines) {
@@ -51,7 +49,11 @@ function getNextDoseLabel(p: ProtocolListItem): string {
 export default function Protocols() {
   const [filter, setFilter] = useState<Filter>("active");
 
-  const { data: protocols, isLoading, isError } = useQuery({
+  const {
+    data: protocols,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["protocols"],
     queryFn: () => protocolsApi.list(),
   });
@@ -59,7 +61,8 @@ export default function Protocols() {
   const filtered = useMemo(() => {
     if (!protocols) return [];
     if (filter === "all") return protocols;
-    if (filter === "active") return protocols.filter((p) => p.status === "active" || p.status === "paused");
+    if (filter === "active")
+      return protocols.filter((p) => p.status === "active" || p.status === "paused");
     return protocols.filter((p) => p.status === "completed");
   }, [protocols, filter]);
 

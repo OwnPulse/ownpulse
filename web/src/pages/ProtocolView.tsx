@@ -31,9 +31,7 @@ function computeProgress(protocol: Protocol): { completed: number; total: number
 }
 
 function computeTodaysDoses(protocol: Protocol): TodaysDose[] {
-  const todayDay = Math.floor(
-    (Date.now() - new Date(protocol.start_date).getTime()) / 86400000,
-  );
+  const todayDay = Math.floor((Date.now() - new Date(protocol.start_date).getTime()) / 86400000);
   if (todayDay < 0 || todayDay >= protocol.duration_days) return [];
 
   return protocol.lines
@@ -62,18 +60,27 @@ export default function ProtocolView() {
   const queryClient = useQueryClient();
   const [shareLink, setShareLink] = useState<string | null>(null);
 
-  const { data: protocol, isLoading, isError } = useQuery({
+  const {
+    data: protocol,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["protocols", id],
-    queryFn: () => protocolsApi.get(id!),
+    queryFn: () => {
+      if (!id) throw new Error("Missing protocol id");
+      return protocolsApi.get(id);
+    },
     enabled: !!id,
   });
 
   const logDose = useMutation({
-    mutationFn: (data: { protocolLineId: string; dayNumber: number }) =>
-      protocolsApi.logDose(id!, {
+    mutationFn: (data: { protocolLineId: string; dayNumber: number }) => {
+      if (!id) throw new Error("Missing protocol id");
+      return protocolsApi.logDose(id, {
         protocol_line_id: data.protocolLineId,
         day_number: data.dayNumber,
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
@@ -81,11 +88,13 @@ export default function ProtocolView() {
   });
 
   const skipDose = useMutation({
-    mutationFn: (data: { protocolLineId: string; dayNumber: number }) =>
-      protocolsApi.skipDose(id!, {
+    mutationFn: (data: { protocolLineId: string; dayNumber: number }) => {
+      if (!id) throw new Error("Missing protocol id");
+      return protocolsApi.skipDose(id, {
         protocol_line_id: data.protocolLineId,
         day_number: data.dayNumber,
-      }),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
@@ -93,7 +102,10 @@ export default function ProtocolView() {
   });
 
   const shareMutation = useMutation({
-    mutationFn: () => protocolsApi.share(id!),
+    mutationFn: () => {
+      if (!id) throw new Error("Missing protocol id");
+      return protocolsApi.share(id);
+    },
     onSuccess: (res) => {
       const link = `${window.location.origin}/protocols/shared/${res.share_token}`;
       setShareLink(link);
@@ -101,8 +113,10 @@ export default function ProtocolView() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Partial<Pick<Protocol, "status">>) =>
-      protocolsApi.update(id!, data),
+    mutationFn: (data: Partial<Pick<Protocol, "status">>) => {
+      if (!id) throw new Error("Missing protocol id");
+      return protocolsApi.update(id, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
@@ -110,13 +124,17 @@ export default function ProtocolView() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: () => protocolsApi.delete(id!),
+    mutationFn: () => {
+      if (!id) throw new Error("Missing protocol id");
+      return protocolsApi.delete(id);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
       navigate("/protocols");
     },
   });
 
+  if (!id) return <main className="op-page">Not found</main>;
   if (isLoading) return <main className="op-page">Loading...</main>;
   if (isError || !protocol) return <main className="op-page">Error loading protocol.</main>;
 
@@ -129,9 +147,7 @@ export default function ProtocolView() {
       {/* Header */}
       <div className={styles.header}>
         <h1>{protocol.name}</h1>
-        <span className={`${styles.badge} ${badgeClass(protocol.status)}`}>
-          {protocol.status}
-        </span>
+        <span className={`${styles.badge} ${badgeClass(protocol.status)}`}>{protocol.status}</span>
       </div>
 
       <div className={styles.meta}>
@@ -168,10 +184,12 @@ export default function ProtocolView() {
           <div key={td.protocol_line_id} className={`op-card ${styles.doseItem}`}>
             <div className={styles.doseInfo}>
               <span className={styles.doseSubstance}>
-                {td.substance} {td.dose}{td.unit}
+                {td.substance} {td.dose}
+                {td.unit}
               </span>
               <span className={styles.doseMeta}>
-                {td.route}{td.time_of_day ? ` \u00b7 ${td.time_of_day}` : ""}
+                {td.route}
+                {td.time_of_day ? ` \u00b7 ${td.time_of_day}` : ""}
               </span>
             </div>
             {td.status === "pending" ? (

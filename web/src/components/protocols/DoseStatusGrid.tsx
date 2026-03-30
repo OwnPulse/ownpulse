@@ -13,11 +13,7 @@ interface DoseStatusGridProps {
 
 type CellStatus = "completed" | "missed" | "skipped" | "upcoming" | "off";
 
-function getCellStatus(
-  line: ProtocolLine,
-  dayIndex: number,
-  todayDayNumber: number,
-): CellStatus {
+function getCellStatus(line: ProtocolLine, dayIndex: number, todayDayNumber: number): CellStatus {
   const scheduled = line.schedule_pattern[dayIndex] ?? false;
   if (!scheduled) return "off";
 

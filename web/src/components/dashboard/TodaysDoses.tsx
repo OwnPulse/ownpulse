@@ -12,9 +12,7 @@ function computeAllTodaysDoses(protocols: ProtocolListItem[]): TodaysDose[] {
   const doses: TodaysDose[] = [];
   for (const p of protocols) {
     if (p.status !== "active") continue;
-    const todayDay = Math.floor(
-      (Date.now() - new Date(p.start_date).getTime()) / 86400000,
-    );
+    const todayDay = Math.floor((Date.now() - new Date(p.start_date).getTime()) / 86400000);
     if (todayDay < 0 || todayDay >= p.duration_days) continue;
 
     for (const line of p.lines) {
@@ -47,10 +45,7 @@ export function TodaysDoses() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const todaysDoses = useMemo(
-    () => computeAllTodaysDoses(protocols ?? []),
-    [protocols],
-  );
+  const todaysDoses = useMemo(() => computeAllTodaysDoses(protocols ?? []), [protocols]);
 
   const logDose = useMutation({
     mutationFn: (td: TodaysDose) =>
@@ -72,13 +67,9 @@ export function TodaysDoses() {
     <section className={`op-card ${styles.section}`}>
       <h2 className={styles.sectionTitle}>Today&rsquo;s Doses</h2>
 
-      {todaysDoses.length === 0 && (
-        <p className={styles.emptyText}>No doses scheduled today.</p>
-      )}
+      {todaysDoses.length === 0 && <p className={styles.emptyText}>No doses scheduled today.</p>}
 
-      {allDone && (
-        <p className={styles.emptyText}>All doses logged &#x2713;</p>
-      )}
+      {allDone && <p className={styles.emptyText}>All doses logged &#x2713;</p>}
 
       {!allDone && todaysDoses.length > 0 && (
         <div className={styles.doseList}>
@@ -86,10 +77,12 @@ export function TodaysDoses() {
             <div key={`${td.protocol_line_id}-${td.day_number}`} className={styles.doseItem}>
               <div className={styles.doseInfo}>
                 <span className={styles.doseSubstance}>
-                  {td.substance} {td.dose}{td.unit}
+                  {td.substance} {td.dose}
+                  {td.unit}
                 </span>
                 <span className={styles.doseMeta}>
-                  {td.protocol_name}{td.time_of_day ? ` \u00b7 ${td.time_of_day}` : ""}
+                  {td.protocol_name}
+                  {td.time_of_day ? ` \u00b7 ${td.time_of_day}` : ""}
                 </span>
               </div>
               {td.status === "pending" ? (
@@ -113,7 +106,10 @@ export function TodaysDoses() {
         </div>
       )}
 
-      <Link to="/protocols" style={{ fontSize: "var(--text-xs)", marginTop: "0.5rem", display: "inline-block" }}>
+      <Link
+        to="/protocols"
+        style={{ fontSize: "var(--text-xs)", marginTop: "0.5rem", display: "inline-block" }}
+      >
         View all protocols
       </Link>
     </section>

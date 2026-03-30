@@ -12,14 +12,24 @@ export default function SharedProtocol() {
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  const { data: protocol, isLoading, isError } = useQuery({
+  const {
+    data: protocol,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["shared-protocol", token],
-    queryFn: () => protocolsApi.getShared(token!),
+    queryFn: () => {
+      if (!token) throw new Error("Missing share token");
+      return protocolsApi.getShared(token);
+    },
     enabled: !!token,
   });
 
   const importMutation = useMutation({
-    mutationFn: () => protocolsApi.importProtocol(token!),
+    mutationFn: () => {
+      if (!token) throw new Error("Missing share token");
+      return protocolsApi.importProtocol(token);
+    },
     onSuccess: (newProtocol) => {
       navigate(`/protocols/${newProtocol.id}`);
     },
@@ -49,9 +59,7 @@ export default function SharedProtocol() {
     <main className={`op-page ${styles.page}`}>
       <div className={styles.header}>
         <h1>{protocol.name}</h1>
-        {protocol.description && (
-          <p className={styles.description}>{protocol.description}</p>
-        )}
+        {protocol.description && <p className={styles.description}>{protocol.description}</p>}
       </div>
 
       <section className={styles.linesSection}>
@@ -59,19 +67,26 @@ export default function SharedProtocol() {
         {protocol.lines.map((line) => (
           <div key={line.id} className={`op-card ${styles.lineItem}`}>
             <div className={styles.lineSubstance}>
-              {line.substance} {line.dose}{line.unit}
+              {line.substance} {line.dose}
+              {line.unit}
             </div>
             <div className={styles.lineMeta}>
-              {line.route}{line.time_of_day ? ` \u00b7 ${line.time_of_day}` : ""}
+              {line.route}
+              {line.time_of_day ? ` \u00b7 ${line.time_of_day}` : ""}
             </div>
             <div className={styles.schedulePreview}>
-              {line.schedule_pattern.slice(0, Math.min(line.schedule_pattern.length, 28)).map((on, i) => (
-                <div
-                  key={i}
-                  className={`${styles.scheduleDay} ${on ? styles.scheduleDayOn : ""}`}
-                  title={`Day ${i + 1}: ${on ? "on" : "off"}`}
-                />
-              ))}
+              {Array.from({ length: Math.min(line.schedule_pattern.length, 28) }, (_, i) => i).map(
+                (dayIdx) => {
+                  const on = line.schedule_pattern[dayIdx];
+                  return (
+                    <div
+                      key={`schedule-${line.id}-d${dayIdx + 1}`}
+                      className={`${styles.scheduleDay} ${on ? styles.scheduleDayOn : ""}`}
+                      title={`Day ${dayIdx + 1}: ${on ? "on" : "off"}`}
+                    />
+                  );
+                },
+              )}
             </div>
           </div>
         ))}
