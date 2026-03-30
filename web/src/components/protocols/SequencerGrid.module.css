@@ -19,8 +19,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   font-size: var(--text-xs);
   font-family: var(--font-mono);
   color: var(--color-text-muted);
@@ -43,7 +43,7 @@
   top: 0;
   z-index: 3;
   width: 120px;
-  height: 32px;
+  height: 44px;
   background: var(--color-surface);
 }
 
@@ -54,7 +54,7 @@
   display: flex;
   align-items: center;
   width: 120px;
-  height: 32px;
+  height: 44px;
   padding: 0 8px;
   font-size: var(--text-sm);
   color: var(--color-text);
@@ -65,8 +65,8 @@
 }
 
 .cell {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: 1px solid var(--color-border);
   background: var(--color-neutral-100);
   cursor: default;
@@ -97,4 +97,11 @@
 
 .headerCell.weekStart {
   border-left: 2px solid var(--color-border-strong);
+}
+
+@media (max-width: 640px) {
+  .cornerCell,
+  .label {
+    width: 80px;
+  }
 }

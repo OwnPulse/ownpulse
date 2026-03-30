@@ -80,3 +80,18 @@
   gap: 1rem;
   align-items: center;
 }
+
+@media (max-width: 640px) {
+  .lineFields {
+    flex-direction: column;
+  }
+
+  .lineFields > * {
+    min-width: unset;
+  }
+
+  .lineFields input,
+  .lineFields select {
+    padding: 12px;
+  }
+}

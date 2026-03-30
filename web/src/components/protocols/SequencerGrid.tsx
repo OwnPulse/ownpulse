@@ -18,7 +18,7 @@ export default function SequencerGrid({
   onToggleCell,
   todayIndex,
 }: SequencerGridProps) {
-  const cols = `120px repeat(${durationDays}, 32px)`;
+  const cols = `120px repeat(${durationDays}, 44px)`;
 
   return (
     <div className={styles.wrapper}>

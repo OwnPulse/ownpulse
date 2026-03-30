@@ -45,7 +45,7 @@ export function DoseStatusGrid({ lines, startDate, durationDays }: DoseStatusGri
   return (
     <div
       className={styles.grid}
-      style={{ gridTemplateColumns: `10rem repeat(${durationDays}, 1.5rem)` }}
+      style={{ gridTemplateColumns: `10rem repeat(${durationDays}, 2.75rem)` }}
     >
       {/* Header row */}
       <div className={styles.headerCell} />
