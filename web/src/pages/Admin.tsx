@@ -67,74 +67,62 @@ function UsersSection() {
   if (isError) return <p>Error loading users.</p>;
 
   return (
-    <div className={styles.section}>
-      <table className="op-table">
-        <thead>
-          <tr>
-            <th>Email</th>
-            <th>Provider</th>
-            <th>Role</th>
-            <th>Status</th>
-            <th>Created</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users?.map((u: AdminUser) => {
-            const isSelf = u.id === currentUserId;
-            return (
-              <tr key={u.id}>
-                <td>
-                  {u.email}
-                  {u.username && <span className={styles.username}>{u.username}</span>}
-                </td>
-                <td>{u.auth_provider}</td>
-                <td>
-                  <select
-                    value={u.role}
-                    disabled={isSelf}
-                    onChange={(e) => roleMutation.mutate({ userId: u.id, role: e.target.value })}
-                    className={styles.roleSelect}
+    <div className={styles.userGrid}>
+      {users?.map((u: AdminUser) => {
+        const isSelf = u.id === currentUserId;
+        return (
+          <div key={u.id} className={styles.userCard}>
+            <div className={styles.userCardHeader}>
+              <div className={styles.userCardEmail}>
+                {u.email}
+                {u.username && <span className={styles.username}>{u.username}</span>}
+              </div>
+              {statusBadge(u.status)}
+            </div>
+            <div className={styles.userCardMeta}>
+              <span>{u.auth_provider}</span>
+              <span>Joined {new Date(u.created_at).toLocaleDateString()}</span>
+            </div>
+            <div className={styles.userCardFooter}>
+              <select
+                value={u.role}
+                disabled={isSelf}
+                onChange={(e) => roleMutation.mutate({ userId: u.id, role: e.target.value })}
+                className={styles.roleSelect}
+              >
+                <option value="admin">admin</option>
+                <option value="user">user</option>
+              </select>
+              {!isSelf && (
+                <span className={styles.actions}>
+                  <button
+                    type="button"
+                    className="op-btn op-btn-ghost op-btn-sm"
+                    onClick={() =>
+                      statusMutation.mutate({
+                        userId: u.id,
+                        status: u.status === "active" ? "disabled" : "active",
+                      })
+                    }
                   >
-                    <option value="admin">admin</option>
-                    <option value="user">user</option>
-                  </select>
-                </td>
-                <td>{statusBadge(u.status)}</td>
-                <td>{new Date(u.created_at).toLocaleDateString()}</td>
-                <td>
-                  {!isSelf && (
-                    <span className={styles.actions}>
-                      <button
-                        type="button"
-                        className="op-btn op-btn-ghost op-btn-sm"
-                        onClick={() =>
-                          statusMutation.mutate({
-                            userId: u.id,
-                            status: u.status === "active" ? "disabled" : "active",
-                          })
-                        }
-                      >
-                        {u.status === "active" ? "Disable" : "Enable"}
-                      </button>
-                      <button
-                        type="button"
-                        className="op-btn op-btn-danger op-btn-sm"
-                        onClick={() => {
-                          if (window.confirm(`Delete user ${u.email}? This cannot be undone.`))
-                            deleteMutation.mutate(u.id);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                    {u.status === "active" ? "Disable" : "Enable"}
+                  </button>
+                  <button
+                    type="button"
+                    className="op-btn op-btn-danger op-btn-sm"
+                    onClick={() => {
+                      if (window.confirm(`Delete user ${u.email}? This cannot be undone.`))
+                        deleteMutation.mutate(u.id);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </span>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
