@@ -3,6 +3,7 @@
 
 mod account;
 mod admin_invites;
+mod admin_promote;
 mod admin_invites_extended;
 mod audit;
 mod auth;

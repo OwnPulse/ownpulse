@@ -3,7 +3,30 @@
 
 use crate::models::user::UserRow;
 use sqlx::PgPool;
+use tracing::info;
 use uuid::Uuid;
+
+/// Promote the first-created user to admin if no admin exists.
+///
+/// This is an idempotent startup fixup for databases where the first user
+/// registered before the admin-promotion code was deployed. It only touches
+/// one row and only when the `users` table has zero admins.
+pub async fn ensure_first_user_is_admin(pool: &PgPool) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query(
+        "UPDATE users SET role = 'admin' \
+         WHERE id = (SELECT id FROM users ORDER BY created_at ASC LIMIT 1) \
+         AND role != 'admin' \
+         AND (SELECT COUNT(*) FROM users WHERE role = 'admin') = 0",
+    )
+    .execute(pool)
+    .await?;
+
+    let promoted = result.rows_affected() > 0;
+    if promoted {
+        info!("promoted first user to admin (no admin existed)");
+    }
+    Ok(promoted)
+}
 
 /// Returns true if no users exist in the database (transaction-aware variant).
 pub async fn is_empty_tx(

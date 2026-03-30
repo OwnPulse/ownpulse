@@ -223,6 +223,10 @@ async fn migrate_only() -> anyhow::Result<()> {
 
     api::migrate::run_migrations(&pool).await?;
 
+    api::db::users::ensure_first_user_is_admin(&pool)
+        .await
+        .context("first-user admin promotion check failed")?;
+
     info!("migrations complete");
     Ok(())
 }
@@ -241,6 +245,13 @@ async fn run_server() -> anyhow::Result<()> {
     // Kubernetes from routing traffic until the schema catches up.
     let migrations_ready = api::migration_check::new_migrations_ready();
     api::migration_check::run_check_and_set_flag(&pool, &migrations_ready).await;
+
+    // Promote the earliest-created user to admin if none exist yet.
+    // Handles databases where the first user registered before the
+    // admin-promotion code was deployed.
+    api::db::users::ensure_first_user_is_admin(&pool)
+        .await
+        .context("first-user admin promotion check failed")?;
 
     if !migrations_ready.load(std::sync::atomic::Ordering::SeqCst) {
         warn!(
