@@ -25,9 +25,13 @@ import Genetics from "./pages/Genetics";
 import Login from "./pages/Login";
 import ObserverAccept from "./pages/ObserverAccept";
 import ObserverPolls from "./pages/ObserverPolls";
+import ProtocolBuilder from "./pages/ProtocolBuilder";
+import Protocols from "./pages/Protocols";
+import ProtocolView from "./pages/ProtocolView";
 import Register from "./pages/Register";
 import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
+import SharedProtocol from "./pages/SharedProtocol";
 import ShareAccept from "./pages/ShareAccept";
 import Sources from "./pages/Sources";
 
@@ -54,6 +58,10 @@ ReactDOM.createRoot(rootEl).render(
               <Route path="/entry" element={<DataEntry />} />
               <Route path="/sources" element={<Sources />} />
               <Route path="/settings" element={<Settings />} />
+              <Route path="/protocols" element={<Protocols />} />
+              <Route path="/protocols/new" element={<ProtocolBuilder />} />
+              <Route path="/protocols/:id" element={<ProtocolView />} />
+              <Route path="/protocols/shared/:token" element={<SharedProtocol />} />
               <Route path="/friends" element={<Friends />} />
               <Route path="/friends/:friendId" element={<FriendView />} />
               <Route path="/observer-polls" element={<ObserverPolls />} />
