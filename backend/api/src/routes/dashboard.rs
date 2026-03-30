@@ -7,7 +7,9 @@ use serde::Serialize;
 
 use crate::AppState;
 use crate::auth::extractor::AuthUser;
+use crate::db::protocols as protocols_db;
 use crate::error::ApiError;
+use crate::models::protocol::TodaysDoseItem;
 
 #[derive(Serialize)]
 pub struct DashboardSummary {
@@ -18,6 +20,7 @@ pub struct DashboardSummary {
     pub observation_count_7d: i64,
     pub latest_lab_date: Option<chrono::NaiveDate>,
     pub pending_friend_shares: i64,
+    pub todays_doses: Vec<TodaysDoseItem>,
 }
 
 #[derive(Serialize, sqlx::FromRow)]
@@ -91,6 +94,8 @@ pub async fn summary(
     .fetch_one(&state.pool)
     .await?;
 
+    let todays_doses = protocols_db::todays_doses(&state.pool, user_id).await?;
+
     Ok(Json(DashboardSummary {
         latest_checkin,
         checkin_count_7d,
@@ -99,5 +104,6 @@ pub async fn summary(
         observation_count_7d,
         latest_lab_date: latest_lab_date.map(|(d,)| d),
         pending_friend_shares,
+        todays_doses,
     }))
 }

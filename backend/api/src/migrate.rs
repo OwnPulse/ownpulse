@@ -88,6 +88,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0020_snp_annotations.sql",
         include_str!("../../../db/migrations/0020_snp_annotations.sql"),
     ),
+    (
+        "0021_protocols.sql",
+        include_str!("../../../db/migrations/0021_protocols.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
