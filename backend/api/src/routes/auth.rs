@@ -136,9 +136,9 @@ pub async fn register(
     }
 
     // Validate password
-    if body.password.len() < 8 {
+    if body.password.len() < 10 {
         return Err(ApiError::BadRequest(
-            "password must be at least 8 characters".into(),
+            "password must be at least 10 characters".into(),
         ));
     }
 
@@ -1069,9 +1069,9 @@ pub async fn link_auth(
                 .as_deref()
                 .ok_or_else(|| ApiError::BadRequest("password required for local".into()))?;
 
-            if password.len() < 8 {
+            if password.len() < 10 {
                 return Err(ApiError::BadRequest(
-                    "password must be at least 8 characters".into(),
+                    "password must be at least 10 characters".into(),
                 ));
             }
 
@@ -1477,9 +1477,9 @@ pub async fn reset_password(
     Json(body): Json<ResetPasswordRequest>,
 ) -> Result<StatusCode, ApiError> {
     // Validate password length
-    if body.password.len() < 8 {
+    if body.password.len() < 10 {
         return Err(ApiError::BadRequest(
-            "password must be at least 8 characters".into(),
+            "password must be at least 10 characters".into(),
         ));
     }
 

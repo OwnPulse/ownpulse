@@ -113,7 +113,7 @@ test.describe("Registration flow", () => {
 
     await page.getByRole("button", { name: /create account/i }).click();
 
-    await expect(page.getByText(/password must be at least 8 characters/i)).toBeVisible();
+    await expect(page.getByText(/password must be at least 10 characters/i)).toBeVisible();
   });
 
   test("validates password confirmation match", async ({ page }) => {

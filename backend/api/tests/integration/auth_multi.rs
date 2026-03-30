@@ -951,7 +951,7 @@ async fn test_link_local_short_password_returns_400() {
     assert_eq!(
         response.status(),
         400,
-        "password shorter than 8 characters should return 400"
+        "password shorter than 10 characters should return 400"
     );
 }
 
