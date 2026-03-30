@@ -147,7 +147,14 @@ export default function ProtocolView() {
       {/* Header */}
       <div className={styles.header}>
         <h1>{protocol.name}</h1>
-        <span className={`${styles.badge} ${badgeClass(protocol.status)}`}>{protocol.status}</span>
+        <span className={`${styles.badge} ${badgeClass(protocol.status)}`}>
+          {protocol.status === "active"
+            ? "\u25CF "
+            : protocol.status === "paused"
+              ? "\u23F8 "
+              : "\u2713 "}
+          {protocol.status}
+        </span>
       </div>
 
       <div className={styles.meta}>

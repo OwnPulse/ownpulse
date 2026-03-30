@@ -91,11 +91,11 @@
 }
 
 .badgeActive {
-  background: #22c55e;
+  background: #009e73;
 }
 
 .badgePaused {
-  background: #eab308;
+  background: #e69f00;
 }
 
 .badgeCompleted {
@@ -112,7 +112,7 @@
 
 .progressFill {
   height: 100%;
-  background: #22c55e;
+  background: #009e73;
 }
 
 .nextDose {

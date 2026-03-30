@@ -38,10 +38,10 @@
   --color-border: #deded6;
   --color-border-strong: #c2c2b9;
 
-  /* Feedback / signals */
-  --color-success: #5a8a5a;
-  --color-warning: #c49a3c;
-  --color-error: #b54a4a;
+  /* Feedback / signals — colorblind-safe (Wong palette) */
+  --color-success: #009e73;
+  --color-warning: #e69f00;
+  --color-error: #d55e00;
   --color-error-light: #f5dede;
 
   /* Typography */
@@ -74,15 +74,15 @@
   --content-max-width: 72rem;
   --content-padding: 1.5rem;
 
-  /* Chart colors */
-  --chart-1: #c2654a;
-  --chart-2: #3d8b8b;
-  --chart-3: #c49a3c;
-  --chart-4: #5a8a5a;
-  --chart-deep: #2d6b6b;
-  --chart-light: #5aadad;
-  --chart-rem: #c2654a;
-  --chart-awake: #c49a3c;
+  /* Chart colors — colorblind-safe (Wong palette) */
+  --chart-1: #e69f00;
+  --chart-2: #56b4e9;
+  --chart-3: #009e73;
+  --chart-4: #0072b2;
+  --chart-deep: #332288;
+  --chart-light: #88ccee;
+  --chart-rem: #d55e00;
+  --chart-awake: #f0e442;
 }
 
 /* Explicit dark mode */
@@ -106,10 +106,10 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
 
-  --chart-deep: #5aadad;
-  --chart-light: #3d8b8b;
-  --chart-rem: #d4856e;
-  --chart-awake: #c49a3c;
+  --chart-deep: #88ccee;
+  --chart-light: #56b4e9;
+  --chart-rem: #d55e00;
+  --chart-awake: #f0e442;
 }
 
 /* System preference auto-detection (when no explicit theme set) */
@@ -134,9 +134,9 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
 
-    --chart-deep: #5aadad;
-    --chart-light: #3d8b8b;
-    --chart-rem: #d4856e;
-    --chart-awake: #c49a3c;
+    --chart-deep: #88ccee;
+    --chart-light: #56b4e9;
+    --chart-rem: #d55e00;
+    --chart-awake: #f0e442;
   }
 }

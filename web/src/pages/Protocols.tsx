@@ -106,7 +106,14 @@ export default function Protocols() {
             <Link key={p.id} to={`/protocols/${p.id}`} className={`op-card ${styles.protocolCard}`}>
               <div className={styles.cardHeader}>
                 <span className={styles.cardName}>{p.name}</span>
-                <span className={`${styles.badge} ${badgeClass(p.status)}`}>{p.status}</span>
+                <span className={`${styles.badge} ${badgeClass(p.status)}`}>
+                  {p.status === "active"
+                    ? "\u25CF "
+                    : p.status === "paused"
+                      ? "\u23F8 "
+                      : "\u2713 "}
+                  {p.status}
+                </span>
               </div>
               <div className={styles.progressBar}>
                 <div className={styles.progressFill} style={{ width: `${pct}%` }} />

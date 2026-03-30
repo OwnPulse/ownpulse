@@ -33,6 +33,12 @@ function trendClass(trend: "up" | "down" | "neutral"): string {
   return styles.trendNeutral;
 }
 
+function trendArrow(trend: "up" | "down" | "neutral"): string {
+  if (trend === "up") return " \u2191";
+  if (trend === "down") return " \u2193";
+  return " \u2192";
+}
+
 function useSparklineData() {
   const now = new Date();
   const start = new Date(now);
@@ -67,7 +73,7 @@ function Sparkline({ points, trend }: { points: DataPoint[]; trend: "up" | "down
     return <div className={styles.chartContainer} />;
   }
 
-  const color = trend === "up" ? "#27ae60" : trend === "down" ? "#e74c3c" : "#888";
+  const color = trend === "up" ? "#009E73" : trend === "down" ? "#D55E00" : "#999999";
 
   return (
     <div className={styles.chartContainer}>
@@ -122,7 +128,7 @@ export function SparklineRow() {
             <div className={styles.sparklineHeader}>
               <span className={styles.dimensionName}>{d}</span>
               <span className={`${styles.currentValue} ${trendClass(trend)}`}>
-                {currentValue != null ? currentValue : "\u2014"}
+                {currentValue != null ? `${currentValue}${trendArrow(trend)}` : "\u2014"}
               </span>
             </div>
             <Sparkline points={points} trend={trend} />

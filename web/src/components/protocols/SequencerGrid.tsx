@@ -82,7 +82,9 @@ export default function SequencerGrid({
                     onClick={
                       editable && onToggleCell ? () => onToggleCell(lineIndex, dayIdx) : undefined
                     }
-                  />
+                  >
+                    {isActive ? "\u25CF" : ""}
+                  </button>
                 );
               })}
             </Fragment>

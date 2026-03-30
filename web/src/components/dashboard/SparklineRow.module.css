@@ -35,11 +35,11 @@
 }
 
 .trendUp {
-  color: var(--color-success, #27ae60);
+  color: var(--color-success, #009e73);
 }
 
 .trendDown {
-  color: var(--color-danger, #e74c3c);
+  color: var(--color-error, #d55e00);
 }
 
 .trendNeutral {

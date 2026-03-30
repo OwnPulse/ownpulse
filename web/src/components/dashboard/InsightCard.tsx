@@ -12,11 +12,11 @@ interface InsightCardProps {
 }
 
 const TYPE_LABELS: Record<Insight["insight_type"], string> = {
-  trend: "Trend",
-  anomaly: "Anomaly",
-  missing_data: "Missing",
-  streak: "Streak",
-  correlation: "Correlation",
+  trend: "\uD83D\uDCC8 Trend",
+  anomaly: "\u26A0\uFE0F Anomaly",
+  missing_data: "\uD83D\uDCED Missing",
+  streak: "\uD83D\uDD25 Streak",
+  correlation: "\uD83D\uDD17 Correlation",
 };
 
 function exploreLink(insight: Insight): { to: string; label: string } | null {

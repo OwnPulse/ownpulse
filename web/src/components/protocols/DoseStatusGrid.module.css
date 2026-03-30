@@ -33,26 +33,43 @@
   height: 2.75rem;
   border-radius: var(--radius-sm);
   border: 2px solid transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
 }
 
 .completed {
-  background: #22c55e;
+  background: #0072b2;
 }
 
 .missed {
-  background: #ef4444;
+  background-color: #d55e00;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 3px,
+    rgba(255, 255, 255, 0.2) 3px,
+    rgba(255, 255, 255, 0.2) 5px
+  );
 }
 
 .skipped {
-  background: #93c5fd;
+  background-color: #cc79a7;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.25) 1px, transparent 1px);
+  background-size: 6px 6px;
 }
 
 .upcoming {
-  background: #9ca3af;
+  background: #999999;
 }
 
 .off {
   background: transparent;
+  color: transparent;
 }
 
 .today {
