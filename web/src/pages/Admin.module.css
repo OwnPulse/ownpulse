@@ -4,8 +4,10 @@
   background: var(--color-surface-elevated);
   border-radius: var(--radius-md);
   border: 1px solid var(--color-border);
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin-bottom: 2rem;
+  max-width: 100%;
 }
 
 .inviteHeader {

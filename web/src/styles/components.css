@@ -7,6 +7,8 @@
   max-width: var(--content-max-width);
   margin: 0 auto;
   padding: var(--content-padding);
+  overflow-x: hidden;
+  min-width: 0;
 }
 
 .op-page-header {
