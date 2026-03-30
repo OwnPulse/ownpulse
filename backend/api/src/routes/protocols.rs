@@ -33,7 +33,9 @@ pub async fn create_protocol(
     }
     for line in &body.lines {
         if line.substance.trim().is_empty() {
-            return Err(ApiError::BadRequest("substance must not be empty".to_string()));
+            return Err(ApiError::BadRequest(
+                "substance must not be empty".to_string(),
+            ));
         }
         if line.schedule_pattern.len() != body.duration_days as usize {
             return Err(ApiError::BadRequest(format!(

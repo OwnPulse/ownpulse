@@ -64,6 +64,24 @@ export interface TodaysDose {
   dose_id: string | null;
 }
 
+export interface CreateProtocolLine {
+  substance: string;
+  dose?: number;
+  unit?: string;
+  route?: string;
+  time_of_day?: string;
+  schedule_pattern: boolean[];
+  sort_order: number;
+}
+
+export interface CreateProtocol {
+  name: string;
+  description?: string;
+  start_date: string;
+  duration_days: number;
+  lines: CreateProtocolLine[];
+}
+
 export interface LogDoseRequest {
   protocol_line_id: string;
   day_number: number;
@@ -85,6 +103,7 @@ export const protocolsApi = {
     return api.get<ProtocolListItem[]>(`/api/v1/protocols${qs}`);
   },
   get: (id: string) => api.get<Protocol>(`/api/v1/protocols/${id}`),
+  create: (data: CreateProtocol) => api.post<Protocol>("/api/v1/protocols", data),
   update: (id: string, data: Partial<Pick<Protocol, "name" | "description" | "status">>) =>
     api.patch<Protocol>(`/api/v1/protocols/${id}`, data),
   delete: (id: string) => api.delete<void>(`/api/v1/protocols/${id}`),
