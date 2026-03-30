@@ -153,6 +153,7 @@
 
   .main {
     margin-left: 0;
+    padding-top: 3rem; /* space for the fixed hamburger menu button */
   }
 
   .menuBtn {
