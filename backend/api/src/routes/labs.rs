@@ -10,7 +10,9 @@ use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::lab_results as db;
 use crate::error::ApiError;
-use crate::models::lab_result::{BulkCreateLabResults, CreateLabResult, LabResultQuery, LabResultRow};
+use crate::models::lab_result::{
+    BulkCreateLabResults, CreateLabResult, LabResultQuery, LabResultRow,
+};
 use crate::routes::events::publish_event;
 
 /// POST /labs
