@@ -104,6 +104,7 @@ struct SettingsView: View {
     @State private var showUnlinkConfirmation = false
     @State private var unlinkProvider: String?
     @State private var hkAuthorized = false
+    @State private var clinicalRecordsSyncEnabled = ClinicalRecordSettings.isSyncEnabled
     @State private var viewModel: SettingsViewModel?
 
     private var isAdmin: Bool {
@@ -138,6 +139,21 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("requestHKAccessButton")
                 }
+            }
+
+            Section("Health Records") {
+                Toggle("Sync Lab Results", isOn: $clinicalRecordsSyncEnabled)
+                    .onChange(of: clinicalRecordsSyncEnabled) { _, newValue in
+                        ClinicalRecordSettings.isSyncEnabled = newValue
+                        if newValue {
+                            Task {
+                                try? await dependencies.clinicalRecordProvider?.requestAuthorization()
+                            }
+                        }
+                    }
+                Text("Import lab results from Epic, MyChart, Quest Diagnostics, and other connected health providers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if let vm = viewModel {

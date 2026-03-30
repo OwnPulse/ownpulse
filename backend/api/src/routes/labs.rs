@@ -10,7 +10,7 @@ use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::lab_results as db;
 use crate::error::ApiError;
-use crate::models::lab_result::{CreateLabResult, LabResultQuery, LabResultRow};
+use crate::models::lab_result::{BulkCreateLabResults, CreateLabResult, LabResultQuery, LabResultRow};
 use crate::routes::events::publish_event;
 
 /// POST /labs
@@ -42,6 +42,19 @@ pub async fn get(
 ) -> Result<Json<LabResultRow>, ApiError> {
     let row = db::get_by_id(&state.pool, user_id, id).await?;
     Ok(Json(row))
+}
+
+/// POST /labs/bulk — bulk insert lab results (used by clinical records sync)
+pub async fn bulk_create(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Json(body): Json<BulkCreateLabResults>,
+) -> Result<(StatusCode, Json<Vec<LabResultRow>>), ApiError> {
+    let rows = db::bulk_insert(&state.pool, user_id, &body.records).await?;
+    if !rows.is_empty() {
+        publish_event(&state.event_tx, user_id, "labs", None);
+    }
+    Ok((StatusCode::CREATED, Json(rows)))
 }
 
 /// DELETE /labs/:id

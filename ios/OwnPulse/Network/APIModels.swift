@@ -149,3 +149,33 @@ struct LinkAuthRequest: Codable, Sendable {
         case password
     }
 }
+
+struct CreateLabResultRecord: Codable, Sendable {
+    let panelDate: String
+    let labName: String?
+    let marker: String
+    let value: Double
+    let unit: String
+    let referenceLow: Double?
+    let referenceHigh: Double?
+    let source: String
+    let sourceId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case panelDate = "panel_date"
+        case labName = "lab_name"
+        case marker, value, unit
+        case referenceLow = "reference_low"
+        case referenceHigh = "reference_high"
+        case source
+        case sourceId = "source_id"
+    }
+}
+
+struct BulkCreateLabResults: Codable, Sendable {
+    let records: [CreateLabResultRecord]
+}
+
+struct LabResultResponse: Codable, Sendable {
+    let id: String
+}
