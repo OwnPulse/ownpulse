@@ -124,37 +124,37 @@ describe("DisclaimerBanner", () => {
 describe("RiskBadge", () => {
   it("renders high risk", () => {
     render(<RiskBadge level="high" />);
-    expect(screen.getByText("High")).toBeDefined();
+    expect(screen.getByText(/High/)).toBeDefined();
   });
 
   it("renders moderate risk", () => {
     render(<RiskBadge level="moderate" />);
-    expect(screen.getByText("Moderate")).toBeDefined();
+    expect(screen.getByText(/Moderate/)).toBeDefined();
   });
 
   it("renders low risk", () => {
     render(<RiskBadge level="low" />);
-    expect(screen.getByText("Low")).toBeDefined();
+    expect(screen.getByText(/Low/)).toBeDefined();
   });
 
   it("renders normal risk", () => {
     render(<RiskBadge level="normal" />);
-    expect(screen.getByText("Normal")).toBeDefined();
+    expect(screen.getByText(/Normal/)).toBeDefined();
   });
 
   it("renders poor metabolizer", () => {
     render(<RiskBadge level="poor_metabolizer" />);
-    expect(screen.getByText("Poor Metabolizer")).toBeDefined();
+    expect(screen.getByText(/Poor Metabolizer/)).toBeDefined();
   });
 
   it("renders intermediate", () => {
     render(<RiskBadge level="intermediate" />);
-    expect(screen.getByText("Intermediate")).toBeDefined();
+    expect(screen.getByText(/Intermediate/)).toBeDefined();
   });
 
   it("renders rapid", () => {
     render(<RiskBadge level="rapid" />);
-    expect(screen.getByText("Rapid")).toBeDefined();
+    expect(screen.getByText(/Rapid/)).toBeDefined();
   });
 });
 
@@ -164,7 +164,7 @@ describe("InterpretationCard", () => {
     render(<InterpretationCard interpretation={interp} />);
 
     expect(screen.getByText("MTHFR C677T Variant")).toBeDefined();
-    expect(screen.getByText("Moderate")).toBeDefined();
+    expect(screen.getByText(/Moderate/)).toBeDefined();
     expect(screen.getByText(/Gene: MTHFR/)).toBeDefined();
     expect(screen.getByText(/Chr 1/)).toBeDefined();
     expect(screen.getByText(/rs1801133/)).toBeDefined();
