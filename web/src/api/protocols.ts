@@ -3,16 +3,13 @@
 
 import { api } from "./client";
 
-export interface Protocol {
+export interface ProtocolDose {
   id: string;
-  user_id: string;
-  name: string;
-  description?: string;
-  start_date: string;
-  duration_days: number;
-  status: string;
-  share_token?: string;
-  lines: ProtocolLine[];
+  protocol_line_id: string;
+  day_number: number;
+  status: "completed" | "skipped" | "pending";
+  intervention_id: string | null;
+  logged_at: string | null;
   created_at: string;
 }
 
@@ -20,98 +17,83 @@ export interface ProtocolLine {
   id: string;
   protocol_id: string;
   substance: string;
-  dose?: number;
-  unit?: string;
-  route?: string;
-  time_of_day?: string;
+  dose: number;
+  unit: string;
+  route: string;
+  time_of_day: string | null;
   schedule_pattern: boolean[];
   sort_order: number;
   doses: ProtocolDose[];
 }
 
-export interface ProtocolDose {
+export interface Protocol {
   id: string;
-  protocol_line_id: string;
-  day_number: number;
-  status: string;
-  intervention_id?: string;
-  logged_at: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  status: "active" | "paused" | "completed";
+  start_date: string;
+  duration_days: number;
+  share_token: string | null;
+  created_at: string;
+  updated_at: string;
+  lines: ProtocolLine[];
 }
 
 export interface ProtocolListItem {
   id: string;
   name: string;
-  status: string;
+  status: "active" | "paused" | "completed";
   start_date: string;
   duration_days: number;
-  progress_pct: number;
-  next_dose?: string;
   created_at: string;
+  lines: ProtocolLine[];
 }
 
 export interface TodaysDose {
   protocol_id: string;
   protocol_name: string;
-  line_id: string;
+  protocol_line_id: string;
   substance: string;
-  dose?: number;
-  unit?: string;
-  route?: string;
-  time_of_day?: string;
+  dose: number;
+  unit: string;
+  route: string;
+  time_of_day: string | null;
   day_number: number;
-  status?: string;
-}
-
-export interface CreateProtocolLine {
-  substance: string;
-  dose?: number;
-  unit?: string;
-  route?: string;
-  time_of_day?: string;
-  schedule_pattern: boolean[];
-  sort_order: number;
-}
-
-export interface CreateProtocol {
-  name: string;
-  description?: string;
-  start_date: string;
-  duration_days: number;
-  lines: CreateProtocolLine[];
-}
-
-export interface UpdateProtocol {
-  name?: string;
-  description?: string;
-  start_date?: string;
-  duration_days?: number;
-  status?: string;
+  status: "completed" | "skipped" | "pending";
+  dose_id: string | null;
 }
 
 export interface LogDoseRequest {
-  line_id: string;
+  protocol_line_id: string;
   day_number: number;
 }
 
 export interface SkipDoseRequest {
-  line_id: string;
+  protocol_line_id: string;
   day_number: number;
 }
 
+export interface ShareResponse {
+  share_token: string;
+  share_url: string;
+}
+
 export const protocolsApi = {
-  list: () => api.get<ProtocolListItem[]>("/api/v1/protocols"),
+  list: (params?: Record<string, string>) => {
+    const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
+    return api.get<ProtocolListItem[]>(`/api/v1/protocols${qs}`);
+  },
   get: (id: string) => api.get<Protocol>(`/api/v1/protocols/${id}`),
-  create: (data: CreateProtocol) => api.post<Protocol>("/api/v1/protocols", data),
-  update: (id: string, data: UpdateProtocol) =>
-    api.patch<void>(`/api/v1/protocols/${id}`, data),
+  update: (id: string, data: Partial<Pick<Protocol, "name" | "description" | "status">>) =>
+    api.patch<Protocol>(`/api/v1/protocols/${id}`, data),
   delete: (id: string) => api.delete<void>(`/api/v1/protocols/${id}`),
-  logDose: (id: string, data: LogDoseRequest) =>
-    api.post<ProtocolDose>(`/api/v1/protocols/${id}/log`, data),
-  skipDose: (id: string, data: SkipDoseRequest) =>
-    api.post<void>(`/api/v1/protocols/${id}/skip`, data),
-  share: (id: string) =>
-    api.post<{ share_token: string; share_url: string }>(`/api/v1/protocols/${id}/share`, {}),
+  logDose: (protocolId: string, data: LogDoseRequest) =>
+    api.post<ProtocolDose>(`/api/v1/protocols/${protocolId}/doses/log`, data),
+  skipDose: (protocolId: string, data: SkipDoseRequest) =>
+    api.post<ProtocolDose>(`/api/v1/protocols/${protocolId}/doses/skip`, data),
+  share: (id: string) => api.post<ShareResponse>(`/api/v1/protocols/${id}/share`, {}),
   getShared: (token: string) => api.get<Protocol>(`/api/v1/protocols/shared/${token}`),
   importProtocol: (token: string) =>
-    api.post<Protocol>(`/api/v1/protocols/import/${token}`, {}),
+    api.post<Protocol>("/api/v1/protocols/import", { share_token: token }),
 };

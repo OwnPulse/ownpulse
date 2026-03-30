@@ -25,9 +25,8 @@ import Genetics from "./pages/Genetics";
 import Login from "./pages/Login";
 import ObserverAccept from "./pages/ObserverAccept";
 import ObserverPolls from "./pages/ObserverPolls";
-import ProtocolBuilder from "./pages/ProtocolBuilder";
-import Protocols from "./pages/Protocols";
 import ProtocolView from "./pages/ProtocolView";
+import Protocols from "./pages/Protocols";
 import Register from "./pages/Register";
 import ResetPassword from "./pages/ResetPassword";
 import Settings from "./pages/Settings";
@@ -48,6 +47,7 @@ ReactDOM.createRoot(rootEl).render(
           <Route path="/register" element={<Register />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/protocols/shared/:token" element={<SharedProtocol />} />
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>
               <Route path="/" element={<Dashboard />} />
@@ -58,13 +58,11 @@ ReactDOM.createRoot(rootEl).render(
               <Route path="/entry" element={<DataEntry />} />
               <Route path="/sources" element={<Sources />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="/protocols" element={<Protocols />} />
-              <Route path="/protocols/new" element={<ProtocolBuilder />} />
-              <Route path="/protocols/:id" element={<ProtocolView />} />
-              <Route path="/protocols/shared/:token" element={<SharedProtocol />} />
               <Route path="/friends" element={<Friends />} />
               <Route path="/friends/:friendId" element={<FriendView />} />
               <Route path="/observer-polls" element={<ObserverPolls />} />
+              <Route path="/protocols" element={<Protocols />} />
+              <Route path="/protocols/:id" element={<ProtocolView />} />
             </Route>
             <Route path="/share/accept" element={<ShareAccept />} />
             <Route path="/observe/accept" element={<ObserverAccept />} />

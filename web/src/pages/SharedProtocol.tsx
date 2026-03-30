@@ -2,61 +2,101 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { protocolsApi } from "../api/protocols";
-import SequencerGrid from "../components/protocols/SequencerGrid";
+import { useAuthStore } from "../store/auth";
+import styles from "./SharedProtocol.module.css";
 
 export default function SharedProtocol() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const { data: protocol, isLoading, isError } = useQuery({
-    queryKey: ["protocols", "shared", token],
+    queryKey: ["shared-protocol", token],
     queryFn: () => protocolsApi.getShared(token!),
     enabled: !!token,
   });
 
   const importMutation = useMutation({
     mutationFn: () => protocolsApi.importProtocol(token!),
-    onSuccess: (imported) => {
-      navigate(`/protocols/${imported.id}`);
+    onSuccess: (newProtocol) => {
+      navigate(`/protocols/${newProtocol.id}`);
     },
   });
 
-  if (isLoading) return <main className="op-page"><p>Loading...</p></main>;
-  if (isError || !protocol) return <main className="op-page"><p>Protocol not found.</p></main>;
+  if (!token) {
+    return (
+      <main className={`op-page ${styles.page}`}>
+        <h1>Invalid Link</h1>
+        <p>No share token found.</p>
+      </main>
+    );
+  }
+
+  if (isLoading) return <main className="op-page">Loading...</main>;
+
+  if (isError || !protocol) {
+    return (
+      <main className={`op-page ${styles.page}`}>
+        <h1>Protocol Not Found</h1>
+        <p className="op-error-msg">This share link is invalid or has expired.</p>
+      </main>
+    );
+  }
 
   return (
-    <main className="op-page">
-      <h1>{protocol.name}</h1>
-      {protocol.description && <p>{protocol.description}</p>}
-      <p style={{ fontSize: "var(--text-sm)", color: "var(--color-text-secondary)" }}>
-        {protocol.duration_days} days &middot; {protocol.lines.length} substance
-        {protocol.lines.length !== 1 ? "s" : ""}
-      </p>
+    <main className={`op-page ${styles.page}`}>
+      <div className={styles.header}>
+        <h1>{protocol.name}</h1>
+        {protocol.description && (
+          <p className={styles.description}>{protocol.description}</p>
+        )}
+      </div>
 
-      <SequencerGrid
-        lines={protocol.lines.map((l) => ({
-          substance: l.substance,
-          schedule_pattern: l.schedule_pattern,
-        }))}
-        durationDays={protocol.duration_days}
-        editable={false}
-      />
+      <section className={styles.linesSection}>
+        <h2>Protocol Lines</h2>
+        {protocol.lines.map((line) => (
+          <div key={line.id} className={`op-card ${styles.lineItem}`}>
+            <div className={styles.lineSubstance}>
+              {line.substance} {line.dose}{line.unit}
+            </div>
+            <div className={styles.lineMeta}>
+              {line.route}{line.time_of_day ? ` \u00b7 ${line.time_of_day}` : ""}
+            </div>
+            <div className={styles.schedulePreview}>
+              {line.schedule_pattern.slice(0, Math.min(line.schedule_pattern.length, 28)).map((on, i) => (
+                <div
+                  key={i}
+                  className={`${styles.scheduleDay} ${on ? styles.scheduleDayOn : ""}`}
+                  title={`Day ${i + 1}: ${on ? "on" : "off"}`}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
 
-      <div style={{ marginTop: "1.5rem" }}>
-        <button
-          type="button"
-          className="op-btn op-btn-primary"
-          onClick={() => importMutation.mutate()}
-          disabled={importMutation.isPending}
-        >
-          {importMutation.isPending ? "Importing..." : "Import Protocol"}
-        </button>
-        {importMutation.isError && (
-          <p style={{ color: "var(--color-error)", fontSize: "var(--text-sm)", marginTop: "0.5rem" }}>
-            Error: {importMutation.error.message}
+      <div className={styles.actions}>
+        {isAuthenticated ? (
+          <button
+            type="button"
+            className="op-btn op-btn-primary"
+            onClick={() => importMutation.mutate()}
+            disabled={importMutation.isPending}
+          >
+            {importMutation.isPending ? "Copying..." : "Copy to My Protocols"}
+          </button>
+        ) : (
+          <p className={styles.loginMsg}>
+            <Link to={`/login?returnTo=${encodeURIComponent(`/protocols/shared/${token}`)}`}>
+              Log in
+            </Link>{" "}
+            to copy this protocol to your account.
           </p>
+        )}
+        {importMutation.isError && (
+          <p className="op-error-msg">Failed to copy protocol. Please try again.</p>
         )}
       </div>
     </main>

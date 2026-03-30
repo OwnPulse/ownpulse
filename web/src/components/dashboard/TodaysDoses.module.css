@@ -1,0 +1,61 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+
+.section {
+  margin-bottom: 1.5rem;
+}
+
+.sectionTitle {
+  margin: 0 0 0.75rem;
+  font-size: var(--text-lg);
+}
+
+.doseList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.doseItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.doseInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.0625rem;
+}
+
+.doseSubstance {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.doseMeta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.doseStatus {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.statusCompleted {
+  color: #22c55e;
+}
+
+.statusSkipped {
+  color: #93c5fd;
+}
+
+.emptyText {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  margin: 0;
+}
