@@ -13,10 +13,11 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::auth::extractor::AdminUser;
 use crate::db::{invites, refresh_tokens, users};
+use crate::email;
 use crate::error::ApiError;
 use crate::models::invite::{
     CreateInviteRequest, InviteCheckResponse, InviteClaimResponse, InviteResponse,
-    InviteStatsResponse,
+    InviteStatsResponse, SendInviteEmailRequest,
 };
 use crate::models::user::UserResponse;
 
@@ -159,6 +160,31 @@ pub async fn create_invite(
     )
     .await?;
 
+    // Send invite email if requested
+    if let Some(ref recipient) = body.send_to_email {
+        let admin_user = users::find_by_id(&state.pool, admin_id).await?;
+        let inviter = if admin_user.email.is_empty() {
+            "Someone"
+        } else {
+            &admin_user.email
+        };
+        let url = format!("{}/invite/{}", state.config.web_origin, code);
+        let expiry = expires_at
+            .map(|e| format!("This invite expires on {}.", e.format("%B %d, %Y")))
+            .unwrap_or_default();
+        let html = invite_email_html(inviter, &url, &expiry);
+        if let Err(e) = email::send_email(
+            &state.config,
+            recipient,
+            &format!("{inviter} invited you to OwnPulse"),
+            &html,
+        )
+        .await
+        {
+            tracing::warn!(error = %e, to = %recipient, "failed to send invite email");
+        }
+    }
+
     Ok((StatusCode::CREATED, Json(InviteResponse::from(row))))
 }
 
@@ -273,4 +299,79 @@ pub async fn invite_stats(
         expired: row.expired,
         revoked: row.revoked,
     }))
+}
+
+/// POST /admin/invites/:id/send-email — send/resend an invite email.
+pub async fn send_invite_email(
+    State(state): State<AppState>,
+    AdminUser(admin_id): AdminUser,
+    Path(invite_id): Path<Uuid>,
+    Json(body): Json<SendInviteEmailRequest>,
+) -> Result<StatusCode, ApiError> {
+    let rows = invites::list_invites(&state.pool).await?;
+    let invite = rows
+        .into_iter()
+        .find(|r| r.id == invite_id)
+        .ok_or(ApiError::NotFound)?;
+
+    if invite.revoked_at.is_some() {
+        return Err(ApiError::BadRequest("invite is revoked".to_string()));
+    }
+
+    let admin_user = users::find_by_id(&state.pool, admin_id).await?;
+    let inviter = if admin_user.email.is_empty() {
+        "Someone"
+    } else {
+        &admin_user.email
+    };
+    let url = format!("{}/invite/{}", state.config.web_origin, invite.code);
+    let expiry = invite
+        .expires_at
+        .map(|e| format!("This invite expires on {}.", e.format("%B %d, %Y")))
+        .unwrap_or_default();
+    let html = invite_email_html(inviter, &url, &expiry);
+
+    email::send_email(
+        &state.config,
+        &body.email,
+        &format!("{inviter} invited you to OwnPulse"),
+        &html,
+    )
+    .await
+    .map_err(|e| ApiError::Internal(format!("failed to send email: {e}")))?;
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+fn invite_email_html(inviter: &str, invite_url: &str, expiry_line: &str) -> String {
+    format!(
+        r#"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#FAF6F1;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;margin:40px auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.08);">
+<tr><td style="background:#C2654A;padding:32px 40px;">
+  <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;">OwnPulse</h1>
+</td></tr>
+<tr><td style="padding:40px;">
+  <h2 style="margin:0 0 16px;color:#1a1a1a;font-size:22px;">You're invited!</h2>
+  <p style="color:#444;font-size:16px;line-height:1.6;">
+    {inviter} has invited you to join <strong>OwnPulse</strong> — a personal health data platform that puts you in control of your health data.
+  </p>
+  <p style="color:#444;font-size:16px;line-height:1.6;">
+    Track health metrics from wearables, log daily check-ins, upload genetic data, and explore correlations.
+  </p>
+  <div style="text-align:center;margin:32px 0;">
+    <a href="{invite_url}" style="display:inline-block;background:#C2654A;color:#fff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:600;">Create Your Account</a>
+  </div>
+  <p style="color:#888;font-size:14px;">{expiry_line}</p>
+  <p style="color:#888;font-size:13px;margin-top:24px;">
+    If the button doesn't work, copy this link:<br>
+    <a href="{invite_url}" style="color:#C2654A;word-break:break-all;">{invite_url}</a>
+  </p>
+</td></tr>
+<tr><td style="padding:20px 40px;background:#f9f5f0;border-top:1px solid #eee;">
+  <p style="margin:0;color:#999;font-size:12px;">OwnPulse — Your data, your control.</p>
+</td></tr>
+</table></body></html>"#
+    )
 }

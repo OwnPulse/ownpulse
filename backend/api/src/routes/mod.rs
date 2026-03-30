@@ -354,6 +354,10 @@ fn base_routes() -> Router<AppState> {
         .route("/admin/invites", get(admin::list_invites))
         .route("/admin/invites/stats", get(admin::invite_stats))
         .route("/admin/invites/:id/claims", get(admin::invite_claims))
+        .route(
+            "/admin/invites/:id/send-email",
+            post(admin::send_invite_email),
+        )
         .route("/admin/invites/:id", delete(admin::revoke_invite))
         // Auth methods (authenticated)
         .route("/auth/methods", get(auth::list_auth_methods))
