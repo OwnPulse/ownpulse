@@ -200,12 +200,13 @@ test.describe("Admin page", () => {
 
     await page.goto("/admin");
 
-    // Wait for invite to appear
-    await expect(page.getByText("INVITE-ABC")).toBeVisible();
+    // Wait for invite to appear (label or link visible)
+    await expect(page.getByText("For friends")).toBeVisible();
     await expect(page.getByRole("button", { name: /revoke/i })).toBeVisible();
 
-    // Click Revoke
+    // Click Revoke — may show confirmation dialog
     revoked = true;
+    page.on("dialog", (dialog) => dialog.accept());
     await page.getByRole("button", { name: /revoke/i }).click();
 
     // After revocation, the Revoke button should disappear (invite is no longer active)
