@@ -27,9 +27,10 @@ struct OwnPulseApp: App {
             using: nil
         ) { task in
             guard let refreshTask = task as? BGAppRefreshTask else { return }
+            nonisolated(unsafe) let bgTask = refreshTask
             Task {
                 await BackgroundTaskHandler.handleSync(
-                    task: refreshTask,
+                    task: bgTask,
                     syncEngine: dependencies.syncEngine
                 )
             }
