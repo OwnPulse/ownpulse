@@ -135,9 +135,40 @@ jobs:
   staging-infra:
     needs: resolve-tags
     if: needs.resolve-tags.outputs.ready == 'true'
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
+    env:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Fetch kubeconfig via Tailscale
+        run: |
+          for i in $(seq 1 15); do
+            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
+            [ -n "$PEER_IP" ] && break
+            echo "Attempt $i: ownpulse-us peer not found, waiting..."
+            sleep 2
+          done
+          if [ -z "$PEER_IP" ]; then
+            echo "::error::Failed to find ownpulse-us on tailnet"
+            sudo tailscale status
+            exit 1
+          fi
+          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null
+          KC=$(ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml')
+          TSIP=$(ssh root@ownpulse-us 'tailscale ip -4')
+          echo "$KC" | sed "s|127.0.0.1|$TSIP|g" > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
 
       - name: Install kubectl
         run: |
@@ -147,6 +178,22 @@ jobs:
       - name: Install Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
+
+      - name: Ensure ARC runners are healthy
+        run: |
+          echo "Checking ARC controller..."
+          kubectl get pods -n arc-systems -o wide || true
+          echo "Checking ARC runner listener..."
+          kubectl get pods -n arc-runners -o wide || true
+          # Bounce the listener if it's been running but not picking up jobs
+          LISTENER=$(kubectl get pods -n arc-runners -l actions.github.com/scale-set-name=arc-runner-set -o name 2>/dev/null | head -1)
+          if [ -n "$LISTENER" ]; then
+            echo "Restarting ARC listener to ensure fresh GitHub registration..."
+            kubectl delete $LISTENER -n arc-runners || true
+            sleep 10
+            echo "ARC listener restarting..."
+            kubectl get pods -n arc-runners -o wide || true
+          fi
 
       - name: Validate staging Helm charts
         run: |
@@ -295,9 +342,40 @@ jobs:
 
   production-infra:
     needs: [resolve-tags, production-approve]
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
+    env:
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Fetch kubeconfig via Tailscale
+        run: |
+          for i in $(seq 1 15); do
+            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
+            [ -n "$PEER_IP" ] && break
+            echo "Attempt $i: ownpulse-us peer not found, waiting..."
+            sleep 2
+          done
+          if [ -z "$PEER_IP" ]; then
+            echo "::error::Failed to find ownpulse-us on tailnet"
+            sudo tailscale status
+            exit 1
+          fi
+          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null
+          KC=$(ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml')
+          TSIP=$(ssh root@ownpulse-us 'tailscale ip -4')
+          echo "$KC" | sed "s|127.0.0.1|$TSIP|g" > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
 
       - name: Install kubectl
         run: |
@@ -307,6 +385,17 @@ jobs:
       - name: Install Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
+
+      - name: Ensure ARC runners are healthy
+        run: |
+          kubectl get pods -n arc-systems -o wide || true
+          kubectl get pods -n arc-runners -o wide || true
+          LISTENER=$(kubectl get pods -n arc-runners -l actions.github.com/scale-set-name=arc-runner-set -o name 2>/dev/null | head -1)
+          if [ -n "$LISTENER" ]; then
+            kubectl delete $LISTENER -n arc-runners || true
+            sleep 10
+            kubectl get pods -n arc-runners -o wide || true
+          fi
 
       - name: Clean up stuck Postgres release (production)
         run: |
