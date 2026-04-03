@@ -35,16 +35,6 @@ platform :ios do
 
     build_number = current_build + 1
 
-    update_code_signing_settings(
-      use_automatic_signing: false,
-      path: "OwnPulse.xcodeproj",
-      team_id: "J7C37BSM3L",
-      code_sign_identity: "Apple Distribution",
-      profile_name: "match AppStore #{app_id}",
-      bundle_identifier: app_id,
-      targets: ["OwnPulse"],
-    )
-
     build_app(
       scheme: scheme,
       configuration: configuration,

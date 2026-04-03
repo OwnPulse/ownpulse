@@ -29,8 +29,19 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
         ENABLE_HARDENED_RUNTIME: YES
         DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
-        CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
+      configs:
+        Debug:
+          CODE_SIGN_STYLE: Automatic
+        Staging:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PRODUCT_BUNDLE_IDENTIFIER: health.ownpulse.app.staging
+          PROVISIONING_PROFILE_SPECIFIER: "match AppStore health.ownpulse.app.staging"
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
+          PROVISIONING_PROFILE_SPECIFIER: "match AppStore health.ownpulse.app"
     configFiles:
       Debug: OwnPulse/Config/Debug.xcconfig
       Staging: OwnPulse/Config/Staging.xcconfig
