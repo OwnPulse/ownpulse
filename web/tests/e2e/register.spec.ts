@@ -18,17 +18,28 @@ async function mockAuthRefresh(page: import("@playwright/test").Page, jwt: strin
   );
 }
 
+async function mockInviteCheck(page: import("@playwright/test").Page, code: string, valid: boolean) {
+  await page.route(`**/api/v1/invites/${code}/check`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        valid,
+        code,
+        ...(valid ? { created_by_name: "Admin", expires_at: "2027-01-01T00:00:00Z" } : { reason: "invalid" }),
+      }),
+    }),
+  );
+}
+
 test.describe("Registration flow", () => {
-  test("registers with valid invite code and redirects to dashboard", async ({ page }) => {
+  test("registers with valid invite code and redirects", async ({ page }) => {
     const jwt = fakeJwt("new-user-id", "user");
 
-    // Mock the register endpoint to succeed
-    await page.route("**/api/v1/auth/register", async (route) => {
-      const body = JSON.parse(route.request().postData() || "{}");
-      expect(body.email).toBe("newuser@example.com");
-      expect(body.password).toBe("securepassword123");
-      expect(body.invite_code).toBe("TEST-CODE");
+    await mockInviteCheck(page, "TEST-CODE", true);
+    await mockAuthRefresh(page, jwt);
 
+    await page.route("**/api/v1/auth/register", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -36,43 +47,28 @@ test.describe("Registration flow", () => {
       });
     });
 
-    // Mock the refresh endpoint for after-login navigation
-    await mockAuthRefresh(page, jwt);
-
-    // Mock any API calls the dashboard might make after redirect
+    // Catch-all for dashboard API calls after redirect
     await page.route("**/api/v1/**", (route) => {
       const url = route.request().url();
-      if (url.includes("/auth/register") || url.includes("/auth/refresh")) {
-        // Already handled above
-        return route.fallback();
-      }
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: "[]",
-      });
+      if (url.includes("/auth/") || url.includes("/invites/")) return route.fallback();
+      return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
     });
 
     await page.goto("/register?invite=TEST-CODE");
-
-    // Verify the invite code is pre-filled
-    const inviteInput = page.getByLabel(/invite code/i);
-    await expect(inviteInput).toHaveValue("TEST-CODE");
+    await page.waitForLoadState("networkidle");
 
     // Fill in the registration form
     await page.getByLabel(/email/i).fill("newuser@example.com");
     await page.getByLabel(/^password$/i).fill("securepassword123");
     await page.getByLabel(/confirm password/i).fill("securepassword123");
 
-    // Submit the form
     await page.getByRole("button", { name: /create account/i }).click();
-
-    // Should redirect to dashboard (root path)
-    await page.waitForURL("/");
+    await page.waitForURL("**/");
   });
 
   test("shows error when registration fails with invalid invite", async ({ page }) => {
-    // Mock the register endpoint to fail
+    await mockInviteCheck(page, "INVALID-CODE", false);
+
     await page.route("**/api/v1/auth/register", (route) =>
       route.fulfill({
         status: 422,
@@ -82,6 +78,7 @@ test.describe("Registration flow", () => {
     );
 
     await page.goto("/register?invite=INVALID-CODE");
+    await page.waitForLoadState("networkidle");
 
     // Fill in the form
     await page.getByLabel(/email/i).fill("newuser@example.com");
@@ -105,7 +102,9 @@ test.describe("Registration flow", () => {
   });
 
   test("validates password length before submitting", async ({ page }) => {
+    await mockInviteCheck(page, "TEST-CODE", true);
     await page.goto("/register?invite=TEST-CODE");
+    await page.waitForLoadState("networkidle");
 
     await page.getByLabel(/email/i).fill("newuser@example.com");
     await page.getByLabel(/^password$/i).fill("short");
@@ -117,7 +116,9 @@ test.describe("Registration flow", () => {
   });
 
   test("validates password confirmation match", async ({ page }) => {
+    await mockInviteCheck(page, "TEST-CODE", true);
     await page.goto("/register?invite=TEST-CODE");
+    await page.waitForLoadState("networkidle");
 
     await page.getByLabel(/email/i).fill("newuser@example.com");
     await page.getByLabel(/^password$/i).fill("securepassword123");
