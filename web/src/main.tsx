@@ -25,6 +25,7 @@ import Genetics from "./pages/Genetics";
 import Login from "./pages/Login";
 import ObserverAccept from "./pages/ObserverAccept";
 import ObserverPolls from "./pages/ObserverPolls";
+import ProtocolBuilder from "./pages/ProtocolBuilder";
 import Protocols from "./pages/Protocols";
 import ProtocolView from "./pages/ProtocolView";
 import Register from "./pages/Register";
@@ -62,6 +63,7 @@ ReactDOM.createRoot(rootEl).render(
               <Route path="/friends/:friendId" element={<FriendView />} />
               <Route path="/observer-polls" element={<ObserverPolls />} />
               <Route path="/protocols" element={<Protocols />} />
+              <Route path="/protocols/new" element={<ProtocolBuilder />} />
               <Route path="/protocols/:id" element={<ProtocolView />} />
             </Route>
             <Route path="/share/accept" element={<ShareAccept />} />
