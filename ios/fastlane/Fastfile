@@ -39,7 +39,12 @@ platform :ios do
       scheme: scheme,
       configuration: configuration,
       export_method: "app-store",
-      xcargs: "-allowProvisioningUpdates CURRENT_PROJECT_VERSION=#{build_number}",
+      export_options: {
+        provisioningProfiles: {
+          app_id => "match AppStore #{app_id}",
+        },
+      },
+      xcargs: "-allowProvisioningUpdates CURRENT_PROJECT_VERSION=#{build_number} CODE_SIGN_STYLE=Manual PROVISIONING_PROFILE_SPECIFIER='match AppStore #{app_id}' CODE_SIGN_IDENTITY='Apple Distribution'",
     )
 
     upload_to_testflight(
