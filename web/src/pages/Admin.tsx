@@ -2,8 +2,10 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { type AdminUser, adminApi, type CreateInviteRequest, type InviteCode } from "../api/admin";
+import type { ProtocolExport, TemplateListItem } from "../api/protocols";
+import { protocolsApi } from "../api/protocols";
 import { useAuthStore } from "../store/auth";
 import styles from "./Admin.module.css";
 
@@ -445,6 +447,145 @@ function InvitesSection() {
   );
 }
 
+function ProtocolTemplatesSection() {
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importUrl, setImportUrl] = useState("");
+  const [importResult, setImportResult] = useState<string | null>(null);
+
+  const { data: templates, isLoading: templatesLoading } = useQuery({
+    queryKey: ["protocol-templates"],
+    queryFn: () => protocolsApi.listTemplates(),
+  });
+
+  const bulkImportMutation = useMutation({
+    mutationFn: (data: { url?: string; protocols?: ProtocolExport[] }) =>
+      adminApi.bulkImportProtocols(data),
+    onSuccess: (result) => {
+      setImportResult(`Imported ${result.imported} protocol templates`);
+      setImportUrl("");
+      queryClient.invalidateQueries({ queryKey: ["protocol-templates"] });
+    },
+  });
+
+  const demoteMutation = useMutation({
+    mutationFn: (id: string) => adminApi.demoteProtocol(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["protocol-templates"] }),
+  });
+
+  const handleUrlImport = () => {
+    if (importUrl.trim()) {
+      bulkImportMutation.mutate({ url: importUrl.trim() });
+    }
+  };
+
+  const handleFileImport = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          try {
+            const data = JSON.parse(reader.result);
+            const protocols = Array.isArray(data) ? data : data.protocols;
+            if (Array.isArray(protocols)) {
+              bulkImportMutation.mutate({ protocols });
+            }
+          } catch {
+            setImportResult("Invalid JSON file.");
+          }
+        }
+      };
+      reader.readAsText(file);
+    },
+    [bulkImportMutation],
+  );
+
+  return (
+    <div>
+      <h2>Protocol Templates</h2>
+
+      <div className={styles.createForm}>
+        <div className={styles.createFormField}>
+          <label htmlFor="import-url" className={styles.createFormLabel}>
+            Import from URL
+          </label>
+          <input
+            id="import-url"
+            type="url"
+            value={importUrl}
+            onChange={(e) => setImportUrl(e.target.value)}
+            placeholder="https://raw.githubusercontent.com/..."
+            className={styles.createFormInput}
+          />
+        </div>
+        <button
+          type="button"
+          className="op-btn op-btn-primary op-btn-sm"
+          onClick={handleUrlImport}
+          disabled={!importUrl.trim() || bulkImportMutation.isPending}
+        >
+          Import from URL
+        </button>
+        <span className={styles.createFormLabel} style={{ alignSelf: "end" }}>
+          or
+        </span>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          onChange={handleFileImport}
+          className={styles.hiddenFileInput}
+        />
+        <button
+          type="button"
+          className="op-btn op-btn-ghost op-btn-sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={bulkImportMutation.isPending}
+        >
+          Upload JSON
+        </button>
+      </div>
+
+      {bulkImportMutation.isPending && <p>Importing...</p>}
+      {bulkImportMutation.isError && (
+        <p className="op-error-msg">Import failed: {(bulkImportMutation.error as Error).message}</p>
+      )}
+      {importResult && <p className="op-success-msg">{importResult}</p>}
+
+      <h3>Manage Templates</h3>
+      {templatesLoading ? (
+        <p className={styles.loadingText}>Loading templates...</p>
+      ) : templates && templates.length > 0 ? (
+        <div className={styles.templateList}>
+          {templates.map((t: TemplateListItem) => (
+            <div key={t.id} className={styles.templateRow}>
+              <div className={styles.templateInfo}>
+                <span className={styles.templateName}>{t.name}</span>
+                <span className={styles.templateTags}>{t.tags.join(", ")}</span>
+              </div>
+              <button
+                type="button"
+                className="op-btn op-btn-danger op-btn-sm"
+                onClick={() => {
+                  if (window.confirm(`Demote "${t.name}" from templates?`))
+                    demoteMutation.mutate(t.id);
+                }}
+                disabled={demoteMutation.isPending}
+              >
+                Demote
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className={styles.emptyText}>No protocol templates yet.</p>
+      )}
+    </div>
+  );
+}
+
 export default function Admin() {
   return (
     <main className="op-page">
@@ -452,6 +593,7 @@ export default function Admin() {
       <h2>Users</h2>
       <UsersSection />
       <InvitesSection />
+      <ProtocolTemplatesSection />
     </main>
   );
 }
