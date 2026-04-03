@@ -11,6 +11,9 @@
   flex: 1 1 120px;
   min-width: 100px;
   text-align: center;
+  border-left: 3px solid transparent;
+  padding-left: 0.5rem;
+  border-radius: var(--radius-sm);
 }
 
 .sparklineHeader {

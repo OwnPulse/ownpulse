@@ -12,6 +12,11 @@
   --color-accent-light: #5aadad;
   --color-accent-dark: #2d6b6b;
 
+  /* Dimension palette — matches iOS Theme.swift */
+  --color-gold: #c49a3c;
+  --color-sage: #5a8a5a;
+  --color-purple: #7b61c2;
+
   /* Neutrals (warm) */
   --color-neutral-900: #1e1e1c;
   --color-neutral-800: #2d2d2a;
@@ -26,6 +31,7 @@
 
   /* Semantic surfaces */
   --color-bg: #fafaf7;
+  --color-bg-warm: #faf6f1;
   --color-surface: #fafaf7;
   --color-surface-elevated: #ffffff;
 
@@ -88,6 +94,7 @@
 /* Explicit dark mode */
 [data-theme="dark"] {
   --color-bg: #1a1a18;
+  --color-bg-warm: #1a1a1e;
   --color-surface: #1a1a18;
   --color-surface-elevated: #252523;
 
@@ -116,6 +123,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     --color-bg: #1a1a18;
+    --color-bg-warm: #1a1a1e;
     --color-surface: #1a1a18;
     --color-surface-elevated: #252523;
 
