@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { expect, test } from "@playwright/test";
+import { test } from "@playwright/test";
 
 function userJwt(): string {
   const payload = btoa(JSON.stringify({ sub: "u1", role: "user", exp: 9999999999 }));
