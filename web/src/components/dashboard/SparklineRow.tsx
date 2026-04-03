@@ -11,6 +11,14 @@ import styles from "./SparklineRow.module.css";
 const DIMENSIONS = ["energy", "mood", "focus", "recovery", "libido"] as const;
 type Dimension = (typeof DIMENSIONS)[number];
 
+const DIMENSION_COLORS: Record<Dimension, string> = {
+  energy: "#c49a3c",
+  mood: "#c2654a",
+  focus: "#3d8b8b",
+  recovery: "#5a8a5a",
+  libido: "#7b61c2",
+};
+
 interface SparklineDatum {
   x: number;
   y: number;
@@ -59,7 +67,7 @@ function useSparklineData() {
   });
 }
 
-function Sparkline({ points, trend }: { points: DataPoint[]; trend: "up" | "down" | "neutral" }) {
+function Sparkline({ points, color }: { points: DataPoint[]; color: string }) {
   const data: SparklineDatum[] = useMemo(
     () =>
       points.map((p, i) => ({
@@ -72,8 +80,6 @@ function Sparkline({ points, trend }: { points: DataPoint[]; trend: "up" | "down
   if (data.length === 0) {
     return <div className={styles.chartContainer} />;
   }
-
-  const color = trend === "up" ? "#009E73" : trend === "down" ? "#D55E00" : "#999999";
 
   return (
     <div className={styles.chartContainer}>
@@ -124,14 +130,19 @@ export function SparklineRow() {
         const currentValue = points.length > 0 ? points[points.length - 1].v : null;
 
         return (
-          <div key={d} className={styles.sparklineItem} data-testid={`sparkline-${d}`}>
+          <div
+            key={d}
+            className={styles.sparklineItem}
+            data-testid={`sparkline-${d}`}
+            style={{ borderLeftColor: DIMENSION_COLORS[d] }}
+          >
             <div className={styles.sparklineHeader}>
               <span className={styles.dimensionName}>{d}</span>
               <span className={`${styles.currentValue} ${trendClass(trend)}`}>
                 {currentValue != null ? `${currentValue}${trendArrow(trend)}` : "\u2014"}
               </span>
             </div>
-            <Sparkline points={points} trend={trend} />
+            <Sparkline points={points} color={DIMENSION_COLORS[d]} />
           </div>
         );
       })}

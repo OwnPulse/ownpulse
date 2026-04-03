@@ -3,7 +3,7 @@
 body {
   font-family: var(--font-body);
   color: var(--color-text);
-  background: var(--color-bg);
+  background: linear-gradient(180deg, var(--color-bg-warm) 0%, var(--color-bg) 100%) fixed;
   font-size: var(--text-base);
   transition:
     background-color 0.2s ease,
