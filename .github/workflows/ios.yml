@@ -41,7 +41,7 @@ jobs:
             -scheme OwnPulse \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -clonedSourcePackagesDirPath .build \
-            | xcbeautify || true
+            | xcbeautify --is-ci
 
   build-and-upload:
     needs: test
@@ -74,11 +74,11 @@ jobs:
 
       - name: Decrypt iOS secrets
         run: |
-          sops -d infra/secrets/ios/appstore-connect.sops.yaml > /tmp/ios-secrets.yaml
-          echo "ASC_KEY_ID=$(yq '.key_id' /tmp/ios-secrets.yaml)" >> $GITHUB_ENV
-          echo "ASC_ISSUER_ID=$(yq '.issuer_id' /tmp/ios-secrets.yaml)" >> $GITHUB_ENV
-          sops -d --output /tmp/AuthKey.p8 infra/secrets/ios/AuthKey.p8.sops
-          echo "ASC_KEY_PATH=/tmp/AuthKey.p8" >> $GITHUB_ENV
+          sops -d infra/secrets/ios/appstore-connect.sops.yaml > "$RUNNER_TEMP/ios-secrets.yaml"
+          echo "ASC_KEY_ID=$(yq '.key_id' "$RUNNER_TEMP/ios-secrets.yaml")" >> $GITHUB_ENV
+          echo "ASC_ISSUER_ID=$(yq '.issuer_id' "$RUNNER_TEMP/ios-secrets.yaml")" >> $GITHUB_ENV
+          sops -d --output "$RUNNER_TEMP/AuthKey.p8" infra/secrets/ios/AuthKey.p8.sops
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> $GITHUB_ENV
           echo "MATCH_PASSWORD=$(sops -d --extract '["match_password"]' infra/secrets/ios/appstore-connect.sops.yaml)" >> $GITHUB_ENV
 
       - uses: ruby/setup-ruby@v1
