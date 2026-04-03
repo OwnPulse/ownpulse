@@ -20,6 +20,7 @@ mod interventions;
 mod labs;
 mod observations;
 mod observer_polls;
+mod password_reset;
 mod protocols;
 mod security_fixes;
 mod sleep;
