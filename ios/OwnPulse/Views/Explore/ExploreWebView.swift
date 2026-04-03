@@ -2,73 +2,43 @@
 // Copyright (C) OwnPulse Contributors
 
 import SwiftUI
-import WebKit
 
 struct ExploreWebView: View {
-    @Environment(AppDependencies.self) private var dependencies
-
     var body: some View {
-        WebViewContainer(keychainService: dependencies.keychainService)
-            .navigationTitle("Explore")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        if let url = URL(string: "\(AppConfig.webDashboardURL)/explore") {
-                            UIApplication.shared.open(url)
-                        }
-                    } label: {
-                        Image(systemName: "safari")
-                    }
-                    .accessibilityIdentifier("openInSafariButton")
+        VStack(spacing: 24) {
+            Spacer()
+
+            Image(systemName: "chart.xyaxis.line")
+                .font(.system(size: 64))
+                .foregroundStyle(.secondary)
+
+            Text("Charts Coming Soon")
+                .font(.title2)
+                .fontWeight(.semibold)
+
+            Text("Native charts are being built. In the meantime, you can explore your data on the web.")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Button {
+                if let url = URL(string: "\(AppConfig.webDashboardURL)/explore") {
+                    UIApplication.shared.open(url)
                 }
+            } label: {
+                Label("Open in Browser", systemImage: "safari")
+                    .font(.body.weight(.medium))
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(.blue)
+                    .foregroundStyle(.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
             }
-    }
-}
 
-struct WebViewContainer: UIViewRepresentable {
-    let keychainService: KeychainServiceProtocol
-
-    func makeUIView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .nonPersistent()
-
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.isOpaque = false
-        webView.backgroundColor = .clear
-        webView.accessibilityIdentifier = "exploreWebView"
-
-        loadExplore(in: webView)
-        return webView
-    }
-
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        // No-op: initial load handles auth
-    }
-
-    private func loadExplore(in webView: WKWebView) {
-        guard let urlString = URL(string: "\(AppConfig.webDashboardURL)/explore") else { return }
-
-        // Inject JWT as a cookie so the web app can authenticate
-        if let tokenData = try? keychainService.load(key: AuthService.accessTokenKey),
-           let token = String(data: tokenData, encoding: .utf8) {
-            let cookie = HTTPCookie(properties: [
-                .name: "access_token",
-                .value: token,
-                .domain: urlString.host ?? "",
-                .path: "/",
-                .secure: "TRUE",
-            ])
-
-            if let cookie {
-                webView.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) {
-                    webView.load(URLRequest(url: urlString))
-                }
-            } else {
-                webView.load(URLRequest(url: urlString))
-            }
-        } else {
-            webView.load(URLRequest(url: urlString))
+            Spacer()
         }
+        .navigationTitle("Explore")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
