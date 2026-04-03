@@ -11,12 +11,15 @@ use uuid::Uuid;
 #[derive(FromRow, Serialize)]
 pub struct ProtocolRow {
     pub id: Uuid,
-    pub user_id: Uuid,
+    pub user_id: Option<Uuid>,
     pub name: String,
     pub description: Option<String>,
     pub start_date: NaiveDate,
     pub duration_days: i32,
     pub status: String,
+    pub is_template: bool,
+    pub tags: Option<serde_json::Value>,
+    pub source_url: Option<String>,
     pub share_token: Option<String>,
     pub share_expires_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -92,12 +95,14 @@ pub struct SkipDoseRequest {
 #[derive(Serialize)]
 pub struct ProtocolResponse {
     pub id: Uuid,
-    pub user_id: Uuid,
+    pub user_id: Option<Uuid>,
     pub name: String,
     pub description: Option<String>,
     pub start_date: NaiveDate,
     pub duration_days: i32,
     pub status: String,
+    pub is_template: bool,
+    pub tags: Vec<String>,
     pub share_token: Option<String>,
     pub share_expires_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
@@ -126,6 +131,8 @@ pub struct ProtocolListItem {
     pub status: String,
     pub start_date: NaiveDate,
     pub duration_days: i32,
+    pub is_template: bool,
+    pub tags: Option<serde_json::Value>,
     pub progress_pct: f64,
     pub next_dose: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -149,4 +156,52 @@ pub struct TodaysDoseItem {
 pub struct ShareResponse {
     pub token: String,
     pub expires_at: DateTime<Utc>,
+}
+
+// --- Export/Import types ---
+
+#[derive(Serialize, Deserialize)]
+pub struct ProtocolExport {
+    pub schema: String, // "ownpulse-protocol/v1"
+    pub name: String,
+    pub description: Option<String>,
+    pub tags: Vec<String>,
+    pub duration_days: i32,
+    pub lines: Vec<ProtocolLineExport>,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ProtocolLineExport {
+    pub substance: String,
+    pub dose: Option<f64>,
+    pub unit: Option<String>,
+    pub route: Option<String>,
+    pub time_of_day: Option<String>,
+    pub pattern: serde_json::Value, // string shorthand or bool array
+}
+
+#[derive(Deserialize)]
+pub struct PromoteRequest {
+    pub tags: Option<Vec<String>>,
+}
+
+#[derive(Deserialize)]
+pub struct AdminBulkImportRequest {
+    pub url: Option<String>,
+    pub protocols: Option<Vec<ProtocolExport>>,
+}
+
+#[derive(Deserialize)]
+pub struct CopyTemplateRequest {
+    pub start_date: NaiveDate,
+}
+
+#[derive(FromRow, Serialize)]
+pub struct TemplateListItem {
+    pub id: Uuid,
+    pub name: String,
+    pub description: Option<String>,
+    pub duration_days: i32,
+    pub tags: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
 }

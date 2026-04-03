@@ -359,6 +359,13 @@ fn base_routes() -> Router<AppState> {
             post(admin::send_invite_email),
         )
         .route("/admin/invites/:id", delete(admin::revoke_invite))
+        // Admin protocol endpoints
+        .route("/admin/protocols/import", post(admin::admin_bulk_import))
+        .route(
+            "/admin/protocols/:id/promote",
+            post(admin::promote_protocol),
+        )
+        .route("/admin/protocols/:id/demote", post(admin::demote_protocol))
         // Auth methods (authenticated)
         .route("/auth/methods", get(auth::list_auth_methods))
         .route("/auth/link", post(auth::link_auth))
@@ -375,18 +382,25 @@ fn base_routes() -> Router<AppState> {
             patch(friends::update_permissions),
         )
         .route("/friends/:friend_id/data", get(friends::get_friend_data))
-        // Protocols — shared/import routes before :id to avoid UUID matching
+        // Protocols — shared/import/template routes before :id to avoid UUID matching
         .route(
             "/protocols/shared/:token",
             get(protocols::get_shared_protocol),
         )
         .route("/protocols/import/:token", post(protocols::import_protocol))
+        .route("/protocols/import", post(protocols::import_protocol_file))
+        .route("/protocols/templates", get(protocols::list_templates))
+        .route(
+            "/protocols/templates/:id/copy",
+            post(protocols::copy_template),
+        )
         .route("/protocols/todays-doses", get(protocols::todays_doses))
         .route("/protocols", post(protocols::create_protocol))
         .route("/protocols", get(protocols::list_protocols))
         .route("/protocols/:id", get(protocols::get_protocol))
         .route("/protocols/:id", patch(protocols::update_protocol))
         .route("/protocols/:id", delete(protocols::delete_protocol))
+        .route("/protocols/:id/export", get(protocols::export_protocol))
         .route("/protocols/:id/doses/log", post(protocols::log_dose))
         .route("/protocols/:id/doses/skip", post(protocols::skip_dose))
         .route("/protocols/:id/share", post(protocols::share_protocol))
