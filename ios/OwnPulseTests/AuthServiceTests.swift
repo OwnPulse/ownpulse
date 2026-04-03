@@ -113,4 +113,98 @@ struct AuthServiceTests {
         #expect(service.isAuthenticated == false)
         #expect(mockKeychain.savedKeys.isEmpty)
     }
+
+    // MARK: - processCallback (Google OAuth redirect)
+
+    @Test("processCallback extracts tokens from fragment and stores them")
+    func processCallbackSuccess() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        let url = URL(string: "ownpulse://auth#token=test-jwt&refresh_token=test-refresh")!
+        try await service.processCallback(url: url)
+
+        #expect(service.isAuthenticated == true)
+        let storedAccess = try mockKeychain.load(key: AuthService.accessTokenKey)
+        let storedRefresh = try mockKeychain.load(key: AuthService.refreshTokenKey)
+        #expect(String(data: storedAccess!, encoding: .utf8) == "test-jwt")
+        #expect(String(data: storedRefresh!, encoding: .utf8) == "test-refresh")
+    }
+
+    @Test("processCallback throws invalidCallback when fragment is missing")
+    func processCallbackNoFragment() async {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        let url = URL(string: "ownpulse://auth")!
+        do {
+            try await service.processCallback(url: url)
+            Issue.record("Expected error to be thrown")
+        } catch let error as AuthError {
+            #expect(error == .invalidCallback)
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+
+        #expect(service.isAuthenticated == false)
+    }
+
+    @Test("processCallback throws callbackFailed when error query param is present")
+    func processCallbackWithError() async {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        let url = URL(string: "ownpulse://auth?error=access_denied")!
+        do {
+            try await service.processCallback(url: url)
+            Issue.record("Expected error to be thrown")
+        } catch let error as AuthError {
+            #expect(error == .callbackFailed)
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+
+        #expect(service.isAuthenticated == false)
+    }
+
+    @Test("processCallback throws invalidCallback when token is missing from fragment")
+    func processCallbackMissingToken() async {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        let url = URL(string: "ownpulse://auth#refresh_token=test-refresh")!
+        do {
+            try await service.processCallback(url: url)
+            Issue.record("Expected error to be thrown")
+        } catch let error as AuthError {
+            #expect(error == .invalidCallback)
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+
+        #expect(service.isAuthenticated == false)
+    }
+
+    @Test("processCallback throws invalidCallback when refresh_token is missing from fragment")
+    func processCallbackMissingRefreshToken() async {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        let url = URL(string: "ownpulse://auth#token=test-jwt")!
+        do {
+            try await service.processCallback(url: url)
+            Issue.record("Expected error to be thrown")
+        } catch let error as AuthError {
+            #expect(error == .invalidCallback)
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+
+        #expect(service.isAuthenticated == false)
+    }
 }
