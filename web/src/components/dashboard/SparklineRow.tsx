@@ -130,7 +130,12 @@ export function SparklineRow() {
         const currentValue = points.length > 0 ? points[points.length - 1].v : null;
 
         return (
-          <div key={d} className={styles.sparklineItem} data-testid={`sparkline-${d}`} style={{ borderLeftColor: DIMENSION_COLORS[d] }}>
+          <div
+            key={d}
+            className={styles.sparklineItem}
+            data-testid={`sparkline-${d}`}
+            style={{ borderLeftColor: DIMENSION_COLORS[d] }}
+          >
             <div className={styles.sparklineHeader}>
               <span className={styles.dimensionName}>{d}</span>
               <span className={`${styles.currentValue} ${trendClass(trend)}`}>

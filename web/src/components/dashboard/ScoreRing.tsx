@@ -34,6 +34,8 @@ export function ScoreRing({ label, value }: ScoreRingProps) {
         height={SIZE}
         viewBox={`0 0 ${SIZE} ${SIZE}`}
         className={styles.svg}
+        role="img"
+        aria-label={`${label} score: ${hasValue ? value : "none"} out of 10`}
       >
         {/* Background track */}
         <circle

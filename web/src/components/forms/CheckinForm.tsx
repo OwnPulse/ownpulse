@@ -87,7 +87,9 @@ export default function CheckinForm() {
           <div key={label} className={forms.sliderField}>
             <div className={forms.sliderLabel}>
               <span className={forms.sliderLabelText}>{label}</span>
-              <span className={forms.sliderValue} style={{ color }}>{value}/10</span>
+              <span className={forms.sliderValue} style={{ color }}>
+                {value}/10
+              </span>
             </div>
             <input
               type="range"
@@ -96,7 +98,12 @@ export default function CheckinForm() {
               value={value}
               onChange={(e) => setter(e.target.value)}
               className="op-slider"
-              style={{ background: sliderBackground(value, color), "--slider-color": color } as React.CSSProperties}
+              style={
+                {
+                  background: sliderBackground(value, color),
+                  "--slider-color": color,
+                } as React.CSSProperties
+              }
               aria-label={label}
             />
           </div>
