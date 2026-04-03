@@ -5,6 +5,7 @@ import Foundation
 
 enum Endpoints {
     static let authAppleCallback = "/api/v1/auth/apple/callback"
+    static let authGoogleLogin = "/api/v1/auth/google/login"
     static let authGoogleCallback = "/api/v1/auth/google/callback"
     static let authLogin = "/api/v1/auth/login"
     static let authLink = "/api/v1/auth/link"
