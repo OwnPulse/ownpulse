@@ -136,50 +136,14 @@ jobs:
     needs: resolve-tags
     if: needs.resolve-tags.outputs.ready == 'true'
     runs-on: ubuntu-latest
-    env:
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+      - uses: OwnPulse/gh-actions/tailscale-cluster-connect@v1
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci-runner
-
-      - name: Fetch kubeconfig via Tailscale
-        run: |
-          for i in $(seq 1 15); do
-            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
-            [ -n "$PEER_IP" ] && break
-            echo "Attempt $i: ownpulse-us peer not found, waiting..."
-            sleep 2
-          done
-          if [ -z "$PEER_IP" ]; then
-            echo "::error::Failed to find ownpulse-us on tailnet"
-            sudo tailscale status
-            exit 1
-          fi
-          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null
-          KC=$(ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml')
-          TSIP=$(ssh root@ownpulse-us 'tailscale ip -4')
-          echo "$KC" | sed "s|127.0.0.1|$TSIP|g" > /tmp/kubeconfig
-          chmod 600 /tmp/kubeconfig
-          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
-
-      - name: Install kubectl
-        run: |
-          curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-
-      - name: Install Helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Ensure ARC runners are healthy
         run: |
@@ -363,50 +327,14 @@ jobs:
   production-infra:
     needs: [resolve-tags, production-approve]
     runs-on: ubuntu-latest
-    env:
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+      - uses: OwnPulse/gh-actions/tailscale-cluster-connect@v1
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          tags: tag:ci-runner
-
-      - name: Fetch kubeconfig via Tailscale
-        run: |
-          for i in $(seq 1 15); do
-            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
-            [ -n "$PEER_IP" ] && break
-            echo "Attempt $i: ownpulse-us peer not found, waiting..."
-            sleep 2
-          done
-          if [ -z "$PEER_IP" ]; then
-            echo "::error::Failed to find ownpulse-us on tailnet"
-            sudo tailscale status
-            exit 1
-          fi
-          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
-          mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null
-          KC=$(ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml')
-          TSIP=$(ssh root@ownpulse-us 'tailscale ip -4')
-          echo "$KC" | sed "s|127.0.0.1|$TSIP|g" > /tmp/kubeconfig
-          chmod 600 /tmp/kubeconfig
-          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
-
-      - name: Install kubectl
-        run: |
-          curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-
-      - name: Install Helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Ensure ARC runners are healthy
         run: |
