@@ -890,11 +890,7 @@ async fn test_todays_doses() {
     let json = common::body_json(resp).await;
     let items = json.as_array().expect("should be array");
 
-    // The todays-doses query uses JSONB `->` with a text-cast index on an array,
-    // which in Postgres returns NULL (text keys are for objects, not arrays).
-    // This means schedule_pattern filtering currently returns no rows.
-    // Once the query is fixed to use integer index (e.g. `->(...)::int`),
-    // this assertion should be updated to check for non-empty results containing
-    // the "Omega-3" substance at day_number 0.
-    assert!(items.is_empty());
+    // Should return today's scheduled dose (day 0 of the protocol)
+    assert!(!items.is_empty(), "todays-doses should return scheduled doses");
+    assert_eq!(items[0]["substance"].as_str().unwrap(), "Omega-3");
 }
