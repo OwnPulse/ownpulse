@@ -192,7 +192,7 @@ final class AuthService: AuthServiceProtocol {
         // Go through the backend's OAuth entry point, which sets the CSRF
         // cookie and redirects to Google. The backend callback will detect
         // the mobile web view and redirect to ownpulse:// with tokens.
-        guard let url = URL(string: "\(AppConfig.apiBaseURL)/api/v1/auth/google/login") else {
+        guard let url = URL(string: "\(AppConfig.apiBaseURL)/api/v1/auth/google/login?platform=ios") else {
             throw AuthError.urlConstructionFailed
         }
         return url
