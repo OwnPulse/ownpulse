@@ -78,32 +78,15 @@ test.describe("Registration flow", () => {
       });
   });
 
-  test("shows error when registration fails with invalid invite", async ({ page }) => {
+  test("shows error when invite code is invalid", async ({ page }) => {
     await mockInviteCheck(page, "INVALID-CODE", false);
-
-    await page.route("**/api/v1/auth/register", (route) =>
-      route.fulfill({
-        status: 422,
-        contentType: "text/plain",
-        body: "Invalid or expired invite code",
-      }),
-    );
 
     await page.goto("/register?invite=INVALID-CODE");
     await page.waitForLoadState("networkidle");
 
-    // Fill in the form
-    await page.getByLabel(/email/i).fill("newuser@example.com");
-    await page.getByLabel(/^password$/i).fill("securepassword123");
-    await page.getByLabel(/confirm password/i).fill("securepassword123");
-
-    // Submit
-    await page.getByRole("button", { name: /create account/i }).click();
-
-    // Should show error message
-    await expect(
-      page.getByText(/registration failed.*invite code may be invalid or expired/i),
-    ).toBeVisible();
+    // The invite check returns invalid, so the page should show an error
+    // instead of the registration form
+    await expect(page.getByText(/invalid|expired|revoked|exhausted/i)).toBeVisible();
   });
 
   test("shows message when no invite code is provided", async ({ page }) => {
