@@ -78,7 +78,7 @@ jobs:
       - name: Render and diff
         if: steps.detect.outputs.has_changes == 'true'
         run: |
-          # Map chart name to staging release name (matches deploy.yml)
+          # Map chart name to staging release name (matches deploy-staging.yml)
           release_name() {
             case "$1" in
               api)           echo "api-staging" ;;
