@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy Staging
 
 on:
   workflow_run:
@@ -8,7 +8,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/deploy.yml'
+      - '.github/workflows/deploy-staging.yml'
       - 'helm/**'
   workflow_dispatch:
     inputs:
@@ -18,8 +18,8 @@ on:
         default: ""
 
 concurrency:
-  group: deploy
-  cancel-in-progress: false
+  group: deploy-staging
+  cancel-in-progress: true
 
 jobs:
   resolve-tags:
@@ -312,159 +312,3 @@ jobs:
           service-url: http://web-staging-ownpulse-web:80/api/v1/health
           namespace: ownpulse-staging
           label: Staging API (via web proxy)
-
-  # ---------------------------------------------------------------------------
-  # Production (requires manual approval via GitHub environment)
-  # ---------------------------------------------------------------------------
-
-  production-approve:
-    needs: staging-validate
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - run: echo "Production deploy approved"
-
-  production-infra:
-    needs: [resolve-tags, production-approve]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - uses: OwnPulse/gh-actions/tailscale-cluster-connect@v1
-        with:
-          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
-      - name: Ensure ARC runners are healthy
-        run: |
-          kubectl get pods -n arc-systems -o wide || true
-          kubectl get pods -n arc-runners -o wide || true
-          ACTIVE_RUNNERS=$(kubectl get pods -n arc-runners --field-selector=status.phase=Running -l app.kubernetes.io/component=runner --no-headers 2>/dev/null | wc -l | tr -d ' ')
-          LISTENER=$(kubectl get pods -n arc-runners -l actions.github.com/scale-set-name=arc-runner-set -o name 2>/dev/null | head -1)
-          if [ -n "$LISTENER" ] && [ "$ACTIVE_RUNNERS" = "0" ]; then
-            echo "No active runners — bouncing listener for fresh GitHub registration..."
-            kubectl delete $LISTENER -n arc-runners || true
-            sleep 10
-            kubectl get pods -n arc-runners -o wide || true
-          elif [ -n "$LISTENER" ]; then
-            echo "$ACTIVE_RUNNERS active runner(s) — skipping listener bounce"
-          fi
-
-      - name: Clean up stuck Postgres release (production)
-        run: |
-          STATUS=$(helm status postgres -n ownpulse -o json 2>/dev/null | jq -r '.info.status' 2>/dev/null || echo "not-found")
-          if [ "$STATUS" = "pending-install" ] || [ "$STATUS" = "pending-upgrade" ] || [ "$STATUS" = "pending-rollback" ]; then
-            echo "postgres is stuck in $STATUS, rolling back"
-            helm rollback postgres -n ownpulse 2>/dev/null || \
-              helm uninstall postgres -n ownpulse 2>/dev/null || true
-          fi
-
-      - name: Deploy Postgres (idempotent)
-        run: helm upgrade --install postgres helm/postgres -n ownpulse --force-conflicts --rollback-on-failure --timeout 120s
-
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          repository: OwnPulse/ownpulse-infra
-          path: infra
-          ssh-key: ${{ secrets.INFRA_DEPLOY_KEY }}
-
-      - name: Apply sealed secrets (production)
-        run: |
-          for f in infra/k8s/sealed-secrets/*.yaml; do
-            # Skip staging secrets
-            echo "$f" | grep -q staging && continue
-            [ -f "$f" ] && kubectl apply -f "$f" && echo "Applied $f"
-          done
-
-  production-services:
-    needs: [resolve-tags, production-infra]
-    runs-on: arc-runner-set
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - release: api
-            chart: helm/api
-            deployment: api-ownpulse-api
-            service: api
-          - release: web
-            chart: helm/web
-            deployment: web-ownpulse-web
-            service: web
-          - release: userdocs
-            chart: helm/userdocs
-            deployment: userdocs-ownpulse-userdocs
-            service: userdocs
-    env:
-      API_TAG: ${{ needs.resolve-tags.outputs.api-tag }}
-      WEB_TAG: ${{ needs.resolve-tags.outputs.web-tag }}
-      USERDOCS_TAG: ${{ needs.resolve-tags.outputs.userdocs-tag }}
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-
-      - name: Install kubectl
-        run: |
-          curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-
-      - name: Install Helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
-
-      - name: Install helm-diff plugin
-        run: |
-          helm plugin install https://github.com/databus23/helm-diff --version v3.15.3 --verify=false
-
-      - name: Resolve image tag for ${{ matrix.service }}
-        id: tag
-        run: |
-          case "${{ matrix.service }}" in
-            api) echo "tag=$API_TAG" >> "$GITHUB_OUTPUT" ;;
-            web) echo "tag=$WEB_TAG" >> "$GITHUB_OUTPUT" ;;
-            userdocs) echo "tag=$USERDOCS_TAG" >> "$GITHUB_OUTPUT" ;;
-          esac
-
-      - name: Preview production changes
-        run: |
-          helm diff upgrade "${{ matrix.release }}" "${{ matrix.chart }}" \
-            -n ownpulse \
-            --set "image.tag=${{ steps.tag.outputs.tag }}" \
-            --suppress-secrets \
-            --three-way-merge \
-            2>&1 | head -c 100000 > /tmp/diff-output.txt || true
-
-      - name: Post diff to step summary
-        uses: OwnPulse/gh-actions/helm-diff-comment@v1
-        with:
-          mode: step-summary
-          diff-file: /tmp/diff-output.txt
-
-      - uses: OwnPulse/gh-actions/helm-deploy@v1
-        with:
-          release-name: ${{ matrix.release }}
-          chart-path: ${{ matrix.chart }}
-          namespace: ownpulse
-          image-tag: ${{ steps.tag.outputs.tag }}
-          deployment-name: ${{ matrix.deployment }}
-
-  production-validate:
-    needs: production-services
-    runs-on: arc-runner-set
-    steps:
-      - name: Install kubectl
-        run: |
-          curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl && sudo mv kubectl /usr/local/bin/
-
-      - uses: OwnPulse/gh-actions/smoke-test@v1
-        with:
-          service-url: http://api-ownpulse-api:80/api/v1/health
-          namespace: ownpulse
-          label: Production API (direct)
-
-      - uses: OwnPulse/gh-actions/smoke-test@v1
-        with:
-          service-url: http://web-ownpulse-web:80/api/v1/health
-          namespace: ownpulse
-          label: Production API (via web proxy)
