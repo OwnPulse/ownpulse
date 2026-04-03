@@ -142,20 +142,29 @@ fn decode_base64_standard(input: &str) -> Result<Vec<u8>, ()> {
     Ok(out)
 }
 
-fn auth_routes() -> Router<AppState> {
+/// User-initiated auth routes that need spam protection via rate limiting.
+fn rate_limited_auth_routes() -> Router<AppState> {
     Router::new()
         .route("/auth/login", post(auth::login))
         .route("/auth/register", post(auth::register))
         .route("/auth/refresh", post(auth::refresh))
         .route("/auth/logout", post(auth::logout))
         .route("/auth/google/login", get(auth::google_login))
-        .route("/auth/google/callback", get(auth::google_callback))
-        .route("/auth/apple/callback", post(auth::apple_callback))
         .route("/auth/forgot-password", post(auth::forgot_password))
         .route("/auth/reset-password", post(auth::reset_password))
         .route("/auth/garmin/login", get(garmin::garmin_login))
-        .route("/auth/garmin/callback", get(garmin::garmin_callback))
         .route("/auth/oura/login", get(oura::oura_login))
+}
+
+/// OAuth callback routes that are server-initiated redirects protected by
+/// CSRF cookies / state parameters. These do NOT need rate limiting — applying
+/// the auth rate limit here causes legitimate OAuth flows to lock users out
+/// because login + callback together consume two tokens.
+fn oauth_callback_routes() -> Router<AppState> {
+    Router::new()
+        .route("/auth/google/callback", get(auth::google_callback))
+        .route("/auth/apple/callback", post(auth::apple_callback))
+        .route("/auth/garmin/callback", get(garmin::garmin_callback))
         .route("/auth/oura/callback", get(oura::oura_callback))
 }
 
@@ -166,17 +175,19 @@ pub fn api_routes() -> Router<AppState> {
         GovernorLayer, governor::GovernorConfigBuilder, key_extractor::SmartIpKeyExtractor,
     };
 
-    // --- Auth: 5 req/min per IP ---
+    // --- Auth: 10 req/min per IP ---
     // SmartIpKeyExtractor checks X-Forwarded-For/X-Real-IP headers first,
     // falling back to peer address. Required when behind a reverse proxy.
+    // OAuth callbacks are excluded — they are server-initiated redirects
+    // protected by CSRF state, not user-initiated spam vectors.
     let auth_governor_conf = GovernorConfigBuilder::default()
         .key_extractor(SmartIpKeyExtractor)
-        .per_second(12) // replenish 1 token every 12s -> 5/min
-        .burst_size(5)
+        .per_second(6) // replenish 1 token every 6s -> 10/min
+        .burst_size(10)
         .finish()
         .expect("failed to build governor config");
 
-    let rate_limited_auth = auth_routes().layer(GovernorLayer {
+    let rate_limited_auth = rate_limited_auth_routes().layer(GovernorLayer {
         config: auth_governor_conf.into(),
     });
 
@@ -230,6 +241,7 @@ pub fn api_routes() -> Router<AppState> {
 
     base_routes()
         .merge(rate_limited_auth)
+        .merge(oauth_callback_routes())
         .merge(rate_limited_explore)
         .merge(rate_limited_poll_accept)
         .merge(rate_limited_poll_respond)
@@ -240,7 +252,8 @@ pub fn api_routes() -> Router<AppState> {
 /// Used by integration tests where `ConnectInfo` is not available.
 pub fn api_routes_without_rate_limit() -> Router<AppState> {
     base_routes()
-        .merge(auth_routes())
+        .merge(rate_limited_auth_routes())
+        .merge(oauth_callback_routes())
         .merge(explore_routes())
         .merge(poll_accept_routes())
         .merge(poll_respond_routes())
