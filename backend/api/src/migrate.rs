@@ -96,6 +96,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0022_protocols.sql",
         include_str!("../../../db/migrations/0022_protocols.sql"),
     ),
+    (
+        "0023_protocol_templates.sql",
+        include_str!("../../../db/migrations/0023_protocol_templates.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]

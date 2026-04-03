@@ -12,13 +12,14 @@ use uuid::Uuid;
 
 use crate::AppState;
 use crate::auth::extractor::AdminUser;
-use crate::db::{invites, refresh_tokens, users};
+use crate::db::{invites, protocols, refresh_tokens, users};
 use crate::email;
 use crate::error::ApiError;
 use crate::models::invite::{
     CreateInviteRequest, InviteCheckResponse, InviteClaimResponse, InviteResponse,
     InviteStatsResponse, SendInviteEmailRequest,
 };
+use crate::models::protocol::{AdminBulkImportRequest, PromoteRequest, ProtocolExport};
 use crate::models::user::UserResponse;
 
 /// GET /admin/users — list all users (admin only).
@@ -341,6 +342,89 @@ pub async fn send_invite_email(
     .map_err(|e| ApiError::Internal(format!("failed to send email: {e}")))?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /admin/protocols/:id/promote
+pub async fn promote_protocol(
+    State(state): State<AppState>,
+    AdminUser(_): AdminUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PromoteRequest>,
+) -> Result<StatusCode, ApiError> {
+    let promoted = protocols::promote_to_template(&state.pool, id, body.tags).await?;
+    if !promoted {
+        return Err(ApiError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /admin/protocols/:id/demote
+pub async fn demote_protocol(
+    State(state): State<AppState>,
+    AdminUser(_): AdminUser,
+    Path(id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    let demoted = protocols::demote_template(&state.pool, id).await?;
+    if !demoted {
+        return Err(ApiError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// POST /admin/protocols/import
+pub async fn admin_bulk_import(
+    State(state): State<AppState>,
+    AdminUser(_): AdminUser,
+    Json(body): Json<AdminBulkImportRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let (exports, source_url): (Vec<ProtocolExport>, Option<String>) = if let Some(url) = body.url {
+        let resp = state
+            .http_client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ApiError::BadRequest(format!("failed to fetch URL: {e}")))?;
+
+        if !resp.status().is_success() {
+            return Err(ApiError::BadRequest(format!(
+                "URL returned status {}",
+                resp.status()
+            )));
+        }
+
+        let data: Vec<ProtocolExport> = resp
+            .json()
+            .await
+            .map_err(|e| ApiError::BadRequest(format!("invalid JSON from URL: {e}")))?;
+
+        (data, Some(url))
+    } else if let Some(data) = body.protocols {
+        (data, None)
+    } else {
+        return Err(ApiError::BadRequest(
+            "either url or protocols must be provided".to_string(),
+        ));
+    };
+
+    // Validate all exports
+    for export in &exports {
+        if export.schema != "ownpulse-protocol/v1" {
+            return Err(ApiError::BadRequest(format!(
+                "unsupported schema '{}' in protocol '{}'",
+                export.schema, export.name
+            )));
+        }
+        if export.name.trim().is_empty() {
+            return Err(ApiError::BadRequest(
+                "protocol name must not be empty".to_string(),
+            ));
+        }
+    }
+
+    let count =
+        protocols::bulk_import_templates(&state.pool, &exports, source_url.as_deref()).await?;
+
+    Ok(Json(serde_json::json!({ "imported": count })))
 }
 
 fn invite_email_html(inviter: &str, invite_url: &str, expiry_line: &str) -> String {

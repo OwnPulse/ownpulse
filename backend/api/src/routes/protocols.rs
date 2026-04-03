@@ -6,13 +6,18 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use uuid::Uuid;
 
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
+use axum::response::IntoResponse;
+use chrono::Utc;
+
 use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::protocols as db;
 use crate::error::ApiError;
 use crate::models::protocol::{
-    CreateProtocol, LogDoseRequest, ProtocolDoseRow, ProtocolListItem, ProtocolResponse,
-    ShareResponse, SkipDoseRequest, TodaysDoseItem, UpdateProtocol,
+    CopyTemplateRequest, CreateProtocol, LogDoseRequest, ProtocolDoseRow, ProtocolExport,
+    ProtocolListItem, ProtocolResponse, ShareResponse, SkipDoseRequest, TemplateListItem,
+    TodaysDoseItem, UpdateProtocol,
 };
 use crate::routes::events::publish_event;
 
@@ -150,7 +155,7 @@ pub async fn get_shared_protocol(
 ) -> Result<Json<ProtocolResponse>, ApiError> {
     let mut response = db::get_shared(&state.pool, &token).await?;
     // Strip private fields from public response
-    response.user_id = Uuid::nil();
+    response.user_id = None;
     response.share_token = None;
     response.share_expires_at = None;
     Ok(Json(response))
@@ -175,4 +180,82 @@ pub async fn todays_doses(
 ) -> Result<Json<Vec<TodaysDoseItem>>, ApiError> {
     let rows = db::todays_doses(&state.pool, user_id).await?;
     Ok(Json(rows))
+}
+
+/// GET /protocols/templates
+pub async fn list_templates(
+    State(state): State<AppState>,
+    AuthUser { .. }: AuthUser,
+) -> Result<Json<Vec<TemplateListItem>>, ApiError> {
+    let rows = db::list_templates(&state.pool).await?;
+    Ok(Json(rows))
+}
+
+/// GET /protocols/:id/export
+pub async fn export_protocol(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, ApiError> {
+    let export = db::export_protocol(&state.pool, id, user_id).await?;
+    let json =
+        serde_json::to_string_pretty(&export).map_err(|e| ApiError::Internal(e.to_string()))?;
+    let filename = format!("{}.json", export.name.replace(' ', "_"));
+
+    Ok((
+        [
+            (CONTENT_TYPE, "application/json".to_string()),
+            (
+                CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{filename}\""),
+            ),
+        ],
+        json,
+    ))
+}
+
+/// POST /protocols/import
+pub async fn import_protocol_file(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Json(body): Json<ProtocolExport>,
+) -> Result<(StatusCode, Json<ProtocolResponse>), ApiError> {
+    // Validate
+    if body.schema != "ownpulse-protocol/v1" {
+        return Err(ApiError::BadRequest(
+            "unsupported schema; expected ownpulse-protocol/v1".to_string(),
+        ));
+    }
+    if body.name.trim().is_empty() {
+        return Err(ApiError::BadRequest("name must not be empty".to_string()));
+    }
+    if body.duration_days < 1 || body.duration_days > 365 {
+        return Err(ApiError::BadRequest(
+            "duration_days must be between 1 and 365".to_string(),
+        ));
+    }
+    if body.lines.is_empty() {
+        return Err(ApiError::BadRequest(
+            "at least one line is required".to_string(),
+        ));
+    }
+
+    let today = Utc::now().date_naive();
+    let protocol = db::import_protocol_from_export(&state.pool, user_id, today, &body).await?;
+    let response = db::get_by_id(&state.pool, protocol.id, user_id).await?;
+    publish_event(&state.event_tx, user_id, "protocols", None);
+    Ok((StatusCode::CREATED, Json(response)))
+}
+
+/// POST /protocols/templates/:id/copy
+pub async fn copy_template(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<CopyTemplateRequest>,
+) -> Result<(StatusCode, Json<ProtocolResponse>), ApiError> {
+    let protocol = db::copy_template(&state.pool, id, user_id, body.start_date).await?;
+    let response = db::get_by_id(&state.pool, protocol.id, user_id).await?;
+    publish_event(&state.event_tx, user_id, "protocols", None);
+    Ok((StatusCode::CREATED, Json(response)))
 }

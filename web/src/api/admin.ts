@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { api } from "./client";
+import type { ProtocolExport } from "./protocols";
 
 export interface AdminUser {
   id: string;
@@ -44,4 +45,9 @@ export const adminApi = {
   revokeInvite: (id: string) => api.delete<InviteCode>(`/api/v1/admin/invites/${id}`),
   sendInviteEmail: (id: string, email: string) =>
     api.post<void>(`/api/v1/admin/invites/${id}/send-email`, { email }),
+  promoteProtocol: (id: string, tags: string[]) =>
+    api.post<void>(`/api/v1/admin/protocols/${id}/promote`, { tags }),
+  demoteProtocol: (id: string) => api.post<void>(`/api/v1/admin/protocols/${id}/demote`, {}),
+  bulkImportProtocols: (data: { url?: string; protocols?: ProtocolExport[] }) =>
+    api.post<{ imported: number }>("/api/v1/admin/protocols/import", data),
 };

@@ -134,6 +134,18 @@ export default function ProtocolView() {
     },
   });
 
+  const handleExport = async () => {
+    if (!id || !protocol) return;
+    const data = await protocolsApi.exportProtocol(id);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${protocol.name.replace(/[^a-z0-9]/gi, "-").toLowerCase()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (!id) return <main className="op-page">Not found</main>;
   if (isLoading) return <main className="op-page">Loading...</main>;
   if (isError || !protocol) return <main className="op-page">Error loading protocol.</main>;
@@ -241,6 +253,9 @@ export default function ProtocolView() {
 
       {/* Actions */}
       <div className={styles.actions}>
+        <button type="button" className="op-btn op-btn-ghost" onClick={handleExport}>
+          Export
+        </button>
         <button
           type="button"
           className="op-btn op-btn-ghost"
