@@ -183,16 +183,22 @@ jobs:
         run: |
           echo "Checking ARC controller..."
           kubectl get pods -n arc-systems -o wide || true
+          echo "Checking ARC controller..."
+          kubectl get pods -n arc-systems -o wide || true
           echo "Checking ARC runner listener..."
           kubectl get pods -n arc-runners -o wide || true
-          # Bounce the listener if it's been running but not picking up jobs
+          # Only bounce the listener if no runner pods are active (avoid killing in-progress jobs)
+          ACTIVE_RUNNERS=$(kubectl get pods -n arc-runners --field-selector=status.phase=Running -l app.kubernetes.io/component=runner --no-headers 2>/dev/null | wc -l | tr -d ' ')
           LISTENER=$(kubectl get pods -n arc-runners -l actions.github.com/scale-set-name=arc-runner-set -o name 2>/dev/null | head -1)
-          if [ -n "$LISTENER" ]; then
-            echo "Restarting ARC listener to ensure fresh GitHub registration..."
+          if [ -n "$LISTENER" ] && [ "$ACTIVE_RUNNERS" = "0" ]; then
+            echo "No active runners — bouncing listener for fresh GitHub registration..."
             kubectl delete $LISTENER -n arc-runners || true
             sleep 10
-            echo "ARC listener restarting..."
             kubectl get pods -n arc-runners -o wide || true
+          elif [ -n "$LISTENER" ]; then
+            echo "$ACTIVE_RUNNERS active runner(s) — skipping listener bounce"
+          else
+            echo "No listener pod found — ARC may need attention"
           fi
 
       - name: Validate staging Helm charts
@@ -390,11 +396,15 @@ jobs:
         run: |
           kubectl get pods -n arc-systems -o wide || true
           kubectl get pods -n arc-runners -o wide || true
+          ACTIVE_RUNNERS=$(kubectl get pods -n arc-runners --field-selector=status.phase=Running -l app.kubernetes.io/component=runner --no-headers 2>/dev/null | wc -l | tr -d ' ')
           LISTENER=$(kubectl get pods -n arc-runners -l actions.github.com/scale-set-name=arc-runner-set -o name 2>/dev/null | head -1)
-          if [ -n "$LISTENER" ]; then
+          if [ -n "$LISTENER" ] && [ "$ACTIVE_RUNNERS" = "0" ]; then
+            echo "No active runners — bouncing listener for fresh GitHub registration..."
             kubectl delete $LISTENER -n arc-runners || true
             sleep 10
             kubectl get pods -n arc-runners -o wide || true
+          elif [ -n "$LISTENER" ]; then
+            echo "$ACTIVE_RUNNERS active runner(s) — skipping listener bounce"
           fi
 
       - name: Clean up stuck Postgres release (production)
