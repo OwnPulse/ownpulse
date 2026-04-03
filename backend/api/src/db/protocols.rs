@@ -435,7 +435,7 @@ pub async fn todays_doses(
            AND p.status = 'active'
            AND (CURRENT_DATE - p.start_date) >= 0
            AND (CURRENT_DATE - p.start_date) < p.duration_days
-           AND (pl.schedule_pattern->((CURRENT_DATE - p.start_date)::int)::text)::text = 'true'
+           AND (pl.schedule_pattern->((CURRENT_DATE - p.start_date)::int))::text = 'true'
          ORDER BY pl.sort_order",
     )
     .bind(user_id)
