@@ -7,10 +7,18 @@ platform :ios do
     configuration = options[:configuration] || "Release"
     app_id = options[:app_identifier] || "health.ownpulse.app"
 
+    key_content = if ENV["ASC_KEY_PATH"]
+      File.read(ENV["ASC_KEY_PATH"])
+    elsif ENV["ASC_KEY_CONTENT"]
+      ENV["ASC_KEY_CONTENT"]
+    else
+      raise "Set ASC_KEY_PATH or ASC_KEY_CONTENT"
+    end
+
     api_key = app_store_connect_api_key(
       key_id: ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
-      key_filepath: ENV["ASC_KEY_PATH"],
+      key_content: key_content,
     )
 
     match(
@@ -31,7 +39,12 @@ platform :ios do
       scheme: scheme,
       configuration: configuration,
       export_method: "app-store",
-      xcargs: "-allowProvisioningUpdates CURRENT_PROJECT_VERSION=#{build_number}",
+      export_options: {
+        provisioningProfiles: {
+          app_id => "match AppStore #{app_id}",
+        },
+      },
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number}",
     )
 
     upload_to_testflight(

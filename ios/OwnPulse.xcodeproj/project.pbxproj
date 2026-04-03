@@ -26,6 +26,7 @@
 		452B66444DF333AB9E302CBF /* CheckinForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4835EF3237AF28AFEF0CE9 /* CheckinForm.swift */; };
 		46B3707001710B3621543EC1 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DD6815D274C9513C8AC117 /* DashboardView.swift */; };
 		4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CF4D7068AEF598DB5632A8 /* SleepChartView.swift */; };
+		57EE1C7CC900455D2ADB35D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 768780B3383F621DD4B4996C /* Assets.xcassets */; };
 		5A6F54C3577640EA7A61B537 /* ClinicalRecordProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF3CF46259AD8ED8B3D26B6 /* ClinicalRecordProvider.swift */; };
 		63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FF64D436027417304D659C /* MockNetworkClient.swift */; };
 		64D12DC15E48D8140ADCFF91 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 510AACF348448F516940B31C /* MainTabView.swift */; };
@@ -119,6 +120,7 @@
 		7351C0E5E3BB61A29712219B /* NetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkClient.swift; sourceTree = "<group>"; };
 		743F8866BD3B373594525752 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		74DDD8ADE79035047DB13B0F /* DashboardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModels.swift; sourceTree = "<group>"; };
+		768780B3383F621DD4B4996C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7A4835EF3237AF28AFEF0CE9 /* CheckinForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckinForm.swift; sourceTree = "<group>"; };
 		7EB1A978FF07FCBCFF5DFBDC /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
 		7EBFD7F464E64194F81BFBF4 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
@@ -206,6 +208,7 @@
 		11968815857BFCFD78991B25 /* OwnPulse */ = {
 			isa = PBXGroup;
 			children = (
+				768780B3383F621DD4B4996C /* Assets.xcassets */,
 				FFBC7A34027D30D960D2A518 /* Info.plist */,
 				132911986050FB28F427C68D /* OwnPulse.entitlements */,
 				D3A8697CCEA67CF5609C947B /* App */,
@@ -405,6 +408,7 @@
 			buildConfigurationList = 67C985EB67F04A41F29F803B /* Build configuration list for PBXNativeTarget "OwnPulse" */;
 			buildPhases = (
 				94AF5184FD5CFE7680E87C88 /* Sources */,
+				9D1F56861E263BFB04BDB4CC /* Resources */,
 				D8AE49766853A512509FCBE7 /* Frameworks */,
 			);
 			buildRules = (
@@ -448,7 +452,6 @@
 				TargetAttributes = {
 					1FBD18CB47E558509C312764 = {
 						DevelopmentTeam = "$(DEVELOPMENT_TEAM)";
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -474,6 +477,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9D1F56861E263BFB04BDB4CC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				57EE1C7CC900455D2ADB35D9 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		94AF5184FD5CFE7680E87C88 /* Sources */ = {
@@ -655,8 +669,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OwnPulse/OwnPulse.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
@@ -668,7 +682,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = health.ownpulse.app;
+				PRODUCT_BUNDLE_IDENTIFIER = health.ownpulse.app.staging;
+				PROVISIONING_PROFILE_SPECIFIER = "match AppStore health.ownpulse.app.staging";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -838,8 +853,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = OwnPulse/OwnPulse.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CODE_SIGN_STYLE = Automatic;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
@@ -852,6 +867,7 @@
 				);
 				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = health.ownpulse.app;
+				PROVISIONING_PROFILE_SPECIFIER = "match AppStore health.ownpulse.app";
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
