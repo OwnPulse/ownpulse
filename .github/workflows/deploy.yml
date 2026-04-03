@@ -135,9 +135,43 @@ jobs:
   staging-infra:
     needs: resolve-tags
     if: needs.resolve-tags.outputs.ready == 'true'
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Fetch kubeconfig via Tailscale
+        run: |
+          for i in $(seq 1 15); do
+            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
+            [ -n "$PEER_IP" ] && break
+            echo "Attempt $i: ownpulse-us peer not found, waiting..."
+            sleep 2
+          done
+          if [ -z "$PEER_IP" ]; then
+            echo "::error::Failed to find ownpulse-us on tailnet after 30s. Is Tailscale running on the droplet?"
+            sudo tailscale status
+            exit 1
+          fi
+          echo "Resolved ownpulse-us to $PEER_IP"
+          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          for i in $(seq 1 5); do
+            ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 3
+          done
+          ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml' \
+            | sed "s/127.0.0.1/$PEER_IP/g" > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Install kubectl
         run: |
@@ -147,6 +181,9 @@ jobs:
       - name: Install Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
+
+      - name: Verify cluster connectivity
+        run: kubectl get nodes
 
       - name: Validate staging Helm charts
         run: |
@@ -174,7 +211,7 @@ jobs:
 
   staging-services:
     needs: [resolve-tags, staging-infra]
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: true
       matrix:
@@ -200,6 +237,40 @@ jobs:
       USERDOCS_TAG: ${{ needs.resolve-tags.outputs.userdocs-tag }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Fetch kubeconfig via Tailscale
+        run: |
+          for i in $(seq 1 15); do
+            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
+            [ -n "$PEER_IP" ] && break
+            echo "Attempt $i: ownpulse-us peer not found, waiting..."
+            sleep 2
+          done
+          if [ -z "$PEER_IP" ]; then
+            echo "::error::Failed to find ownpulse-us on tailnet after 30s. Is Tailscale running on the droplet?"
+            sudo tailscale status
+            exit 1
+          fi
+          echo "Resolved ownpulse-us to $PEER_IP"
+          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          for i in $(seq 1 5); do
+            ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 3
+          done
+          ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml' \
+            | sed "s/127.0.0.1/$PEER_IP/g" > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Install kubectl
         run: |
@@ -254,8 +325,41 @@ jobs:
 
   staging-validate:
     needs: staging-services
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Fetch kubeconfig via Tailscale
+        run: |
+          for i in $(seq 1 15); do
+            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
+            [ -n "$PEER_IP" ] && break
+            echo "Attempt $i: ownpulse-us peer not found, waiting..."
+            sleep 2
+          done
+          if [ -z "$PEER_IP" ]; then
+            echo "::error::Failed to find ownpulse-us on tailnet after 30s."
+            sudo tailscale status
+            exit 1
+          fi
+          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          for i in $(seq 1 5); do
+            ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 3
+          done
+          ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml' \
+            | sed "s/127.0.0.1/$PEER_IP/g" > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Install kubectl
         run: |
           curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
@@ -295,9 +399,42 @@ jobs:
 
   production-infra:
     needs: [resolve-tags, production-approve]
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Fetch kubeconfig via Tailscale
+        run: |
+          for i in $(seq 1 15); do
+            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
+            [ -n "$PEER_IP" ] && break
+            echo "Attempt $i: ownpulse-us peer not found, waiting..."
+            sleep 2
+          done
+          if [ -z "$PEER_IP" ]; then
+            echo "::error::Failed to find ownpulse-us on tailnet after 30s."
+            sudo tailscale status
+            exit 1
+          fi
+          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          for i in $(seq 1 5); do
+            ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 3
+          done
+          ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml' \
+            | sed "s/127.0.0.1/$PEER_IP/g" > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Install kubectl
         run: |
@@ -307,6 +444,9 @@ jobs:
       - name: Install Helm
         run: |
           curl -fsSL https://raw.githubusercontent.com/helm/helm/v4.1.3/scripts/get-helm-3 | DESIRED_VERSION=v4.1.3 bash
+
+      - name: Verify cluster connectivity
+        run: kubectl get nodes
 
       - name: Clean up stuck Postgres release (production)
         run: |
@@ -322,7 +462,7 @@ jobs:
 
   production-services:
     needs: [resolve-tags, production-infra]
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: true
       matrix:
@@ -345,6 +485,39 @@ jobs:
       USERDOCS_TAG: ${{ needs.resolve-tags.outputs.userdocs-tag }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Fetch kubeconfig via Tailscale
+        run: |
+          for i in $(seq 1 15); do
+            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
+            [ -n "$PEER_IP" ] && break
+            echo "Attempt $i: ownpulse-us peer not found, waiting..."
+            sleep 2
+          done
+          if [ -z "$PEER_IP" ]; then
+            echo "::error::Failed to find ownpulse-us on tailnet after 30s."
+            sudo tailscale status
+            exit 1
+          fi
+          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          for i in $(seq 1 5); do
+            ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 3
+          done
+          ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml' \
+            | sed "s/127.0.0.1/$PEER_IP/g" > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Install kubectl
         run: |
@@ -393,8 +566,41 @@ jobs:
 
   production-validate:
     needs: production-services
-    runs-on: arc-runner-set
+    runs-on: ubuntu-latest
     steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@4e4c49acaa9818630ce0bd7a564372c17e33fb4d
+        with:
+          authkey: ${{ secrets.TS_AUTHKEY }}
+
+      - name: Fetch kubeconfig via Tailscale
+        run: |
+          for i in $(seq 1 15); do
+            PEER_IP=$(sudo tailscale status | awk '/ownpulse-us/ {print $1; exit}')
+            [ -n "$PEER_IP" ] && break
+            echo "Attempt $i: ownpulse-us peer not found, waiting..."
+            sleep 2
+          done
+          if [ -z "$PEER_IP" ]; then
+            echo "::error::Failed to find ownpulse-us on tailnet after 30s."
+            sudo tailscale status
+            exit 1
+          fi
+          echo "$PEER_IP ownpulse-us" | sudo tee -a /etc/hosts
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          for i in $(seq 1 5); do
+            ssh-keyscan -t ed25519 ownpulse-us >> ~/.ssh/known_hosts 2>/dev/null && break
+            sleep 3
+          done
+          ssh root@ownpulse-us 'cat /etc/rancher/k3s/k3s.yaml' \
+            | sed "s/127.0.0.1/$PEER_IP/g" > /tmp/kubeconfig
+          chmod 600 /tmp/kubeconfig
+          echo "KUBECONFIG=/tmp/kubeconfig" >> "$GITHUB_ENV"
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Install kubectl
         run: |
           curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
