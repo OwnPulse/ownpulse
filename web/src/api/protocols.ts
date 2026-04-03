@@ -97,6 +97,33 @@ export interface ShareResponse {
   share_url: string;
 }
 
+export interface ProtocolLineExport {
+  substance: string;
+  dose?: number;
+  unit?: string;
+  route?: string;
+  time_of_day?: string;
+  pattern: string | boolean[];
+}
+
+export interface ProtocolExport {
+  schema: string;
+  name: string;
+  description?: string;
+  tags: string[];
+  duration_days: number;
+  lines: ProtocolLineExport[];
+}
+
+export interface TemplateListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  tags: string[];
+  duration_days: number;
+  line_count: number;
+}
+
 export const protocolsApi = {
   list: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
@@ -115,4 +142,10 @@ export const protocolsApi = {
   getShared: (token: string) => api.get<Protocol>(`/api/v1/protocols/shared/${token}`),
   importProtocol: (token: string) =>
     api.post<Protocol>("/api/v1/protocols/import", { share_token: token }),
+  exportProtocol: (id: string) => api.get<ProtocolExport>(`/api/v1/protocols/${id}/export`),
+  importFromFile: (data: ProtocolExport) =>
+    api.post<Protocol>("/api/v1/protocols/import-file", data),
+  listTemplates: () => api.get<TemplateListItem[]>("/api/v1/protocols/templates"),
+  copyTemplate: (id: string, startDate: string) =>
+    api.post<Protocol>(`/api/v1/protocols/templates/${id}/copy`, { start_date: startDate }),
 };

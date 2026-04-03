@@ -6,6 +6,8 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ProtocolListItem } from "../api/protocols";
 import { protocolsApi } from "../api/protocols";
+import { ImportModal } from "../components/protocols/ImportModal";
+import { TemplateCard } from "../components/protocols/TemplateCard";
 import styles from "./Protocols.module.css";
 
 type Filter = "active" | "completed" | "all";
@@ -48,6 +50,8 @@ function getNextDoseLabel(p: ProtocolListItem): string {
 
 export default function Protocols() {
   const [filter, setFilter] = useState<Filter>("active");
+  const [showImport, setShowImport] = useState(false);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const {
     data: protocols,
@@ -58,6 +62,11 @@ export default function Protocols() {
     queryFn: () => protocolsApi.list(),
   });
 
+  const { data: templates } = useQuery({
+    queryKey: ["protocol-templates"],
+    queryFn: () => protocolsApi.listTemplates(),
+  });
+
   const filtered = useMemo(() => {
     if (!protocols) return [];
     if (filter === "all") return protocols;
@@ -66,14 +75,36 @@ export default function Protocols() {
     return protocols.filter((p) => p.status === "completed");
   }, [protocols, filter]);
 
+  const allTags = useMemo(() => {
+    if (!templates) return [];
+    const set = new Set<string>();
+    for (const t of templates) {
+      for (const tag of t.tags) set.add(tag);
+    }
+    return Array.from(set).sort();
+  }, [templates]);
+
+  const filteredTemplates = useMemo(() => {
+    if (!templates) return [];
+    if (!selectedTag) return templates;
+    return templates.filter((t) => t.tags.includes(selectedTag));
+  }, [templates, selectedTag]);
+
   return (
     <main className={`op-page ${styles.page}`}>
       <div className={styles.headerRow}>
         <h1>Protocols</h1>
-        <Link to="/protocols/new" className="op-btn op-btn-primary">
-          New Protocol
-        </Link>
+        <div className={styles.headerActions}>
+          <button type="button" className="op-btn op-btn-ghost" onClick={() => setShowImport(true)}>
+            Import
+          </button>
+          <Link to="/protocols/new" className="op-btn op-btn-primary">
+            New Protocol
+          </Link>
+        </div>
       </div>
+
+      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
 
       <div className={styles.filters}>
         {(["active", "completed", "all"] as const).map((f) => (
@@ -123,6 +154,38 @@ export default function Protocols() {
           );
         })}
       </div>
+
+      {templates && templates.length > 0 && (
+        <section className={styles.templatesSection}>
+          <h2>Community Templates</h2>
+          {allTags.length > 0 && (
+            <div className={styles.tagFilter}>
+              <button
+                type="button"
+                className={`${styles.filterBtn} ${selectedTag === null ? styles.filterBtnActive : ""}`}
+                onClick={() => setSelectedTag(null)}
+              >
+                All
+              </button>
+              {allTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  className={`${styles.filterBtn} ${selectedTag === tag ? styles.filterBtnActive : ""}`}
+                  onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className={styles.templateGrid}>
+            {filteredTemplates.map((t) => (
+              <TemplateCard key={t.id} template={t} />
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
