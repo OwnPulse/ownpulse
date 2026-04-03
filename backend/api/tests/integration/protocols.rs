@@ -891,6 +891,9 @@ async fn test_todays_doses() {
     let items = json.as_array().expect("should be array");
 
     // Should return today's scheduled dose (day 0 of the protocol)
-    assert!(!items.is_empty(), "todays-doses should return scheduled doses");
+    assert!(
+        !items.is_empty(),
+        "todays-doses should return scheduled doses"
+    );
     assert_eq!(items[0]["substance"].as_str().unwrap(), "Omega-3");
 }
