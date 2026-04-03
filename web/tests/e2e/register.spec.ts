@@ -18,7 +18,11 @@ async function mockAuthRefresh(page: import("@playwright/test").Page, jwt: strin
   );
 }
 
-async function mockInviteCheck(page: import("@playwright/test").Page, code: string, valid: boolean) {
+async function mockInviteCheck(
+  page: import("@playwright/test").Page,
+  code: string,
+  valid: boolean,
+) {
   await page.route(`**/api/v1/invites/${code}/check`, (route) =>
     route.fulfill({
       status: 200,
@@ -26,7 +30,9 @@ async function mockInviteCheck(page: import("@playwright/test").Page, code: stri
       body: JSON.stringify({
         valid,
         code,
-        ...(valid ? { created_by_name: "Admin", expires_at: "2027-01-01T00:00:00Z" } : { reason: "invalid" }),
+        ...(valid
+          ? { created_by_name: "Admin", expires_at: "2027-01-01T00:00:00Z" }
+          : { reason: "invalid" }),
       }),
     }),
   );
