@@ -120,13 +120,12 @@ async fn test_forgot_password_returns_200_existing_user() {
     assert_eq!(response.status(), 200);
 
     // Verify a token row was created in the DB
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&app.pool)
-    .await
-    .expect("failed to query password_reset_tokens");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&app.pool)
+            .await
+            .expect("failed to query password_reset_tokens");
 
     assert_eq!(count.0, 1, "should have created exactly one reset token");
 }
@@ -151,13 +150,15 @@ async fn test_forgot_password_returns_200_nonexistent_email() {
     );
 
     // Verify NO token row exists
-    let count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM password_reset_tokens")
-            .fetch_one(&app.pool)
-            .await
-            .expect("failed to query password_reset_tokens");
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM password_reset_tokens")
+        .fetch_one(&app.pool)
+        .await
+        .expect("failed to query password_reset_tokens");
 
-    assert_eq!(count.0, 0, "should not create any token for nonexistent email");
+    assert_eq!(
+        count.0, 0,
+        "should not create any token for nonexistent email"
+    );
 }
 
 #[tokio::test]
@@ -178,11 +179,10 @@ async fn test_forgot_password_returns_200_oauth_user() {
     assert_eq!(response.status(), 200);
 
     // No reset token should be created for OAuth users
-    let count: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM password_reset_tokens")
-            .fetch_one(&app.pool)
-            .await
-            .expect("failed to query password_reset_tokens");
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM password_reset_tokens")
+        .fetch_one(&app.pool)
+        .await
+        .expect("failed to query password_reset_tokens");
 
     assert_eq!(
         count.0, 0,
@@ -221,13 +221,12 @@ async fn test_forgot_password_invalidates_previous_tokens() {
     assert_eq!(response.status(), 200);
 
     // Should have 2 tokens total, but only 1 unclaimed
-    let total: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
+    let total: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
 
     let unclaimed: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = $1 AND claimed_at IS NULL",
@@ -238,10 +237,7 @@ async fn test_forgot_password_invalidates_previous_tokens() {
     .unwrap();
 
     assert_eq!(total.0, 2, "should have two token rows total");
-    assert_eq!(
-        unclaimed.0, 1,
-        "only the latest token should be unclaimed"
-    );
+    assert_eq!(unclaimed.0, 1, "only the latest token should be unclaimed");
 }
 
 // ── Reset password tests ────────────────────────────────────────────
@@ -281,7 +277,11 @@ async fn test_reset_password_valid_token() {
         .await
         .unwrap();
 
-    assert_eq!(response.status(), 200, "should be able to login with new password");
+    assert_eq!(
+        response.status(),
+        200,
+        "should be able to login with new password"
+    );
 }
 
 #[tokio::test]
@@ -386,35 +386,29 @@ async fn test_reset_password_revokes_sessions() {
 
     // Insert some refresh tokens to simulate active sessions
     let refresh_hash = hash_token("fake-refresh-1");
-    sqlx::query(
-        "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-    )
-    .bind(user_id)
-    .bind(&refresh_hash)
-    .bind(Utc::now() + Duration::days(30))
-    .execute(&app.pool)
-    .await
-    .expect("failed to insert refresh token");
+    sqlx::query("INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(&refresh_hash)
+        .bind(Utc::now() + Duration::days(30))
+        .execute(&app.pool)
+        .await
+        .expect("failed to insert refresh token");
 
     let refresh_hash_2 = hash_token("fake-refresh-2");
-    sqlx::query(
-        "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)",
-    )
-    .bind(user_id)
-    .bind(&refresh_hash_2)
-    .bind(Utc::now() + Duration::days(30))
-    .execute(&app.pool)
-    .await
-    .expect("failed to insert second refresh token");
+    sqlx::query("INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)")
+        .bind(user_id)
+        .bind(&refresh_hash_2)
+        .bind(Utc::now() + Duration::days(30))
+        .execute(&app.pool)
+        .await
+        .expect("failed to insert second refresh token");
 
     // Verify refresh tokens exist
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
     assert_eq!(count.0, 2, "should have 2 refresh tokens before reset");
 
     // Reset password
@@ -435,13 +429,11 @@ async fn test_reset_password_revokes_sessions() {
     assert_eq!(response.status(), 200);
 
     // All refresh tokens should be deleted
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
     assert_eq!(
         count.0, 0,
         "all refresh tokens should be revoked after password reset"

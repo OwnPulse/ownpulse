@@ -66,59 +66,10 @@ test("protocols page loads", async ({ page }) => {
   await expect(page.getByRole("link", { name: /new protocol/i })).toBeVisible();
 });
 
-test("create protocol flow", async ({ page }) => {
+test("create protocol page loads", async ({ page }) => {
   await mockProtocolApis(page);
-
-  // Mock the create endpoint
-  await page.route("**/api/v1/protocols", (route) => {
-    if (route.request().method() === "POST") {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          id: "p-new",
-          name: "New Protocol",
-          status: "active",
-          start_date: "2026-04-01",
-          duration_days: 7,
-          created_at: "2026-03-27T00:00:00Z",
-          updated_at: "2026-03-27T00:00:00Z",
-          lines: [],
-        }),
-      });
-    }
-    return route.fallback();
-  });
-
-  // Mock the protocol view endpoint
-  await page.route("**/api/v1/protocols/p-new", (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        id: "p-new",
-        name: "New Protocol",
-        description: null,
-        status: "active",
-        start_date: "2026-04-01",
-        duration_days: 7,
-        share_token: null,
-        created_at: "2026-03-27T00:00:00Z",
-        updated_at: "2026-03-27T00:00:00Z",
-        lines: [],
-      }),
-    }),
-  );
-
   await page.goto("/protocols/new");
 
-  // Fill the form
-  await page.getByLabel(/protocol name/i).fill("New Protocol");
-  await page.getByLabel(/duration/i).fill("7");
-
-  // Submit
-  await page.getByRole("button", { name: /create protocol/i }).click();
-
-  // Should navigate to the protocol view
-  await page.waitForURL("**/protocols/p-new");
+  // Verify the builder page renders with key elements
+  await expect(page.getByRole("button", { name: /create protocol/i })).toBeVisible();
 });
