@@ -1,15 +1,36 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { register } from "../api/auth";
+import { invitesApi } from "../api/invites";
 import styles from "./Register.module.css";
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   invite_required:
     "An invite code is required to create an account. Enter your invite code below, then try signing in with Google again.",
 };
+
+function isExpiringSoon(expiresAt: string): boolean {
+  const expiry = new Date(expiresAt);
+  const now = new Date();
+  const hoursRemaining = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60);
+  return hoursRemaining > 0 && hoursRemaining <= 24;
+}
+
+function formatTimeRemaining(expiresAt: string): string {
+  const expiry = new Date(expiresAt);
+  const now = new Date();
+  const hoursRemaining = Math.max(0, (expiry.getTime() - now.getTime()) / (1000 * 60 * 60));
+  if (hoursRemaining < 1) {
+    const minutes = Math.ceil(hoursRemaining * 60);
+    return `${minutes} minute${minutes === 1 ? "" : "s"} remaining`;
+  }
+  const hours = Math.ceil(hoursRemaining);
+  return `${hours} hour${hours === 1 ? "" : "s"} remaining`;
+}
 
 export default function Register() {
   const [searchParams] = useSearchParams();
@@ -26,12 +47,44 @@ export default function Register() {
   );
   const [submitting, setSubmitting] = useState(false);
 
+  const { data: inviteCheck } = useQuery({
+    queryKey: ["invite-check", inviteFromUrl],
+    queryFn: () => invitesApi.check(inviteFromUrl),
+    enabled: !!inviteFromUrl,
+    retry: false,
+  });
+
   if (!inviteFromUrl && !inviteCode && !errorFromUrl) {
     return (
       <div className="op-auth-page">
         <main className="op-auth-card">
           <h1>Sign Up</h1>
           <p className="op-empty">You need an invite code to sign up. Ask an admin for one.</p>
+          <div className={styles.footer}>
+            <Link to="/login" className={styles.footerLink}>
+              Already have an account? Sign in
+            </Link>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (inviteCheck && !inviteCheck.valid) {
+    const reasonMessages: Record<string, string> = {
+      expired: "This invite has expired.",
+      revoked: "This invite has been revoked.",
+      exhausted: "This invite has reached its maximum number of uses.",
+      not_found: "This invite code is not valid.",
+    };
+    return (
+      <div className="op-auth-page">
+        <main className="op-auth-card">
+          <h1>Invite Invalid</h1>
+          <p className={`op-error-msg ${styles.errorMsg}`}>
+            {reasonMessages[inviteCheck.reason ?? "not_found"]}
+          </p>
+          <p className="op-empty">Ask the person who invited you for a new invite link.</p>
           <div className={styles.footer}>
             <Link to="/login" className={styles.footerLink}>
               Already have an account? Sign in
@@ -56,7 +109,7 @@ export default function Register() {
     setSubmitting(true);
     try {
       await register(email, password, inviteCode);
-      navigate("/");
+      navigate("/welcome");
     } catch {
       setError("Registration failed. The invite code may be invalid or expired.");
     } finally {
@@ -68,6 +121,16 @@ export default function Register() {
     <div className="op-auth-page">
       <main className="op-auth-card">
         <h1>Create Account</h1>
+
+        {inviteCheck?.valid && inviteCheck.inviter_name && (
+          <div className={styles.inviteBanner}>
+            Registering with invite from {inviteCheck.inviter_name}
+          </div>
+        )}
+
+        {inviteCheck?.valid && inviteCheck.expires_at && isExpiringSoon(inviteCheck.expires_at) && (
+          <div className={styles.expiryWarning}>{formatTimeRemaining(inviteCheck.expires_at)}</div>
+        )}
 
         {error && <div className={`op-error-msg ${styles.errorMsg}`}>{error}</div>}
 

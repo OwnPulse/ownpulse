@@ -4,6 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import { type AdminUser, adminApi, type CreateInviteRequest, type InviteCode } from "../api/admin";
+import { type InviteClaim, invitesApi } from "../api/invites";
 import type { ProtocolExport, TemplateListItem } from "../api/protocols";
 import { protocolsApi } from "../api/protocols";
 import { useAuthStore } from "../store/auth";
@@ -19,13 +20,6 @@ function decodeJwtSub(token: string | null): string | null {
   }
 }
 
-function statusBadge(status: string): React.ReactNode {
-  const isActive = status === "active";
-  return (
-    <span className={`op-badge ${isActive ? "op-badge-success" : "op-badge-error"}`}>{status}</span>
-  );
-}
-
 function inviteStatusLabel(inv: InviteCode): "Active" | "Expired" | "Revoked" {
   if (inv.revoked_at) return "Revoked";
   if (inv.expires_at && new Date(inv.expires_at) < new Date()) return "Expired";
@@ -36,6 +30,11 @@ function inviteStatusBadgeClass(status: "Active" | "Expired" | "Revoked"): strin
   if (status === "Active") return "op-badge op-badge-success";
   if (status === "Revoked") return "op-badge op-badge-error";
   return "op-badge op-badge-muted";
+}
+
+function statusBadge(status: string) {
+  const cls = status === "active" ? "op-badge op-badge-success" : "op-badge op-badge-error";
+  return <span className={cls}>{status}</span>;
 }
 
 function inviteLink(code: string): string {
@@ -171,6 +170,7 @@ function CreateInviteSuccess({
         {showCode ? "Hide code" : "Show code"}
       </button>
       {showCode && <code className={styles.rawCode}>{invite.code}</code>}
+      <SendEmailForm inviteId={invite.id} />
     </div>
   );
 }
@@ -182,6 +182,7 @@ function InviteCard({ invite }: { invite: InviteCode }) {
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [emailSent, setEmailSent] = useState(false);
+  const [showClaims, setShowClaims] = useState(false);
 
   const status = inviteStatusLabel(invite);
   const link = inviteLink(invite.code);
@@ -278,6 +279,15 @@ function InviteCard({ invite }: { invite: InviteCode }) {
             >
               {emailSent ? "Sent!" : "Send Email"}
             </button>
+            {invite.use_count > 0 && (
+              <button
+                type="button"
+                className="op-btn op-btn-ghost op-btn-sm"
+                onClick={() => setShowClaims(!showClaims)}
+              >
+                {showClaims ? "Hide Claims" : "Show Claims"}
+              </button>
+            )}
             <button type="button" className="op-btn op-btn-danger op-btn-sm" onClick={handleRevoke}>
               Revoke
             </button>
@@ -305,6 +315,88 @@ function InviteCard({ invite }: { invite: InviteCode }) {
           </button>
         </form>
       )}
+
+      {showClaims && <InviteClaimsList inviteId={invite.id} />}
+    </div>
+  );
+}
+
+function InviteStats({ invites }: { invites: InviteCode[] }) {
+  const active = invites.filter((i) => inviteStatusLabel(i) === "Active").length;
+  const expired = invites.filter((i) => inviteStatusLabel(i) === "Expired").length;
+  const revoked = invites.filter((i) => inviteStatusLabel(i) === "Revoked").length;
+  const totalUsed = invites.reduce((sum, i) => sum + i.use_count, 0);
+
+  return (
+    <div className={styles.statsSummary}>
+      <span className={styles.statItem}>
+        <span className={styles.statCount}>{active}</span> active
+      </span>
+      <span className={styles.statItem}>
+        <span className={styles.statCount}>{totalUsed}</span> used
+      </span>
+      <span className={styles.statItem}>
+        <span className={styles.statCount}>{expired}</span> expired
+      </span>
+      <span className={styles.statItem}>
+        <span className={styles.statCount}>{revoked}</span> revoked
+      </span>
+    </div>
+  );
+}
+
+function InviteClaimsList({ inviteId }: { inviteId: string }) {
+  const { data: claims, isLoading } = useQuery({
+    queryKey: ["invite-claims", inviteId],
+    queryFn: () => invitesApi.getClaims(inviteId),
+  });
+
+  if (isLoading) return <span className={styles.claimsLoading}>Loading...</span>;
+  if (!claims || claims.length === 0) return null;
+
+  return (
+    <ul className={styles.claimsList}>
+      {claims.map((c: InviteClaim) => (
+        <li key={c.user_email} className={styles.claimItem}>
+          {c.user_email}{" "}
+          <span className={styles.claimDate}>{new Date(c.claimed_at).toLocaleDateString()}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function SendEmailForm({ inviteId }: { inviteId: string }) {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: (emailAddr: string) => invitesApi.sendEmail(inviteId, { email: emailAddr }),
+    onSuccess: () => {
+      setSent(true);
+      setEmail("");
+      setTimeout(() => setSent(false), 3000);
+    },
+  });
+
+  return (
+    <div className={styles.sendEmailRow}>
+      <input
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder="recipient@example.com"
+        className={styles.createFormInput}
+        aria-label="Recipient email"
+      />
+      <button
+        type="button"
+        className="op-btn op-btn-ghost op-btn-sm"
+        disabled={!email || mutation.isPending}
+        onClick={() => mutation.mutate(email)}
+      >
+        {sent ? "Sent!" : "Send Email"}
+      </button>
     </div>
   );
 }
@@ -354,11 +446,16 @@ function InvitesSection() {
         <button
           type="button"
           className="op-btn op-btn-primary op-btn-sm"
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            setShowForm(!showForm);
+            setCreatedInvite(null);
+          }}
         >
           {showForm ? "Cancel" : "Create Invite"}
         </button>
       </div>
+
+      {invites && invites.length > 0 && <InviteStats invites={invites} />}
 
       {showForm && (
         <form onSubmit={handleCreate} className={styles.createForm}>

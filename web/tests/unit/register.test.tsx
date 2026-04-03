@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { setupServer } from "msw/node";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import Register from "../../src/pages/Register";
 import { useAuthStore } from "../../src/store/auth";
 
@@ -17,11 +20,22 @@ vi.mock("../../src/api/auth", () => ({
   register: (...args: unknown[]) => mockRegister(...args),
 }));
 
+const server = setupServer();
+
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
 function renderRegister(initialRoute = "/register") {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <MemoryRouter initialEntries={[initialRoute]}>
-      <Register />
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialRoute]}>
+        <Register />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 }
 
@@ -36,6 +50,17 @@ describe("Register", () => {
   });
 
   it("renders form fields with invite code from URL", () => {
+    server.use(
+      http.get("/api/v1/invites/:code/check", () => {
+        return HttpResponse.json({
+          valid: true,
+          label: null,
+          expires_at: null,
+          inviter_name: null,
+        });
+      }),
+    );
+
     renderRegister("/register?invite=ABC123");
 
     expect(screen.getByLabelText(/invite code/i)).toBeDefined();
@@ -55,6 +80,17 @@ describe("Register", () => {
   });
 
   it("shows sign-in link", () => {
+    server.use(
+      http.get("/api/v1/invites/:code/check", () => {
+        return HttpResponse.json({
+          valid: true,
+          label: null,
+          expires_at: null,
+          inviter_name: null,
+        });
+      }),
+    );
+
     renderRegister("/register?invite=ABC123");
 
     expect(screen.getByText(/already have an account\? sign in/i)).toBeDefined();
@@ -62,6 +98,16 @@ describe("Register", () => {
 
   it("calls register and navigates on successful submission", async () => {
     mockRegister.mockResolvedValue(undefined);
+    server.use(
+      http.get("/api/v1/invites/:code/check", () => {
+        return HttpResponse.json({
+          valid: true,
+          label: null,
+          expires_at: null,
+          inviter_name: null,
+        });
+      }),
+    );
 
     renderRegister("/register?invite=ABC123");
 
@@ -77,6 +123,17 @@ describe("Register", () => {
   });
 
   it("shows error and does not call register when passwords do not match", async () => {
+    server.use(
+      http.get("/api/v1/invites/:code/check", () => {
+        return HttpResponse.json({
+          valid: true,
+          label: null,
+          expires_at: null,
+          inviter_name: null,
+        });
+      }),
+    );
+
     renderRegister("/register?invite=ABC123");
 
     const user = userEvent.setup();
@@ -93,6 +150,16 @@ describe("Register", () => {
 
   it("shows error message when register API rejects", async () => {
     mockRegister.mockRejectedValue(new Error("server error"));
+    server.use(
+      http.get("/api/v1/invites/:code/check", () => {
+        return HttpResponse.json({
+          valid: true,
+          label: null,
+          expires_at: null,
+          inviter_name: null,
+        });
+      }),
+    );
 
     renderRegister("/register?invite=ABC123");
 
@@ -104,6 +171,66 @@ describe("Register", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/registration failed/i)).toBeDefined();
+    });
+  });
+
+  it("shows invite invalid page when invite check returns invalid", async () => {
+    server.use(
+      http.get("/api/v1/invites/:code/check", () => {
+        return HttpResponse.json({
+          valid: false,
+          label: null,
+          expires_at: null,
+          inviter_name: null,
+          reason: "expired",
+        });
+      }),
+    );
+
+    renderRegister("/register?invite=EXPIRED");
+
+    await waitFor(() => {
+      expect(screen.getByText(/invite invalid/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/this invite has expired/i)).toBeInTheDocument();
+  });
+
+  it("shows inviter name banner when invite is valid with inviter", async () => {
+    server.use(
+      http.get("/api/v1/invites/:code/check", () => {
+        return HttpResponse.json({
+          valid: true,
+          label: null,
+          expires_at: null,
+          inviter_name: "Tony",
+        });
+      }),
+    );
+
+    renderRegister("/register?invite=ABC123");
+
+    await waitFor(() => {
+      expect(screen.getByText(/registering with invite from tony/i)).toBeInTheDocument();
+    });
+  });
+
+  it("shows expiry warning when invite expires within 24 hours", async () => {
+    const soonExpiry = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+    server.use(
+      http.get("/api/v1/invites/:code/check", () => {
+        return HttpResponse.json({
+          valid: true,
+          label: null,
+          expires_at: soonExpiry,
+          inviter_name: null,
+        });
+      }),
+    );
+
+    renderRegister("/register?invite=ABC123");
+
+    await waitFor(() => {
+      expect(screen.getByText(/hours? remaining/i)).toBeInTheDocument();
     });
   });
 });
