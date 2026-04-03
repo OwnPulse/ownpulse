@@ -359,6 +359,9 @@ pub struct GoogleLoginQuery {
     /// When `mode=link`, the OAuth flow will link Google to the authenticated
     /// user's account instead of logging in / registering.
     pub mode: Option<String>,
+    /// When `platform=ios`, the callback will redirect to the `ownpulse://`
+    /// custom URI scheme instead of the web origin.
+    pub platform: Option<String>,
 }
 
 /// GET /auth/google/login — generate OAuth authorization URL with CSRF state.
@@ -419,6 +422,15 @@ pub async fn google_login(
 
     let mut response = Redirect::to(&auth_url).into_response();
     append_cookie(&mut response, &state_cookie)?;
+
+    // Store platform hint in a short-lived cookie so the callback knows to
+    // redirect to the native app scheme instead of the web origin.
+    if login_query.platform.as_deref() == Some("ios") {
+        let platform_cookie = format!(
+            "oauth_platform=ios; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600"
+        );
+        append_cookie(&mut response, &platform_cookie)?;
+    }
 
     // Store invite code in a short-lived cookie if provided (alphanumeric only).
     if let Some(ref code) = login_query.invite_code
@@ -491,12 +503,19 @@ pub async fn google_callback(
         .as_deref()
         .is_some_and(|s| s.ends_with(":link"));
 
+    // Detect native-app callers: either a legacy PKCE flow (code_verifier) or
+    // the new platform cookie set by google_login when `?platform=ios` was passed.
+    let is_native_app = read_cookie(&headers, "oauth_platform").as_deref() == Some("ios")
+        || query.code_verifier.is_some();
+
     // Compute cookie helpers early so both branches can use them.
     let secure = secure_attr(&state.config);
     let clear_state_cookie =
         format!("oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
     let clear_invite_cookie =
         format!("invite_code=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
+    let clear_platform_cookie =
+        format!("oauth_platform=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
 
     let client_id = state
         .config
@@ -550,6 +569,7 @@ pub async fn google_callback(
                 let redirect_url = format!("{}/login?error=auth_required", state.config.web_origin);
                 let mut response = Redirect::to(&redirect_url).into_response();
                 append_cookie(&mut response, &clear_state_cookie)?;
+                append_cookie(&mut response, &clear_platform_cookie)?;
                 return Ok(response);
             }
         };
@@ -572,6 +592,7 @@ pub async fn google_callback(
                     format!("{}/settings?error=already_linked", state.config.web_origin);
                 let mut response = Redirect::to(&redirect_url).into_response();
                 append_cookie(&mut response, &clear_state_cookie)?;
+                append_cookie(&mut response, &clear_platform_cookie)?;
                 return Ok(response);
             }
             Ok(_) => {
@@ -594,6 +615,7 @@ pub async fn google_callback(
         let redirect_url = format!("{}/settings?linked=google", state.config.web_origin);
         let mut response = Redirect::to(&redirect_url).into_response();
         append_cookie(&mut response, &clear_state_cookie)?;
+        append_cookie(&mut response, &clear_platform_cookie)?;
         return Ok(response);
     }
 
@@ -640,11 +662,12 @@ pub async fn google_callback(
                     .await
                     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-                if query.code_verifier.is_some() {
+                if is_native_app {
                     let redirect_url = "ownpulse://auth?error=email_exists";
                     let mut response = Redirect::to(redirect_url).into_response();
                     append_cookie(&mut response, &clear_state_cookie)?;
                     append_cookie(&mut response, &clear_invite_cookie)?;
+                    append_cookie(&mut response, &clear_platform_cookie)?;
                     return Ok(response);
                 } else {
                     let redirect_url =
@@ -652,6 +675,7 @@ pub async fn google_callback(
                     let mut response = Redirect::to(&redirect_url).into_response();
                     append_cookie(&mut response, &clear_state_cookie)?;
                     append_cookie(&mut response, &clear_invite_cookie)?;
+                    append_cookie(&mut response, &clear_platform_cookie)?;
                     return Ok(response);
                 }
             }
@@ -687,11 +711,12 @@ pub async fn google_callback(
                             .await
                             .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-                        if query.code_verifier.is_some() {
+                        if is_native_app {
                             let redirect_url = "ownpulse://auth?error=invite_required";
                             let mut response = Redirect::to(redirect_url).into_response();
                             append_cookie(&mut response, &clear_state_cookie)?;
                             append_cookie(&mut response, &clear_invite_cookie)?;
+                            append_cookie(&mut response, &clear_platform_cookie)?;
                             return Ok(response);
                         } else {
                             let redirect_url = format!(
@@ -701,6 +726,7 @@ pub async fn google_callback(
                             let mut response = Redirect::to(&redirect_url).into_response();
                             append_cookie(&mut response, &clear_state_cookie)?;
                             append_cookie(&mut response, &clear_invite_cookie)?;
+                            append_cookie(&mut response, &clear_platform_cookie)?;
                             return Ok(response);
                         }
                     }
@@ -784,9 +810,9 @@ pub async fn google_callback(
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    if query.code_verifier.is_some() {
-        // Native app (PKCE flow): redirect to the custom URI scheme with tokens
-        // in the URL fragment so the app can extract them from the redirect.
+    if is_native_app {
+        // Native app flow: redirect to the custom URI scheme with tokens in the
+        // URL fragment so the app can extract them from the redirect.
         // The app stores these tokens in the Keychain, never in cookies.
         let redirect_url = format!(
             "ownpulse://auth#token={}&refresh_token={}",
@@ -795,6 +821,7 @@ pub async fn google_callback(
         let mut response = Redirect::to(&redirect_url).into_response();
         append_cookie(&mut response, &clear_state_cookie)?;
         append_cookie(&mut response, &clear_invite_cookie)?;
+        append_cookie(&mut response, &clear_platform_cookie)?;
         Ok(response)
     } else {
         // Web flow: set tokens as httpOnly cookies and redirect without tokens in URL.
@@ -815,6 +842,7 @@ pub async fn google_callback(
             &refresh_cookie,
             &clear_state_cookie,
             &clear_invite_cookie,
+            &clear_platform_cookie,
         ] {
             append_cookie(&mut response, cookie_str)?;
         }
