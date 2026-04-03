@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { dashboardApi } from "../api/dashboard";
 import { InsightCards } from "../components/dashboard/InsightCards";
+import { ScoreRing } from "../components/dashboard/ScoreRing";
 import { SparklineRow } from "../components/dashboard/SparklineRow";
 import { TodaysDoses } from "../components/dashboard/TodaysDoses";
 import styles from "./Dashboard.module.css";
@@ -35,10 +36,7 @@ export default function Dashboard() {
         {scores ? (
           <div className={styles.checkinScores}>
             {(["energy", "mood", "focus", "recovery", "libido"] as const).map((key) => (
-              <div key={key} className={styles.scoreItem}>
-                <div className={styles.statValue}>{scores[key] ?? "\u2014"}</div>
-                <div className={styles.statLabel}>{key}</div>
-              </div>
+              <ScoreRing key={key} label={key} value={scores[key] ?? null} />
             ))}
           </div>
         ) : (
