@@ -25,4 +25,5 @@ mod protocols;
 mod security_fixes;
 mod sleep;
 mod stats;
+mod protocol_templates;
 mod waitlist;
