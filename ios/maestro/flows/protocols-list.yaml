@@ -1,0 +1,46 @@
+appId: health.ownpulse.app
+---
+# View the protocols list and navigate to create
+- assertVisible:
+    id: "mainTabView"
+
+# Navigate to Protocols tab
+- tapOn:
+    text: "Protocols"
+- assertVisible:
+    id: "protocolFilterPicker"
+
+# Verify filter options
+- assertVisible:
+    text: "Active"
+- assertVisible:
+    text: "Completed"
+- assertVisible:
+    text: "All"
+
+# Open the new protocol builder
+- tapOn:
+    id: "newProtocolButton"
+- assertVisible:
+    id: "protocolNameField"
+- assertVisible:
+    id: "createProtocolButton"
+
+# Fill in protocol details
+- tapOn:
+    id: "protocolNameField"
+- inputText: "BPC-157 Protocol"
+- tapOn:
+    id: "substanceName-0"
+- inputText: "BPC-157"
+- tapOn:
+    id: "substanceDose-0"
+- inputText: "250"
+
+# Submit
+- tapOn:
+    id: "createProtocolButton"
+- extendedWaitUntil:
+    visible:
+      id: "protocolFilterPicker"
+    timeout: 10000

@@ -15,19 +15,25 @@ struct MainTabView: View {
                 }
             }
 
-            Tab("Log", systemImage: "plus.circle", value: 1) {
+            Tab("Protocols", systemImage: "list.bullet.clipboard", value: 1) {
+                NavigationStack {
+                    ProtocolsListView()
+                }
+            }
+
+            Tab("Log", systemImage: "plus.circle", value: 2) {
                 NavigationStack {
                     LogView()
                 }
             }
 
-            Tab("Explore", systemImage: "chart.xyaxis.line", value: 2) {
+            Tab("Explore", systemImage: "chart.xyaxis.line", value: 3) {
                 NavigationStack {
                     ExploreWebView()
                 }
             }
 
-            Tab("Settings", systemImage: "gear", value: 3) {
+            Tab("Settings", systemImage: "gear", value: 4) {
                 NavigationStack {
                     SettingsView()
                 }

@@ -13,6 +13,7 @@
 		0C3C7A807E0BA9C70B684B65 /* AuthServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7928246CBD1BDB2F72B47DB /* AuthServiceTests.swift */; };
 		0EC8A8DD21490EDD21236B2C /* AdminService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849D69462AA613F566E82BFF /* AdminService.swift */; };
 		18958506A603AA8D7F7A1A26 /* AnchorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE2B17DFA620BA4FBD5C8FF /* AnchorStore.swift */; };
+		1B2C6DA8394E5EADFA452C47 /* ProtocolsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9E6D37084D7640B257E988 /* ProtocolsListView.swift */; };
 		1CED965B857E811559A0291A /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC06BE2CB6B1BFF56DE851A2 /* KeychainService.swift */; };
 		1EE49369F16778667619D284 /* CheckinSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55758FB85386BB707F01C225 /* CheckinSummaryCard.swift */; };
 		203A3757FF6723983649D7E2 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66E0BF01696C616018AEA71C /* Theme.swift */; };
@@ -20,8 +21,10 @@
 		264F1827147C1C6A3B09B8AE /* MockAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */; };
 		26656421C976B47BF433E327 /* OfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6049367D20366FC7493CBC2 /* OfflineQueue.swift */; };
 		29D6DD6A5FFAD5FD2B951CD9 /* APIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */; };
+		2AE644AB92D5704C8E8B7244 /* ProtocolsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D310A48E0E8683AB879E13 /* ProtocolsViewModelTests.swift */; };
 		2CBC758F6DF27FCAB1722851 /* AdminServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54949C1E6E149322C32F0B1B /* AdminServiceTests.swift */; };
 		2DD65D3B1A369A99B888317D /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4245A1A03B84BDF2DF58525 /* APIModels.swift */; };
+		3B0FD461A49B85D216380765 /* ProtocolModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D4A97A4F90CDBCA4EFF22B /* ProtocolModels.swift */; };
 		3B7C75B5EF4DD69E050F0435 /* LogViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBEEEB77231155980E6056B /* LogViewModelTests.swift */; };
 		452B66444DF333AB9E302CBF /* CheckinForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4835EF3237AF28AFEF0CE9 /* CheckinForm.swift */; };
 		46B3707001710B3621543EC1 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DD6815D274C9513C8AC117 /* DashboardView.swift */; };
@@ -38,11 +41,13 @@
 		7728D01A6C178F913A0D4F3F /* ExploreWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B0CE15DF54DD50F607ACC1C /* ExploreWebView.swift */; };
 		77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */; };
 		79B3A1F2679F920C71ABA808 /* HeroMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF9053F15DDB10EA18EB0FE3 /* HeroMetricCard.swift */; };
+		7CC463CD27576924170DB812 /* ProtocolsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C061B329BCCD5829A91ED84A /* ProtocolsViewModel.swift */; };
 		82FD284E95344C2E5110ED3F /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1CC43481ABEED5CCA1560D9 /* SettingsView.swift */; };
 		8EA1C78D5AF3FFBC69812146 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B516C3CA42E3AFBDE677B93C /* SyncEngine.swift */; };
 		9519D180B0C76631460935C6 /* ObservationForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9E217D8B04976F84F4CDA7 /* ObservationForm.swift */; };
 		99270E7F933636BB3FC28C4C /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86CE06D7E9EFE8AF5DE5E74A /* LoginView.swift */; };
 		997B651854B45BE01C2D29B8 /* MockKeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6426632C9A60D4B0EAE38F /* MockKeychainService.swift */; };
+		9B17F5A174D36BC556E7E007 /* ProtocolDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF6D8B6C509F8643B88BCD4 /* ProtocolDetailView.swift */; };
 		9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */; };
 		9EF48B042C0061A819AB1642 /* WeightChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E3F70DEB75DC508144AF95 /* WeightChartView.swift */; };
 		A14FC677EEF0E3ABB7D8FF54 /* MockHealthKitProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6946B4A3B390ED063952B5 /* MockHealthKitProvider.swift */; };
@@ -75,6 +80,7 @@
 		FC991521672354702B6079B8 /* AnchorStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DB85C7B75B2B3CCCDFF201 /* AnchorStoreTests.swift */; };
 		FD31004DAF1E2B891BE3FF6C /* DashboardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74DDD8ADE79035047DB13B0F /* DashboardModels.swift */; };
 		FE0B0EDD012F37BD6CA974B4 /* InsightCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01C52170DFB396263C97C911 /* InsightCardView.swift */; };
+		FE5DAC0025952320950C64E6 /* ProtocolBuilderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A37D95FB57D8BB5C7C8FB6B /* ProtocolBuilderView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -104,6 +110,7 @@
 		3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardModelsTests.swift; sourceTree = "<group>"; };
 		3E28FE3D0872E6AA33C7382F /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		3E42F8EDD5D3A046B6B5CC17 /* ClinicalRecordSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalRecordSettings.swift; sourceTree = "<group>"; };
+		3FF6D8B6C509F8643B88BCD4 /* ProtocolDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolDetailView.swift; sourceTree = "<group>"; };
 		49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCEHelperTests.swift; sourceTree = "<group>"; };
 		4BBEEEB77231155980E6056B /* LogViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogViewModelTests.swift; sourceTree = "<group>"; };
 		510AACF348448F516940B31C /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
@@ -128,17 +135,22 @@
 		858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JWTDecoderTests.swift; sourceTree = "<group>"; };
 		86CE06D7E9EFE8AF5DE5E74A /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		8ECA76F6599478222F387A59 /* Migrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Migrations.swift; sourceTree = "<group>"; };
+		90D310A48E0E8683AB879E13 /* ProtocolsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolsViewModelTests.swift; sourceTree = "<group>"; };
+		9A37D95FB57D8BB5C7C8FB6B /* ProtocolBuilderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolBuilderView.swift; sourceTree = "<group>"; };
 		9B18012E9A8E18AC577EE25A /* Endpoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Endpoints.swift; sourceTree = "<group>"; };
 		A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModelTests.swift; sourceTree = "<group>"; };
 		A2DEC6D8A316102C9721BE28 /* OwnPulseTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OwnPulseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A3CF51E74D2A5D23EB666510 /* HealthKitTypeMapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTypeMapTests.swift; sourceTree = "<group>"; };
 		A91D1368DE03587373E1AE7E /* ScoreSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreSlider.swift; sourceTree = "<group>"; };
+		AD9E6D37084D7640B257E988 /* ProtocolsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolsListView.swift; sourceTree = "<group>"; };
 		AE0CC8B48C71B366A4EB7F85 /* InterventionForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterventionForm.swift; sourceTree = "<group>"; };
 		AE6946B4A3B390ED063952B5 /* MockHealthKitProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockHealthKitProvider.swift; sourceTree = "<group>"; };
 		AF9053F15DDB10EA18EB0FE3 /* HeroMetricCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroMetricCard.swift; sourceTree = "<group>"; };
 		B16BC9B54A679ED5EAB8D32C /* LogViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogViewModel.swift; sourceTree = "<group>"; };
+		B2D4A97A4F90CDBCA4EFF22B /* ProtocolModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolModels.swift; sourceTree = "<group>"; };
 		B516C3CA42E3AFBDE677B93C /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
 		B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelsTests.swift; sourceTree = "<group>"; };
+		C061B329BCCD5829A91ED84A /* ProtocolsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolsViewModel.swift; sourceTree = "<group>"; };
 		C4245A1A03B84BDF2DF58525 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		C7928246CBD1BDB2F72B47DB /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		C7E10063C58B07C0C81C01DE /* PKCEHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCEHelper.swift; sourceTree = "<group>"; };
@@ -189,6 +201,7 @@
 				EB2C5A605F7E508C88F4AD95 /* Dashboard */,
 				9F064F8BEDE6CE33C0A06F0C /* Explore */,
 				0502A9C0D2B87EB6B9DB2CBE /* Log */,
+				C3CBFAB39C3E2DE03B0FA4DF /* Protocols */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -267,6 +280,7 @@
 				69FF64D436027417304D659C /* MockNetworkClient.swift */,
 				E75554390D361CB2DC5B1694 /* OfflineQueueTests.swift */,
 				49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */,
+				90D310A48E0E8683AB879E13 /* ProtocolsViewModelTests.swift */,
 				7EBFD7F464E64194F81BFBF4 /* SettingsViewModelTests.swift */,
 			);
 			path = OwnPulseTests;
@@ -309,6 +323,7 @@
 				74DDD8ADE79035047DB13B0F /* DashboardModels.swift */,
 				9B18012E9A8E18AC577EE25A /* Endpoints.swift */,
 				7351C0E5E3BB61A29712219B /* NetworkClient.swift */,
+				B2D4A97A4F90CDBCA4EFF22B /* ProtocolModels.swift */,
 			);
 			path = Network;
 			sourceTree = "<group>";
@@ -357,6 +372,16 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		C3CBFAB39C3E2DE03B0FA4DF /* Protocols */ = {
+			isa = PBXGroup;
+			children = (
+				9A37D95FB57D8BB5C7C8FB6B /* ProtocolBuilderView.swift */,
+				3FF6D8B6C509F8643B88BCD4 /* ProtocolDetailView.swift */,
+				AD9E6D37084D7640B257E988 /* ProtocolsListView.swift */,
+			);
+			path = Protocols;
+			sourceTree = "<group>";
+		};
 		D33B5EA688EF363FF2BB5D6C /* Auth */ = {
 			isa = PBXGroup;
 			children = (
@@ -383,6 +408,7 @@
 			children = (
 				6C498C94BE181EFFF5ABD288 /* DashboardViewModel.swift */,
 				B16BC9B54A679ED5EAB8D32C /* LogViewModel.swift */,
+				C061B329BCCD5829A91ED84A /* ProtocolsViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -533,6 +559,11 @@
 				26656421C976B47BF433E327 /* OfflineQueue.swift in Sources */,
 				E2CAE946D44538FAB76B4E5C /* OwnPulseApp.swift in Sources */,
 				B2056567585D65E67664625C /* PKCEHelper.swift in Sources */,
+				FE5DAC0025952320950C64E6 /* ProtocolBuilderView.swift in Sources */,
+				9B17F5A174D36BC556E7E007 /* ProtocolDetailView.swift in Sources */,
+				3B0FD461A49B85D216380765 /* ProtocolModels.swift in Sources */,
+				1B2C6DA8394E5EADFA452C47 /* ProtocolsListView.swift in Sources */,
+				7CC463CD27576924170DB812 /* ProtocolsViewModel.swift in Sources */,
 				E74306B68AF98B5E6EFA49C3 /* ScoreSlider.swift in Sources */,
 				82FD284E95344C2E5110ED3F /* SettingsView.swift in Sources */,
 				4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */,
@@ -566,6 +597,7 @@
 				63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */,
 				BCA4D818C417FDC772EBCE4A /* OfflineQueueTests.swift in Sources */,
 				C0BEAECB10367E37B9ECBA54 /* PKCEHelperTests.swift in Sources */,
+				2AE644AB92D5704C8E8B7244 /* ProtocolsViewModelTests.swift in Sources */,
 				08841D6CD05639ECE2811997 /* SettingsViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
