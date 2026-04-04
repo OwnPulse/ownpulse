@@ -29,10 +29,36 @@
   user-select: none;
 }
 
+.weekLabelRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  line-height: 1;
+}
+
 .weekLabel {
   font-size: 9px;
   color: var(--color-text-muted);
   line-height: 1;
+}
+
+.copyWeekBtn {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  padding: 0 1px;
+  line-height: 1;
+}
+
+.copyWeekBtn:hover {
+  color: var(--color-accent);
+}
+
+.headerCell:hover .copyWeekBtn {
+  display: inline;
 }
 
 .dayNumber {

@@ -71,12 +71,23 @@ function makeEmptyLine(id: number, durationDays: number): LineState {
   };
 }
 
+/** Expand a 7-day template pattern to fill the target number of days. */
+function expandTemplate(template: boolean[], targetDays: number): boolean[] {
+  return Array.from({ length: targetDays }, (_, i) => template[i % 7]);
+}
+
+/** Extract the first 7 days from a full pattern as a template. */
+function collapseToTemplate(pattern: boolean[]): boolean[] {
+  return pattern.slice(0, 7);
+}
+
 const DRAFT_KEY = "protocol-builder-draft";
 
 interface DraftState {
   name: string;
   weeks: number;
   lines: LineState[];
+  templateMode?: boolean;
 }
 
 function loadDraft(): DraftState | null {
@@ -109,11 +120,12 @@ export default function ProtocolBuilder() {
   const [description, setDescription] = useState("");
   const [weeks, setWeeks] = useState(draft?.weeks ?? 4);
   const [showCustomDuration, setShowCustomDuration] = useState(false);
+  const [templateMode, setTemplateMode] = useState(draft?.templateMode ?? true);
   const durationDays = weeks * 7;
   const lineIdCounter = useRef(draft ? Math.max(...draft.lines.map((l) => l.id)) + 1 : 1);
 
   const [lines, setLines] = useState<LineState[]>(
-    () => draft?.lines ?? [makeEmptyLine(0, durationDays)],
+    () => draft?.lines ?? [makeEmptyLine(0, templateMode ? 7 : durationDays)],
   );
 
   // Debounced save to sessionStorage
@@ -123,10 +135,10 @@ export default function ProtocolBuilder() {
       clearTimeout(saveTimerRef.current);
     }
     saveTimerRef.current = setTimeout(() => {
-      const state: DraftState = { name, weeks, lines };
+      const state: DraftState = { name, weeks, lines, templateMode };
       sessionStorage.setItem(DRAFT_KEY, JSON.stringify(state));
     }, 300);
-  }, [name, weeks, lines]);
+  }, [name, weeks, lines, templateMode]);
 
   useEffect(() => {
     saveDraft();
@@ -170,26 +182,29 @@ export default function ProtocolBuilder() {
 
   const addLine = () => {
     const id = lineIdCounter.current++;
-    setLines((prev) => [...prev, makeEmptyLine(id, durationDays)]);
+    const patternLength = templateMode ? 7 : durationDays;
+    setLines((prev) => [...prev, makeEmptyLine(id, patternLength)]);
   };
 
   const handleWeeksChange = (newWeeks: number) => {
-    const newDays = newWeeks * 7;
+    const newDays = templateMode ? 7 : newWeeks * 7;
     setWeeks(newWeeks);
-    setLines((prev) =>
-      prev.map((line) => {
-        const pattern = [...line.schedule_pattern];
-        if (newDays > pattern.length) {
-          // Extend pattern by repeating the existing pattern
-          while (pattern.length < newDays) {
-            pattern.push(pattern[pattern.length % line.schedule_pattern.length] ?? true);
+    if (!templateMode) {
+      setLines((prev) =>
+        prev.map((line) => {
+          const pattern = [...line.schedule_pattern];
+          if (newDays > pattern.length) {
+            while (pattern.length < newDays) {
+              pattern.push(pattern[pattern.length % line.schedule_pattern.length] ?? true);
+            }
+          } else {
+            pattern.length = newDays;
           }
-        } else {
-          pattern.length = newDays;
-        }
-        return { ...line, schedule_pattern: pattern };
-      }),
-    );
+          return { ...line, schedule_pattern: pattern };
+        }),
+      );
+    }
+    // In template mode, patterns stay at 7 days — weeks only affects the repeat count
   };
 
   const handleToggleCell = (lineIndex: number, dayIndex: number) => {
@@ -207,17 +222,76 @@ export default function ProtocolBuilder() {
     updateLine(lineIndex, { schedule_pattern: pattern });
   };
 
+  const handleSwitchMode = (toTemplate: boolean) => {
+    if (toTemplate === templateMode) return;
+    setTemplateMode(toTemplate);
+    if (toTemplate) {
+      // Full -> Template: collapse to first 7 days
+      setLines((prev) =>
+        prev.map((line) => ({
+          ...line,
+          schedule_pattern: collapseToTemplate(line.schedule_pattern),
+        })),
+      );
+    } else {
+      // Template -> Full: expand 7-day pattern to fill durationDays
+      setLines((prev) =>
+        prev.map((line) => ({
+          ...line,
+          schedule_pattern: expandTemplate(line.schedule_pattern, durationDays),
+        })),
+      );
+    }
+  };
+
+  const handleCopyWeekForward = (weekIndex: number) => {
+    setLines((prev) =>
+      prev.map((line) => {
+        const pattern = [...line.schedule_pattern];
+        const srcStart = weekIndex * 7;
+        const srcWeek = pattern.slice(srcStart, srcStart + 7);
+        for (let w = weekIndex + 1; w * 7 < pattern.length; w++) {
+          for (let d = 0; d < 7 && w * 7 + d < pattern.length; d++) {
+            pattern[w * 7 + d] = srcWeek[d];
+          }
+        }
+        return { ...line, schedule_pattern: pattern };
+      }),
+    );
+  };
+
+  const handleAddWeek = () => {
+    const newWeeks = weeks + 1;
+    setWeeks(newWeeks);
+    setLines((prev) =>
+      prev.map((line) => {
+        const pattern = [...line.schedule_pattern];
+        // Copy the last week's pattern
+        const lastWeekStart = Math.max(0, pattern.length - 7);
+        const lastWeek = pattern.slice(lastWeekStart, lastWeekStart + 7);
+        return { ...line, schedule_pattern: [...pattern, ...lastWeek] };
+      }),
+    );
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const protocolLines: CreateProtocolLine[] = lines.map((line, i) => ({
-      substance: line.substance,
-      dose: line.dose ? parseFloat(line.dose) : undefined,
-      unit: line.unit || undefined,
-      route: line.route || undefined,
-      time_of_day: line.time_of_day || undefined,
-      schedule_pattern: line.schedule_pattern,
-      sort_order: i,
-    }));
+    const protocolLines: CreateProtocolLine[] = lines.map((line, i) => {
+      // Always expand template to full pattern before sending to API
+      const fullPattern = templateMode
+        ? expandTemplate(line.schedule_pattern, durationDays)
+        : line.schedule_pattern;
+
+      return {
+        substance: line.substance,
+        dose: line.dose ? Number.parseFloat(line.dose) : undefined,
+        unit: line.unit || undefined,
+        route: line.route || undefined,
+        time_of_day: line.time_of_day || undefined,
+        schedule_pattern: fullPattern,
+        sort_order: i,
+      };
+    });
 
     mutation.mutate({
       name,
@@ -226,6 +300,8 @@ export default function ProtocolBuilder() {
       lines: protocolLines,
     });
   };
+
+  const gridDays = templateMode ? 7 : durationDays;
 
   return (
     <main className="op-page">
@@ -280,7 +356,7 @@ export default function ProtocolBuilder() {
                     max={52}
                     value={weeks}
                     onChange={(e) => {
-                      const v = parseInt(e.target.value, 10);
+                      const v = Number.parseInt(e.target.value, 10);
                       if (v >= 1 && v <= 52) handleWeeksChange(v);
                     }}
                     className={forms.input}
@@ -304,6 +380,31 @@ export default function ProtocolBuilder() {
             />
           </div>
         </div>
+
+        {/* Mode toggle */}
+        <fieldset className={styles.modeToggle} aria-label="Schedule mode">
+          <button
+            type="button"
+            className={`op-btn op-btn-sm ${templateMode ? styles.modeActive : "op-btn-ghost"}`}
+            onClick={() => handleSwitchMode(true)}
+            aria-pressed={templateMode}
+          >
+            Week Template
+          </button>
+          <button
+            type="button"
+            className={`op-btn op-btn-sm ${!templateMode ? styles.modeActive : "op-btn-ghost"}`}
+            onClick={() => handleSwitchMode(false)}
+            aria-pressed={!templateMode}
+          >
+            Full Schedule
+          </button>
+        </fieldset>
+        {templateMode && (
+          <p className={styles.templateHint}>
+            Edit one week — it repeats for {weeks === 1 ? "the full duration" : `${weeks} weeks`}.
+          </p>
+        )}
 
         {/* Lines section */}
         <div className={styles.linesSection}>
@@ -402,7 +503,7 @@ export default function ProtocolBuilder() {
               <div className={styles.patternRow}>
                 <span className={styles.patternLabel}>Schedule:</span>
                 <PatternSelector
-                  durationDays={durationDays}
+                  durationDays={gridDays}
                   onSelect={(pattern) => handlePatternSelect(idx, pattern)}
                 />
               </div>
@@ -421,10 +522,20 @@ export default function ProtocolBuilder() {
               substance: l.substance || "Untitled",
               schedule_pattern: l.schedule_pattern,
             }))}
-            durationDays={durationDays}
+            durationDays={gridDays}
             editable
             onToggleCell={handleToggleCell}
+            onCopyWeekForward={!templateMode ? handleCopyWeekForward : undefined}
           />
+          {!templateMode && (
+            <button
+              type="button"
+              className={`op-btn op-btn-ghost ${styles.addWeekBtn}`}
+              onClick={handleAddWeek}
+            >
+              + Add Week
+            </button>
+          )}
         </div>
 
         {/* Actions */}
@@ -444,8 +555,9 @@ export default function ProtocolBuilder() {
               setDescription("");
               setWeeks(4);
               setShowCustomDuration(false);
+              setTemplateMode(true);
               lineIdCounter.current = 1;
-              setLines([makeEmptyLine(0, 28)]);
+              setLines([makeEmptyLine(0, 7)]);
             }}
           >
             Start Over
