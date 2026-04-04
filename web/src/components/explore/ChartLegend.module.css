@@ -68,6 +68,11 @@
   white-space: nowrap;
 }
 
+.points {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
 .noData {
   color: var(--color-text-muted);
   font-style: italic;
