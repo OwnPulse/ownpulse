@@ -8,17 +8,25 @@ import { interventionsApi } from "../api/interventions";
 import { type CreateProtocol, type CreateProtocolLine, protocolsApi } from "../api/protocols";
 import forms from "../components/forms/forms.module.css";
 import PatternSelector from "../components/protocols/PatternSelector";
-import SequencerGrid from "../components/protocols/SequencerGrid";
+import SequencerGrid, { type DayLabelMode } from "../components/protocols/SequencerGrid";
 import styles from "./ProtocolBuilder.module.css";
 
 const ROUTES = ["SubQ", "IM", "Oral", "Topical", "Nasal", "IV"] as const;
 
 const DURATION_PRESETS = [
-  { label: "2W", weeks: 2 },
-  { label: "4W", weeks: 4 },
-  { label: "8W", weeks: 8 },
-  { label: "12W", weeks: 12 },
+  { label: "2W", days: 14 },
+  { label: "4W", days: 28 },
+  { label: "8W", days: 56 },
+  { label: "12W", days: 84 },
 ] as const;
+
+function formatDuration(days: number): string {
+  if (days % 7 === 0) {
+    const w = days / 7;
+    return `${days} days (${w} ${w === 1 ? "week" : "weeks"})`;
+  }
+  return `${days} days`;
+}
 
 const COMMON_SUBSTANCES = [
   "BPC-157",
@@ -80,12 +88,13 @@ export default function ProtocolBuilder() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState(todayDate);
-  const [weeks, setWeeks] = useState(4);
+  const [durationDays, setDurationDays] = useState(28);
   const [showCustomDuration, setShowCustomDuration] = useState(false);
-  const durationDays = weeks * 7;
+  const [dayLabelMode, setDayLabelMode] = useState<DayLabelMode>("numbered");
+  const [templateMode, setTemplateMode] = useState(true);
   const lineIdCounter = useRef(1);
 
-  const [lines, setLines] = useState<LineState[]>(() => [makeEmptyLine(0, durationDays)]);
+  const [lines, setLines] = useState<LineState[]>(() => [makeEmptyLine(0, templateMode ? 7 : 28)]);
 
   const { data: interventions } = useQuery({
     queryKey: ["interventions"],
@@ -117,28 +126,57 @@ export default function ProtocolBuilder() {
     setLines((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const patternLength = templateMode ? 7 : durationDays;
+
   const addLine = () => {
     const id = lineIdCounter.current++;
-    setLines((prev) => [...prev, makeEmptyLine(id, durationDays)]);
+    setLines((prev) => [...prev, makeEmptyLine(id, patternLength)]);
   };
 
-  const handleWeeksChange = (newWeeks: number) => {
-    const newDays = newWeeks * 7;
-    setWeeks(newWeeks);
+  const resizePatterns = (newLength: number) => {
     setLines((prev) =>
       prev.map((line) => {
         const pattern = [...line.schedule_pattern];
-        if (newDays > pattern.length) {
-          // Extend pattern by repeating the existing pattern
-          while (pattern.length < newDays) {
+        if (newLength > pattern.length) {
+          while (pattern.length < newLength) {
             pattern.push(pattern[pattern.length % line.schedule_pattern.length] ?? true);
           }
         } else {
-          pattern.length = newDays;
+          pattern.length = newLength;
         }
         return { ...line, schedule_pattern: pattern };
       }),
     );
+  };
+
+  const handleDurationChange = (newDays: number) => {
+    setDurationDays(newDays);
+    if (!templateMode) {
+      resizePatterns(newDays);
+    }
+  };
+
+  const handleTemplateModeToggle = (toTemplate: boolean) => {
+    if (toTemplate === templateMode) return;
+    setTemplateMode(toTemplate);
+    if (toTemplate) {
+      // Switching to template: extract first 7 days from each line
+      setLines((prev) =>
+        prev.map((line) => ({
+          ...line,
+          schedule_pattern: line.schedule_pattern.slice(0, 7),
+        })),
+      );
+    } else {
+      // Switching to full: expand 7-day template to full duration
+      setLines((prev) =>
+        prev.map((line) => {
+          const template = line.schedule_pattern.slice(0, 7);
+          const full = Array.from({ length: durationDays }, (_, i) => template[i % 7]);
+          return { ...line, schedule_pattern: full };
+        }),
+      );
+    }
   };
 
   const handleToggleCell = (lineIndex: number, dayIndex: number) => {
@@ -153,20 +191,26 @@ export default function ProtocolBuilder() {
   };
 
   const handlePatternSelect = (lineIndex: number, pattern: boolean[]) => {
-    updateLine(lineIndex, { schedule_pattern: pattern });
+    const trimmed = templateMode ? pattern.slice(0, 7) : pattern;
+    updateLine(lineIndex, { schedule_pattern: trimmed });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const protocolLines: CreateProtocolLine[] = lines.map((line, i) => ({
-      substance: line.substance,
-      dose: line.dose ? parseFloat(line.dose) : undefined,
-      unit: line.unit || undefined,
-      route: line.route || undefined,
-      time_of_day: line.time_of_day || undefined,
-      schedule_pattern: line.schedule_pattern,
-      sort_order: i,
-    }));
+    const protocolLines: CreateProtocolLine[] = lines.map((line, i) => {
+      const pattern = templateMode
+        ? Array.from({ length: durationDays }, (_, d) => line.schedule_pattern[d % 7])
+        : line.schedule_pattern;
+      return {
+        substance: line.substance,
+        dose: line.dose ? parseFloat(line.dose) : undefined,
+        unit: line.unit || undefined,
+        route: line.route || undefined,
+        time_of_day: line.time_of_day || undefined,
+        schedule_pattern: pattern,
+        sort_order: i,
+      };
+    });
 
     mutation.mutate({
       name,
@@ -211,16 +255,16 @@ export default function ProtocolBuilder() {
               />
             </div>
             <div className={forms.field}>
-              <span className={forms.label}>Duration</span>
+              <span className={forms.label}>Duration — {formatDuration(durationDays)}</span>
               <div className={styles.durationPresets}>
                 {DURATION_PRESETS.map((preset) => (
                   <button
-                    key={preset.weeks}
+                    key={preset.days}
                     type="button"
-                    className={`op-btn op-btn-sm ${!showCustomDuration && weeks === preset.weeks ? styles.durationActive : "op-btn-ghost"}`}
+                    className={`op-btn op-btn-sm ${!showCustomDuration && durationDays === preset.days ? styles.durationActive : "op-btn-ghost"}`}
                     onClick={() => {
                       setShowCustomDuration(false);
-                      handleWeeksChange(preset.weeks);
+                      handleDurationChange(preset.days);
                     }}
                   >
                     {preset.label}
@@ -237,19 +281,19 @@ export default function ProtocolBuilder() {
               {showCustomDuration && (
                 <div className={styles.customDuration}>
                   <input
-                    id="proto-weeks"
+                    id="proto-days"
                     type="number"
                     min={1}
-                    max={52}
-                    value={weeks}
+                    max={365}
+                    value={durationDays}
                     onChange={(e) => {
                       const v = parseInt(e.target.value, 10);
-                      if (v >= 1 && v <= 52) handleWeeksChange(v);
+                      if (v >= 1 && v <= 365) handleDurationChange(v);
                     }}
                     className={forms.input}
-                    aria-label="Custom duration in weeks"
+                    aria-label="Custom duration in days"
                   />
-                  <span className={styles.weeksSuffix}>{weeks === 1 ? "week" : "weeks"}</span>
+                  <span className={styles.weeksSuffix}>days</span>
                 </div>
               )}
             </div>
@@ -378,16 +422,93 @@ export default function ProtocolBuilder() {
 
         {/* Sequencer Grid */}
         <div className={styles.gridSection}>
-          <h2>Schedule</h2>
+          <div className={styles.gridHeader}>
+            <h2>Schedule</h2>
+            <div className={styles.gridControls}>
+              <div className={styles.segmentedControl}>
+                <button
+                  type="button"
+                  className={`op-btn op-btn-sm ${templateMode ? styles.segmentActive : "op-btn-ghost"}`}
+                  onClick={() => handleTemplateModeToggle(true)}
+                >
+                  Week Template
+                </button>
+                <button
+                  type="button"
+                  className={`op-btn op-btn-sm ${!templateMode ? styles.segmentActive : "op-btn-ghost"}`}
+                  onClick={() => handleTemplateModeToggle(false)}
+                >
+                  Full Schedule
+                </button>
+              </div>
+              {!templateMode && (
+                <div className={styles.segmentedControl}>
+                  <button
+                    type="button"
+                    className={`op-btn op-btn-sm ${dayLabelMode === "numbered" ? styles.segmentActive : "op-btn-ghost"}`}
+                    onClick={() => setDayLabelMode("numbered")}
+                    aria-label="Show numbered days"
+                  >
+                    D1,D2...
+                  </button>
+                  <button
+                    type="button"
+                    className={`op-btn op-btn-sm ${dayLabelMode === "weekday" ? styles.segmentActive : "op-btn-ghost"}`}
+                    onClick={() => setDayLabelMode("weekday")}
+                    aria-label="Show weekday names"
+                  >
+                    Mon,Tue...
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          {templateMode && (
+            <p className={styles.templateHint}>
+              Edit one week below. It repeats for the full {durationDays} days (
+              {Math.ceil(durationDays / 7)} weeks).
+            </p>
+          )}
           <SequencerGrid
             lines={lines.map((l) => ({
               substance: l.substance || "Untitled",
               schedule_pattern: l.schedule_pattern,
             }))}
-            durationDays={durationDays}
+            durationDays={templateMode ? 7 : durationDays}
             editable
             onToggleCell={handleToggleCell}
+            dayLabelMode={templateMode ? "numbered" : dayLabelMode}
+            startDate={startDate}
+            showCopyWeek={!templateMode}
+            onCopyWeekForward={
+              templateMode
+                ? undefined
+                : (weekIndex) => {
+                    setLines((prev) =>
+                      prev.map((line) => {
+                        const start = weekIndex * 7;
+                        const weekSlice = line.schedule_pattern.slice(start, start + 7);
+                        if (weekSlice.length === 0) return line;
+                        const pattern = [...line.schedule_pattern];
+                        for (let d = start + 7; d < pattern.length; d++) {
+                          pattern[d] = weekSlice[(d - start) % 7];
+                        }
+                        return { ...line, schedule_pattern: pattern };
+                      }),
+                    );
+                  }
+            }
           />
+          {!templateMode && (
+            <button
+              type="button"
+              className={`op-btn op-btn-ghost op-btn-sm ${styles.addWeekBtn}`}
+              onClick={() => handleDurationChange(durationDays + 7)}
+              aria-label="Add one week"
+            >
+              + Add Week
+            </button>
+          )}
         </div>
 
         {/* Actions */}

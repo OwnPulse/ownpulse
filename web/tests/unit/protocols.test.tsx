@@ -100,6 +100,78 @@ describe("SequencerGrid", () => {
     const otherCell = screen.getByLabelText("Vitamin D day 1: active");
     expect(otherCell.className).not.toContain("today");
   });
+
+  it("renders weekday labels when mode is weekday", () => {
+    // 2026-03-28 is a Saturday
+    const { container } = render(
+      <SequencerGrid
+        lines={lines}
+        durationDays={7}
+        editable={false}
+        dayLabelMode="weekday"
+        startDate="2026-03-28"
+      />,
+    );
+
+    const dayLabels = container.querySelectorAll("[class*='dayNumber']");
+    const labels = Array.from(dayLabels).map((el) => el.textContent);
+    expect(labels).toEqual(["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"]);
+  });
+
+  it("renders numbered labels by default", () => {
+    const { container } = render(<SequencerGrid lines={lines} durationDays={7} editable={false} />);
+
+    const dayLabels = container.querySelectorAll("[class*='dayNumber']");
+    const labels = Array.from(dayLabels).map((el) => el.textContent);
+    expect(labels).toEqual(["D1", "D2", "D3", "D4", "D5", "D6", "D7"]);
+  });
+
+  it("renders copy-week-forward button when showCopyWeek is true", () => {
+    const fourteenDayLines = [
+      {
+        substance: "Test",
+        schedule_pattern: Array(14).fill(true),
+      },
+    ];
+    const onCopy = vi.fn();
+    render(
+      <SequencerGrid
+        lines={fourteenDayLines}
+        durationDays={14}
+        editable={true}
+        showCopyWeek={true}
+        onCopyWeekForward={onCopy}
+      />,
+    );
+
+    // Week 1 should have a copy button since there are more weeks after it
+    const copyBtn = screen.getByLabelText("Copy week 1 forward");
+    expect(copyBtn).toBeDefined();
+  });
+
+  it("calls onCopyWeekForward with correct week index", async () => {
+    const fourteenDayLines = [
+      {
+        substance: "Test",
+        schedule_pattern: Array(14).fill(true),
+      },
+    ];
+    const onCopy = vi.fn();
+    render(
+      <SequencerGrid
+        lines={fourteenDayLines}
+        durationDays={14}
+        editable={true}
+        showCopyWeek={true}
+        onCopyWeekForward={onCopy}
+      />,
+    );
+
+    const copyBtn = screen.getByLabelText("Copy week 1 forward");
+    await userEvent.click(copyBtn);
+
+    expect(onCopy).toHaveBeenCalledWith(0);
+  });
 });
 
 describe("PatternSelector", () => {
@@ -236,15 +308,15 @@ describe("ProtocolBuilder", () => {
     expect(btn8w.className).toContain("durationActive");
   });
 
-  it("clicking Custom shows number input", async () => {
+  it("clicking Custom shows days input", async () => {
     withProviders(<ProtocolBuilder />);
 
     const customBtn = screen.getByRole("button", { name: "Custom" });
     await userEvent.click(customBtn);
 
-    const input = screen.getByLabelText("Custom duration in weeks");
+    const input = screen.getByLabelText("Custom duration in days");
     expect(input).toBeDefined();
-    expect((input as HTMLInputElement).value).toBe("4");
+    expect((input as HTMLInputElement).value).toBe("28");
   });
 
   it("uses stable key for line cards (index-based)", async () => {
@@ -292,5 +364,44 @@ describe("ProtocolBuilder", () => {
     withProviders(<ProtocolBuilder />);
 
     expect(screen.getByText("Schedule:")).toBeDefined();
+  });
+
+  it("shows duration label with weeks for clean multiples", () => {
+    withProviders(<ProtocolBuilder />);
+
+    // Default is 28 days = 4 weeks; the label format includes "Duration —"
+    expect(screen.getByText(/Duration — 28 days \(4 weeks\)/)).toBeDefined();
+  });
+
+  it("renders template mode toggle", () => {
+    withProviders(<ProtocolBuilder />);
+
+    expect(screen.getByRole("button", { name: "Week Template" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Full Schedule" })).toBeDefined();
+  });
+
+  it("defaults to template mode with hint text", () => {
+    withProviders(<ProtocolBuilder />);
+
+    expect(screen.getByText(/Edit one week below/)).toBeDefined();
+  });
+
+  it("switching to Full Schedule hides template hint and shows day label toggle", async () => {
+    withProviders(<ProtocolBuilder />);
+
+    const fullBtn = screen.getByRole("button", { name: "Full Schedule" });
+    await userEvent.click(fullBtn);
+
+    expect(screen.queryByText(/Edit one week below/)).toBeNull();
+    expect(screen.getByLabelText("Show numbered days")).toBeDefined();
+    expect(screen.getByLabelText("Show weekday names")).toBeDefined();
+  });
+
+  it("Full Schedule shows Add Week button", async () => {
+    withProviders(<ProtocolBuilder />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Full Schedule" }));
+
+    expect(screen.getByLabelText("Add one week")).toBeDefined();
   });
 });

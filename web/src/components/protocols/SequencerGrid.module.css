@@ -31,6 +31,29 @@
   font-size: 9px;
   color: var(--color-text-muted);
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.copyWeekBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  font-size: 9px;
+  padding: 0 1px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.headerCell:hover .copyWeekBtn {
+  opacity: 1;
+}
+
+.copyWeekBtn:hover {
+  color: var(--color-primary);
 }
 
 .dayNumber {
