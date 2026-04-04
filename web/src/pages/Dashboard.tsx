@@ -30,6 +30,9 @@ export default function Dashboard() {
         </Link>
       </div>
 
+      {/* Today's protocol doses — first actionable item */}
+      <TodaysDoses />
+
       {/* Today's check-in */}
       <div className={`op-card ${styles.checkinCard}`}>
         <h2>Today&rsquo;s Check-in</h2>
@@ -45,9 +48,6 @@ export default function Dashboard() {
           </p>
         )}
       </div>
-
-      {/* Today's protocol doses */}
-      <TodaysDoses />
 
       {/* 7-day sparklines */}
       <SparklineRow />

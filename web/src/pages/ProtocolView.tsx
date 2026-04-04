@@ -42,6 +42,7 @@ function computeTodaysDoses(protocol: Protocol): TodaysDose[] {
         protocol_id: protocol.id,
         protocol_name: protocol.name,
         protocol_line_id: line.id,
+        run_id: protocol.id, // TODO: use actual run_id once ProtocolView is updated for runs
         substance: line.substance,
         dose: line.dose,
         unit: line.unit,

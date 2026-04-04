@@ -54,6 +54,7 @@ export interface TodaysDose {
   protocol_id: string;
   protocol_name: string;
   protocol_line_id: string;
+  run_id: string;
   substance: string;
   dose: number;
   unit: string;
@@ -148,4 +149,9 @@ export const protocolsApi = {
   listTemplates: () => api.get<TemplateListItem[]>("/api/v1/protocols/templates"),
   copyTemplate: (id: string, startDate: string) =>
     api.post<Protocol>(`/api/v1/protocols/templates/${id}/copy`, { start_date: startDate }),
+  todaysDoses: () => api.get<TodaysDose[]>("/api/v1/protocols/todays-doses"),
+  skipRunDose: (runId: string, data: SkipDoseRequest) =>
+    api.post<ProtocolDose>(`/api/v1/protocols/runs/${runId}/doses/skip`, data),
+  logRunDose: (runId: string, data: LogDoseRequest) =>
+    api.post<ProtocolDose>(`/api/v1/protocols/runs/${runId}/doses/log`, data),
 };
