@@ -23,7 +23,7 @@ const PATTERNS: PatternName[] = [
   "Custom",
 ];
 
-function generatePattern(name: PatternName, days: number): boolean[] | null {
+export function generatePattern(name: PatternName, days: number): boolean[] | null {
   switch (name) {
     case "Daily":
       return Array(days).fill(true);
