@@ -149,10 +149,7 @@ export default function Protocols() {
                   <div className={styles.cardHeader}>
                     <span className={styles.cardName}>{p.name}</span>
                   </div>
-                  <span className={styles.nextDose}>
-                    {p.duration_days} days &middot; {p.lines.length} intervention
-                    {p.lines.length !== 1 ? "s" : ""}
-                  </span>
+                  <span className={styles.nextDose}>{p.duration_days} days</span>
                 </Link>
                 <button
                   type="button"

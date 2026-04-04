@@ -282,7 +282,7 @@ export default function ProtocolView() {
         <h2>Schedule</h2>
         <DoseStatusGrid
           lines={protocol.lines}
-          startDate={activeRun?.start_date ?? protocol.start_date}
+          startDate={activeRun?.start_date ?? protocol.start_date ?? protocol.created_at}
           durationDays={protocol.duration_days}
         />
       </section>
