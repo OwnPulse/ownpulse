@@ -1,113 +1,193 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { VisAxis, VisCrosshair, VisLine, VisTooltip, VisXYContainer } from "@unovis/react";
-import { useMemo, useState } from "react";
+import type { EChartsOption } from "echarts";
+import ReactECharts from "echarts-for-react";
+import { useCallback, useMemo } from "react";
 import type { SeriesResponse } from "../../api/explore";
 import type { Intervention } from "../../api/interventions";
+import { useTheme } from "../../hooks/useTheme";
 import { metricKey, useExploreStore } from "../../stores/exploreStore";
-
-const CHART_COLOR_VARS = [
-  "var(--chart-color-0)",
-  "var(--chart-color-1)",
-  "var(--chart-color-2)",
-  "var(--chart-color-3)",
-  "var(--chart-color-4)",
-  "var(--chart-color-5)",
-  "var(--chart-color-6)",
-  "var(--chart-color-7)",
-  "#332288",
-  "#88CCEE",
-  "#44AA99",
-  "#DDCC77",
-];
-
-export const LINE_DASH_PATTERNS: (number[] | undefined)[] = [
-  undefined, // solid
-  [8, 4], // long dash
-  [4, 4], // short dash
-  [8, 4, 2, 4], // dot-dash
-];
+import { CHART_COLORS, INTERVENTION_COLOR, LINE_STYLES } from "./chartColors";
 
 interface ExploreChartProps {
   series: SeriesResponse[];
   interventions?: Intervention[];
 }
 
-interface ChartDatum {
-  timestamp: number;
-  values: Record<string, number | undefined>;
-}
-
-interface InterventionMarker {
-  timestamp: number;
-  label: string;
-  substance: string;
-  dose: number;
-  unit: string;
-}
-
 export function ExploreChart({ series, interventions = [] }: ExploreChartProps) {
   const hiddenMetrics = useExploreStore((s) => s.hiddenMetrics);
-  const [hoveredMarker, setHoveredMarker] = useState<InterventionMarker | null>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
+  const hiddenSubstances = useExploreStore((s) => s.hiddenSubstances);
+  const setZoomRange = useExploreStore((s) => s.setZoomRange);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
 
   const visibleSeries = useMemo(
     () => series.filter((s) => !hiddenMetrics.has(metricKey({ source: s.source, field: s.field }))),
     [series, hiddenMetrics],
   );
 
-  const { data, units } = useMemo(() => {
-    const timestampSet = new Set<number>();
-    const unitSet = new Set<string>();
+  const visibleInterventions = useMemo(
+    () => interventions.filter((iv) => !hiddenSubstances.includes(iv.substance)),
+    [interventions, hiddenSubstances],
+  );
 
+  const option = useMemo((): EChartsOption => {
+    if (visibleSeries.length === 0) return {};
+
+    // Collect unique units preserving order
+    const unitOrder: string[] = [];
     for (const s of visibleSeries) {
-      unitSet.add(s.unit);
-      for (const p of s.points) {
-        timestampSet.add(new Date(p.t).getTime());
-      }
+      if (!unitOrder.includes(s.unit)) unitOrder.push(s.unit);
     }
+    const hasRightAxis = unitOrder.length >= 2;
 
-    const timestamps = [...timestampSet].sort((a, b) => a - b);
-    const lookup: Record<string, Map<number, number>> = {};
+    // Map each series to a yAxisIndex
+    const yAxisIndexForUnit = (unit: string): number => {
+      const idx = unitOrder.indexOf(unit);
+      return idx <= 1 ? idx : idx % 2;
+    };
 
-    for (const s of visibleSeries) {
-      const key = `${s.source}:${s.field}`;
-      const map = new Map<number, number>();
-      for (const p of s.points) {
-        map.set(new Date(p.t).getTime(), p.v);
+    const echartsSeries: EChartsOption["series"] = visibleSeries.map((s, i) => {
+      const base = {
+        type: "line" as const,
+        name: `${s.field} (${s.unit})`,
+        data: s.points.map((p) => [new Date(p.t).getTime(), p.v]),
+        smooth: 0.3,
+        symbol: "none",
+        lineStyle: {
+          width: 2.5,
+          color: CHART_COLORS[i % CHART_COLORS.length],
+          type: LINE_STYLES[i % LINE_STYLES.length],
+        },
+        itemStyle: { color: CHART_COLORS[i % CHART_COLORS.length] },
+        yAxisIndex: yAxisIndexForUnit(s.unit),
+      };
+
+      // Attach intervention markLines to the first series
+      if (i === 0 && visibleInterventions.length > 0) {
+        return {
+          ...base,
+          markLine: {
+            silent: true,
+            symbol: "none",
+            data: visibleInterventions.map((iv) => ({
+              xAxis: new Date(iv.administered_at).getTime(),
+              label: {
+                formatter: iv.substance,
+                position: "start" as const,
+                fontSize: 10,
+                color: INTERVENTION_COLOR,
+              },
+              lineStyle: {
+                color: INTERVENTION_COLOR,
+                type: "dashed" as const,
+                width: 1.5,
+              },
+            })),
+          },
+        };
       }
-      lookup[key] = map;
-    }
 
-    const chartData: ChartDatum[] = timestamps.map((ts) => {
-      const values: Record<string, number | undefined> = {};
-      for (const s of visibleSeries) {
-        const key = `${s.source}:${s.field}`;
-        values[key] = lookup[key].get(ts);
-      }
-      return { timestamp: ts, values };
+      return base;
     });
 
-    return { data: chartData, units: [...unitSet] };
-  }, [visibleSeries]);
+    const yAxis: EChartsOption["yAxis"] = [
+      {
+        type: "value",
+        name: unitOrder[0] ?? "",
+        nameTextStyle: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
+        axisLabel: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
+        axisLine: { show: false },
+        splitLine: {
+          lineStyle: { color: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" },
+        },
+      },
+    ];
 
-  const markers: InterventionMarker[] = useMemo(() => {
-    if (interventions.length === 0 || data.length === 0) return [];
-    const minTs = data[0].timestamp;
-    const maxTs = data[data.length - 1].timestamp;
-    return interventions
-      .map((iv) => ({
-        timestamp: new Date(iv.administered_at).getTime(),
-        label: `${iv.substance} ${iv.dose}${iv.unit}`,
-        substance: iv.substance,
-        dose: iv.dose,
-        unit: iv.unit,
-      }))
-      .filter((m) => m.timestamp >= minTs && m.timestamp <= maxTs);
-  }, [interventions, data]);
+    if (hasRightAxis) {
+      yAxis.push({
+        type: "value",
+        name: unitOrder[1],
+        nameTextStyle: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
+        axisLabel: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
+        axisLine: { show: false },
+        splitLine: { show: false },
+        position: "right",
+      });
+    }
 
-  if (visibleSeries.length === 0 || data.length === 0) {
+    return {
+      grid: {
+        left: 56,
+        right: hasRightAxis ? 56 : 20,
+        top: 20,
+        bottom: 56,
+        containLabel: false,
+      },
+      xAxis: {
+        type: "time",
+        axisLabel: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
+        axisLine: { lineStyle: { color: isDark ? "#444" : "#ddd" } },
+        splitLine: { show: false },
+      },
+      yAxis,
+      series: echartsSeries,
+      tooltip: {
+        trigger: "axis",
+        backgroundColor: isDark ? "#2a2a28" : "#ffffff",
+        borderColor: isDark ? "#3a3a38" : "#e0e0e0",
+        textStyle: { color: isDark ? "#eeeeea" : "#1e1e1c", fontSize: 12 },
+        formatter: (params: unknown) => {
+          if (!Array.isArray(params) || params.length === 0) return "";
+          const first = params[0] as { axisValueLabel?: string };
+          const header = first.axisValueLabel ?? "";
+          const lines = (
+            params as Array<{ marker?: string; seriesName?: string; value?: [number, number] }>
+          )
+            .map((p) => {
+              const val = p.value?.[1];
+              return `<div>${p.marker ?? ""} ${p.seriesName}: ${val != null ? val : "N/A"}</div>`;
+            })
+            .join("");
+          return `<div><strong>${header}</strong>${lines}</div>`;
+        },
+      },
+      dataZoom: [
+        { type: "inside", xAxisIndex: 0 },
+        {
+          type: "slider",
+          xAxisIndex: 0,
+          bottom: 8,
+          height: 20,
+          borderColor: "transparent",
+          backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
+          fillerColor: isDark ? "rgba(194,101,74,0.2)" : "rgba(194,101,74,0.15)",
+          handleStyle: { color: "#c2654a" },
+          textStyle: { color: isDark ? "#aaa" : "#666" },
+        },
+      ],
+      animation: true,
+      animationDuration: 300,
+    };
+  }, [visibleSeries, visibleInterventions, isDark]);
+
+  const onDataZoom = useCallback(
+    (params: Record<string, unknown>) => {
+      const batch = params.batch as Array<{ start?: number; end?: number }> | undefined;
+      if (batch && batch.length > 0) {
+        const { start, end } = batch[0];
+        if (start != null && end != null) {
+          setZoomRange([start, end]);
+        }
+      } else if (params.start != null && params.end != null) {
+        setZoomRange([params.start as number, params.end as number]);
+      }
+    },
+    [setZoomRange],
+  );
+
+  if (visibleSeries.length === 0 || visibleSeries.every((s) => s.points.length === 0)) {
     return (
       <div className="op-empty">
         {series.length === 0
@@ -117,150 +197,14 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
     );
   }
 
-  const xAccessor = (d: ChartDatum) => d.timestamp;
-
-  const formatDate = (v: number | Date): string => {
-    const d = new Date(Number(v));
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${month}/${day}`;
-  };
-
-  const hasDualAxes = units.length === 2;
-
-  const minTs = data[0].timestamp;
-  const maxTs = data[data.length - 1].timestamp;
-  const range = maxTs - minTs;
-
   return (
-    <div style={{ width: "100%", height: 400, position: "relative" }}>
-      <VisXYContainer<ChartDatum> data={data} height={400}>
-        {visibleSeries.map((s, i) => {
-          const key = `${s.source}:${s.field}`;
-          const color = CHART_COLOR_VARS[i % CHART_COLOR_VARS.length];
-          const isObserver = s.source === "observer_polls";
-          return (
-            <VisLine<ChartDatum>
-              key={key}
-              x={xAccessor}
-              y={(d: ChartDatum) => d.values[key] ?? undefined}
-              color={color}
-              lineDashArray={
-                isObserver ? [6, 3] : LINE_DASH_PATTERNS[i % LINE_DASH_PATTERNS.length]
-              }
-            />
-          );
-        })}
-        <VisAxis<ChartDatum> type="x" tickFormat={formatDate} />
-        <VisAxis<ChartDatum> type="y" label={units[0] ?? ""} />
-        {hasDualAxes && <VisAxis<ChartDatum> type="y" label={units[1]} position="right" />}
-        <VisCrosshair<ChartDatum>
-          template={(d: ChartDatum) => {
-            const date = new Date(d.timestamp).toLocaleDateString();
-            const lines = visibleSeries.map((s, i) => {
-              const key = `${s.source}:${s.field}`;
-              const val = d.values[key];
-              const color = CHART_COLOR_VARS[i % CHART_COLOR_VARS.length];
-              const prefix = s.source === "observer_polls" ? "(Observer) " : "";
-              return `<div style="color:${color}">${prefix}${s.field}: ${val != null ? val : "N/A"} ${s.unit}</div>`;
-            });
-            return `<div><strong>${date}</strong>${lines.join("")}</div>`;
-          }}
-        />
-        <VisTooltip />
-      </VisXYContainer>
-
-      {/* Intervention markers overlay */}
-      {markers.length > 0 && range > 0 && (
-        <svg
-          data-testid="intervention-markers"
-          role="img"
-          aria-label={`Intervention markers: ${markers.map((m) => m.label).join(", ")}`}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-          }}
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          onMouseMove={(e) => {
-            const svg = e.currentTarget;
-            const rect = svg.getBoundingClientRect();
-            const xPct = ((e.clientX - rect.left) / rect.width) * 100;
-            const threshold = 2;
-            const closest = markers.find((m) => {
-              const mPct = ((m.timestamp - minTs) / range) * 100;
-              return Math.abs(mPct - xPct) < threshold;
-            });
-            if (closest) {
-              setHoveredMarker(closest);
-              setTooltipPos({ x: e.clientX, y: e.clientY });
-              svg.style.pointerEvents = "auto";
-            } else if (hoveredMarker) {
-              setHoveredMarker(null);
-              setTooltipPos(null);
-            }
-          }}
-          onMouseLeave={() => {
-            setHoveredMarker(null);
-            setTooltipPos(null);
-          }}
-        >
-          <title>Intervention markers</title>
-          {/* Transparent full-area rect to capture mouse events */}
-          <rect
-            x={0}
-            y={0}
-            width={100}
-            height={100}
-            fill="transparent"
-            style={{ pointerEvents: "auto" }}
-          />
-          {markers.map((m) => {
-            const xPct = ((m.timestamp - minTs) / range) * 100;
-            return (
-              <line
-                key={`${m.timestamp}-${m.substance}`}
-                x1={xPct}
-                y1={0}
-                x2={xPct}
-                y2={100}
-                stroke="#9b59b6"
-                strokeWidth={0.3}
-                strokeDasharray="1.5 1"
-                aria-label={`Intervention: ${m.label}`}
-              />
-            );
-          })}
-        </svg>
-      )}
-
-      {/* Intervention tooltip */}
-      {hoveredMarker && tooltipPos && (
-        <div
-          data-testid="intervention-tooltip"
-          style={{
-            position: "fixed",
-            left: tooltipPos.x + 12,
-            top: tooltipPos.y - 10,
-            background: "var(--color-surface, #fff)",
-            border: "1px solid var(--color-border, #ddd)",
-            borderRadius: 6,
-            padding: "6px 10px",
-            fontSize: "var(--text-xs, 12px)",
-            zIndex: 1000,
-            pointerEvents: "none",
-            boxShadow: "var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.1))",
-          }}
-        >
-          <strong>{hoveredMarker.substance}</strong>
-          <br />
-          {hoveredMarker.dose} {hoveredMarker.unit}
-        </div>
-      )}
+    <div style={{ width: "100%", minHeight: 300, height: "50vh" }}>
+      <ReactECharts
+        option={option}
+        style={{ width: "100%", height: "100%" }}
+        notMerge={true}
+        onEvents={{ dataZoom: onDataZoom }}
+      />
     </div>
   );
 }

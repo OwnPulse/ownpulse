@@ -79,30 +79,6 @@
   --sidebar-width: 220px;
   --content-max-width: 72rem;
   --content-padding: 1.5rem;
-
-  /* Chart colors — colorblind-safe (Wong palette) */
-  --chart-1: #e69f00;
-  --chart-2: #56b4e9;
-  --chart-3: #009e73;
-  --chart-4: #0072b2;
-  --chart-deep: #332288;
-  --chart-light: #88ccee;
-  --chart-rem: #d55e00;
-  --chart-awake: #f0e442;
-
-  /* Explore chart series colors */
-  --chart-color-0: #1a1a18;
-  --chart-color-1: #e69f00;
-  --chart-color-2: #56b4e9;
-  --chart-color-3: #009e73;
-  --chart-color-4: #d4a017;
-  --chart-color-5: #0072b2;
-  --chart-color-6: #d55e00;
-  --chart-color-7: #cc79a7;
-
-  /* Chart grid / axis */
-  --chart-grid-color: rgba(0, 0, 0, 0.08);
-  --chart-axis-color: rgba(0, 0, 0, 0.3);
 }
 
 /* Explicit dark mode */
@@ -126,17 +102,6 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-
-  --chart-deep: #88ccee;
-  --chart-light: #56b4e9;
-  --chart-rem: #d55e00;
-  --chart-awake: #f0e442;
-
-  --chart-color-0: #e8e6e1;
-  --chart-color-4: #f0e442;
-
-  --chart-grid-color: rgba(255, 255, 255, 0.08);
-  --chart-axis-color: rgba(255, 255, 255, 0.3);
 }
 
 /* System preference auto-detection (when no explicit theme set) */
@@ -161,16 +126,5 @@
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-
-    --chart-deep: #88ccee;
-    --chart-light: #56b4e9;
-    --chart-rem: #d55e00;
-    --chart-awake: #f0e442;
-
-    --chart-color-0: #e8e6e1;
-    --chart-color-4: #f0e442;
-
-    --chart-grid-color: rgba(255, 255, 255, 0.08);
-    --chart-axis-color: rgba(255, 255, 255, 0.3);
   }
 }

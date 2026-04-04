@@ -38,3 +38,7 @@
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
+
+.customRow input[type="date"] {
+  color-scheme: light dark;
+}

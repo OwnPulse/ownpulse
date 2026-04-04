@@ -7,16 +7,33 @@ import styles from "./DateRangeBar.module.css";
 
 const PRESETS = ["7d", "30d", "90d", "1y", "all"] as const;
 
+function formatDate(ts: number): string {
+  const d = new Date(ts);
+  return d.toISOString().slice(0, 10);
+}
+
 export function DateRangeBar() {
   const dateRange = useExploreStore((s) => s.dateRange);
   const setDateRange = useExploreStore((s) => s.setDateRange);
+  const zoomRange = useExploreStore((s) => s.zoomRange);
+  const resetZoom = useExploreStore((s) => s.resetZoom);
   const [showCustom, setShowCustom] = useState(false);
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
+  const today = new Date().toISOString().slice(0, 10);
+
   const handlePreset = (preset: (typeof PRESETS)[number]) => {
     setShowCustom(false);
     setDateRange({ type: "preset", preset });
+  };
+
+  const handleCustomClick = () => {
+    if (!showCustom && dateRange.type === "custom") {
+      setCustomStart(dateRange.start);
+      setCustomEnd(dateRange.end);
+    }
+    setShowCustom(!showCustom);
   };
 
   const handleCustomApply = () => {
@@ -43,10 +60,20 @@ export function DateRangeBar() {
         <button
           type="button"
           className={`op-btn op-btn-sm ${dateRange.type === "custom" ? styles.active : "op-btn-ghost"}`}
-          onClick={() => setShowCustom(!showCustom)}
+          onClick={handleCustomClick}
         >
           Custom
         </button>
+        {zoomRange && (
+          <button
+            type="button"
+            className="op-btn op-btn-sm op-btn-ghost"
+            onClick={resetZoom}
+            aria-label="Reset zoom"
+          >
+            Reset Zoom ({formatDate(zoomRange[0])} — {formatDate(zoomRange[1])})
+          </button>
+        )}
       </div>
       {showCustom && (
         <div className={styles.customRow}>
@@ -54,6 +81,7 @@ export function DateRangeBar() {
             type="date"
             className="op-input"
             value={customStart}
+            max={today}
             onChange={(e) => setCustomStart(e.target.value)}
             aria-label="Start date"
           />
@@ -62,6 +90,7 @@ export function DateRangeBar() {
             type="date"
             className="op-input"
             value={customEnd}
+            max={today}
             onChange={(e) => setCustomEnd(e.target.value)}
             aria-label="End date"
           />
