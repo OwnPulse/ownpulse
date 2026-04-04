@@ -5,6 +5,15 @@ import Foundation
 import Testing
 @testable import OwnPulse
 
+/// Creates a minimal JWT with the given expiration for testing.
+/// The signature is invalid but JWTDecoder only parses the payload.
+private func makeTestJWT(sub: String = "user-1", exp: Date) -> String {
+    let header = Data(#"{"alg":"HS256","typ":"JWT"}"#.utf8).base64EncodedString()
+    let expTimestamp = Int(exp.timeIntervalSince1970)
+    let payload = Data(#"{"sub":"\#(sub)","exp":\#(expTimestamp)}"#.utf8).base64EncodedString()
+    return "\(header).\(payload).fakesig"
+}
+
 @Suite("AuthService")
 @MainActor
 struct AuthServiceTests {
@@ -206,5 +215,123 @@ struct AuthServiceTests {
         }
 
         #expect(service.isAuthenticated == false)
+    }
+
+    // MARK: - Session restore on init
+
+    @Test("init sets isAuthenticated true when valid access token exists")
+    func initWithValidAccessToken() {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        let validJWT = makeTestJWT(exp: Date().addingTimeInterval(3600))
+        try! mockKeychain.save(key: AuthService.accessTokenKey, data: Data(validJWT.utf8))
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        #expect(service.isAuthenticated == true)
+        // No network calls should be made — token is still valid
+        #expect(mockNetwork.requestCalls.isEmpty)
+    }
+
+    @Test("init sets isAuthenticated true and refreshes when access token expired but refresh token exists")
+    func initWithExpiredAccessTokenAndRefreshToken() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        let expiredJWT = makeTestJWT(exp: Date().addingTimeInterval(-3600))
+        try mockKeychain.save(key: AuthService.accessTokenKey, data: Data(expiredJWT.utf8))
+        try mockKeychain.save(key: AuthService.refreshTokenKey, data: Data("valid-refresh-token".utf8))
+
+        let refreshResponse = TokenResponse(
+            accessToken: "new-access-token",
+            tokenType: "Bearer",
+            expiresIn: 3600
+        )
+        mockNetwork.requestHandler = { method, path, body in
+            if method == "POST" && path == Endpoints.authRefresh {
+                return refreshResponse
+            }
+            fatalError("Unexpected request: \(method) \(path)")
+        }
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        // Should be authenticated immediately (optimistic)
+        #expect(service.isAuthenticated == true)
+
+        // Call refreshAccessToken directly to verify the logic
+        // (the Task in init runs asynchronously and is hard to await)
+        await service.refreshAccessToken()
+
+        #expect(service.isAuthenticated == true)
+        let storedAccess = try mockKeychain.load(key: AuthService.accessTokenKey)
+        #expect(String(data: storedAccess!, encoding: .utf8) == "new-access-token")
+    }
+
+    @Test("init sets isAuthenticated false when no tokens exist")
+    func initWithNoTokens() {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        #expect(service.isAuthenticated == false)
+    }
+
+    @Test("init with only refresh token (no access token) sets isAuthenticated true")
+    func initWithOnlyRefreshToken() {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        mockNetwork.requestHandler = { _, _, _ in
+            return TokenResponse(accessToken: "new-token", tokenType: "Bearer", expiresIn: 3600)
+        }
+
+        try! mockKeychain.save(key: AuthService.refreshTokenKey, data: Data("refresh-token".utf8))
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        #expect(service.isAuthenticated == true)
+    }
+
+    @Test("refreshAccessToken clears tokens and sets isAuthenticated false on network error")
+    func refreshAccessTokenFailure() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        let expiredJWT = makeTestJWT(exp: Date().addingTimeInterval(-3600))
+        try mockKeychain.save(key: AuthService.accessTokenKey, data: Data(expiredJWT.utf8))
+        try mockKeychain.save(key: AuthService.refreshTokenKey, data: Data("bad-refresh".utf8))
+
+        mockNetwork.requestHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        // init will set isAuthenticated = true (expired access + refresh exists)
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        #expect(service.isAuthenticated == true)
+
+        // Calling refresh directly simulates the background Task completing
+        await service.refreshAccessToken()
+
+        #expect(service.isAuthenticated == false)
+        // Tokens should be cleared
+        let accessToken = try mockKeychain.load(key: AuthService.accessTokenKey)
+        let refreshToken = try mockKeychain.load(key: AuthService.refreshTokenKey)
+        #expect(accessToken == nil)
+        #expect(refreshToken == nil)
+    }
+
+    @Test("refreshAccessToken sets isAuthenticated false when refresh token is missing from keychain")
+    func refreshAccessTokenNoRefreshToken() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        // No tokens at all — init leaves isAuthenticated = false
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        #expect(service.isAuthenticated == false)
+
+        // Even if we somehow call refresh, it should remain false
+        await service.refreshAccessToken()
+
+        #expect(service.isAuthenticated == false)
+        #expect(mockNetwork.requestCalls.isEmpty)
     }
 }
