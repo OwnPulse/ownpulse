@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { interventionsApi } from "../api/interventions";
 import { type CreateProtocol, type CreateProtocolLine, protocolsApi } from "../api/protocols";
@@ -59,10 +59,6 @@ interface LineState {
   schedule_pattern: boolean[];
 }
 
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function makeEmptyLine(id: number, durationDays: number): LineState {
   return {
     id,
@@ -75,17 +71,71 @@ function makeEmptyLine(id: number, durationDays: number): LineState {
   };
 }
 
+const DRAFT_KEY = "protocol-builder-draft";
+
+interface DraftState {
+  name: string;
+  weeks: number;
+  lines: LineState[];
+}
+
+function loadDraft(): DraftState | null {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as DraftState;
+    // Basic shape validation
+    if (
+      typeof parsed.name !== "string" ||
+      typeof parsed.weeks !== "number" ||
+      !Array.isArray(parsed.lines)
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function clearDraft() {
+  sessionStorage.removeItem(DRAFT_KEY);
+}
+
 export default function ProtocolBuilder() {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
+  const draft = useRef(loadDraft()).current;
+  const [name, setName] = useState(draft?.name ?? "");
   const [description, setDescription] = useState("");
-  const [startDate, setStartDate] = useState(todayDate);
-  const [weeks, setWeeks] = useState(4);
+  const [weeks, setWeeks] = useState(draft?.weeks ?? 4);
   const [showCustomDuration, setShowCustomDuration] = useState(false);
   const durationDays = weeks * 7;
-  const lineIdCounter = useRef(1);
+  const lineIdCounter = useRef(draft ? Math.max(...draft.lines.map((l) => l.id)) + 1 : 1);
 
-  const [lines, setLines] = useState<LineState[]>(() => [makeEmptyLine(0, durationDays)]);
+  const [lines, setLines] = useState<LineState[]>(
+    () => draft?.lines ?? [makeEmptyLine(0, durationDays)],
+  );
+
+  // Debounced save to sessionStorage
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const saveDraft = useCallback(() => {
+    if (saveTimerRef.current !== undefined) {
+      clearTimeout(saveTimerRef.current);
+    }
+    saveTimerRef.current = setTimeout(() => {
+      const state: DraftState = { name, weeks, lines };
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(state));
+    }, 300);
+  }, [name, weeks, lines]);
+
+  useEffect(() => {
+    saveDraft();
+    return () => {
+      if (saveTimerRef.current !== undefined) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, [saveDraft]);
 
   const { data: interventions } = useQuery({
     queryKey: ["interventions"],
@@ -105,6 +155,7 @@ export default function ProtocolBuilder() {
   const mutation = useMutation({
     mutationFn: (data: CreateProtocol) => protocolsApi.create(data),
     onSuccess: (protocol) => {
+      clearDraft();
       navigate(`/protocols/${protocol.id}`);
     },
   });
@@ -171,7 +222,6 @@ export default function ProtocolBuilder() {
     mutation.mutate({
       name,
       description: description || undefined,
-      start_date: startDate,
       duration_days: durationDays,
       lines: protocolLines,
     });
@@ -195,19 +245,6 @@ export default function ProtocolBuilder() {
                 required
                 className={forms.input}
                 placeholder="e.g. BPC-157 + TB-500 Stack"
-              />
-            </div>
-            <div className={forms.field}>
-              <label className={forms.label} htmlFor="proto-start">
-                Start Date
-              </label>
-              <input
-                id="proto-start"
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-                className={forms.input}
               />
             </div>
             <div className={forms.field}>
@@ -270,7 +307,7 @@ export default function ProtocolBuilder() {
 
         {/* Lines section */}
         <div className={styles.linesSection}>
-          <h2>Lines</h2>
+          <h2>Interventions</h2>
           {lines.map((line, idx) => (
             <div key={line.id} className={styles.lineCard}>
               {lines.length > 1 && (
@@ -278,7 +315,7 @@ export default function ProtocolBuilder() {
                   type="button"
                   className={styles.removeBtn}
                   onClick={() => removeLine(idx)}
-                  aria-label="Remove line"
+                  aria-label="Remove intervention"
                 >
                   &times;
                 </button>
@@ -372,7 +409,7 @@ export default function ProtocolBuilder() {
             </div>
           ))}
           <button type="button" className="op-btn op-btn-ghost" onClick={addLine}>
-            + Add Line
+            + Add Intervention
           </button>
         </div>
 
@@ -398,6 +435,21 @@ export default function ProtocolBuilder() {
           <Link to="/protocols" className="op-btn op-btn-ghost">
             Cancel
           </Link>
+          <button
+            type="button"
+            className="op-btn op-btn-ghost"
+            onClick={() => {
+              clearDraft();
+              setName("");
+              setDescription("");
+              setWeeks(4);
+              setShowCustomDuration(false);
+              lineIdCounter.current = 1;
+              setLines([makeEmptyLine(0, 28)]);
+            }}
+          >
+            Start Over
+          </button>
         </div>
         {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
       </form>
