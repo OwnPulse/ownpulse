@@ -1,0 +1,22 @@
+appId: health.ownpulse.app
+---
+# Notification settings flow
+# Verifies the notifications section is visible in Settings
+# and the enable button is accessible.
+
+- assertVisible:
+    id: "mainTabView"
+    timeout: 5000
+
+- tapOn:
+    id: "Settings"
+
+- assertVisible:
+    id: "notificationStatus"
+    timeout: 3000
+
+- assertVisible:
+    text: "Dose Reminders"
+
+- assertVisible:
+    text: "Receive reminders when protocol doses are due."

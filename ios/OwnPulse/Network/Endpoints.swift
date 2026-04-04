@@ -18,4 +18,6 @@ enum Endpoints {
     static let adminInvites = "/api/v1/admin/invites"
     static let healthRecords = "/api/v1/health-records"
     static let labsBulk = "/api/v1/labs/bulk"
+    static let notificationsRegister = "/api/v1/notifications/register"
+    static let notificationPreferences = "/api/v1/notifications/preferences"
 }

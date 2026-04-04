@@ -3,10 +3,12 @@
 
 import BackgroundTasks
 import SwiftUI
+import UserNotifications
 
 @main
 struct OwnPulseApp: App {
     @State private var dependencies = AppDependencies()
+    @UIApplicationDelegateAdaptor private var notificationDelegate: NotificationDelegate
 
     var body: some Scene {
         WindowGroup {
@@ -17,6 +19,7 @@ struct OwnPulseApp: App {
                 }
                 .onAppear {
                     registerBackgroundTasks()
+                    configureNotificationDelegate()
                 }
         }
     }
@@ -34,6 +37,21 @@ struct OwnPulseApp: App {
                     syncEngine: dependencies.syncEngine
                 )
             }
+        }
+    }
+
+    private func configureNotificationDelegate() {
+        UNUserNotificationCenter.current().delegate = notificationDelegate
+
+        notificationDelegate.onDeviceToken = { [dependencies] tokenData in
+            Task { @MainActor in
+                await dependencies.notificationManager.registerDeviceToken(tokenData)
+            }
+        }
+
+        notificationDelegate.onNotificationTap = { _ in
+            // Notification tap navigates to Dashboard (tab 0) — handled by
+            // ContentView's default tab selection.
         }
     }
 }
