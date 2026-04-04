@@ -205,6 +205,7 @@ jobs:
             values: helm/api/values-staging.yaml
             deployment: api-staging-ownpulse-api
             service: api
+            timeout: "300s"
           - release: web-staging
             chart: helm/web
             values: helm/web/values-staging.yaml
@@ -272,6 +273,7 @@ jobs:
           image-tag: ${{ steps.tag.outputs.tag }}
           values-file: ${{ matrix.values }}
           deployment-name: ${{ matrix.deployment }}
+          timeout: ${{ matrix.timeout || '120s' }}
 
   staging-validate:
     needs: staging-services

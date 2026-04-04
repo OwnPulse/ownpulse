@@ -9,6 +9,7 @@ metadata:
     "helm.sh/hook-delete-policy": before-hook-creation
     "helm.sh/hook-weight": "0"
 spec:
+  activeDeadlineSeconds: 300
   backoffLimit: 3
   template:
     metadata:
@@ -43,6 +44,13 @@ spec:
               echo "Running migrations..."
               api --migrate-only
               echo "Migrations complete."
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           envFrom:
             - secretRef:
                 name: {{ .Values.secret.name }}
