@@ -40,3 +40,4 @@ ios/vendor/
 # Agent symlinks (machine-local, recreated by opdev setup)
 .claude/agents/
 .claude/worktrees/
+ios/build/
