@@ -31,37 +31,8 @@
   text-decoration: line-through;
 }
 
-.swatch {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
+.legendLine {
   flex-shrink: 0;
-}
-
-.swatchPattern1 {
-  background-image: repeating-linear-gradient(
-    0deg,
-    rgba(255, 255, 255, 0.5),
-    rgba(255, 255, 255, 0.5) 2px,
-    transparent 2px,
-    transparent 4px
-  );
-}
-
-.swatchPattern2 {
-  background-image: repeating-linear-gradient(
-    -45deg,
-    rgba(255, 255, 255, 0.5),
-    rgba(255, 255, 255, 0.5) 2px,
-    transparent 2px,
-    transparent 4px
-  );
-}
-
-.swatchPattern3 {
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.6) 1px, transparent 1px);
-  background-size: 4px 4px;
 }
 
 .label {

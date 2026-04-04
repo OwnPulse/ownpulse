@@ -7,19 +7,26 @@ import type { SeriesResponse } from "../../api/explore";
 import type { Intervention } from "../../api/interventions";
 import { metricKey, useExploreStore } from "../../stores/exploreStore";
 
-const CHART_COLORS = [
-  "#000000",
-  "#E69F00",
-  "#56B4E9",
-  "#009E73",
-  "#F0E442",
-  "#0072B2",
-  "#D55E00",
-  "#CC79A7",
+const CHART_COLOR_VARS = [
+  "var(--chart-color-0)",
+  "var(--chart-color-1)",
+  "var(--chart-color-2)",
+  "var(--chart-color-3)",
+  "var(--chart-color-4)",
+  "var(--chart-color-5)",
+  "var(--chart-color-6)",
+  "var(--chart-color-7)",
   "#332288",
   "#88CCEE",
   "#44AA99",
   "#DDCC77",
+];
+
+export const LINE_DASH_PATTERNS: (number[] | undefined)[] = [
+  undefined, // solid
+  [8, 4], // long dash
+  [4, 4], // short dash
+  [8, 4, 2, 4], // dot-dash
 ];
 
 interface ExploreChartProps {
@@ -130,7 +137,7 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
       <VisXYContainer<ChartDatum> data={data} height={400}>
         {visibleSeries.map((s, i) => {
           const key = `${s.source}:${s.field}`;
-          const color = CHART_COLORS[i % CHART_COLORS.length];
+          const color = CHART_COLOR_VARS[i % CHART_COLOR_VARS.length];
           const isObserver = s.source === "observer_polls";
           return (
             <VisLine<ChartDatum>
@@ -138,7 +145,9 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
               x={xAccessor}
               y={(d: ChartDatum) => d.values[key] ?? undefined}
               color={color}
-              lineDashArray={isObserver ? [6, 3] : undefined}
+              lineDashArray={
+                isObserver ? [6, 3] : LINE_DASH_PATTERNS[i % LINE_DASH_PATTERNS.length]
+              }
             />
           );
         })}
@@ -151,7 +160,7 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
             const lines = visibleSeries.map((s, i) => {
               const key = `${s.source}:${s.field}`;
               const val = d.values[key];
-              const color = CHART_COLORS[i % CHART_COLORS.length];
+              const color = CHART_COLOR_VARS[i % CHART_COLOR_VARS.length];
               const prefix = s.source === "observer_polls" ? "(Observer) " : "";
               return `<div style="color:${color}">${prefix}${s.field}: ${val != null ? val : "N/A"} ${s.unit}</div>`;
             });
