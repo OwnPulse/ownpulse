@@ -92,13 +92,13 @@
 
   /* Explore chart series colors */
   --chart-color-0: #1a1a18;
-  --chart-color-1: #E69F00;
-  --chart-color-2: #56B4E9;
-  --chart-color-3: #009E73;
-  --chart-color-4: #D4A017;
-  --chart-color-5: #0072B2;
-  --chart-color-6: #D55E00;
-  --chart-color-7: #CC79A7;
+  --chart-color-1: #e69f00;
+  --chart-color-2: #56b4e9;
+  --chart-color-3: #009e73;
+  --chart-color-4: #d4a017;
+  --chart-color-5: #0072b2;
+  --chart-color-6: #d55e00;
+  --chart-color-7: #cc79a7;
 
   /* Chart grid / axis */
   --chart-grid-color: rgba(0, 0, 0, 0.08);
@@ -132,8 +132,8 @@
   --chart-rem: #d55e00;
   --chart-awake: #f0e442;
 
-  --chart-color-0: #E8E6E1;
-  --chart-color-4: #F0E442;
+  --chart-color-0: #e8e6e1;
+  --chart-color-4: #f0e442;
 
   --chart-grid-color: rgba(255, 255, 255, 0.08);
   --chart-axis-color: rgba(255, 255, 255, 0.3);
@@ -167,8 +167,8 @@
     --chart-rem: #d55e00;
     --chart-awake: #f0e442;
 
-    --chart-color-0: #E8E6E1;
-    --chart-color-4: #F0E442;
+    --chart-color-0: #e8e6e1;
+    --chart-color-4: #f0e442;
 
     --chart-grid-color: rgba(255, 255, 255, 0.08);
     --chart-axis-color: rgba(255, 255, 255, 0.3);

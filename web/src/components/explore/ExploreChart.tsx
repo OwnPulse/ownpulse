@@ -23,10 +23,10 @@ const CHART_COLOR_VARS = [
 ];
 
 export const LINE_DASH_PATTERNS: (number[] | undefined)[] = [
-  undefined,      // solid
-  [8, 4],         // long dash
-  [4, 4],         // short dash
-  [8, 4, 2, 4],   // dot-dash
+  undefined, // solid
+  [8, 4], // long dash
+  [4, 4], // short dash
+  [8, 4, 2, 4], // dot-dash
 ];
 
 interface ExploreChartProps {
@@ -145,7 +145,9 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
               x={xAccessor}
               y={(d: ChartDatum) => d.values[key] ?? undefined}
               color={color}
-              lineDashArray={isObserver ? [6, 3] : LINE_DASH_PATTERNS[i % LINE_DASH_PATTERNS.length]}
+              lineDashArray={
+                isObserver ? [6, 3] : LINE_DASH_PATTERNS[i % LINE_DASH_PATTERNS.length]
+              }
             />
           );
         })}

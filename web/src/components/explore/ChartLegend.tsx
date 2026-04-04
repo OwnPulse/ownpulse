@@ -3,8 +3,8 @@
 
 import type { SeriesResponse } from "../../api/explore";
 import { metricKey, useExploreStore } from "../../stores/exploreStore";
-import { LINE_DASH_PATTERNS } from "./ExploreChart";
 import styles from "./ChartLegend.module.css";
+import { LINE_DASH_PATTERNS } from "./ExploreChart";
 
 const CHART_COLOR_VARS = [
   "var(--chart-color-0)",
@@ -47,7 +47,7 @@ export function ChartLegend({ series }: ChartLegendProps) {
             onClick={() => toggleVisibility(key)}
             aria-label={`Toggle ${s.field} visibility`}
           >
-            <svg width="24" height="12" className={styles.legendLine}>
+            <svg width="24" height="12" className={styles.legendLine} role="img" aria-hidden="true">
               <line
                 x1="0"
                 y1="6"
