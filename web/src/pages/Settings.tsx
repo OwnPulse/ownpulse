@@ -8,6 +8,7 @@ import { accountApi } from "../api/account";
 import { getAuthMethods, logout, unlinkAuth } from "../api/auth";
 import { exportCsv, exportJson } from "../api/export";
 import { sourcePreferencesApi } from "../api/source-preferences";
+import NotificationSettings from "../components/settings/NotificationSettings";
 import { useTheme } from "../hooks/useTheme";
 import styles from "./Settings.module.css";
 
@@ -252,6 +253,8 @@ export default function Settings() {
       </section>
 
       <LinkedAccounts />
+
+      <NotificationSettings />
 
       <div className={styles.dangerZone}>
         <h2 className={styles.dangerTitle}>Danger Zone</h2>

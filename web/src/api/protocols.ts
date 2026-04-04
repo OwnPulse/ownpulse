@@ -125,6 +125,15 @@ export interface TemplateListItem {
   line_count: number;
 }
 
+export interface ActiveSubstance {
+  substance: string;
+  dose: number;
+  unit: string;
+  route: string;
+  protocol_name: string;
+  protocol_id: string;
+}
+
 export const protocolsApi = {
   list: (params?: Record<string, string>) => {
     const qs = params ? `?${new URLSearchParams(params).toString()}` : "";
@@ -146,6 +155,7 @@ export const protocolsApi = {
   exportProtocol: (id: string) => api.get<ProtocolExport>(`/api/v1/protocols/${id}/export`),
   importFromFile: (data: ProtocolExport) =>
     api.post<Protocol>("/api/v1/protocols/import-file", data),
+  activeSubstances: () => api.get<ActiveSubstance[]>("/api/v1/protocols/active-substances"),
   listTemplates: () => api.get<TemplateListItem[]>("/api/v1/protocols/templates"),
   copyTemplate: (id: string, startDate: string) =>
     api.post<Protocol>(`/api/v1/protocols/templates/${id}/copy`, { start_date: startDate }),
