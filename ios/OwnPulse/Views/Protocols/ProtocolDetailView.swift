@@ -305,7 +305,7 @@ struct ProtocolDetailView: View {
             let status = dose?.status ?? .pending
             var label = ""
             if let d = line.dose, let u = line.unit {
-                label = "\(d, specifier: "%.1f") \(u)"
+                label = String(format: "%.1f", d) + " \(u)"
                 if let route = line.route {
                     label += " \(route)"
                 }
