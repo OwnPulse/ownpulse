@@ -6,23 +6,41 @@ interface PatternSelectorProps {
   onSelect: (pattern: boolean[]) => void;
 }
 
-type PatternName = "Daily" | "MWF" | "Every Other Day" | "Weekdays" | "Custom";
+type PatternName =
+  | "Daily"
+  | "Every Other Day"
+  | "Twice a Week"
+  | "3x per Week"
+  | "Weekdays"
+  | "Custom";
 
-const PATTERNS: PatternName[] = ["Daily", "MWF", "Every Other Day", "Weekdays", "Custom"];
+const PATTERNS: PatternName[] = [
+  "Daily",
+  "Every Other Day",
+  "Twice a Week",
+  "3x per Week",
+  "Weekdays",
+  "Custom",
+];
 
 function generatePattern(name: PatternName, days: number): boolean[] | null {
   switch (name) {
     case "Daily":
       return Array(days).fill(true);
-    case "MWF": {
-      // Mon, Wed, Fri = repeating [T, F, T, F, T, F, F]
-      const mwf = [true, false, true, false, true, false, false];
-      return Array.from({ length: days }, (_, i) => mwf[i % 7]);
-    }
     case "Every Other Day":
       return Array.from({ length: days }, (_, i) => i % 2 === 0);
+    case "Twice a Week": {
+      // D1 and D4 of each 7-day cycle
+      const tw = [true, false, false, true, false, false, false];
+      return Array.from({ length: days }, (_, i) => tw[i % 7]);
+    }
+    case "3x per Week": {
+      // D1, D3, D5 of each 7-day cycle
+      const txw = [true, false, true, false, true, false, false];
+      return Array.from({ length: days }, (_, i) => txw[i % 7]);
+    }
     case "Weekdays": {
-      // Mon-Fri = repeating [T, T, T, T, T, F, F]
+      // D1-D5 on, D6-D7 off
       const wd = [true, true, true, true, true, false, false];
       return Array.from({ length: days }, (_, i) => wd[i % 7]);
     }

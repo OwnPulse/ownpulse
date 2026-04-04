@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { interventionsApi } from "../api/interventions";
 import { type CreateProtocol, type CreateProtocolLine, protocolsApi } from "../api/protocols";
 import forms from "../components/forms/forms.module.css";
 import PatternSelector from "../components/protocols/PatternSelector";
@@ -12,9 +13,44 @@ import styles from "./ProtocolBuilder.module.css";
 
 const ROUTES = ["SubQ", "IM", "Oral", "Topical", "Nasal", "IV"] as const;
 
-const WEEK_OPTIONS = Array.from({ length: 52 }, (_, i) => i + 1);
+const DURATION_PRESETS = [
+  { label: "2W", weeks: 2 },
+  { label: "4W", weeks: 4 },
+  { label: "8W", weeks: 8 },
+  { label: "12W", weeks: 12 },
+] as const;
+
+const COMMON_SUBSTANCES = [
+  "BPC-157",
+  "TB-500",
+  "GHK-Cu",
+  "Sermorelin",
+  "Ipamorelin",
+  "CJC-1295",
+  "MK-677",
+  "Enclomiphene",
+  "Testosterone Cypionate",
+  "Metformin",
+  "Rapamycin",
+  "NAD+",
+  "NMN",
+  "Resveratrol",
+  "Vitamin D3",
+  "Vitamin K2",
+  "Magnesium Glycinate",
+  "Zinc",
+  "Ashwagandha",
+  "Tongkat Ali",
+  "Creatine",
+  "Fish Oil",
+  "Melatonin",
+  "L-Theanine",
+  "Caffeine",
+  "Modafinil",
+];
 
 interface LineState {
+  id: number;
   substance: string;
   dose: string;
   unit: string;
@@ -27,8 +63,9 @@ function todayDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function makeEmptyLine(durationDays: number): LineState {
+function makeEmptyLine(id: number, durationDays: number): LineState {
   return {
+    id,
     substance: "",
     dose: "",
     unit: "",
@@ -44,9 +81,26 @@ export default function ProtocolBuilder() {
   const [description, setDescription] = useState("");
   const [startDate, setStartDate] = useState(todayDate);
   const [weeks, setWeeks] = useState(4);
+  const [showCustomDuration, setShowCustomDuration] = useState(false);
   const durationDays = weeks * 7;
+  const lineIdCounter = useRef(1);
 
-  const [lines, setLines] = useState<LineState[]>([makeEmptyLine(durationDays)]);
+  const [lines, setLines] = useState<LineState[]>(() => [makeEmptyLine(0, durationDays)]);
+
+  const { data: interventions } = useQuery({
+    queryKey: ["interventions"],
+    queryFn: () => interventionsApi.list(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const substanceSuggestions = useMemo(() => {
+    const userSubstances = interventions
+      ? [...new Set(interventions.map((iv) => iv.substance))]
+      : [];
+    const merged = [...new Set([...userSubstances, ...COMMON_SUBSTANCES])];
+    merged.sort((a, b) => a.localeCompare(b));
+    return merged;
+  }, [interventions]);
 
   const mutation = useMutation({
     mutationFn: (data: CreateProtocol) => protocolsApi.create(data),
@@ -64,7 +118,8 @@ export default function ProtocolBuilder() {
   };
 
   const addLine = () => {
-    setLines((prev) => [...prev, makeEmptyLine(durationDays)]);
+    const id = lineIdCounter.current++;
+    setLines((prev) => [...prev, makeEmptyLine(id, durationDays)]);
   };
 
   const handleWeeksChange = (newWeeks: number) => {
@@ -156,21 +211,47 @@ export default function ProtocolBuilder() {
               />
             </div>
             <div className={forms.field}>
-              <label className={forms.label} htmlFor="proto-weeks">
-                Duration
-              </label>
-              <select
-                id="proto-weeks"
-                value={weeks}
-                onChange={(e) => handleWeeksChange(parseInt(e.target.value, 10))}
-                className={forms.select}
-              >
-                {WEEK_OPTIONS.map((w) => (
-                  <option key={w} value={w}>
-                    {w} {w === 1 ? "week" : "weeks"}
-                  </option>
+              <span className={forms.label}>Duration</span>
+              <div className={styles.durationPresets}>
+                {DURATION_PRESETS.map((preset) => (
+                  <button
+                    key={preset.weeks}
+                    type="button"
+                    className={`op-btn op-btn-sm ${!showCustomDuration && weeks === preset.weeks ? styles.durationActive : "op-btn-ghost"}`}
+                    onClick={() => {
+                      setShowCustomDuration(false);
+                      handleWeeksChange(preset.weeks);
+                    }}
+                  >
+                    {preset.label}
+                  </button>
                 ))}
-              </select>
+                <button
+                  type="button"
+                  className={`op-btn op-btn-sm ${showCustomDuration ? styles.durationActive : "op-btn-ghost"}`}
+                  onClick={() => setShowCustomDuration(true)}
+                >
+                  Custom
+                </button>
+              </div>
+              {showCustomDuration && (
+                <div className={styles.customDuration}>
+                  <input
+                    id="proto-weeks"
+                    type="number"
+                    min={1}
+                    max={52}
+                    value={weeks}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      if (v >= 1 && v <= 52) handleWeeksChange(v);
+                    }}
+                    className={forms.input}
+                    aria-label="Custom duration in weeks"
+                  />
+                  <span className={styles.weeksSuffix}>{weeks === 1 ? "week" : "weeks"}</span>
+                </div>
+              )}
             </div>
           </div>
           <div className={forms.field}>
@@ -191,7 +272,7 @@ export default function ProtocolBuilder() {
         <div className={styles.linesSection}>
           <h2>Lines</h2>
           {lines.map((line, idx) => (
-            <div key={line.substance || `line-${idx}`} className={styles.lineCard}>
+            <div key={line.id} className={styles.lineCard}>
               {lines.length > 1 && (
                 <button
                   type="button"
@@ -209,11 +290,18 @@ export default function ProtocolBuilder() {
                   </label>
                   <input
                     id={`line-sub-${idx}`}
+                    list={`substance-suggestions-${idx}`}
                     value={line.substance}
                     onChange={(e) => updateLine(idx, { substance: e.target.value })}
                     required
                     className={forms.input}
+                    autoComplete="off"
                   />
+                  <datalist id={`substance-suggestions-${idx}`}>
+                    {substanceSuggestions.map((s) => (
+                      <option key={s} value={s} />
+                    ))}
+                  </datalist>
                 </div>
                 <div className={forms.field}>
                   <label className={forms.label} htmlFor={`line-dose-${idx}`}>
@@ -275,6 +363,7 @@ export default function ProtocolBuilder() {
                 </div>
               </div>
               <div className={styles.patternRow}>
+                <span className={styles.patternLabel}>Schedule:</span>
                 <PatternSelector
                   durationDays={durationDays}
                   onSelect={(pattern) => handlePatternSelect(idx, pattern)}
