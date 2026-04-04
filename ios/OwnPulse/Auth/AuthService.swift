@@ -52,6 +52,38 @@ final class AuthService: AuthServiceProtocol {
            let token = String(data: tokenData, encoding: .utf8),
            !JWTDecoder.isExpired(token) {
             isAuthenticated = true
+        } else if let _ = try? keychainService.load(key: Self.refreshTokenKey) {
+            // Access token expired but refresh token exists — assume authenticated
+            // and trigger background refresh
+            isAuthenticated = true
+            Task {
+                await refreshAccessToken()
+            }
+        }
+    }
+
+    func refreshAccessToken() async {
+        guard let refreshData = try? keychainService.load(key: Self.refreshTokenKey),
+              let refreshToken = String(data: refreshData, encoding: .utf8) else {
+            isAuthenticated = false
+            return
+        }
+
+        do {
+            let body = RefreshRequest(refreshToken: refreshToken)
+            let response: TokenResponse = try await networkClient.request(
+                method: "POST",
+                path: Endpoints.authRefresh,
+                body: body
+            )
+            try keychainService.save(key: Self.accessTokenKey, data: Data(response.accessToken.utf8))
+            logger.info("Session restored via refresh token")
+        } catch {
+            logger.error("Session refresh failed: \(error.localizedDescription, privacy: .public)")
+            // Refresh failed — clear tokens and require re-login
+            try? keychainService.delete(key: Self.accessTokenKey)
+            try? keychainService.delete(key: Self.refreshTokenKey)
+            isAuthenticated = false
         }
     }
 
