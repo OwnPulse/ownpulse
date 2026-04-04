@@ -19,7 +19,8 @@ struct DashboardView: View {
         .refreshable {
             await viewModel?.loadDashboard()
         }
-        .navigationTitle("OwnPulse")
+        .navigationTitle("Dashboard")
+        .navigationBarTitleDisplayMode(.large)
         .background(backgroundGradient)
         .onAppear {
             if viewModel == nil {
