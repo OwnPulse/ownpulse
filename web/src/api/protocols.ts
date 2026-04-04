@@ -92,6 +92,44 @@ export interface SkipDoseRequest {
   day_number: number;
 }
 
+export interface ProtocolRun {
+  id: string;
+  protocol_id: string;
+  user_id: string;
+  start_date: string;
+  status: "active" | "paused" | "completed";
+  notify: boolean;
+  notify_times: string[];
+  repeat_reminders: boolean;
+  repeat_interval_minutes: number;
+  created_at: string;
+}
+
+export interface CreateRunRequest {
+  start_date?: string;
+  notify?: boolean;
+  notify_times?: string[];
+  repeat_reminders?: boolean;
+  repeat_interval_minutes?: number;
+}
+
+export interface UpdateRunRequest {
+  status?: "active" | "paused" | "completed";
+  notify?: boolean;
+  notify_times?: string[];
+  repeat_reminders?: boolean;
+  repeat_interval_minutes?: number;
+}
+
+export interface ActiveRun {
+  run: ProtocolRun;
+  protocol_name: string;
+  doses_today: number;
+  doses_completed_today: number;
+  total_doses: number;
+  completed_doses: number;
+}
+
 export interface ShareResponse {
   share_token: string;
   share_url: string;
@@ -148,4 +186,12 @@ export const protocolsApi = {
   listTemplates: () => api.get<TemplateListItem[]>("/api/v1/protocols/templates"),
   copyTemplate: (id: string, startDate: string) =>
     api.post<Protocol>(`/api/v1/protocols/templates/${id}/copy`, { start_date: startDate }),
+
+  // Protocol runs
+  startRun: (protocolId: string, data: CreateRunRequest) =>
+    api.post<ProtocolRun>(`/api/v1/protocols/${protocolId}/runs`, data),
+  listRuns: (protocolId: string) => api.get<ProtocolRun[]>(`/api/v1/protocols/${protocolId}/runs`),
+  activeRuns: () => api.get<ActiveRun[]>("/api/v1/protocols/runs/active"),
+  updateRun: (runId: string, data: UpdateRunRequest) =>
+    api.patch<ProtocolRun>(`/api/v1/protocols/runs/${runId}`, data),
 };

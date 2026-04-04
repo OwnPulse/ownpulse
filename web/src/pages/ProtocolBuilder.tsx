@@ -9,6 +9,7 @@ import { type CreateProtocol, type CreateProtocolLine, protocolsApi } from "../a
 import forms from "../components/forms/forms.module.css";
 import PatternSelector from "../components/protocols/PatternSelector";
 import SequencerGrid from "../components/protocols/SequencerGrid";
+import { StartRunModal } from "../components/protocols/StartRunModal";
 import styles from "./ProtocolBuilder.module.css";
 
 const ROUTES = ["SubQ", "IM", "Oral", "Topical", "Nasal", "IV"] as const;
@@ -107,6 +108,11 @@ export default function ProtocolBuilder() {
   const draft = useRef(loadDraft()).current;
   const [name, setName] = useState(draft?.name ?? "");
   const [description, setDescription] = useState("");
+  const [createdProtocol, setCreatedProtocol] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [showStartNow, setShowStartNow] = useState(false);
   const [weeks, setWeeks] = useState(draft?.weeks ?? 4);
   const [showCustomDuration, setShowCustomDuration] = useState(false);
   const durationDays = weeks * 7;
@@ -156,7 +162,7 @@ export default function ProtocolBuilder() {
     mutationFn: (data: CreateProtocol) => protocolsApi.create(data),
     onSuccess: (protocol) => {
       clearDraft();
-      navigate(`/protocols/${protocol.id}`);
+      setCreatedProtocol({ id: protocol.id, name: protocol.name });
     },
   });
 
@@ -226,6 +232,38 @@ export default function ProtocolBuilder() {
       lines: protocolLines,
     });
   };
+
+  if (createdProtocol) {
+    return (
+      <main className="op-page">
+        <h1>Protocol Created</h1>
+        <p style={{ marginBottom: "1rem" }}>
+          <strong>{createdProtocol.name}</strong> has been created.
+        </p>
+        <p style={{ marginBottom: "1.5rem" }}>Would you like to start a run now?</p>
+        <div style={{ display: "flex", gap: "0.75rem" }}>
+          <button
+            type="button"
+            className="op-btn op-btn-primary"
+            onClick={() => setShowStartNow(true)}
+          >
+            Start Now
+          </button>
+          <Link to={`/protocols/${createdProtocol.id}`} className="op-btn op-btn-ghost">
+            View Protocol
+          </Link>
+        </div>
+        {showStartNow && (
+          <StartRunModal
+            protocolId={createdProtocol.id}
+            protocolName={createdProtocol.name}
+            onClose={() => setShowStartNow(false)}
+            onStarted={() => navigate(`/protocols/${createdProtocol.id}`)}
+          />
+        )}
+      </main>
+    );
+  }
 
   return (
     <main className="op-page">

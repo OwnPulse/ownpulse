@@ -4,12 +4,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { Protocol, TodaysDose } from "../api/protocols";
+import type { Protocol, ProtocolRun, TodaysDose, UpdateRunRequest } from "../api/protocols";
 import { protocolsApi } from "../api/protocols";
 import { DoseStatusGrid } from "../components/protocols/DoseStatusGrid";
+import { StartRunModal } from "../components/protocols/StartRunModal";
 import styles from "./ProtocolView.module.css";
 
-function badgeClass(status: Protocol["status"]): string {
+function runStatusBadgeClass(status: ProtocolRun["status"]): string {
   if (status === "active") return styles.badgeActive;
   if (status === "paused") return styles.badgePaused;
   return styles.badgeCompleted;
@@ -30,8 +31,9 @@ function computeProgress(protocol: Protocol): { completed: number; total: number
   return { completed, total };
 }
 
-function computeTodaysDoses(protocol: Protocol): TodaysDose[] {
-  const todayDay = Math.floor((Date.now() - new Date(protocol.start_date).getTime()) / 86400000);
+function computeTodaysDoses(protocol: Protocol, run: ProtocolRun | null): TodaysDose[] {
+  if (!run) return [];
+  const todayDay = Math.floor((Date.now() - new Date(run.start_date).getTime()) / 86400000);
   if (todayDay < 0 || todayDay >= protocol.duration_days) return [];
 
   return protocol.lines
@@ -59,6 +61,7 @@ export default function ProtocolView() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [shareLink, setShareLink] = useState<string | null>(null);
+  const [showStartRun, setShowStartRun] = useState(false);
 
   const {
     data: protocol,
@@ -73,6 +76,17 @@ export default function ProtocolView() {
     enabled: !!id,
   });
 
+  const { data: runs } = useQuery({
+    queryKey: ["protocol-runs", id],
+    queryFn: () => {
+      if (!id) throw new Error("Missing protocol id");
+      return protocolsApi.listRuns(id);
+    },
+    enabled: !!id,
+  });
+
+  const activeRun = runs?.find((r) => r.status === "active") ?? null;
+
   const logDose = useMutation({
     mutationFn: (data: { protocolLineId: string; dayNumber: number }) => {
       if (!id) throw new Error("Missing protocol id");
@@ -84,6 +98,7 @@ export default function ProtocolView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
+      queryClient.invalidateQueries({ queryKey: ["active-runs"] });
     },
   });
 
@@ -98,6 +113,7 @@ export default function ProtocolView() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
+      queryClient.invalidateQueries({ queryKey: ["active-runs"] });
     },
   });
 
@@ -112,14 +128,13 @@ export default function ProtocolView() {
     },
   });
 
-  const updateMutation = useMutation({
-    mutationFn: (data: Partial<Pick<Protocol, "status">>) => {
-      if (!id) throw new Error("Missing protocol id");
-      return protocolsApi.update(id, data);
-    },
+  const updateRunMutation = useMutation({
+    mutationFn: ({ runId, data }: { runId: string; data: UpdateRunRequest }) =>
+      protocolsApi.updateRun(runId, data),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["protocol-runs", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
-      queryClient.invalidateQueries({ queryKey: ["protocols"] });
+      queryClient.invalidateQueries({ queryKey: ["active-runs"] });
     },
   });
 
@@ -151,26 +166,27 @@ export default function ProtocolView() {
   if (isError || !protocol) return <main className="op-page">Error loading protocol.</main>;
 
   const progress = computeProgress(protocol);
-  const todaysDoses = computeTodaysDoses(protocol);
+  const todaysDoses = computeTodaysDoses(protocol, activeRun);
   const pct = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
 
   return (
     <main className={`op-page ${styles.page}`}>
+      {showStartRun && (
+        <StartRunModal
+          protocolId={protocol.id}
+          protocolName={protocol.name}
+          onClose={() => setShowStartRun(false)}
+        />
+      )}
+
       {/* Header */}
       <div className={styles.header}>
         <h1>{protocol.name}</h1>
-        <span className={`${styles.badge} ${badgeClass(protocol.status)}`}>
-          {protocol.status === "active"
-            ? "\u25CF "
-            : protocol.status === "paused"
-              ? "\u23F8 "
-              : "\u2713 "}
-          {protocol.status}
-        </span>
       </div>
 
       <div className={styles.meta}>
-        Started {protocol.start_date} &middot; {protocol.duration_days} days
+        {protocol.duration_days} days
+        {activeRun ? ` \u00b7 Run started ${activeRun.start_date}` : ""}
       </div>
 
       {/* Progress bar */}
@@ -183,73 +199,152 @@ export default function ProtocolView() {
         </div>
       </div>
 
+      {/* Runs section */}
+      <section className={styles.runsSection}>
+        <div className={styles.runsSectionHeader}>
+          <h2>Runs</h2>
+          <button
+            type="button"
+            className="op-btn op-btn-primary op-btn-sm"
+            onClick={() => setShowStartRun(true)}
+          >
+            Start New Run
+          </button>
+        </div>
+        {runs && runs.length > 0 ? (
+          <div className={styles.runsList}>
+            {runs.map((run) => (
+              <div key={run.id} className={`op-card ${styles.runCard}`}>
+                <div className={styles.runCardHeader}>
+                  <span className={`${styles.badge} ${runStatusBadgeClass(run.status)}`}>
+                    {run.status}
+                  </span>
+                  <span className={styles.runDate}>Started {run.start_date}</span>
+                </div>
+                <div className={styles.runActions}>
+                  {run.status === "active" && (
+                    <>
+                      <button
+                        type="button"
+                        className="op-btn op-btn-ghost op-btn-sm"
+                        onClick={() =>
+                          updateRunMutation.mutate({
+                            runId: run.id,
+                            data: { status: "paused" },
+                          })
+                        }
+                        disabled={updateRunMutation.isPending}
+                      >
+                        Pause
+                      </button>
+                      <button
+                        type="button"
+                        className="op-btn op-btn-ghost op-btn-sm"
+                        onClick={() =>
+                          updateRunMutation.mutate({
+                            runId: run.id,
+                            data: { status: "completed" },
+                          })
+                        }
+                        disabled={updateRunMutation.isPending}
+                      >
+                        Complete
+                      </button>
+                    </>
+                  )}
+                  {run.status === "paused" && (
+                    <button
+                      type="button"
+                      className="op-btn op-btn-ghost op-btn-sm"
+                      onClick={() =>
+                        updateRunMutation.mutate({
+                          runId: run.id,
+                          data: { status: "active" },
+                        })
+                      }
+                      disabled={updateRunMutation.isPending}
+                    >
+                      Resume
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className={styles.emptyDoses}>No runs yet. Start your first run.</p>
+        )}
+      </section>
+
       {/* Dose status grid */}
       <section className={styles.gridSection}>
         <h2>Schedule</h2>
         <DoseStatusGrid
           lines={protocol.lines}
-          startDate={protocol.start_date}
+          startDate={activeRun?.start_date ?? protocol.start_date}
           durationDays={protocol.duration_days}
         />
       </section>
 
-      {/* Today's doses */}
-      <section className={styles.dosesSection}>
-        <h2>Today&rsquo;s Doses</h2>
-        {todaysDoses.length === 0 && (
-          <p className={styles.emptyDoses}>No doses scheduled for today.</p>
-        )}
-        {todaysDoses.map((td) => (
-          <div key={td.protocol_line_id} className={`op-card ${styles.doseItem}`}>
-            <div className={styles.doseInfo}>
-              <span className={styles.doseSubstance}>
-                {td.substance} {td.dose}
-                {td.unit}
-              </span>
-              <span className={styles.doseMeta}>
-                {td.route}
-                {td.time_of_day ? ` \u00b7 ${td.time_of_day}` : ""}
-              </span>
-            </div>
-            {td.status === "pending" ? (
-              <div className={styles.doseActions}>
-                <button
-                  type="button"
-                  className="op-btn op-btn-primary op-btn-sm"
-                  onClick={() =>
-                    logDose.mutate({
-                      protocolLineId: td.protocol_line_id,
-                      dayNumber: td.day_number,
-                    })
-                  }
-                  disabled={logDose.isPending}
-                >
-                  Log
-                </button>
-                <button
-                  type="button"
-                  className="op-btn op-btn-ghost op-btn-sm"
-                  onClick={() =>
-                    skipDose.mutate({
-                      protocolLineId: td.protocol_line_id,
-                      dayNumber: td.day_number,
-                    })
-                  }
-                  disabled={skipDose.isPending}
-                >
-                  Skip
-                </button>
+      {/* Today's doses (only if active run) */}
+      {activeRun && (
+        <section className={styles.dosesSection}>
+          <h2>Today&rsquo;s Doses</h2>
+          {todaysDoses.length === 0 && (
+            <p className={styles.emptyDoses}>No doses scheduled for today.</p>
+          )}
+          {todaysDoses.map((td) => (
+            <div key={td.protocol_line_id} className={`op-card ${styles.doseItem}`}>
+              <div className={styles.doseInfo}>
+                <span className={styles.doseSubstance}>
+                  {td.substance} {td.dose}
+                  {td.unit}
+                </span>
+                <span className={styles.doseMeta}>
+                  {td.route}
+                  {td.time_of_day ? ` \u00b7 ${td.time_of_day}` : ""}
+                </span>
               </div>
-            ) : (
-              <span
-                className={`${styles.doseStatus} ${td.status === "completed" ? styles.statusCompleted : styles.statusSkipped}`}
-              >
-                {td.status}
-              </span>
-            )}
-          </div>
-        ))}
-      </section>
+              {td.status === "pending" ? (
+                <div className={styles.doseActions}>
+                  <button
+                    type="button"
+                    className="op-btn op-btn-primary op-btn-sm"
+                    onClick={() =>
+                      logDose.mutate({
+                        protocolLineId: td.protocol_line_id,
+                        dayNumber: td.day_number,
+                      })
+                    }
+                    disabled={logDose.isPending}
+                  >
+                    Log
+                  </button>
+                  <button
+                    type="button"
+                    className="op-btn op-btn-ghost op-btn-sm"
+                    onClick={() =>
+                      skipDose.mutate({
+                        protocolLineId: td.protocol_line_id,
+                        dayNumber: td.day_number,
+                      })
+                    }
+                    disabled={skipDose.isPending}
+                  >
+                    Skip
+                  </button>
+                </div>
+              ) : (
+                <span
+                  className={`${styles.doseStatus} ${td.status === "completed" ? styles.statusCompleted : styles.statusSkipped}`}
+                >
+                  {td.status}
+                </span>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
 
       {/* Actions */}
       <div className={styles.actions}>
@@ -264,25 +359,6 @@ export default function ProtocolView() {
         >
           Share
         </button>
-        {protocol.status === "active" ? (
-          <button
-            type="button"
-            className="op-btn op-btn-ghost"
-            onClick={() => updateMutation.mutate({ status: "paused" })}
-            disabled={updateMutation.isPending}
-          >
-            Pause
-          </button>
-        ) : protocol.status === "paused" ? (
-          <button
-            type="button"
-            className="op-btn op-btn-ghost"
-            onClick={() => updateMutation.mutate({ status: "active" })}
-            disabled={updateMutation.isPending}
-          >
-            Resume
-          </button>
-        ) : null}
         <button
           type="button"
           className="op-btn op-btn-danger"

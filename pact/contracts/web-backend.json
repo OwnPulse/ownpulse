@@ -1162,6 +1162,142 @@
       "response": {
         "status": 204
       }
+    },
+    {
+      "description": "a request to start a protocol run",
+      "providerState": "protocol exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/protocols/proto-1/runs",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "start_date": "2026-03-28",
+          "notify": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "run-uuid-1",
+          "protocol_id": "proto-1",
+          "user_id": "user-1",
+          "start_date": "2026-03-28",
+          "status": "active",
+          "notify": false,
+          "notify_times": [],
+          "repeat_reminders": false,
+          "repeat_interval_minutes": 30,
+          "created_at": "2026-03-28T10:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to list runs for a protocol",
+      "providerState": "protocol exists with runs",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/proto-1/runs",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "run-uuid-1",
+            "protocol_id": "proto-1",
+            "user_id": "user-1",
+            "start_date": "2026-03-28",
+            "status": "active",
+            "notify": false,
+            "notify_times": [],
+            "repeat_reminders": false,
+            "repeat_interval_minutes": 30,
+            "created_at": "2026-03-28T10:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to list active runs across all protocols",
+      "providerState": "active protocol runs exist",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/active",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "run": {
+              "id": "run-uuid-1",
+              "protocol_id": "proto-1",
+              "user_id": "user-1",
+              "start_date": "2026-03-28",
+              "status": "active",
+              "notify": false,
+              "notify_times": [],
+              "repeat_reminders": false,
+              "repeat_interval_minutes": 30,
+              "created_at": "2026-03-28T10:00:00Z"
+            },
+            "protocol_name": "BPC-157 Stack",
+            "doses_today": 3,
+            "doses_completed_today": 1,
+            "total_doses": 60,
+            "completed_doses": 20
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to update a protocol run status",
+      "providerState": "active protocol run exists",
+      "request": {
+        "method": "PATCH",
+        "path": "/api/v1/protocols/runs/run-uuid-1",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "status": "paused"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "run-uuid-1",
+          "protocol_id": "proto-1",
+          "user_id": "user-1",
+          "start_date": "2026-03-28",
+          "status": "paused",
+          "notify": false,
+          "notify_times": [],
+          "repeat_reminders": false,
+          "repeat_interval_minutes": 30,
+          "created_at": "2026-03-28T10:00:00Z"
+        }
+      }
     }
   ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }
