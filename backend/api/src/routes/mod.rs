@@ -408,12 +408,44 @@ fn base_routes() -> Router<AppState> {
             post(protocols::copy_template),
         )
         .route("/protocols/todays-doses", get(protocols::todays_doses))
+        .route(
+            "/protocols/active-substances",
+            get(protocols::active_substances),
+        )
+        .route("/protocols/runs/active", get(protocols::list_active_runs))
+        .route("/protocols/runs/:run_id", patch(protocols::update_run))
+        .route(
+            "/protocols/runs/:run_id/doses/log",
+            post(protocols::log_dose_on_run),
+        )
+        .route(
+            "/protocols/runs/:run_id/doses/skip",
+            post(protocols::skip_dose_on_run),
+        )
+        .route(
+            "/protocols/notifications",
+            get(protocols::get_notification_preferences),
+        )
+        .route(
+            "/protocols/notifications",
+            put(protocols::update_notification_preferences),
+        )
+        .route(
+            "/notifications/push-token",
+            post(protocols::register_push_token),
+        )
+        .route(
+            "/notifications/push-token/:device_token",
+            delete(protocols::delete_push_token),
+        )
         .route("/protocols", post(protocols::create_protocol))
         .route("/protocols", get(protocols::list_protocols))
         .route("/protocols/:id", get(protocols::get_protocol))
         .route("/protocols/:id", patch(protocols::update_protocol))
         .route("/protocols/:id", delete(protocols::delete_protocol))
         .route("/protocols/:id/export", get(protocols::export_protocol))
+        .route("/protocols/:id/runs", post(protocols::create_run))
+        .route("/protocols/:id/runs", get(protocols::list_runs))
         .route("/protocols/:id/doses/log", post(protocols::log_dose))
         .route("/protocols/:id/doses/skip", post(protocols::skip_dose))
         .route("/protocols/:id/share", post(protocols::share_protocol))

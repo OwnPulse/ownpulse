@@ -67,7 +67,7 @@ async fn test_create_protocol() {
 
     assert_eq!(json["name"], "Test Protocol");
     assert_eq!(json["duration_days"], 7);
-    assert_eq!(json["status"], "active");
+    assert_eq!(json["status"], "draft");
     assert!(!json["id"].as_str().unwrap_or_default().is_empty());
 
     let lines = json["lines"].as_array().expect("lines should be an array");
@@ -873,6 +873,22 @@ async fn test_todays_doses() {
         .await
         .unwrap();
     assert_eq!(create_resp.status(), 201);
+    let created = common::body_json(create_resp).await;
+    let protocol_id = created["id"].as_str().unwrap();
+
+    // Start a run so todays-doses can find it
+    let run_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/{protocol_id}/runs"),
+            &token,
+            Some(&json!({})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(run_resp.status(), 201);
 
     // Fetch today's doses
     let resp = app

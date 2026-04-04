@@ -7,12 +7,16 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::models::protocol::{
-    CreateProtocol, LogDoseRequest, ProtocolDoseRow, ProtocolExport, ProtocolLineExport,
+    ActiveSubstanceItem, CreateProtocol, CreateRunRequest, LogDoseRequest,
+    NotificationPreferencesRow, ProtocolDoseRow, ProtocolExport, ProtocolLineExport,
     ProtocolLineResponse, ProtocolLineRow, ProtocolListItem, ProtocolResponse, ProtocolRow,
-    SkipDoseRequest, TemplateListItem, TodaysDoseItem, UpdateProtocol,
+    ProtocolRunRow, PushTokenRow, RegisterPushTokenRequest, RunResponse, SkipDoseRequest,
+    TemplateListItem, TodaysDoseItem, UpdateNotificationPreferences, UpdateProtocol,
+    UpdateRunRequest,
 };
 
 /// Insert a new protocol with its lines in a transaction.
+/// `start_date` is now optional (protocols are recipes).
 pub async fn insert(
     pool: &PgPool,
     user_id: Uuid,
@@ -60,7 +64,7 @@ pub async fn insert(
     Ok(protocol)
 }
 
-/// List protocols for a user with computed progress.
+/// List protocols for a user (recipes). Progress is computed from active runs.
 pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<ProtocolListItem>, sqlx::Error> {
     sqlx::query_as::<_, ProtocolListItem>(
         "SELECT
@@ -71,24 +75,36 @@ pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<ProtocolListItem>,
             p.duration_days,
             p.is_template,
             p.tags,
-            CASE
-                WHEN p.status = 'completed' THEN 100.0
-                WHEN CURRENT_DATE < p.start_date THEN 0.0
-                ELSE LEAST(
-                    100.0,
-                    (CURRENT_DATE - p.start_date)::double precision / p.duration_days * 100.0
-                )
-            END AS progress_pct,
+            COALESCE(
+                (SELECT
+                    CASE
+                        WHEN r.status = 'completed' THEN 100.0
+                        WHEN CURRENT_DATE < r.start_date THEN 0.0
+                        ELSE LEAST(
+                            100.0,
+                            (CURRENT_DATE - r.start_date)::double precision / p.duration_days * 100.0
+                        )
+                    END
+                 FROM protocol_runs r
+                 WHERE r.protocol_id = p.id AND r.status = 'active'
+                 ORDER BY r.created_at DESC
+                 LIMIT 1),
+                0.0
+            ) AS progress_pct,
             (
                 SELECT pl.substance
                 FROM protocol_lines pl
+                LEFT JOIN protocol_runs r
+                    ON r.protocol_id = p.id AND r.status = 'active'
                 LEFT JOIN protocol_doses pd
                     ON pd.protocol_line_id = pl.id
-                    AND pd.day_number = (CURRENT_DATE - p.start_date)
+                    AND pd.run_id = r.id
+                    AND pd.day_number = (CURRENT_DATE - r.start_date)
                 WHERE pl.protocol_id = p.id
+                    AND r.id IS NOT NULL
                     AND pd.id IS NULL
-                    AND (CURRENT_DATE - p.start_date) >= 0
-                    AND (CURRENT_DATE - p.start_date) < p.duration_days
+                    AND (CURRENT_DATE - r.start_date) >= 0
+                    AND (CURRENT_DATE - r.start_date) < p.duration_days
                 ORDER BY pl.sort_order
                 LIMIT 1
             ) AS next_dose,
@@ -103,7 +119,7 @@ pub async fn list(pool: &PgPool, user_id: Uuid) -> Result<Vec<ProtocolListItem>,
     .await
 }
 
-/// Get a full protocol with lines and doses.
+/// Get a full protocol with lines, doses, and runs.
 pub async fn get_by_id(
     pool: &PgPool,
     protocol_id: Uuid,
@@ -122,8 +138,9 @@ pub async fn get_by_id(
     .await?;
 
     let lines = fetch_lines_with_doses(pool, protocol_id).await?;
+    let runs = list_runs_for_protocol(pool, protocol_id, user_id).await?;
 
-    Ok(build_response(protocol, lines))
+    Ok(build_response(protocol, lines, runs))
 }
 
 /// Update a protocol's mutable fields.
@@ -162,7 +179,323 @@ pub async fn delete(pool: &PgPool, protocol_id: Uuid, user_id: Uuid) -> Result<b
     Ok(result.rows_affected() > 0)
 }
 
-/// Log a dose: verify ownership, validate schedule, create intervention, insert dose.
+// --- Protocol Runs ---
+
+/// Create a new run for a protocol.
+pub async fn create_run(
+    pool: &PgPool,
+    protocol_id: Uuid,
+    user_id: Uuid,
+    req: &CreateRunRequest,
+) -> Result<ProtocolRunRow, sqlx::Error> {
+    // Verify user owns the protocol
+    sqlx::query_scalar::<_, Uuid>("SELECT id FROM protocols WHERE id = $1 AND user_id = $2")
+        .bind(protocol_id)
+        .bind(user_id)
+        .fetch_one(pool)
+        .await?;
+
+    let start_date = req.start_date.unwrap_or_else(|| Utc::now().date_naive());
+    let notify = req.notify.unwrap_or(false);
+    let notify_times = req
+        .notify_times
+        .as_ref()
+        .map(|t| serde_json::to_value(t).unwrap_or_default());
+    let repeat_reminders = req.repeat_reminders.unwrap_or(false);
+
+    sqlx::query_as::<_, ProtocolRunRow>(
+        "INSERT INTO protocol_runs
+            (protocol_id, user_id, start_date, notify, notify_time, notify_times,
+             repeat_reminders, repeat_interval_minutes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         RETURNING id, protocol_id, user_id, start_date, status, notify, notify_time,
+                   notify_times, repeat_reminders, repeat_interval_minutes, created_at",
+    )
+    .bind(protocol_id)
+    .bind(user_id)
+    .bind(start_date)
+    .bind(notify)
+    .bind(&req.notify_time)
+    .bind(&notify_times)
+    .bind(repeat_reminders)
+    .bind(req.repeat_interval_minutes)
+    .fetch_one(pool)
+    .await
+}
+
+/// List runs for a specific protocol.
+async fn list_runs_for_protocol(
+    pool: &PgPool,
+    protocol_id: Uuid,
+    user_id: Uuid,
+) -> Result<Vec<RunResponse>, sqlx::Error> {
+    let runs = sqlx::query_as::<_, ProtocolRunRow>(
+        "SELECT id, protocol_id, user_id, start_date, status, notify, notify_time,
+                notify_times, repeat_reminders, repeat_interval_minutes, created_at
+         FROM protocol_runs
+         WHERE protocol_id = $1 AND user_id = $2
+         ORDER BY created_at DESC",
+    )
+    .bind(protocol_id)
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    let duration: Option<i32> =
+        sqlx::query_scalar("SELECT duration_days FROM protocols WHERE id = $1")
+            .bind(protocol_id)
+            .fetch_optional(pool)
+            .await?;
+
+    Ok(runs
+        .into_iter()
+        .map(|r| run_to_response(r, None, duration))
+        .collect())
+}
+
+/// List runs for a protocol (public API endpoint).
+pub async fn list_runs(
+    pool: &PgPool,
+    protocol_id: Uuid,
+    user_id: Uuid,
+) -> Result<Vec<RunResponse>, sqlx::Error> {
+    list_runs_for_protocol(pool, protocol_id, user_id).await
+}
+
+/// List all active runs across all protocols for a user.
+pub async fn list_active_runs(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<RunResponse>, sqlx::Error> {
+    // Use a struct to capture the joined data
+    #[derive(sqlx::FromRow)]
+    struct RunWithProtocol {
+        id: Uuid,
+        protocol_id: Uuid,
+        user_id: Uuid,
+        start_date: NaiveDate,
+        status: String,
+        notify: bool,
+        notify_time: Option<String>,
+        notify_times: Option<serde_json::Value>,
+        repeat_reminders: bool,
+        repeat_interval_minutes: Option<i32>,
+        created_at: chrono::DateTime<Utc>,
+        protocol_name: String,
+        duration_days: i32,
+    }
+
+    let rows = sqlx::query_as::<_, RunWithProtocol>(
+        "SELECT r.id, r.protocol_id, r.user_id, r.start_date, r.status,
+                r.notify, r.notify_time, r.notify_times,
+                r.repeat_reminders, r.repeat_interval_minutes, r.created_at,
+                p.name AS protocol_name, p.duration_days
+         FROM protocol_runs r
+         JOIN protocols p ON p.id = r.protocol_id
+         WHERE r.user_id = $1 AND r.status = 'active'
+         ORDER BY r.created_at DESC",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| {
+            let run = ProtocolRunRow {
+                id: r.id,
+                protocol_id: r.protocol_id,
+                user_id: r.user_id,
+                start_date: r.start_date,
+                status: r.status,
+                notify: r.notify,
+                notify_time: r.notify_time,
+                notify_times: r.notify_times,
+                repeat_reminders: r.repeat_reminders,
+                repeat_interval_minutes: r.repeat_interval_minutes,
+                created_at: r.created_at,
+            };
+            run_to_response(run, Some(r.protocol_name), Some(r.duration_days))
+        })
+        .collect())
+}
+
+/// Update a run's status and/or notification settings.
+pub async fn update_run(
+    pool: &PgPool,
+    run_id: Uuid,
+    user_id: Uuid,
+    req: &UpdateRunRequest,
+) -> Result<bool, sqlx::Error> {
+    let notify_times = req
+        .notify_times
+        .as_ref()
+        .map(|t| serde_json::to_value(t).unwrap_or_default());
+
+    let result = sqlx::query(
+        "UPDATE protocol_runs
+         SET status = COALESCE($3, status),
+             notify = COALESCE($4, notify),
+             notify_time = COALESCE($5, notify_time),
+             notify_times = COALESCE($6, notify_times),
+             repeat_reminders = COALESCE($7, repeat_reminders),
+             repeat_interval_minutes = COALESCE($8, repeat_interval_minutes)
+         WHERE id = $1 AND user_id = $2",
+    )
+    .bind(run_id)
+    .bind(user_id)
+    .bind(&req.status)
+    .bind(req.notify)
+    .bind(&req.notify_time)
+    .bind(&notify_times)
+    .bind(req.repeat_reminders)
+    .bind(req.repeat_interval_minutes)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+
+/// Log a dose on a run.
+pub async fn log_dose_on_run(
+    pool: &PgPool,
+    user_id: Uuid,
+    run_id: Uuid,
+    req: &LogDoseRequest,
+    _config: &Config,
+) -> Result<ProtocolDoseRow, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    // 1. Verify user owns the run and get protocol info
+    #[derive(sqlx::FromRow)]
+    struct RunInfo {
+        protocol_id: Uuid,
+        start_date: NaiveDate,
+    }
+
+    let run = sqlx::query_as::<_, RunInfo>(
+        "SELECT protocol_id, start_date FROM protocol_runs
+         WHERE id = $1 AND user_id = $2 AND status = 'active'",
+    )
+    .bind(run_id)
+    .bind(user_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // 2. Get protocol duration
+    let duration_days: i32 =
+        sqlx::query_scalar("SELECT duration_days FROM protocols WHERE id = $1")
+            .bind(run.protocol_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
+    // 3. Get the protocol_line (verify it belongs to the protocol)
+    let line = sqlx::query_as::<_, ProtocolLineRow>(
+        "SELECT id, protocol_id, substance, dose, unit, route, time_of_day,
+                schedule_pattern, sort_order, created_at
+         FROM protocol_lines
+         WHERE id = $1 AND protocol_id = $2",
+    )
+    .bind(req.line_id)
+    .bind(run.protocol_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // 4. Verify the day_number is valid and schedule_pattern[day_number] is true
+    let pattern = line
+        .schedule_pattern
+        .as_array()
+        .ok_or(sqlx::Error::RowNotFound)?;
+
+    if req.day_number < 0 || req.day_number >= duration_days {
+        return Err(sqlx::Error::RowNotFound);
+    }
+
+    let scheduled = pattern
+        .get(req.day_number as usize)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    if !scheduled {
+        return Err(sqlx::Error::RowNotFound);
+    }
+
+    // 5. Create an intervention record
+    let administered_at = run.start_date + chrono::Duration::days(i64::from(req.day_number));
+    let administered_at_utc = administered_at
+        .and_hms_opt(12, 0, 0)
+        .unwrap_or_default()
+        .and_utc();
+
+    let intervention_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO interventions
+            (user_id, substance, dose, unit, route, administered_at)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id",
+    )
+    .bind(user_id)
+    .bind(&line.substance)
+    .bind(line.dose)
+    .bind(&line.unit)
+    .bind(&line.route)
+    .bind(administered_at_utc)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    // 6. Insert protocol_dose with run_id
+    let dose = sqlx::query_as::<_, ProtocolDoseRow>(
+        "INSERT INTO protocol_doses (protocol_line_id, day_number, status, intervention_id, run_id)
+         VALUES ($1, $2, 'completed', $3, $4)
+         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
+    )
+    .bind(req.line_id)
+    .bind(req.day_number)
+    .bind(intervention_id)
+    .bind(run_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(dose)
+}
+
+/// Skip a dose on a run.
+pub async fn skip_dose_on_run(
+    pool: &PgPool,
+    user_id: Uuid,
+    run_id: Uuid,
+    req: &SkipDoseRequest,
+) -> Result<ProtocolDoseRow, sqlx::Error> {
+    // Verify ownership
+    let protocol_id: Uuid =
+        sqlx::query_scalar("SELECT protocol_id FROM protocol_runs WHERE id = $1 AND user_id = $2")
+            .bind(run_id)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
+
+    // Verify line belongs to protocol
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM protocol_lines WHERE id = $1 AND protocol_id = $2",
+    )
+    .bind(req.line_id)
+    .bind(protocol_id)
+    .fetch_one(pool)
+    .await?;
+
+    sqlx::query_as::<_, ProtocolDoseRow>(
+        "INSERT INTO protocol_doses (protocol_line_id, day_number, status, run_id)
+         VALUES ($1, $2, 'skipped', $3)
+         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
+    )
+    .bind(req.line_id)
+    .bind(req.day_number)
+    .bind(run_id)
+    .fetch_one(pool)
+    .await
+}
+
+/// Legacy: Log a dose directly on a protocol (backward compatibility).
 pub async fn log_dose(
     pool: &PgPool,
     user_id: Uuid,
@@ -184,6 +517,8 @@ pub async fn log_dose(
     .bind(user_id)
     .fetch_one(&mut *tx)
     .await?;
+
+    let start_date = protocol.start_date.ok_or(sqlx::Error::RowNotFound)?;
 
     // 2. Get the protocol_line (verify it belongs to the protocol)
     let line = sqlx::query_as::<_, ProtocolLineRow>(
@@ -217,7 +552,7 @@ pub async fn log_dose(
     }
 
     // 4. Create an intervention record
-    let administered_at = protocol.start_date + chrono::Duration::days(i64::from(req.day_number));
+    let administered_at = start_date + chrono::Duration::days(i64::from(req.day_number));
     let administered_at_utc = administered_at
         .and_hms_opt(12, 0, 0)
         .unwrap_or_default()
@@ -254,7 +589,7 @@ pub async fn log_dose(
     Ok(dose)
 }
 
-/// Skip a dose.
+/// Legacy: Skip a dose directly on a protocol.
 pub async fn skip_dose(
     pool: &PgPool,
     user_id: Uuid,
@@ -331,7 +666,7 @@ pub async fn get_shared(pool: &PgPool, token: &str) -> Result<ProtocolResponse, 
 
     let lines = fetch_lines_with_doses(pool, protocol.id).await?;
 
-    Ok(build_response(protocol, lines))
+    Ok(build_response(protocol, lines, vec![]))
 }
 
 /// Import (copy) a shared protocol to a new user.
@@ -364,14 +699,12 @@ pub async fn import_protocol(
     .fetch_all(pool)
     .await?;
 
-    // Copy to new user in a transaction
+    // Copy to new user in a transaction — as a recipe (no start_date)
     let mut tx = pool.begin().await?;
 
-    let today = Utc::now().date_naive();
-
     let new_protocol = sqlx::query_as::<_, ProtocolRow>(
-        "INSERT INTO protocols (user_id, name, description, start_date, duration_days)
-         VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO protocols (user_id, name, description, duration_days)
+         VALUES ($1, $2, $3, $4)
          RETURNING id, user_id, name, description, start_date, duration_days,
                    status, is_template, tags, source_url,
                    share_token, share_expires_at, created_at",
@@ -379,7 +712,6 @@ pub async fn import_protocol(
     .bind(user_id)
     .bind(&source.name)
     .bind(&source.description)
-    .bind(today)
     .bind(source.duration_days)
     .fetch_one(&mut *tx)
     .await?;
@@ -406,41 +738,164 @@ pub async fn import_protocol(
     Ok(new_protocol)
 }
 
-/// Get today's doses across all active protocols for a user.
+/// Get today's doses across all active runs for a user.
 pub async fn todays_doses(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<Vec<TodaysDoseItem>, sqlx::Error> {
-    // We calculate day_number = CURRENT_DATE - start_date for each active protocol,
-    // then check which lines are scheduled for that day.
-    // Using a raw query with JSONB array access.
     sqlx::query_as::<_, TodaysDoseItem>(
         "SELECT
             p.id AS protocol_id,
             p.name AS protocol_name,
+            r.id AS run_id,
             pl.id AS line_id,
             pl.substance,
             pl.dose,
             pl.unit,
             pl.route,
             pl.time_of_day,
-            (CURRENT_DATE - p.start_date) AS day_number,
+            (CURRENT_DATE - r.start_date) AS day_number,
             pd.status
-         FROM protocols p
+         FROM protocol_runs r
+         JOIN protocols p ON p.id = r.protocol_id
          JOIN protocol_lines pl ON pl.protocol_id = p.id
          LEFT JOIN protocol_doses pd
              ON pd.protocol_line_id = pl.id
-             AND pd.day_number = (CURRENT_DATE - p.start_date)
-         WHERE p.user_id = $1
-           AND p.status = 'active'
-           AND (CURRENT_DATE - p.start_date) >= 0
-           AND (CURRENT_DATE - p.start_date) < p.duration_days
-           AND (pl.schedule_pattern->((CURRENT_DATE - p.start_date)::int))::text = 'true'
+             AND pd.run_id = r.id
+             AND pd.day_number = (CURRENT_DATE - r.start_date)
+         WHERE r.user_id = $1
+           AND r.status = 'active'
+           AND (CURRENT_DATE - r.start_date) >= 0
+           AND (CURRENT_DATE - r.start_date) < p.duration_days
+           AND (pl.schedule_pattern->((CURRENT_DATE - r.start_date)::int))::text = 'true'
          ORDER BY pl.sort_order",
     )
     .bind(user_id)
     .fetch_all(pool)
     .await
+}
+
+/// Get distinct active substances from active runs (for intervention quick-pick).
+pub async fn active_substances(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<Vec<ActiveSubstanceItem>, sqlx::Error> {
+    sqlx::query_as::<_, ActiveSubstanceItem>(
+        "SELECT DISTINCT ON (pl.substance, pl.dose, pl.unit, pl.route)
+            pl.substance,
+            pl.dose,
+            pl.unit,
+            pl.route,
+            p.name AS protocol_name
+         FROM protocol_runs r
+         JOIN protocols p ON p.id = r.protocol_id
+         JOIN protocol_lines pl ON pl.protocol_id = p.id
+         WHERE r.user_id = $1
+           AND r.status = 'active'
+         ORDER BY pl.substance, pl.dose, pl.unit, pl.route, p.name",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await
+}
+
+// --- Notification Preferences ---
+
+/// Get or create notification preferences for a user.
+pub async fn get_notification_preferences(
+    pool: &PgPool,
+    user_id: Uuid,
+) -> Result<NotificationPreferencesRow, sqlx::Error> {
+    // Try inserting defaults; if conflict, the row already exists.
+    sqlx::query(
+        "INSERT INTO user_notification_preferences (user_id)
+         VALUES ($1)
+         ON CONFLICT (user_id) DO NOTHING",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+
+    sqlx::query_as::<_, NotificationPreferencesRow>(
+        "SELECT user_id, default_notify, default_notify_times,
+                repeat_reminders, repeat_interval_minutes, updated_at
+         FROM user_notification_preferences
+         WHERE user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await
+}
+
+/// Update notification preferences for a user.
+pub async fn update_notification_preferences(
+    pool: &PgPool,
+    user_id: Uuid,
+    req: &UpdateNotificationPreferences,
+) -> Result<NotificationPreferencesRow, sqlx::Error> {
+    let notify_times = req
+        .default_notify_times
+        .as_ref()
+        .map(|t| serde_json::to_value(t).unwrap_or_default());
+
+    sqlx::query_as::<_, NotificationPreferencesRow>(
+        "INSERT INTO user_notification_preferences (user_id, default_notify, default_notify_times,
+                                                     repeat_reminders, repeat_interval_minutes)
+         VALUES ($1, COALESCE($2, false), COALESCE($3, '[\"08:00\"]'::jsonb),
+                 COALESCE($4, false), COALESCE($5, 30))
+         ON CONFLICT (user_id) DO UPDATE SET
+             default_notify = COALESCE($2, user_notification_preferences.default_notify),
+             default_notify_times = COALESCE($3, user_notification_preferences.default_notify_times),
+             repeat_reminders = COALESCE($4, user_notification_preferences.repeat_reminders),
+             repeat_interval_minutes = COALESCE($5, user_notification_preferences.repeat_interval_minutes),
+             updated_at = now()
+         RETURNING user_id, default_notify, default_notify_times,
+                   repeat_reminders, repeat_interval_minutes, updated_at",
+    )
+    .bind(user_id)
+    .bind(req.default_notify)
+    .bind(&notify_times)
+    .bind(req.repeat_reminders)
+    .bind(req.repeat_interval_minutes)
+    .fetch_one(pool)
+    .await
+}
+
+// --- Push Tokens ---
+
+/// Register a push token for a user. Upserts on (user_id, device_token).
+pub async fn register_push_token(
+    pool: &PgPool,
+    user_id: Uuid,
+    req: &RegisterPushTokenRequest,
+) -> Result<PushTokenRow, sqlx::Error> {
+    sqlx::query_as::<_, PushTokenRow>(
+        "INSERT INTO push_tokens (user_id, device_token, platform)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, device_token) DO UPDATE SET
+             platform = $3,
+             created_at = now()
+         RETURNING id, user_id, device_token, platform, created_at",
+    )
+    .bind(user_id)
+    .bind(&req.device_token)
+    .bind(&req.platform)
+    .fetch_one(pool)
+    .await
+}
+
+/// Delete a push token.
+pub async fn delete_push_token(
+    pool: &PgPool,
+    user_id: Uuid,
+    device_token: &str,
+) -> Result<bool, sqlx::Error> {
+    let result = sqlx::query("DELETE FROM push_tokens WHERE user_id = $1 AND device_token = $2")
+        .bind(user_id)
+        .bind(device_token)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
 }
 
 // --- Template & Export/Import functions ---
@@ -719,15 +1174,15 @@ pub async fn get_by_id_unscoped(
 
     let lines = fetch_lines_with_doses(pool, protocol_id).await?;
 
-    Ok(build_response(protocol, lines))
+    Ok(build_response(protocol, lines, vec![]))
 }
 
-/// Copy a template to a user with a given start date.
+/// Copy a template to a user with an optional start date (recipe by default).
 pub async fn copy_template(
     pool: &PgPool,
     template_id: Uuid,
     user_id: Uuid,
-    start_date: NaiveDate,
+    start_date: Option<NaiveDate>,
 ) -> Result<ProtocolRow, sqlx::Error> {
     // Verify it's a template
     let template = sqlx::query_as::<_, ProtocolRow>(
@@ -854,7 +1309,48 @@ async fn fetch_lines_with_doses(
     Ok(result)
 }
 
-fn build_response(protocol: ProtocolRow, lines: Vec<ProtocolLineResponse>) -> ProtocolResponse {
+fn run_to_response(
+    run: ProtocolRunRow,
+    protocol_name: Option<String>,
+    duration_days: Option<i32>,
+) -> RunResponse {
+    let today = Utc::now().date_naive();
+    let progress_pct = if let Some(dur) = duration_days {
+        if run.status == "completed" {
+            100.0
+        } else if today < run.start_date {
+            0.0
+        } else {
+            let elapsed = (today - run.start_date).num_days() as f64;
+            (elapsed / dur as f64 * 100.0).min(100.0)
+        }
+    } else {
+        0.0
+    };
+
+    RunResponse {
+        id: run.id,
+        protocol_id: run.protocol_id,
+        protocol_name,
+        user_id: run.user_id,
+        start_date: run.start_date,
+        duration_days,
+        status: run.status,
+        notify: run.notify,
+        notify_time: run.notify_time,
+        notify_times: run.notify_times,
+        repeat_reminders: run.repeat_reminders,
+        repeat_interval_minutes: run.repeat_interval_minutes,
+        progress_pct,
+        created_at: run.created_at,
+    }
+}
+
+fn build_response(
+    protocol: ProtocolRow,
+    lines: Vec<ProtocolLineResponse>,
+    runs: Vec<RunResponse>,
+) -> ProtocolResponse {
     let tags = protocol
         .tags
         .as_ref()
@@ -880,5 +1376,6 @@ fn build_response(protocol: ProtocolRow, lines: Vec<ProtocolLineResponse>) -> Pr
         share_expires_at: protocol.share_expires_at,
         created_at: protocol.created_at,
         lines,
+        runs,
     }
 }
