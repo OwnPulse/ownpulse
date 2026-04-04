@@ -714,6 +714,215 @@
           "name": "Sauna"
         }
       }
+    },
+    {
+      "description": "a request to list user protocols",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "proto-1",
+            "name": "BPC-157 Protocol",
+            "status": "active",
+            "start_date": "2026-03-01",
+            "duration_days": 28,
+            "created_at": "2026-03-01T00:00:00Z",
+            "lines": [
+              {
+                "id": "line-1",
+                "protocol_id": "proto-1",
+                "substance": "BPC-157",
+                "dose": 250.0,
+                "unit": "mcg",
+                "route": "SubQ",
+                "time_of_day": "AM",
+                "schedule_pattern": [true, true, true, true, true, true, true],
+                "sort_order": 0,
+                "doses": []
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to get a protocol by id",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/proto-1",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "proto-1",
+          "user_id": "user-1",
+          "name": "BPC-157 Protocol",
+          "description": "Daily BPC-157 SubQ protocol",
+          "status": "active",
+          "start_date": "2026-03-01",
+          "duration_days": 28,
+          "share_token": null,
+          "created_at": "2026-03-01T00:00:00Z",
+          "updated_at": "2026-03-01T00:00:00Z",
+          "lines": [
+            {
+              "id": "line-1",
+              "protocol_id": "proto-1",
+              "substance": "BPC-157",
+              "dose": 250.0,
+              "unit": "mcg",
+              "route": "SubQ",
+              "time_of_day": "AM",
+              "schedule_pattern": [true, true, true, true, true, true, true],
+              "sort_order": 0,
+              "doses": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "a request to create a protocol",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/protocols",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "name": "BPC-157 Protocol",
+          "description": "Daily BPC-157 SubQ protocol",
+          "start_date": "2026-03-28",
+          "duration_days": 28,
+          "lines": [
+            {
+              "substance": "BPC-157",
+              "dose": 250.0,
+              "unit": "mcg",
+              "route": "SubQ",
+              "time_of_day": "AM",
+              "schedule_pattern": [true, true, true, true, true, true, true],
+              "sort_order": 0
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "proto-new",
+          "user_id": "user-1",
+          "name": "BPC-157 Protocol",
+          "description": "Daily BPC-157 SubQ protocol",
+          "status": "active",
+          "start_date": "2026-03-28",
+          "duration_days": 28,
+          "share_token": null,
+          "created_at": "2026-03-28T00:00:00Z",
+          "updated_at": "2026-03-28T00:00:00Z",
+          "lines": [
+            {
+              "id": "line-new",
+              "protocol_id": "proto-new",
+              "substance": "BPC-157",
+              "dose": 250.0,
+              "unit": "mcg",
+              "route": "SubQ",
+              "time_of_day": "AM",
+              "schedule_pattern": [true, true, true, true, true, true, true],
+              "sort_order": 0,
+              "doses": []
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "a request to delete a protocol",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/protocols/proto-1",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
+      "description": "a request to log a protocol dose",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/protocols/proto-1/doses/log",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "protocol_line_id": "line-1",
+          "day_number": 0
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "dose-1",
+          "protocol_line_id": "line-1",
+          "day_number": 0,
+          "status": "completed",
+          "intervention_id": null,
+          "logged_at": "2026-03-28T08:00:00Z",
+          "created_at": "2026-03-28T08:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to skip a protocol dose",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/protocols/proto-1/doses/skip",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "protocol_line_id": "line-1",
+          "day_number": 1
+        }
+      },
+      "response": {
+        "status": 204
+      }
     }
   ],
   "metadata": {
