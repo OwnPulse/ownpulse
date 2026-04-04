@@ -2,42 +2,36 @@
 // Copyright (C) OwnPulse Contributors
 
 import type { SeriesResponse } from "../../api/explore";
+import type { Intervention } from "../../api/interventions";
 import { metricKey, useExploreStore } from "../../stores/exploreStore";
 import styles from "./ChartLegend.module.css";
-import { LINE_DASH_PATTERNS } from "./ExploreChart";
-
-const CHART_COLOR_VARS = [
-  "var(--chart-color-0)",
-  "var(--chart-color-1)",
-  "var(--chart-color-2)",
-  "var(--chart-color-3)",
-  "var(--chart-color-4)",
-  "var(--chart-color-5)",
-  "var(--chart-color-6)",
-  "var(--chart-color-7)",
-  "#332288",
-  "#88CCEE",
-  "#44AA99",
-  "#DDCC77",
-];
+import { CHART_COLORS, INTERVENTION_COLOR } from "./chartColors";
 
 interface ChartLegendProps {
   series: SeriesResponse[];
+  interventions?: Intervention[];
 }
 
-export function ChartLegend({ series }: ChartLegendProps) {
+export function ChartLegend({ series, interventions = [] }: ChartLegendProps) {
   const hiddenMetrics = useExploreStore((s) => s.hiddenMetrics);
   const toggleVisibility = useExploreStore((s) => s.toggleVisibility);
+  const hiddenSubstances = useExploreStore((s) => s.hiddenSubstances);
+  const toggleSubstanceVisibility = useExploreStore((s) => s.toggleSubstanceVisibility);
 
-  if (series.length === 0) return null;
+  if (series.length === 0 && interventions.length === 0) return null;
+
+  const substanceCounts = new Map<string, number>();
+  for (const iv of interventions) {
+    substanceCounts.set(iv.substance, (substanceCounts.get(iv.substance) ?? 0) + 1);
+  }
+  const substances = [...substanceCounts.keys()];
 
   return (
     <div className={styles.legend}>
       {series.map((s, i) => {
         const key = metricKey({ source: s.source, field: s.field });
         const hidden = hiddenMetrics.has(key);
-        const color = CHART_COLOR_VARS[i % CHART_COLOR_VARS.length];
-        const dashPattern = LINE_DASH_PATTERNS[i % LINE_DASH_PATTERNS.length];
+        const color = CHART_COLORS[i % CHART_COLORS.length];
         const hasData = s.points.length > 0;
         return (
           <button
@@ -47,19 +41,28 @@ export function ChartLegend({ series }: ChartLegendProps) {
             onClick={() => toggleVisibility(key)}
             aria-label={`Toggle ${s.field} visibility`}
           >
-            <svg width="24" height="12" className={styles.legendLine} role="img" aria-hidden="true">
-              <line
-                x1="0"
-                y1="6"
-                x2="24"
-                y2="6"
-                stroke={color}
-                strokeWidth={2.5}
-                strokeDasharray={dashPattern ? dashPattern.join(",") : "none"}
-              />
-            </svg>
+            <span className={styles.swatch} style={{ backgroundColor: color }} />
             <span className={styles.label}>
-              {s.field} ({s.unit}){!hasData && <span className={styles.noData}> - no data</span>}
+              {s.field} ({s.unit})
+              {hasData && <span className={styles.points}> ({s.points.length} pts)</span>}
+              {!hasData && <span className={styles.noData}> - no data</span>}
+            </span>
+          </button>
+        );
+      })}
+      {substances.map((sub) => {
+        const hidden = hiddenSubstances.includes(sub);
+        return (
+          <button
+            key={`iv-${sub}`}
+            type="button"
+            className={`${styles.item} ${hidden ? styles.hidden : ""}`}
+            onClick={() => toggleSubstanceVisibility(sub)}
+            aria-label={`Toggle ${sub} visibility`}
+          >
+            <span className={styles.swatch} style={{ backgroundColor: INTERVENTION_COLOR }} />
+            <span className={styles.label}>
+              {sub} ({substanceCounts.get(sub)})
             </span>
           </button>
         );

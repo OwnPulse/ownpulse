@@ -2,7 +2,8 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useQuery } from "@tanstack/react-query";
-import { VisLine, VisXYContainer } from "@unovis/react";
+import type { EChartsOption } from "echarts";
+import ReactECharts from "echarts-for-react";
 import { useMemo } from "react";
 import type { DataPoint } from "../../api/explore";
 import { exploreApi } from "../../api/explore";
@@ -18,11 +19,6 @@ const DIMENSION_COLORS: Record<Dimension, string> = {
   recovery: "#5a8a5a",
   libido: "#7b61c2",
 };
-
-interface SparklineDatum {
-  x: number;
-  y: number;
-}
 
 function computeTrend(points: DataPoint[]): "up" | "down" | "neutral" {
   if (points.length < 2) return "neutral";
@@ -68,28 +64,35 @@ function useSparklineData() {
 }
 
 function Sparkline({ points, color }: { points: DataPoint[]; color: string }) {
-  const data: SparklineDatum[] = useMemo(
-    () =>
-      points.map((p, i) => ({
-        x: i,
-        y: p.v,
-      })),
-    [points],
-  );
+  const data = useMemo(() => points.map((p) => p.v), [points]);
 
   if (data.length === 0) {
     return <div className={styles.chartContainer} />;
   }
 
+  const option: EChartsOption = {
+    grid: { left: 0, right: 0, top: 2, bottom: 2 },
+    xAxis: { show: false, type: "category", data: data.map((_, i) => i) },
+    yAxis: { show: false, min: "dataMin", max: "dataMax" },
+    series: [
+      {
+        type: "line",
+        data,
+        smooth: 0.4,
+        symbol: "none",
+        lineStyle: { width: 2, color },
+        areaStyle: { color, opacity: 0.08 },
+      },
+    ],
+  };
+
   return (
     <div className={styles.chartContainer}>
-      <VisXYContainer<SparklineDatum> data={data} height={40}>
-        <VisLine<SparklineDatum>
-          x={(d: SparklineDatum) => d.x}
-          y={(d: SparklineDatum) => d.y}
-          color={color}
-        />
-      </VisXYContainer>
+      <ReactECharts
+        option={option}
+        style={{ width: "100%", height: 40 }}
+        opts={{ renderer: "svg" }}
+      />
     </div>
   );
 }

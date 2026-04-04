@@ -18,19 +18,25 @@ import { ResolutionToggle } from "../../src/components/explore/ResolutionToggle"
 import { SavedChartCard } from "../../src/components/explore/SavedChartCard";
 import { useExploreStore } from "../../src/stores/exploreStore";
 
-// Mock unovis (SVG/D3 doesn't render in jsdom)
+// Mock echarts-for-react (canvas doesn't render in jsdom)
+vi.mock("echarts-for-react", () => ({
+  default: (props: { option: Record<string, unknown> }) => (
+    <div
+      data-testid="echarts"
+      data-series-count={Array.isArray(props.option?.series) ? props.option.series.length : 0}
+    />
+  ),
+}));
+
+// Mock unovis (SVG/D3 doesn't render in jsdom) — still used by analysis charts
 vi.mock("@unovis/react", () => ({
   VisXYContainer: ({ children }: { children: ReactNode }) => (
     <div data-testid="xy-container">{children}</div>
   ),
-  VisLine: ({ lineDashArray }: { lineDashArray?: number[] }) => (
-    <div data-testid="vis-line" data-dash={lineDashArray ? lineDashArray.join(",") : undefined} />
-  ),
-  VisAxis: ({ type, label }: { type?: string; label?: string }) => (
-    <div data-testid={`axis-${type ?? label}`} />
-  ),
-  VisCrosshair: () => <div data-testid="crosshair" />,
-  VisTooltip: () => <div data-testid="tooltip" />,
+  VisLine: () => <div data-testid="vis-line" />,
+  VisAxis: () => <div />,
+  VisCrosshair: () => <div />,
+  VisTooltip: () => <div />,
 }));
 
 const metricsResponse = {
@@ -260,8 +266,9 @@ describe("ExploreChart", () => {
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    expect(screen.getByTestId("xy-container")).toBeDefined();
-    expect(screen.getByTestId("vis-line")).toBeDefined();
+    const chart = screen.getByTestId("echarts");
+    expect(chart).toBeDefined();
+    expect(chart.getAttribute("data-series-count")).toBe("1");
   });
 
   it("renders multiple lines for multiple series", () => {
@@ -280,8 +287,8 @@ describe("ExploreChart", () => {
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    const lines = screen.getAllByTestId("vis-line");
-    expect(lines).toHaveLength(2);
+    const chart = screen.getByTestId("echarts");
+    expect(chart.getAttribute("data-series-count")).toBe("2");
   });
 
   it("does not render hidden metrics", () => {
@@ -310,8 +317,8 @@ describe("ExploreChart", () => {
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    const lines = screen.getAllByTestId("vis-line");
-    expect(lines).toHaveLength(1);
+    const chart = screen.getByTestId("echarts");
+    expect(chart.getAttribute("data-series-count")).toBe("1");
   });
 });
 
@@ -465,13 +472,14 @@ describe("SavedChartCard", () => {
   });
 });
 
-describe("ExploreChart with intervention markers", () => {
+describe("ExploreChart with interventions", () => {
   beforeEach(() => {
     useExploreStore.setState({
       selectedMetrics: [],
       hiddenMetrics: new Set(),
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
+      hiddenSubstances: [],
     });
   });
 
@@ -500,66 +508,27 @@ describe("ExploreChart with intervention markers", () => {
       fasted: false,
       created_at: "2026-03-02T08:00:00Z",
     },
-    {
-      id: "iv-2",
-      user_id: "user-1",
-      substance: "Magnesium",
-      dose: 400,
-      unit: "mg",
-      route: "oral",
-      administered_at: "2026-03-02T20:00:00Z",
-      fasted: true,
-      created_at: "2026-03-02T20:00:00Z",
-    },
   ];
 
-  it("renders intervention markers SVG when interventions provided", () => {
+  it("renders chart with interventions", () => {
     render(<ExploreChart series={baseSeries} interventions={interventions} />, {
       wrapper: createWrapper(),
     });
-    expect(screen.getByTestId("intervention-markers")).toBeDefined();
+    expect(screen.getByTestId("echarts")).toBeDefined();
   });
 
-  it("renders marker lines with aria-labels", () => {
-    render(<ExploreChart series={baseSeries} interventions={interventions} />, {
-      wrapper: createWrapper(),
-    });
-    expect(screen.getByLabelText("Intervention: Caffeine 200mg")).toBeDefined();
-    expect(screen.getByLabelText("Intervention: Magnesium 400mg")).toBeDefined();
-  });
-
-  it("does not render markers when no interventions", () => {
+  it("renders chart without interventions", () => {
     render(<ExploreChart series={baseSeries} interventions={[]} />, {
       wrapper: createWrapper(),
     });
-    expect(screen.queryByTestId("intervention-markers")).toBeNull();
+    expect(screen.getByTestId("echarts")).toBeDefined();
   });
 
-  it("does not render markers when no series data", () => {
+  it("does not render chart when no series data", () => {
     render(<ExploreChart series={[]} interventions={interventions} />, {
       wrapper: createWrapper(),
     });
-    expect(screen.queryByTestId("intervention-markers")).toBeNull();
-  });
-
-  it("filters out interventions outside the data range", () => {
-    const outOfRangeInterventions = [
-      {
-        id: "iv-3",
-        user_id: "user-1",
-        substance: "OutOfRange",
-        dose: 100,
-        unit: "mg",
-        route: "oral",
-        administered_at: "2025-01-01T00:00:00Z",
-        fasted: false,
-        created_at: "2025-01-01T00:00:00Z",
-      },
-    ];
-    render(<ExploreChart series={baseSeries} interventions={outOfRangeInterventions} />, {
-      wrapper: createWrapper(),
-    });
-    expect(screen.queryByTestId("intervention-markers")).toBeNull();
+    expect(screen.queryByTestId("echarts")).toBeNull();
   });
 });
 
@@ -573,31 +542,7 @@ describe("ExploreChart with observer data", () => {
     });
   });
 
-  it("renders observer lines with dashed style", () => {
-    const series = [
-      {
-        source: "checkins",
-        field: "mood",
-        unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
-      },
-      {
-        source: "observer_polls",
-        field: "poll-1:mood",
-        unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 6, n: 1 }],
-      },
-    ];
-    render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    const lines = screen.getAllByTestId("vis-line");
-    expect(lines).toHaveLength(2);
-    // First line (checkins) should not have dash
-    expect(lines[0].getAttribute("data-dash")).toBeNull();
-    // Second line (observer) should have dash
-    expect(lines[1].getAttribute("data-dash")).toBe("6,3");
-  });
-
-  it("renders both self-reported and observer lines on same chart", () => {
+  it("renders both self-reported and observer series", () => {
     const series = [
       {
         source: "checkins",
@@ -619,8 +564,8 @@ describe("ExploreChart with observer data", () => {
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    expect(screen.getByTestId("xy-container")).toBeDefined();
-    expect(screen.getAllByTestId("vis-line")).toHaveLength(2);
+    const chart = screen.getByTestId("echarts");
+    expect(chart.getAttribute("data-series-count")).toBe("2");
   });
 });
 

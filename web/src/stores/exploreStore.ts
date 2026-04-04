@@ -19,12 +19,17 @@ interface ExploreState {
   hiddenMetrics: Set<string>;
   dateRange: DateRange;
   resolution: Resolution;
+  zoomRange: [number, number] | null;
+  hiddenSubstances: string[];
 
   addMetric: (m: MetricRef) => void;
   removeMetric: (m: MetricRef) => void;
   toggleVisibility: (key: string) => void;
   setDateRange: (r: DateRange) => void;
   setResolution: (r: Resolution) => void;
+  setZoomRange: (range: [number, number] | null) => void;
+  resetZoom: () => void;
+  toggleSubstanceVisibility: (substance: string) => void;
   clearAll: () => void;
   loadConfig: (config: {
     metrics: Array<{ source: string; field: string }>;
@@ -99,6 +104,8 @@ export const useExploreStore = create<ExploreState>((set) => ({
   hiddenMetrics: new Set<string>(),
   dateRange: { type: "preset", preset: "30d" },
   resolution: "daily",
+  zoomRange: null,
+  hiddenSubstances: [],
 
   addMetric: (m) =>
     set((state) => {
@@ -134,10 +141,23 @@ export const useExploreStore = create<ExploreState>((set) => ({
   setDateRange: (r) =>
     set(() => {
       const resolution = r.type === "preset" ? defaultResolutionForPreset(r.preset) : "daily";
-      return { dateRange: r, resolution };
+      return { dateRange: r, resolution, zoomRange: null };
     }),
 
-  setResolution: (r) => set({ resolution: r }),
+  setResolution: (r) => set({ resolution: r, zoomRange: null }),
+
+  setZoomRange: (range) => set({ zoomRange: range }),
+
+  resetZoom: () => set({ zoomRange: null }),
+
+  toggleSubstanceVisibility: (substance) =>
+    set((state) => {
+      const idx = state.hiddenSubstances.indexOf(substance);
+      if (idx >= 0) {
+        return { hiddenSubstances: state.hiddenSubstances.filter((s) => s !== substance) };
+      }
+      return { hiddenSubstances: [...state.hiddenSubstances, substance] };
+    }),
 
   clearAll: () =>
     set({
@@ -145,6 +165,8 @@ export const useExploreStore = create<ExploreState>((set) => ({
       hiddenMetrics: new Set<string>(),
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
+      zoomRange: null,
+      hiddenSubstances: [],
     }),
 
   loadConfig: (config) =>
