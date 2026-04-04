@@ -1456,3 +1456,224 @@ async fn test_explore_batch_series_with_observer_polls() {
     assert_eq!(series[0]["source"], "checkins");
     assert_eq!(series[1]["source"], "observer_polls");
 }
+
+// ---------------------------------------------------------------------------
+// POST /explore/batch-series (dedicated iOS batch endpoint)
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_batch_series_happy_path() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    // Seed data
+    let checkin = json!({ "date": "2026-03-15", "energy": 7, "mood": 8 });
+    app.app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/checkins",
+            &token,
+            Some(&checkin),
+        ))
+        .await
+        .unwrap();
+
+    let body = json!({
+        "metrics": [
+            { "source": "checkins", "field": "energy" },
+            { "source": "checkins", "field": "mood" }
+        ],
+        "start": "2026-03-14T00:00:00Z",
+        "end": "2026-03-16T00:00:00Z",
+        "resolution": "daily"
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/explore/batch-series",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let json = common::body_json(resp).await;
+    let series = json["series"].as_array().unwrap();
+    assert_eq!(series.len(), 2);
+    assert_eq!(series[0]["field"], "energy");
+    assert_eq!(series[1]["field"], "mood");
+    // Each series should have 1 data point
+    assert_eq!(series[0]["points"].as_array().unwrap().len(), 1);
+    assert_eq!(series[1]["points"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn test_batch_series_unauthenticated() {
+    let app = common::setup().await;
+
+    let body = json!({
+        "metrics": [{ "source": "checkins", "field": "energy" }],
+        "start": "2026-03-01T00:00:00Z",
+        "end": "2026-03-15T00:00:00Z",
+        "resolution": "daily"
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/explore/batch-series",
+            "invalid-token",
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 401);
+}
+
+#[tokio::test]
+async fn test_batch_series_empty_metrics() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "metrics": [],
+        "start": "2026-03-01T00:00:00Z",
+        "end": "2026-03-15T00:00:00Z",
+        "resolution": "daily"
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/explore/batch-series",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_batch_series_too_many_metrics() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let metrics: Vec<serde_json::Value> = (0..11)
+        .map(|_| json!({ "source": "checkins", "field": "energy" }))
+        .collect();
+
+    let body = json!({
+        "metrics": metrics,
+        "start": "2026-03-01T00:00:00Z",
+        "end": "2026-03-15T00:00:00Z",
+        "resolution": "daily"
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/explore/batch-series",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_batch_series_ten_metrics_allowed() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    // 10 metrics should be accepted (the max)
+    let metrics: Vec<serde_json::Value> = (0..10)
+        .map(|_| json!({ "source": "checkins", "field": "energy" }))
+        .collect();
+
+    let body = json!({
+        "metrics": metrics,
+        "start": "2026-03-01T00:00:00Z",
+        "end": "2026-03-15T00:00:00Z",
+        "resolution": "daily"
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/explore/batch-series",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 200);
+    let json = common::body_json(resp).await;
+    let series = json["series"].as_array().unwrap();
+    assert_eq!(series.len(), 10);
+}
+
+#[tokio::test]
+async fn test_batch_series_invalid_metric() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "metrics": [
+            { "source": "checkins", "field": "energy" },
+            { "source": "invalid_source", "field": "foo" }
+        ],
+        "start": "2026-03-01T00:00:00Z",
+        "end": "2026-03-15T00:00:00Z",
+        "resolution": "daily"
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/explore/batch-series",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_batch_series_invalid_body() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    // Missing required fields (start, end, resolution) — Axum returns 422
+    // for JSON deserialization failures.
+    let body = json!({ "metrics": [{ "source": "checkins", "field": "energy" }] });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/explore/batch-series",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 422);
+}
