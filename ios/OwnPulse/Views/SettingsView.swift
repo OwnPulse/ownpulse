@@ -14,11 +14,19 @@ final class SettingsViewModel {
     var isLoadingMethods = false
     var linkError: String?
     var linkInfo: String?
+    var notificationsEnabled = false
+    var notificationStatusText = "Unknown"
+    var notificationError: String?
 
     private let networkClient: NetworkClientProtocol
+    private let notificationManager: NotificationManagerProtocol
 
-    init(networkClient: NetworkClientProtocol) {
+    init(
+        networkClient: NetworkClientProtocol,
+        notificationManager: NotificationManagerProtocol? = nil
+    ) {
         self.networkClient = networkClient
+        self.notificationManager = notificationManager ?? NotificationManager(networkClient: networkClient)
     }
 
     func loadAuthMethods() async {
@@ -94,6 +102,38 @@ final class SettingsViewModel {
         linkError = nil
         linkInfo = "To link a Google account, use the web dashboard."
     }
+
+    func loadNotificationStatus() async {
+        let status = await notificationManager.authorizationStatus()
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            notificationsEnabled = true
+            notificationStatusText = "Enabled"
+        case .denied:
+            notificationsEnabled = false
+            notificationStatusText = "Denied"
+        case .notDetermined:
+            notificationsEnabled = false
+            notificationStatusText = "Not Set Up"
+        @unknown default:
+            notificationsEnabled = false
+            notificationStatusText = "Unknown"
+        }
+    }
+
+    func toggleNotifications() async {
+        notificationError = nil
+        if !notificationsEnabled {
+            let granted = await notificationManager.requestPermission()
+            if granted {
+                notificationsEnabled = true
+                notificationStatusText = "Enabled"
+            } else {
+                notificationError = "Permission denied. Enable notifications in Settings."
+                notificationStatusText = "Denied"
+            }
+        }
+    }
 }
 
 // MARK: - SettingsView
@@ -157,6 +197,7 @@ struct SettingsView: View {
             }
 
             if let vm = viewModel {
+                notificationsSection(vm: vm)
                 linkedAccountsSection(vm: vm)
             }
 
@@ -196,10 +237,14 @@ struct SettingsView: View {
             hkAuthorized = dependencies.healthKitProvider.isAuthorized()
             if viewModel == nil {
                 viewModel = SettingsViewModel(
-                    networkClient: dependencies.networkClient
+                    networkClient: dependencies.networkClient,
+                    notificationManager: dependencies.notificationManager
                 )
             }
-            Task { await viewModel?.loadAuthMethods() }
+            Task {
+                await viewModel?.loadAuthMethods()
+                await viewModel?.loadNotificationStatus()
+            }
         }
         .confirmationDialog("Sign out?", isPresented: $showLogoutConfirmation) {
             Button("Sign Out", role: .destructive) {
@@ -217,6 +262,37 @@ struct SettingsView: View {
                     Task { await viewModel?.unlinkMethod(provider) }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func notificationsSection(vm: SettingsViewModel) -> some View {
+        Section("Notifications") {
+            HStack {
+                Text("Dose Reminders")
+                Spacer()
+                Text(vm.notificationStatusText)
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("notificationStatus")
+
+            if !vm.notificationsEnabled {
+                Button("Enable Notifications") {
+                    Task { await vm.toggleNotifications() }
+                }
+                .accessibilityIdentifier("enableNotificationsButton")
+            }
+
+            if let error = vm.notificationError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("notificationError")
+            }
+
+            Text("Receive reminders when protocol doses are due. Configure notification times per protocol run.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

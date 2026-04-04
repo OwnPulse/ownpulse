@@ -148,4 +148,90 @@ struct SettingsViewModelTests {
         #expect(vm.linkInfo!.contains("web dashboard"))
         #expect(vm.linkError == nil)
     }
+
+    // MARK: - Notification tests
+
+    @Test("loadNotificationStatus shows Enabled when authorized")
+    func loadNotificationStatusAuthorized() async {
+        let mock = MockNetworkClient()
+        let notifMock = MockNotificationManager()
+        notifMock.currentStatus = .authorized
+        let vm = SettingsViewModel(networkClient: mock, notificationManager: notifMock)
+
+        await vm.loadNotificationStatus()
+
+        #expect(vm.notificationsEnabled == true)
+        #expect(vm.notificationStatusText == "Enabled")
+    }
+
+    @Test("loadNotificationStatus shows Not Set Up when not determined")
+    func loadNotificationStatusNotDetermined() async {
+        let mock = MockNetworkClient()
+        let notifMock = MockNotificationManager()
+        notifMock.currentStatus = .notDetermined
+        let vm = SettingsViewModel(networkClient: mock, notificationManager: notifMock)
+
+        await vm.loadNotificationStatus()
+
+        #expect(vm.notificationsEnabled == false)
+        #expect(vm.notificationStatusText == "Not Set Up")
+    }
+
+    @Test("loadNotificationStatus shows Denied when denied")
+    func loadNotificationStatusDenied() async {
+        let mock = MockNetworkClient()
+        let notifMock = MockNotificationManager()
+        notifMock.currentStatus = .denied
+        let vm = SettingsViewModel(networkClient: mock, notificationManager: notifMock)
+
+        await vm.loadNotificationStatus()
+
+        #expect(vm.notificationsEnabled == false)
+        #expect(vm.notificationStatusText == "Denied")
+    }
+
+    @Test("toggleNotifications requests permission and updates state on grant")
+    func toggleNotificationsGranted() async {
+        let mock = MockNetworkClient()
+        let notifMock = MockNotificationManager()
+        notifMock.permissionGranted = true
+        let vm = SettingsViewModel(networkClient: mock, notificationManager: notifMock)
+        vm.notificationsEnabled = false
+
+        await vm.toggleNotifications()
+
+        #expect(notifMock.requestPermissionCallCount == 1)
+        #expect(vm.notificationsEnabled == true)
+        #expect(vm.notificationStatusText == "Enabled")
+        #expect(vm.notificationError == nil)
+    }
+
+    @Test("toggleNotifications sets error when permission denied")
+    func toggleNotificationsDenied() async {
+        let mock = MockNetworkClient()
+        let notifMock = MockNotificationManager()
+        notifMock.permissionGranted = false
+        let vm = SettingsViewModel(networkClient: mock, notificationManager: notifMock)
+        vm.notificationsEnabled = false
+
+        await vm.toggleNotifications()
+
+        #expect(notifMock.requestPermissionCallCount == 1)
+        #expect(vm.notificationsEnabled == false)
+        #expect(vm.notificationStatusText == "Denied")
+        #expect(vm.notificationError != nil)
+        #expect(vm.notificationError!.contains("Settings"))
+    }
+
+    @Test("toggleNotifications does not request permission when already enabled")
+    func toggleNotificationsAlreadyEnabled() async {
+        let mock = MockNetworkClient()
+        let notifMock = MockNotificationManager()
+        let vm = SettingsViewModel(networkClient: mock, notificationManager: notifMock)
+        vm.notificationsEnabled = true
+
+        await vm.toggleNotifications()
+
+        #expect(notifMock.requestPermissionCallCount == 0)
+    }
 }

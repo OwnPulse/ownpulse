@@ -923,6 +923,48 @@
       "response": {
         "status": 204
       }
+    },
+    {
+      "description": "a request to register a push notification token",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/notifications/register",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "device_token": "abcdef0123456789",
+          "platform": "ios"
+        }
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
+      "description": "a request to get notification preferences",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/notifications/preferences",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "default_notify": false,
+          "default_notify_times": ["08:00"],
+          "repeat_reminders": false,
+          "repeat_interval_minutes": 30
+        }
+      }
     }
   ],
   "metadata": {

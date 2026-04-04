@@ -19,6 +19,7 @@ final class AppDependencies {
     let syncEngine: SyncEngine
     let syncScheduler: SyncScheduler
     let adminService: AdminService
+    let notificationManager: NotificationManager
 
     init(
         keychainService: KeychainServiceProtocol? = nil,
@@ -57,5 +58,7 @@ final class AppDependencies {
         self.syncScheduler = SyncScheduler()
 
         self.adminService = AdminService(networkClient: network)
+
+        self.notificationManager = NotificationManager(networkClient: network)
     }
 }

@@ -51,6 +51,7 @@ targets:
     entitlements:
       path: OwnPulse/OwnPulse.entitlements
       properties:
+        aps-environment: development
         com.apple.developer.healthkit: true
         com.apple.developer.healthkit.access: []
 
