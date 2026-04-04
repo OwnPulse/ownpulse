@@ -2,79 +2,80 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import type { ProtocolListItem, TodaysDose } from "../../api/protocols";
+import type { TodaysDose } from "../../api/protocols";
 import { protocolsApi } from "../../api/protocols";
 import styles from "./TodaysDoses.module.css";
-
-function computeAllTodaysDoses(protocols: ProtocolListItem[]): TodaysDose[] {
-  const doses: TodaysDose[] = [];
-  for (const p of protocols) {
-    if (p.status !== "active") continue;
-    const todayDay = Math.floor((Date.now() - new Date(p.start_date).getTime()) / 86400000);
-    if (todayDay < 0 || todayDay >= p.duration_days) continue;
-
-    for (const line of p.lines) {
-      if (!line.schedule_pattern[todayDay]) continue;
-      const dose = line.doses.find((d) => d.day_number === todayDay);
-      doses.push({
-        protocol_id: p.id,
-        protocol_name: p.name,
-        protocol_line_id: line.id,
-        substance: line.substance,
-        dose: line.dose,
-        unit: line.unit,
-        route: line.route,
-        time_of_day: line.time_of_day,
-        day_number: todayDay,
-        status: dose?.status ?? "pending",
-        dose_id: dose?.id ?? null,
-      });
-    }
-  }
-  return doses;
-}
 
 export function TodaysDoses() {
   const queryClient = useQueryClient();
 
-  const { data: protocols, isLoading } = useQuery({
-    queryKey: ["protocols"],
-    queryFn: () => protocolsApi.list(),
+  const {
+    data: todaysDoses,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ["todays-doses"],
+    queryFn: () => protocolsApi.todaysDoses(),
     staleTime: 5 * 60 * 1000,
+    select: (data) =>
+      data.map((d) => ({
+        ...d,
+        status: d.status ?? ("pending" as const),
+      })),
   });
-
-  const todaysDoses = useMemo(() => computeAllTodaysDoses(protocols ?? []), [protocols]);
 
   const logDose = useMutation({
     mutationFn: (td: TodaysDose) =>
-      protocolsApi.logDose(td.protocol_id, {
+      protocolsApi.logRunDose(td.run_id, {
         protocol_line_id: td.protocol_line_id,
         day_number: td.day_number,
       }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
+      queryClient.invalidateQueries({ queryKey: ["protocols"] });
+    },
+  });
+
+  const skipDose = useMutation({
+    mutationFn: (td: TodaysDose) =>
+      protocolsApi.skipRunDose(td.run_id, {
+        protocol_line_id: td.protocol_line_id,
+        day_number: td.day_number,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
     },
   });
 
   if (isLoading) return null;
-  if (!protocols || protocols.length === 0) return null;
+  if (isError) return null;
+  if (!todaysDoses || todaysDoses.length === 0) return null;
 
-  const allDone = todaysDoses.length > 0 && todaysDoses.every((d) => d.status !== "pending");
+  const pendingCount = todaysDoses.filter((d) => d.status === "pending").length;
+  const allDone = todaysDoses.length > 0 && pendingCount === 0;
 
   return (
     <section className={`op-card ${styles.section}`}>
-      <h2 className={styles.sectionTitle}>Today&rsquo;s Doses</h2>
+      <div className={styles.header}>
+        <h2 className={styles.sectionTitle}>Today&rsquo;s Doses</h2>
+        {pendingCount > 0 && <span className={styles.pendingBadge}>{pendingCount} pending</span>}
+      </div>
 
-      {todaysDoses.length === 0 && <p className={styles.emptyText}>No doses scheduled today.</p>}
+      {allDone && (
+        <p className={styles.allDoneText}>
+          All done <span className={styles.greenCheck}>&#x2713;</span>
+        </p>
+      )}
 
-      {allDone && <p className={styles.emptyText}>All doses logged &#x2713;</p>}
-
-      {!allDone && todaysDoses.length > 0 && (
+      {!allDone && (
         <div className={styles.doseList}>
           {todaysDoses.map((td) => (
-            <div key={`${td.protocol_line_id}-${td.day_number}`} className={styles.doseItem}>
+            <div
+              key={`${td.protocol_line_id}-${td.day_number}`}
+              className={`${styles.doseItem} ${td.status === "pending" ? styles.dosePending : ""}`}
+            >
               <div className={styles.doseInfo}>
                 <span className={styles.doseSubstance}>
                   {td.substance} {td.dose}
@@ -86,14 +87,24 @@ export function TodaysDoses() {
                 </span>
               </div>
               {td.status === "pending" ? (
-                <button
-                  type="button"
-                  className="op-btn op-btn-primary op-btn-sm"
-                  onClick={() => logDose.mutate(td)}
-                  disabled={logDose.isPending}
-                >
-                  Log
-                </button>
+                <div className={styles.doseActions}>
+                  <button
+                    type="button"
+                    className="op-btn op-btn-primary op-btn-sm"
+                    onClick={() => logDose.mutate(td)}
+                    disabled={logDose.isPending || skipDose.isPending}
+                  >
+                    Log
+                  </button>
+                  <button
+                    type="button"
+                    className="op-btn op-btn-ghost op-btn-sm"
+                    onClick={() => skipDose.mutate(td)}
+                    disabled={logDose.isPending || skipDose.isPending}
+                  >
+                    Skip
+                  </button>
+                </div>
               ) : (
                 <span
                   className={`${styles.doseStatus} ${td.status === "completed" ? styles.statusCompleted : styles.statusSkipped}`}
