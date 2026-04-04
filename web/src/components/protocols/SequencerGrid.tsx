@@ -42,7 +42,7 @@ export default function SequencerGrid({
               className={`${styles.headerCell}${isWeekStart ? ` ${styles.weekStart}` : ""}`}
             >
               {showWeekLabel && <span className={styles.weekLabel}>W{weekNum}</span>}
-              <span className={styles.dayNumber}>{dayNum}</span>
+              <span className={styles.dayNumber}>D{dayNum}</span>
             </div>
           );
         })}
