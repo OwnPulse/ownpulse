@@ -1164,11 +1164,11 @@
       }
     },
     {
-      "description": "a request to list today's doses",
-      "providerState": "active protocol runs exist with today's doses",
+      "description": "a request to list active protocol substances",
+      "providerState": "user has active protocol runs",
       "request": {
         "method": "GET",
-        "path": "/api/v1/protocols/todays-doses",
+        "path": "/api/v1/protocols/active-substances",
         "headers": {
           "Authorization": "Bearer some-jwt-token"
         }
@@ -1180,35 +1180,24 @@
         },
         "body": [
           {
-            "protocol_id": "uuid-p1",
-            "protocol_name": "BPC Stack",
-            "protocol_line_id": "uuid-pl-1",
-            "run_id": "uuid-run-1",
             "substance": "BPC-157",
             "dose": 250,
             "unit": "mcg",
             "route": "SubQ",
-            "time_of_day": "08:00",
-            "day_number": 3,
-            "status": "pending",
-            "dose_id": null
+            "protocol_name": "BPC Stack",
+            "protocol_id": "proto-1"
           }
         ]
       }
     },
     {
-      "description": "a request to log a dose on a protocol run",
-      "providerState": "active protocol run exists with pending dose",
+      "description": "a request to get notification preferences",
+      "providerState": "user has notification preferences",
       "request": {
-        "method": "POST",
-        "path": "/api/v1/protocols/runs/uuid-run-1/doses/log",
+        "method": "GET",
+        "path": "/api/v1/notifications/preferences",
         "headers": {
-          "Authorization": "Bearer some-jwt-token",
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "protocol_line_id": "uuid-pl-1",
-          "day_number": 3
+          "Authorization": "Bearer some-jwt-token"
         }
       },
       "response": {
@@ -1217,29 +1206,28 @@
           "Content-Type": "application/json"
         },
         "body": {
-          "id": "uuid-dose-1",
-          "protocol_line_id": "uuid-pl-1",
-          "day_number": 3,
-          "status": "completed",
-          "intervention_id": "uuid-iv-1",
-          "logged_at": "2026-03-28T08:00:00Z",
-          "created_at": "2026-03-28T08:00:00Z"
+          "default_notify": true,
+          "default_notify_times": ["08:00"],
+          "repeat_reminders": false,
+          "repeat_interval_minutes": 30
         }
       }
     },
     {
-      "description": "a request to skip a dose on a protocol run",
-      "providerState": "active protocol run exists with pending dose",
+      "description": "a request to update notification preferences",
+      "providerState": "user is authenticated",
       "request": {
-        "method": "POST",
-        "path": "/api/v1/protocols/runs/uuid-run-1/doses/skip",
+        "method": "PUT",
+        "path": "/api/v1/notifications/preferences",
         "headers": {
           "Authorization": "Bearer some-jwt-token",
           "Content-Type": "application/json"
         },
         "body": {
-          "protocol_line_id": "uuid-pl-1",
-          "day_number": 3
+          "default_notify": true,
+          "default_notify_times": ["08:00", "20:00"],
+          "repeat_reminders": true,
+          "repeat_interval_minutes": 15
         }
       },
       "response": {
@@ -1248,13 +1236,10 @@
           "Content-Type": "application/json"
         },
         "body": {
-          "id": "uuid-dose-2",
-          "protocol_line_id": "uuid-pl-1",
-          "day_number": 3,
-          "status": "skipped",
-          "intervention_id": null,
-          "logged_at": "2026-03-28T08:00:00Z",
-          "created_at": "2026-03-28T08:00:00Z"
+          "default_notify": true,
+          "default_notify_times": ["08:00", "20:00"],
+          "repeat_reminders": true,
+          "repeat_interval_minutes": 15
         }
       }
     }
