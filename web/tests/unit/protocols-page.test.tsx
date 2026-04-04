@@ -50,23 +50,8 @@ const protocols = [
     id: "p1",
     name: "BPC-157 Stack",
     status: "active",
-    start_date: "2026-03-01",
     duration_days: 28,
     created_at: "2026-03-01T00:00:00Z",
-    lines: [
-      {
-        id: "l1",
-        protocol_id: "p1",
-        substance: "BPC-157",
-        dose: 250,
-        unit: "mcg",
-        route: "SubQ",
-        time_of_day: "AM",
-        schedule_pattern: Array(28).fill(true),
-        sort_order: 0,
-        doses: [],
-      },
-    ],
   },
 ];
 

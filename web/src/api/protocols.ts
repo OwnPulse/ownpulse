@@ -31,8 +31,8 @@ export interface Protocol {
   user_id: string;
   name: string;
   description: string | null;
-  status: "active" | "paused" | "completed";
-  start_date: string;
+  status: "active" | "paused" | "completed" | "draft" | "archived";
+  start_date?: string;
   duration_days: number;
   share_token: string | null;
   created_at: string;
@@ -43,11 +43,16 @@ export interface Protocol {
 export interface ProtocolListItem {
   id: string;
   name: string;
-  status: "active" | "paused" | "completed";
-  start_date: string;
+  description?: string;
+  status: "active" | "paused" | "completed" | "draft" | "archived";
+  start_date?: string;
   duration_days: number;
+  is_template?: boolean;
+  tags?: string[];
+  progress_pct?: number;
+  next_dose?: string;
   created_at: string;
-  lines: ProtocolLine[];
+  // lines is NOT returned in the list endpoint — only in GET by ID
 }
 
 export interface TodaysDose {
