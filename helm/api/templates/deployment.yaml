@@ -28,6 +28,41 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          command: ["sh", "-c"]
+          args:
+            - |
+              echo "Waiting for database..."
+              DB_READY=false
+              for i in $(seq 1 30); do
+                if api --health-check 2>&1; then
+                  DB_READY=true
+                  break
+                fi
+                echo "  attempt $i/30..."
+                sleep 2
+              done
+              if [ "$DB_READY" != "true" ]; then
+                echo "Database not reachable after 30 attempts, aborting."
+                exit 1
+              fi
+              echo "Running migrations..."
+              api --migrate-only
+              echo "Migrations complete."
+          envFrom:
+            - configMapRef:
+                name: {{ include "ownpulse-api.fullname" . }}
+            - secretRef:
+                name: {{ .Values.secret.name }}
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
