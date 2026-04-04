@@ -4,62 +4,48 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import type { ProtocolListItem } from "../api/protocols";
+import type { ActiveRun } from "../api/protocols";
 import { protocolsApi } from "../api/protocols";
 import { ImportModal } from "../components/protocols/ImportModal";
+import { StartRunModal } from "../components/protocols/StartRunModal";
 import { TemplateCard } from "../components/protocols/TemplateCard";
 import styles from "./Protocols.module.css";
 
-type Filter = "active" | "completed" | "all";
-
-function badgeClass(status: ProtocolListItem["status"]): string {
-  if (status === "active") return styles.badgeActive;
-  if (status === "paused") return styles.badgePaused;
-  return styles.badgeCompleted;
+function doseBadgeText(run: ActiveRun): string {
+  if (run.doses_today === 0) return "No doses today";
+  if (run.doses_completed_today >= run.doses_today) return "All done";
+  const pending = run.doses_today - run.doses_completed_today;
+  return `${pending} dose${pending !== 1 ? "s" : ""} pending`;
 }
 
-function computeProgress(p: ProtocolListItem): number {
-  let completed = 0;
-  let total = 0;
-  for (const line of p.lines) {
-    for (let d = 0; d < p.duration_days; d++) {
-      if (line.schedule_pattern[d]) {
-        total++;
-        const dose = line.doses.find((dd) => dd.day_number === d);
-        if (dose && dose.status === "completed") completed++;
-      }
-    }
-  }
-  return total > 0 ? Math.round((completed / total) * 100) : 0;
-}
-
-function getNextDoseLabel(p: ProtocolListItem): string {
-  const todayDay = Math.floor((Date.now() - new Date(p.start_date).getTime()) / 86400000);
-  if (todayDay < 0 || todayDay >= p.duration_days) return "Protocol ended";
-
-  for (const line of p.lines) {
-    if (!line.schedule_pattern[todayDay]) continue;
-    const dose = line.doses.find((d) => d.day_number === todayDay);
-    if (!dose || dose.status === "pending") {
-      const timeLabel = line.time_of_day ? ` (today ${line.time_of_day})` : " (today)";
-      return `Next: ${line.substance} ${line.dose}${line.unit}${timeLabel}`;
-    }
-  }
-  return "All done for today";
+function runProgressPct(run: ActiveRun): number {
+  return run.total_doses > 0 ? Math.round((run.completed_doses / run.total_doses) * 100) : 0;
 }
 
 export default function Protocols() {
-  const [filter, setFilter] = useState<Filter>("active");
   const [showImport, setShowImport] = useState(false);
+  const [startRunProtocol, setStartRunProtocol] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   const {
     data: protocols,
-    isLoading,
-    isError,
+    isLoading: protocolsLoading,
+    isError: protocolsError,
   } = useQuery({
     queryKey: ["protocols"],
     queryFn: () => protocolsApi.list(),
+  });
+
+  const {
+    data: activeRuns,
+    isLoading: runsLoading,
+    isError: runsError,
+  } = useQuery({
+    queryKey: ["active-runs"],
+    queryFn: () => protocolsApi.activeRuns(),
   });
 
   const { data: templates } = useQuery({
@@ -67,13 +53,8 @@ export default function Protocols() {
     queryFn: () => protocolsApi.listTemplates(),
   });
 
-  const filtered = useMemo(() => {
-    if (!protocols) return [];
-    if (filter === "all") return protocols;
-    if (filter === "active")
-      return protocols.filter((p) => p.status === "active" || p.status === "paused");
-    return protocols.filter((p) => p.status === "completed");
-  }, [protocols, filter]);
+  const isLoading = protocolsLoading || runsLoading;
+  const isError = protocolsError || runsError;
 
   const allTags = useMemo(() => {
     if (!templates) return [];
@@ -105,55 +86,86 @@ export default function Protocols() {
       </div>
 
       {showImport && <ImportModal onClose={() => setShowImport(false)} />}
-
-      <div className={styles.filters}>
-        {(["active", "completed", "all"] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            className={`${styles.filterBtn} ${filter === f ? styles.filterBtnActive : ""}`}
-            onClick={() => setFilter(f)}
-          >
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-      </div>
+      {startRunProtocol && (
+        <StartRunModal
+          protocolId={startRunProtocol.id}
+          protocolName={startRunProtocol.name}
+          onClose={() => setStartRunProtocol(null)}
+        />
+      )}
 
       {isLoading && <p>Loading...</p>}
       {isError && <p>Error loading protocols.</p>}
 
-      {!isLoading && !isError && filtered.length === 0 && (
-        <p className={styles.emptyText}>
-          {filter === "all" && protocols?.length === 0
-            ? "No protocols yet. Create your first dosing protocol."
-            : "No protocols match this filter."}
-        </p>
+      {/* Active Runs section */}
+      {!isLoading && !isError && activeRuns && activeRuns.length > 0 && (
+        <section className={styles.activeRunsSection}>
+          <h2>Active Runs</h2>
+          <div className={styles.cardList}>
+            {activeRuns.map((ar) => {
+              const pct = runProgressPct(ar);
+              const hasPending = ar.doses_today > 0 && ar.doses_completed_today < ar.doses_today;
+              return (
+                <Link
+                  key={ar.run.id}
+                  to={`/protocols/${ar.run.protocol_id}`}
+                  className={`op-card ${styles.protocolCard} ${hasPending ? styles.activeRunHighlight : ""}`}
+                >
+                  <div className={styles.cardHeader}>
+                    <span className={styles.cardName}>{ar.protocol_name}</span>
+                    <span className={`${styles.badge} ${styles.badgeActive}`}>
+                      {"\u25CF "}active
+                    </span>
+                    <span
+                      className={`${styles.doseBadge} ${hasPending ? styles.doseBadgePending : styles.doseBadgeDone}`}
+                    >
+                      {doseBadgeText(ar)}
+                    </span>
+                  </div>
+                  <div className={styles.progressBar}>
+                    <div className={styles.progressFill} style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className={styles.nextDose}>
+                    Started {ar.run.start_date} &middot; {pct}% complete
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
       )}
 
-      <div className={styles.cardList}>
-        {filtered.map((p) => {
-          const pct = computeProgress(p);
-          return (
-            <Link key={p.id} to={`/protocols/${p.id}`} className={`op-card ${styles.protocolCard}`}>
-              <div className={styles.cardHeader}>
-                <span className={styles.cardName}>{p.name}</span>
-                <span className={`${styles.badge} ${badgeClass(p.status)}`}>
-                  {p.status === "active"
-                    ? "\u25CF "
-                    : p.status === "paused"
-                      ? "\u23F8 "
-                      : "\u2713 "}
-                  {p.status}
-                </span>
+      {/* My Protocols section */}
+      {!isLoading && !isError && (
+        <section className={styles.myProtocolsSection}>
+          <h2>My Protocols</h2>
+          {(!protocols || protocols.length === 0) && (
+            <p className={styles.emptyText}>No protocols yet. Create your first dosing protocol.</p>
+          )}
+          <div className={styles.cardList}>
+            {protocols?.map((p) => (
+              <div key={p.id} className={`op-card ${styles.protocolCard} ${styles.recipeCard}`}>
+                <Link to={`/protocols/${p.id}`} className={styles.recipeLink}>
+                  <div className={styles.cardHeader}>
+                    <span className={styles.cardName}>{p.name}</span>
+                  </div>
+                  <span className={styles.nextDose}>
+                    {p.duration_days} days &middot; {p.lines.length} intervention
+                    {p.lines.length !== 1 ? "s" : ""}
+                  </span>
+                </Link>
+                <button
+                  type="button"
+                  className="op-btn op-btn-primary op-btn-sm"
+                  onClick={() => setStartRunProtocol({ id: p.id, name: p.name })}
+                >
+                  Start
+                </button>
               </div>
-              <div className={styles.progressBar}>
-                <div className={styles.progressFill} style={{ width: `${pct}%` }} />
-              </div>
-              <span className={styles.nextDose}>{getNextDoseLabel(p)}</span>
-            </Link>
-          );
-        })}
-      </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {templates && templates.length > 0 && (
         <section className={styles.templatesSection}>
