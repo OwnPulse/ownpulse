@@ -59,7 +59,7 @@ const skippedDose = {
 };
 
 const server = setupServer(
-  http.get("/api/v1/protocols/todays-doses", () => {
+  http.get("/api/v1/protocols/runs/todays-doses", () => {
     return HttpResponse.json(todaysDosesList);
   }),
   http.post("/api/v1/protocols/runs/:runId/doses/log", () => {
@@ -95,7 +95,7 @@ describe("protocolsApi - todays doses", () => {
 
     it("handles 401 error", async () => {
       server.use(
-        http.get("/api/v1/protocols/todays-doses", () => {
+        http.get("/api/v1/protocols/runs/todays-doses", () => {
           return new HttpResponse("Unauthorized", { status: 401 });
         }),
       );
@@ -104,7 +104,7 @@ describe("protocolsApi - todays doses", () => {
 
     it("handles 403 error", async () => {
       server.use(
-        http.get("/api/v1/protocols/todays-doses", () => {
+        http.get("/api/v1/protocols/runs/todays-doses", () => {
           return new HttpResponse("Forbidden", { status: 403 });
         }),
       );
@@ -113,7 +113,7 @@ describe("protocolsApi - todays doses", () => {
 
     it("handles 500 error", async () => {
       server.use(
-        http.get("/api/v1/protocols/todays-doses", () => {
+        http.get("/api/v1/protocols/runs/todays-doses", () => {
           return new HttpResponse("Internal Server Error", { status: 500 });
         }),
       );

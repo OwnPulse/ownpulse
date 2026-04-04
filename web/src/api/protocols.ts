@@ -54,6 +54,7 @@ export interface TodaysDose {
   protocol_id: string;
   protocol_name: string;
   protocol_line_id: string;
+  run_id: string;
   substance: string;
   dose: number;
   unit: string;
@@ -204,4 +205,11 @@ export const protocolsApi = {
   activeRuns: () => api.get<ActiveRun[]>("/api/v1/protocols/runs/active"),
   updateRun: (runId: string, data: UpdateRunRequest) =>
     api.patch<ProtocolRun>(`/api/v1/protocols/runs/${runId}`, data),
+
+  // Run doses
+  todaysDoses: () => api.get<TodaysDose[]>("/api/v1/protocols/runs/todays-doses"),
+  logRunDose: (runId: string, data: LogDoseRequest) =>
+    api.post<ProtocolDose>(`/api/v1/protocols/runs/${runId}/doses/log`, data),
+  skipRunDose: (runId: string, data: SkipDoseRequest) =>
+    api.post<ProtocolDose>(`/api/v1/protocols/runs/${runId}/doses/skip`, data),
 };

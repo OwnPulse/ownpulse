@@ -65,7 +65,7 @@ const mixedDoses = [
 ];
 
 const server = setupServer(
-  http.get("/api/v1/protocols/todays-doses", () => {
+  http.get("/api/v1/protocols/runs/todays-doses", () => {
     return HttpResponse.json(pendingDoses);
   }),
   http.post("/api/v1/protocols/runs/:runId/doses/log", () => {
@@ -135,7 +135,7 @@ describe("TodaysDoses", () => {
 
   it("renders loading state (returns null)", () => {
     server.use(
-      http.get("/api/v1/protocols/todays-doses", async () => {
+      http.get("/api/v1/protocols/runs/todays-doses", async () => {
         // Never resolve — simulates perpetual loading
         await new Promise(() => {});
         return HttpResponse.json([]);
@@ -149,7 +149,7 @@ describe("TodaysDoses", () => {
 
   it("renders error state (returns null)", async () => {
     server.use(
-      http.get("/api/v1/protocols/todays-doses", () => {
+      http.get("/api/v1/protocols/runs/todays-doses", () => {
         return new HttpResponse("Internal Server Error", { status: 500 });
       }),
     );
@@ -165,7 +165,7 @@ describe("TodaysDoses", () => {
 
   it("shows all done with green checkmark when all doses completed", async () => {
     server.use(
-      http.get("/api/v1/protocols/todays-doses", () => {
+      http.get("/api/v1/protocols/runs/todays-doses", () => {
         return HttpResponse.json(allCompletedDoses);
       }),
     );
@@ -183,7 +183,7 @@ describe("TodaysDoses", () => {
 
   it("shows mixed pending and completed doses", async () => {
     server.use(
-      http.get("/api/v1/protocols/todays-doses", () => {
+      http.get("/api/v1/protocols/runs/todays-doses", () => {
         return HttpResponse.json(mixedDoses);
       }),
     );
@@ -205,7 +205,7 @@ describe("TodaysDoses", () => {
 
   it("returns null when no doses", async () => {
     server.use(
-      http.get("/api/v1/protocols/todays-doses", () => {
+      http.get("/api/v1/protocols/runs/todays-doses", () => {
         return HttpResponse.json([]);
       }),
     );
@@ -255,7 +255,7 @@ describe("TodaysDoses", () => {
 
   it("maps null status to pending", async () => {
     server.use(
-      http.get("/api/v1/protocols/todays-doses", () => {
+      http.get("/api/v1/protocols/runs/todays-doses", () => {
         return HttpResponse.json([
           {
             ...pendingDoses[0],
