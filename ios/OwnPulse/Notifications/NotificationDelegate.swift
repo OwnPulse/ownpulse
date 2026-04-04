@@ -39,9 +39,9 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, @unchecked Se
 
 // MARK: - UNUserNotificationCenterDelegate
 
-@preconcurrency extension NotificationDelegate: UNUserNotificationCenterDelegate {
+extension NotificationDelegate: UNUserNotificationCenterDelegate {
     /// Called when a notification is delivered while the app is in the foreground.
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
@@ -49,12 +49,14 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, @unchecked Se
     }
 
     /// Called when the user taps a notification.
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
         let categoryIdentifier = response.notification.request.content.categoryIdentifier
         logger.info("Notification tapped: category=\(categoryIdentifier, privacy: .public)")
-        onNotificationTap?(categoryIdentifier)
+        await MainActor.run {
+            onNotificationTap?(categoryIdentifier)
+        }
     }
 }
