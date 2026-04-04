@@ -9,9 +9,7 @@ private let logger = Logger(subsystem: "health.ownpulse.app", category: "notific
 
 /// Handles APNs device token registration and notification tap actions.
 /// Retained by the App as a @State property for the lifetime of the app.
-final class NotificationDelegate: NSObject, UIApplicationDelegate,
-    UNUserNotificationCenterDelegate, @unchecked Sendable
-{
+final class NotificationDelegate: NSObject, UIApplicationDelegate, @unchecked Sendable {
     /// Callback invoked when APNs delivers a device token.
     var onDeviceToken: (@Sendable (Data) -> Void)?
 
@@ -37,9 +35,11 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate,
             "Failed to register for remote notifications: \(error.localizedDescription, privacy: .public)"
         )
     }
+}
 
-    // MARK: - UNUserNotificationCenterDelegate
+// MARK: - UNUserNotificationCenterDelegate
 
+@preconcurrency extension NotificationDelegate: UNUserNotificationCenterDelegate {
     /// Called when a notification is delivered while the app is in the foreground.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
