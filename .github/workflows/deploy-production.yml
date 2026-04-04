@@ -121,19 +121,7 @@ jobs:
       - name: Deploy Postgres (idempotent)
         run: helm upgrade --install postgres helm/postgres -n ownpulse --force-conflicts --rollback-on-failure --timeout 120s
 
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
-        with:
-          repository: OwnPulse/ownpulse-infra
-          path: infra
-          ssh-key: ${{ secrets.INFRA_DEPLOY_KEY }}
-
-      - name: Apply sealed secrets (production)
-        run: |
-          for f in infra/k8s/sealed-secrets/*.yaml; do
-            # Skip staging secrets
-            echo "$f" | grep -q staging && continue
-            [ -f "$f" ] && kubectl apply -f "$f" && echo "Applied $f"
-          done
+      # Sealed secrets are managed by ownpulse-infra tofu stage2, not the deploy workflow.
 
   production-services:
     needs: [resolve-tags, production-infra]
