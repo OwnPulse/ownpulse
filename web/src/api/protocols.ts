@@ -77,7 +77,7 @@ export interface CreateProtocolLine {
 export interface CreateProtocol {
   name: string;
   description?: string;
-  start_date: string;
+  start_date?: string;
   duration_days: number;
   lines: CreateProtocolLine[];
 }
