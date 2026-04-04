@@ -100,6 +100,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0023_protocol_templates.sql",
         include_str!("../../../db/migrations/0023_protocol_templates.sql"),
     ),
+    (
+        "0024_protocol_runs.sql",
+        include_str!("../../../db/migrations/0024_protocol_runs.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
