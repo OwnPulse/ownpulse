@@ -10,6 +10,7 @@ pub mod admin;
 pub mod audit;
 pub mod auth;
 pub mod checkins;
+pub mod config;
 pub mod dashboard;
 pub mod events;
 pub mod explore;
@@ -297,6 +298,8 @@ fn invite_check_routes() -> Router<AppState> {
 
 fn base_routes() -> Router<AppState> {
     Router::new()
+        // Config (unauthenticated)
+        .route("/config", get(config::get_config))
         // Waitlist (unauthenticated)
         .route("/waitlist", post(waitlist::signup))
         // Health records
@@ -373,6 +376,13 @@ fn base_routes() -> Router<AppState> {
             post(admin::send_invite_email),
         )
         .route("/admin/invites/:id", delete(admin::revoke_invite))
+        // Admin feature flags
+        .route("/admin/feature-flags", get(admin::list_feature_flags))
+        .route("/admin/feature-flags/:key", put(admin::upsert_feature_flag))
+        .route(
+            "/admin/feature-flags/:key",
+            delete(admin::delete_feature_flag),
+        )
         // Admin protocol endpoints
         .route("/admin/protocols/import", post(admin::admin_bulk_import))
         .route(

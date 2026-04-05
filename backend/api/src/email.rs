@@ -91,6 +91,8 @@ mod tests {
             web_origin: "http://localhost:5173".to_string(),
             rust_log: "info".to_string(),
             require_invite: false,
+            ios_min_version: None,
+            ios_force_upgrade_below: None,
             smtp_host: None,
             smtp_port: 587,
             smtp_username: None,

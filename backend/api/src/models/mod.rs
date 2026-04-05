@@ -18,4 +18,5 @@ pub mod protocol;
 pub mod sleep;
 pub mod source_preference;
 pub mod stats;
+pub mod feature_flag;
 pub mod user;

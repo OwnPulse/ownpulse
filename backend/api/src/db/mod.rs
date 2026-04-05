@@ -9,6 +9,7 @@ pub mod audit;
 pub mod checkins;
 pub mod explore;
 pub mod explore_charts;
+pub mod feature_flags;
 pub mod friend_shares;
 pub mod genetics;
 pub mod health_records;
