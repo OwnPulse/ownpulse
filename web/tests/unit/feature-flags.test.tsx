@@ -54,9 +54,7 @@ describe("FeatureFlagsSection", () => {
   });
 
   it("renders list of flags", async () => {
-    server.use(
-      http.get("/api/v1/admin/feature-flags", () => HttpResponse.json(mockFlags)),
-    );
+    server.use(http.get("/api/v1/admin/feature-flags", () => HttpResponse.json(mockFlags)));
 
     renderComponent();
 
@@ -97,9 +95,7 @@ describe("FeatureFlagsSection", () => {
   });
 
   it("renders empty state", async () => {
-    server.use(
-      http.get("/api/v1/admin/feature-flags", () => HttpResponse.json([])),
-    );
+    server.use(http.get("/api/v1/admin/feature-flags", () => HttpResponse.json([])));
 
     renderComponent();
 

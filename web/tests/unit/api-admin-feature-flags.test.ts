@@ -40,9 +40,7 @@ describe("adminApi feature flags", () => {
 
   describe("listFeatureFlags", () => {
     it("GETs /api/v1/admin/feature-flags and returns flag list", async () => {
-      server.use(
-        http.get("/api/v1/admin/feature-flags", () => HttpResponse.json(mockFlags)),
-      );
+      server.use(http.get("/api/v1/admin/feature-flags", () => HttpResponse.json(mockFlags)));
 
       const { adminApi } = await import("../../src/api/admin");
       const result = await adminApi.listFeatureFlags();
@@ -147,9 +145,9 @@ describe("adminApi feature flags", () => {
 
       const { adminApi } = await import("../../src/api/admin");
 
-      await expect(
-        adminApi.upsertFeatureFlag("test", { enabled: true }),
-      ).rejects.toThrow("Unauthorized");
+      await expect(adminApi.upsertFeatureFlag("test", { enabled: true })).rejects.toThrow(
+        "Unauthorized",
+      );
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
 
@@ -163,9 +161,7 @@ describe("adminApi feature flags", () => {
 
       const { adminApi } = await import("../../src/api/admin");
 
-      await expect(
-        adminApi.upsertFeatureFlag("test", { enabled: true }),
-      ).rejects.toMatchObject({
+      await expect(adminApi.upsertFeatureFlag("test", { enabled: true })).rejects.toMatchObject({
         name: "ApiError",
         status: 500,
       });

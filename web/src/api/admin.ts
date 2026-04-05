@@ -66,12 +66,7 @@ export const adminApi = {
     api.post<{ imported: number }>("/api/v1/admin/protocols/import", data),
   listFeatureFlags: () => api.get<FeatureFlag[]>("/api/v1/admin/feature-flags"),
   upsertFeatureFlag: (key: string, data: UpsertFlagRequest) =>
-    api.put<FeatureFlag>(
-      `/api/v1/admin/feature-flags/${encodeURIComponent(key)}`,
-      data,
-    ),
+    api.put<FeatureFlag>(`/api/v1/admin/feature-flags/${encodeURIComponent(key)}`, data),
   deleteFeatureFlag: (key: string) =>
-    api.delete<void>(
-      `/api/v1/admin/feature-flags/${encodeURIComponent(key)}`,
-    ),
+    api.delete<void>(`/api/v1/admin/feature-flags/${encodeURIComponent(key)}`),
 };

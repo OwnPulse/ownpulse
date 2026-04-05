@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
-import { type ReactNode, createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { useAppConfig, useFeatureFlag } from "../../src/hooks/useFeatureFlags";
 
@@ -31,9 +31,7 @@ function createWrapper() {
 
 describe("useAppConfig", () => {
   it("fetches /api/v1/config and returns data", async () => {
-    server.use(
-      http.get("/api/v1/config", () => HttpResponse.json(mockConfig)),
-    );
+    server.use(http.get("/api/v1/config", () => HttpResponse.json(mockConfig)));
 
     const { result } = renderHook(() => useAppConfig(), {
       wrapper: createWrapper(),
@@ -44,12 +42,7 @@ describe("useAppConfig", () => {
   });
 
   it("returns error when request fails", async () => {
-    server.use(
-      http.get(
-        "/api/v1/config",
-        () => new HttpResponse("Server Error", { status: 500 }),
-      ),
-    );
+    server.use(http.get("/api/v1/config", () => new HttpResponse("Server Error", { status: 500 })));
 
     const { result } = renderHook(() => useAppConfig(), {
       wrapper: createWrapper(),
@@ -78,9 +71,7 @@ describe("useFeatureFlag", () => {
   });
 
   it("returns true for an enabled flag", async () => {
-    server.use(
-      http.get("/api/v1/config", () => HttpResponse.json(mockConfig)),
-    );
+    server.use(http.get("/api/v1/config", () => HttpResponse.json(mockConfig)));
 
     const { result } = renderHook(() => useFeatureFlag("dark_mode_v2"), {
       wrapper: createWrapper(),
@@ -90,32 +81,24 @@ describe("useFeatureFlag", () => {
   });
 
   it("returns false for a disabled flag", async () => {
-    server.use(
-      http.get("/api/v1/config", () => HttpResponse.json(mockConfig)),
-    );
+    server.use(http.get("/api/v1/config", () => HttpResponse.json(mockConfig)));
 
     const { result } = renderHook(() => useFeatureFlag("new_dashboard"), {
       wrapper: createWrapper(),
     });
 
     // Wait for the query to settle, then check it stays false
-    await waitFor(() =>
-      expect(result.current).toBe(false),
-    );
+    await waitFor(() => expect(result.current).toBe(false));
   });
 
   it("returns false for a nonexistent flag", async () => {
-    server.use(
-      http.get("/api/v1/config", () => HttpResponse.json(mockConfig)),
-    );
+    server.use(http.get("/api/v1/config", () => HttpResponse.json(mockConfig)));
 
     const { result } = renderHook(() => useFeatureFlag("nonexistent_flag"), {
       wrapper: createWrapper(),
     });
 
     // Give time for config to load, then verify still false
-    await waitFor(() =>
-      expect(result.current).toBe(false),
-    );
+    await waitFor(() => expect(result.current).toBe(false));
   });
 });

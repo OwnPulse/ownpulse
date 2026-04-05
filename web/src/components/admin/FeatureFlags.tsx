@@ -25,8 +25,7 @@ export function FeatureFlagsSection() {
   const toggleMutation = useMutation({
     mutationFn: ({ key, enabled }: { key: string; enabled: boolean }) =>
       adminApi.upsertFeatureFlag(key, { enabled }),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["admin-feature-flags"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-feature-flags"] }),
   });
 
   const createMutation = useMutation({
@@ -50,8 +49,7 @@ export function FeatureFlagsSection() {
 
   const deleteMutation = useMutation({
     mutationFn: (key: string) => adminApi.deleteFeatureFlag(key),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["admin-feature-flags"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-feature-flags"] }),
   });
 
   const handleCreate = (e: React.FormEvent) => {
@@ -85,11 +83,7 @@ export function FeatureFlagsSection() {
       </div>
 
       {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className={styles.createForm}
-          data-testid="create-flag-form"
-        >
+        <form onSubmit={handleCreate} className={styles.createForm} data-testid="create-flag-form">
           <div className={styles.createFormField}>
             <label htmlFor="flag-key" className={styles.createFormLabel}>
               Key
@@ -105,10 +99,7 @@ export function FeatureFlagsSection() {
             />
           </div>
           <div className={styles.createFormField}>
-            <label
-              htmlFor="flag-description"
-              className={styles.createFormLabel}
-            >
+            <label htmlFor="flag-description" className={styles.createFormLabel}>
               Description
             </label>
             <input
@@ -148,17 +139,11 @@ export function FeatureFlagsSection() {
       {flags && flags.length > 0 ? (
         <div className={styles.flagList} data-testid="flag-list">
           {flags.map((flag: FeatureFlag) => (
-            <div
-              key={flag.id}
-              className={styles.flagRow}
-              data-testid={`flag-row-${flag.key}`}
-            >
+            <div key={flag.id} className={styles.flagRow} data-testid={`flag-row-${flag.key}`}>
               <div className={styles.flagInfo}>
                 <span className={styles.flagKey}>{flag.key}</span>
                 {flag.description && (
-                  <span className={styles.flagDescription}>
-                    {flag.description}
-                  </span>
+                  <span className={styles.flagDescription}>{flag.description}</span>
                 )}
               </div>
               <div className={styles.flagActions}>
@@ -189,8 +174,7 @@ export function FeatureFlagsSection() {
           ))}
         </div>
       ) : (
-        !isLoading &&
-        !isError && <p className={styles.emptyText}>No feature flags yet.</p>
+        !isLoading && !isError && <p className={styles.emptyText}>No feature flags yet.</p>
       )}
     </div>
   );
