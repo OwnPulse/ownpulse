@@ -2,7 +2,6 @@ name: OwnPulse
 
 configs:
   Debug: debug
-  Staging: release
   Release: release
 
 options:
@@ -33,18 +32,12 @@ targets:
       configs:
         Debug:
           CODE_SIGN_STYLE: Automatic
-        Staging:
-          CODE_SIGN_STYLE: Manual
-          CODE_SIGN_IDENTITY: "Apple Distribution"
-          PRODUCT_BUNDLE_IDENTIFIER: health.ownpulse.app.staging
-          PROVISIONING_PROFILE_SPECIFIER: "match AppStore health.ownpulse.app.staging"
         Release:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "match AppStore health.ownpulse.app"
     configFiles:
       Debug: OwnPulse/Config/Debug.xcconfig
-      Staging: OwnPulse/Config/Staging.xcconfig
       Release: OwnPulse/Config/Release.xcconfig
     dependencies:
       - package: GRDB
@@ -53,7 +46,8 @@ targets:
       properties:
         aps-environment: development
         com.apple.developer.healthkit: true
-        com.apple.developer.healthkit.access: []
+        com.apple.developer.healthkit.access:
+          - health-records
 
   OwnPulseTests:
     type: bundle.unit-test
@@ -88,17 +82,3 @@ schemes:
       config: Debug
     archive:
       config: Release
-  OwnPulse-Staging:
-    build:
-      targets:
-        OwnPulse: all
-        OwnPulseTests: [test]
-    test:
-      targets:
-        - OwnPulseTests
-      commandLineArguments:
-        "-com.apple.CoreData.ConcurrencyDebug": "1"
-    run:
-      config: Staging
-    archive:
-      config: Staging
