@@ -67,6 +67,8 @@
 		C05D5F589E6E424566CE709E /* HealthKitTypeMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */; };
 		C0BEAECB10367E37B9ECBA54 /* PKCEHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */; };
 		C61339D33CC14D51DE65164F /* AppConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */; };
+		C61339D33CC14D51DE65164A /* FeatureFlagServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* FeatureFlagServiceTests.swift */; };
+		C61339D33CC14D51DE65164B /* MockFeatureFlagService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F3 /* MockFeatureFlagService.swift */; };
 		CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA76F6599478222F387A59 /* Migrations.swift */; };
 		DD05735EFCA7651A0C730B6E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 06208BEB784209E228C86FC6 /* GRDB */; };
 		E0488EF52A020B1D724D1FBD /* ClinicalRecordSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E42F8EDD5D3A046B6B5CC17 /* ClinicalRecordSettings.swift */; };
@@ -79,6 +81,7 @@
 		EF4DD8852360BDFF3BF50A78 /* BackgroundTaskHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C21DBABF5AA29B8A4BBC17 /* BackgroundTaskHandler.swift */; };
 		EFCC871589CB4A92769DE49F /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7351C0E5E3BB61A29712219B /* NetworkClient.swift */; };
 		F1D7368096CC6CD527C6D484 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EB1A978FF07FCBCFF5DFBDC /* AppConfig.swift */; };
+		F1D7368096CC6CD527C6D485 /* FeatureFlagService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 021F92806C785439E1DAE923 /* FeatureFlagService.swift */; };
 		F226F127D39C61A87E623588 /* SparklineCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B22A411AC6BB862732AC59C /* SparklineCard.swift */; };
 		F58E423001378E6C79F02B60 /* NotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2EFCC3ABFED4F18B7F5DF8B /* NotificationModels.swift */; };
 		F63AF6EC6D3C364369D3CB53 /* LogViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B16BC9B54A679ED5EAB8D32C /* LogViewModel.swift */; };
@@ -102,7 +105,7 @@
 
 /* Begin PBXFileReference section */
 		01C52170DFB396263C97C911 /* InsightCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightCardView.swift; sourceTree = "<group>"; };
-		021F92806C785439E1DAE923 /* Staging.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Staging.xcconfig; sourceTree = "<group>"; };
+		021F92806C785439E1DAE923 /* FeatureFlagService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlagService.swift; sourceTree = "<group>"; };
 		0321F73E335F4082AB05D8E7 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
 		0A7EE472EEBD42E355D92E53 /* LogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
 		0B0CE15DF54DD50F607ACC1C /* ExploreWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreWebView.swift; sourceTree = "<group>"; };
@@ -186,6 +189,8 @@
 		F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProvider.swift; sourceTree = "<group>"; };
 		F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAuthService.swift; sourceTree = "<group>"; };
 		FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTypeMap.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* FeatureFlagServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlagServiceTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F3 /* MockFeatureFlagService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFeatureFlagService.swift; sourceTree = "<group>"; };
 		FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigTests.swift; sourceTree = "<group>"; };
 		FFBC7A34027D30D960D2A518 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -259,8 +264,8 @@
 			children = (
 				7EB1A978FF07FCBCFF5DFBDC /* AppConfig.swift */,
 				743F8866BD3B373594525752 /* Debug.xcconfig */,
+				021F92806C785439E1DAE923 /* FeatureFlagService.swift */,
 				3E28FE3D0872E6AA33C7382F /* Release.xcconfig */,
-				021F92806C785439E1DAE923 /* Staging.xcconfig */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -285,11 +290,13 @@
 				C7928246CBD1BDB2F72B47DB /* AuthServiceTests.swift */,
 				3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */,
 				A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* FeatureFlagServiceTests.swift */,
 				A3CF51E74D2A5D23EB666510 /* HealthKitTypeMapTests.swift */,
 				858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */,
 				3C3DFD3320220CCEDFA00910 /* LoginViewModelTests.swift */,
 				4BBEEEB77231155980E6056B /* LogViewModelTests.swift */,
 				F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */,
+				A1B2C3D4E5F6A7B8C9D0E1F3 /* MockFeatureFlagService.swift */,
 				AE6946B4A3B390ED063952B5 /* MockHealthKitProvider.swift */,
 				5E6426632C9A60D4B0EAE38F /* MockKeychainService.swift */,
 				69FF64D436027417304D659C /* MockNetworkClient.swift */,
@@ -556,6 +563,7 @@
 				18958506A603AA8D7F7A1A26 /* AnchorStore.swift in Sources */,
 				F1D7368096CC6CD527C6D484 /* AppConfig.swift in Sources */,
 				6CE29FC72945FB6FFDD8EFB9 /* AppDependencies.swift in Sources */,
+				F1D7368096CC6CD527C6D485 /* FeatureFlagService.swift in Sources */,
 				A67BDB45434152D64A52429A /* AppleAuthHelper.swift in Sources */,
 				AD908556FEE7A7146DD6F315 /* AuthService.swift in Sources */,
 				EF4DD8852360BDFF3BF50A78 /* BackgroundTaskHandler.swift in Sources */,
@@ -619,11 +627,13 @@
 				0C3C7A807E0BA9C70B684B65 /* AuthServiceTests.swift in Sources */,
 				9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */,
 				77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */,
+				C61339D33CC14D51DE65164A /* FeatureFlagServiceTests.swift in Sources */,
 				6D4B93AFBD5E73E73A0D59CE /* HealthKitTypeMapTests.swift in Sources */,
 				E0D8A7044773E3267198A68B /* JWTDecoderTests.swift in Sources */,
 				3B7C75B5EF4DD69E050F0435 /* LogViewModelTests.swift in Sources */,
 				6CCCBF48696234499FC0585E /* LoginViewModelTests.swift in Sources */,
 				264F1827147C1C6A3B09B8AE /* MockAuthService.swift in Sources */,
+				C61339D33CC14D51DE65164B /* MockFeatureFlagService.swift in Sources */,
 				A14FC677EEF0E3ABB7D8FF54 /* MockHealthKitProvider.swift in Sources */,
 				997B651854B45BE01C2D29B8 /* MockKeychainService.swift in Sources */,
 				63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */,
@@ -649,25 +659,6 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		08F2A99374805326F9E89AFD /* Staging */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@loader_path/Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = health.ownpulse.OwnPulseTests;
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OwnPulse.app/OwnPulse";
-			};
-			name = Staging;
-		};
 		3DDC1E9F66893AB9548A02D6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -730,89 +721,6 @@
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
-		};
-		4BB863641AE29370F4E6981B /* Staging */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 021F92806C785439E1DAE923 /* Staging.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = OwnPulse/OwnPulse.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Distribution";
-				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 1;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = "$(DEVELOPMENT_TEAM)";
-				ENABLE_HARDENED_RUNTIME = YES;
-				INFOPLIST_FILE = OwnPulse/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = health.ownpulse.app.staging;
-				PROVISIONING_PROFILE_SPECIFIER = "match AppStore health.ownpulse.app.staging";
-				SDKROOT = iphoneos;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Staging;
-		};
-		55FE10C65BF1BFBBA0D4C05B /* Staging */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
-				CLANG_CXX_LIBRARY = "libc++";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				COPY_PHASE_STRIP = NO;
-				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
-				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MTL_ENABLE_DEBUG_INFO = NO;
-				MTL_FAST_MATH = YES;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_OPTIMIZATION_LEVEL = "-O";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Staging;
 		};
 		5627B078933BB13DB1017579 /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -969,7 +877,6 @@
 			buildConfigurations = (
 				5627B078933BB13DB1017579 /* Debug */,
 				87C2F3DE6A8F37EE2FB5B438 /* Release */,
-				4BB863641AE29370F4E6981B /* Staging */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -979,7 +886,6 @@
 			buildConfigurations = (
 				7C63A4684F55D333443A5C1B /* Debug */,
 				F7397560318F19BBBD37A174 /* Release */,
-				08F2A99374805326F9E89AFD /* Staging */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -989,7 +895,6 @@
 			buildConfigurations = (
 				3DDC1E9F66893AB9548A02D6 /* Debug */,
 				7AC937D9E352E6B72979A8CF /* Release */,
-				55FE10C65BF1BFBBA0D4C05B /* Staging */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
