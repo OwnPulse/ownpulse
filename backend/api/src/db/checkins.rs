@@ -3,7 +3,7 @@
 
 use chrono::NaiveDate;
 
-use crate::models::checkin::{CheckinRow, CheckinInput};
+use crate::models::checkin::{CheckinInput, CheckinRow};
 use sqlx::PgPool;
 use uuid::Uuid;
 

@@ -10,7 +10,7 @@ use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::checkins as db;
 use crate::error::ApiError;
-use crate::models::checkin::{CheckinQuery, CheckinRow, CheckinInput};
+use crate::models::checkin::{CheckinInput, CheckinQuery, CheckinRow};
 use crate::routes::events::publish_event;
 
 fn validate_score(value: Option<i32>, field: &str) -> Result<(), ApiError> {
