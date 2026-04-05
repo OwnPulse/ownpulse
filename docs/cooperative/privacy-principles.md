@@ -6,9 +6,9 @@ See [ADR-0010](../decisions/0010-data-cooperative.md) for the full rationale.
 
 ## Data Sovereignty
 
-- **User-controlled storage.** Data is stored on the user's own infrastructure (self-hosted) or on cooperative infrastructure in the user's chosen region.
+- **User-controlled storage.** Data is stored on cooperative infrastructure in the user's chosen region, or on the user's own infrastructure for self-hosted deployments.
 - **No cross-region replication.** EU users' data stays on EU infrastructure (Hetzner, Germany). US users' data stays on US infrastructure (DigitalOcean). The `data_region` field is set at signup and enforced at the infrastructure level.
-- **Nothing leaves without consent.** No data leaves the user's instance without explicit opt-in. There is no background telemetry, no analytics, no usage tracking.
+- **Nothing leaves without consent.** No data leaves the user's account without explicit opt-in. There is no background telemetry, no analytics, no usage tracking.
 
 ## Full Export
 
@@ -34,7 +34,7 @@ OwnPulse implements the following regulatory frameworks:
 - **Right to know:** Full export available.
 - **Right to delete:** Account deletion anonymizes all records.
 - **Right to opt-out of sale:** Cooperative data sharing is opt-in, not opt-out.
-- **No discrimination:** Self-hosted users have full functionality regardless of sharing choices.
+- **No discrimination:** No user is penalized or given reduced functionality based on their data sharing choices.
 
 ### PIPEDA (Canada)
 

@@ -18,6 +18,9 @@ You can submit one check-in per day. If you submit again on the same day, the ne
 
 Log substances, medications, and supplements. Each entry includes a name, dosage, unit, and timestamp. OwnPulse is non-judgmental by design -- it does not validate, filter, or warn on substance names. Every intervention you log is treated as legitimate health data.
 
+!!! tip "Quick pick from protocols"
+    If you have active protocol runs, a row of quick-pick chips appears above the intervention form. Each chip shows the substance, dose, unit, and route from your active protocols. Tap a chip to pre-fill the form with those values, saving you from typing the same details each time.
+
 ## Health records
 
 Enter manual health metrics such as heart rate, blood pressure, body temperature, weight, or blood oxygen. This is useful when you do not have a wearable or want to record a reading from a medical device that does not sync automatically.

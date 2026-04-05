@@ -1,6 +1,6 @@
 # iOS App
 
-The OwnPulse iOS app syncs your Apple Health data and provides a focused home screen for daily monitoring. Manual data entry, export, and account management are handled on the web.
+The OwnPulse iOS app syncs your Apple Health data, provides a native dashboard with check-in score rings and protocol dose tracking, and includes a full protocol editor. Manual data entry for other record types, export, and account management are handled on the web.
 
 ## Installation
 
@@ -31,17 +31,42 @@ The app syncs automatically in the background and on every launch. iOS controls 
 
 If you lose network connectivity, the iOS app continues to collect HealthKit data. Sync operations are queued locally and processed once the app reconnects to your OwnPulse backend. Data entry on the web is always available independently.
 
+## Protocols
+
+The iOS app includes a full native protocol editor. You can create, view, and manage protocols directly on your device.
+
+- **Protocol list** -- browse your protocols with filter options (all, active, paused, completed) and progress bars showing adherence.
+- **Protocol builder** -- create new protocols with substance, dose, route, timing, and a pattern picker for scheduling (Daily, 3x/Week, Every Other Day, Weekdays).
+- **Protocol detail** -- view progress, today's doses with Log and Skip buttons, and substance summaries.
+
+!!! note
+    The sequencer grid for fine-grained day-by-day editing and copy-week-forward are web-only features. On iOS, use the pattern picker to set schedules.
+
+## Notifications
+
+The iOS app supports push notifications for protocol dose reminders. To set up notifications:
+
+1. Go to **Settings** in the OwnPulse app.
+2. Check the **Notifications** section. It shows whether dose reminders are enabled or disabled.
+3. If not enabled, tap **Enable Notifications** to grant permission.
+
+Notification times are configured per protocol run when you start it (see [Protocols -- Dose reminders](protocols.md#dose-reminders)). You can configure reminders per run from the web interface, and they will be delivered to your iOS device.
+
+!!! warning
+    If you previously denied notification permission, you will need to enable it manually in iOS Settings under **Notifications > OwnPulse**.
+
 ## What's on iOS vs web
 
 | Feature | Web | iOS |
 |---------|-----|-----|
 | Google OAuth login | Yes | Yes |
 | Manual data entry | Yes | No |
-| Dashboard & charts | Yes | Yes (sleep+HRV) |
+| Protocols | Yes | Yes (pattern picker; no sequencer grid) |
+| Dashboard & charts | Yes | Yes (sleep+HRV, score rings, protocol doses) |
 | Export data | Yes | No |
 | Source management | Yes | HealthKit only |
 | Account settings | Yes | No |
 | HealthKit sync | No | Yes |
 | Background sync | No | Yes |
 
-The web app is the full-featured interface. The iOS app is purpose-built for HealthKit sync and a quick daily glance at your sleep and HRV data.
+The web app is the full-featured interface. The iOS app provides HealthKit sync, a native dashboard with check-in score rings and protocol dose tracking, and a native protocol editor.

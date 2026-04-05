@@ -9,7 +9,7 @@ All data is stored on infrastructure you control -- your own server, your own da
 ## Encryption
 
 - **In transit** -- all communication between clients (web browser, iOS app) and your OwnPulse backend uses TLS encryption.
-- **At rest** -- integration tokens (OAuth credentials for connected services) are encrypted with AES-256-GCM before being stored in the database. Your health data resides in the PostgreSQL database on your server.
+- **At rest** -- integration tokens (OAuth credentials for connected services) are encrypted with AES-256-GCM before being stored in the database. Your health data resides in a PostgreSQL database -- on cooperative infrastructure in your chosen region, or on your own server if you self-host.
 
 ## Authentication
 
@@ -21,7 +21,7 @@ OwnPulse uses JWT (JSON Web Token) authentication with automatic refresh token r
 
 ## No tracking
 
-OwnPulse includes zero analytics, zero telemetry, and zero third-party tracking scripts. No data leaves your instance unless you explicitly trigger an action like connecting an integration or exporting your dataset. There are no background phone-home calls, no usage metrics, and no crash reporting sent to external services.
+OwnPulse includes zero analytics, zero telemetry, and zero third-party tracking scripts. No data leaves your account unless you explicitly trigger an action like connecting an integration or exporting your dataset. There are no background phone-home calls, no usage metrics, and no crash reporting sent to external services.
 
 ## Data sharing
 

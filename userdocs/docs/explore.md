@@ -42,6 +42,23 @@ Each data point shows the average value and the number of raw records that were 
 
 When you chart metrics with different units (for example, heart rate in BPM alongside a mood score from 1 to 10), Explore automatically assigns them to separate Y-axes. This keeps the scales readable so that low-range scores are not flattened against high-range measurements.
 
+## Intervention markers
+
+When you have intervention data in the selected date range, Explore overlays dashed vertical lines on the chart at the time each dose was administered. Each marker is labeled with the substance name. This lets you visually correlate dosing events with changes in your health metrics -- for example, seeing how a supplement affects your HRV or sleep the following days.
+
+Intervention markers appear in the chart legend alongside your metrics. Click a substance name in the legend to toggle its markers on or off.
+
+## Chart interactions
+
+The chart supports several interactive features:
+
+- **Zoom** -- use the slider bar at the bottom of the chart to zoom into a specific date range. You can also scroll to zoom or pinch on touch devices.
+- **Dark mode** -- the chart automatically adapts to your system theme, adjusting colors, backgrounds, and text for readability in both light and dark modes.
+- **Interactive legend** -- click any metric or substance in the legend to toggle its visibility on the chart. Hidden items appear dimmed in the legend.
+- **Line style variation** -- each metric uses a distinct line style (solid, dashed, dotted) in addition to color, improving accessibility when many metrics are charted together.
+- **Tooltips** -- hover over any point to see exact values and timestamps for all visible metrics at that time.
+- **Correlate** -- when you have two or more metrics selected, a **Correlate** button appears. Clicking it opens the analysis view with those metrics pre-loaded for correlation analysis.
+
 ## Saving charts
 
 Once you have a chart configuration you want to revisit, save it. Saved charts store the full configuration:
@@ -56,12 +73,9 @@ You can update a saved chart's name or configuration later, or delete it when yo
 
 Open the saved charts list and select a chart to load it. The Explore page restores the exact configuration -- metrics, date range, resolution, and any custom colors you set.
 
-## Real-time updates
+## Live updates
 
-When new data arrives -- from a manual entry, a HealthKit sync, or an integration -- the Explore page updates automatically. You do not need to refresh the page. This works through a live connection that listens for data changes on your account.
-
-!!! note
-    Real-time updates require an active connection to your OwnPulse instance. If you lose connectivity, the chart will refresh with the latest data when the connection is restored.
+The Explore page listens for server-sent events from your OwnPulse instance. When new data arrives -- from a manual entry, a HealthKit sync, or an integration -- the chart refreshes automatically without requiring a manual page reload.
 
 ## Tips
 

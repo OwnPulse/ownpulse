@@ -4,10 +4,11 @@ The dashboard is your at-a-glance view of recent health data. Both the web app a
 
 ## Web dashboard
 
-The web dashboard is organized into three sections:
+The web dashboard shows several sections:
 
 - **Sleep chart** -- a 14-day stacked bar chart showing your sleep duration and stage breakdown each night. Bars are color-coded by sleep stage, making it easy to spot trends in deep sleep, REM, or nights with excessive wake time.
-- **Recent check-ins** -- your latest subjective ratings for energy, mood, focus, recovery, and libido. Each score is displayed alongside its date so you can quickly see how today compares to recent days.
+- **Today's Doses** -- if you have active protocol runs, the dashboard shows a Today's Doses widget at the top with pending dose count and quick Log/Skip buttons. See [Protocols -- Today's doses](protocols.md#todays-doses) for details.
+- **Check-in score rings** -- your latest subjective ratings for energy, mood, focus, recovery, and libido, displayed as colored progress rings. Each dimension has a distinct color: energy (gold), mood (terracotta), focus (teal), recovery (sage), and libido (violet). The ring fills proportionally to your score out of 10, giving you an instant visual read on your day.
 - **Recent health records** -- the most recent metrics synced from Apple Health, integrations, or manual entry. This includes heart rate, HRV, weight, blood oxygen, and any other metrics you track.
 
 The sleep chart uses stacked bars with color-coded segments for each sleep stage. Hover or tap a bar to see exact durations and times for that night. See [Sleep Tracking](sleep.md) for a detailed breakdown of the chart.
