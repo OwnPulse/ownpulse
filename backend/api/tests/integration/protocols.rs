@@ -895,7 +895,7 @@ async fn test_todays_doses() {
         .app
         .oneshot(common::auth_request(
             "GET",
-            "/api/v1/protocols/todays-doses",
+            "/api/v1/protocols/runs/todays-doses",
             &token,
             None,
         ))
