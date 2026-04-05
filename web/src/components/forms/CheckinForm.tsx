@@ -3,7 +3,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { checkinsApi, type UpsertCheckin } from "../../api/checkins";
+import { checkinsApi, type CheckinInput } from "../../api/checkins";
 import forms from "./forms.module.css";
 
 const DIMENSION_COLORS: Record<string, string> = {
@@ -34,7 +34,7 @@ export default function CheckinForm() {
   const [notes, setNotes] = useState("");
 
   const mutation = useMutation({
-    mutationFn: (data: UpsertCheckin) => checkinsApi.upsert(data),
+    mutationFn: (data: CheckinInput) => checkinsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["checkins"] });
       setDate(todayDate());

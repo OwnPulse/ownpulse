@@ -10,7 +10,7 @@ use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::checkins as db;
 use crate::error::ApiError;
-use crate::models::checkin::{CheckinQuery, CheckinRow, UpsertCheckin};
+use crate::models::checkin::{CheckinQuery, CheckinRow, CheckinInput};
 use crate::routes::events::publish_event;
 
 fn validate_score(value: Option<i32>, field: &str) -> Result<(), ApiError> {
@@ -24,11 +24,11 @@ fn validate_score(value: Option<i32>, field: &str) -> Result<(), ApiError> {
     Ok(())
 }
 
-/// POST /checkins — upsert by date; validates all scores are 1-10 if provided.
-pub async fn upsert(
+/// POST /checkins — create; validates all scores are 1-10 if provided.
+pub async fn create(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
-    Json(body): Json<UpsertCheckin>,
+    Json(body): Json<CheckinInput>,
 ) -> Result<(StatusCode, Json<CheckinRow>), ApiError> {
     validate_score(body.energy, "energy")?;
     validate_score(body.mood, "mood")?;
@@ -36,9 +36,27 @@ pub async fn upsert(
     validate_score(body.recovery, "recovery")?;
     validate_score(body.libido, "libido")?;
 
-    let row = db::upsert(&state.pool, user_id, &body).await?;
+    let row = db::create(&state.pool, user_id, &body).await?;
     publish_event(&state.event_tx, user_id, "checkins", None);
     Ok((StatusCode::CREATED, Json(row)))
+}
+
+/// PUT /checkins/:id — update an existing check-in.
+pub async fn update(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Path(checkin_id): Path<Uuid>,
+    Json(body): Json<CheckinInput>,
+) -> Result<Json<CheckinRow>, ApiError> {
+    validate_score(body.energy, "energy")?;
+    validate_score(body.mood, "mood")?;
+    validate_score(body.focus, "focus")?;
+    validate_score(body.recovery, "recovery")?;
+    validate_score(body.libido, "libido")?;
+
+    let row = db::update(&state.pool, user_id, checkin_id, &body).await?;
+    publish_event(&state.event_tx, user_id, "checkins", None);
+    Ok(Json(row))
 }
 
 /// GET /checkins

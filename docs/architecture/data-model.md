@@ -76,13 +76,13 @@ Substance, medication, and supplement logs. Names are freeform text with no vali
 
 ### `daily_checkins`
 
-Five 1-10 subjective scores per day.
+Five 1-10 subjective scores. Multiple check-ins per day are allowed.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `date` | DATE | One per user per day |
+| `date` | DATE | Multiple per day allowed |
 | `energy` | INT | 1-10 |
 | `mood` | INT | 1-10 |
 | `focus` | INT | 1-10 |
