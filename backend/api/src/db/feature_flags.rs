@@ -20,9 +20,11 @@ pub struct FeatureFlagRow {
 
 /// Return all feature flags as a key/enabled map.
 pub async fn all_flags(pool: &PgPool) -> Result<HashMap<String, bool>, sqlx::Error> {
-    let rows = sqlx::query_as::<_, FeatureFlagRow>("SELECT id, key, enabled, description, created_at, updated_at FROM feature_flags")
-        .fetch_all(pool)
-        .await?;
+    let rows = sqlx::query_as::<_, FeatureFlagRow>(
+        "SELECT id, key, enabled, description, created_at, updated_at FROM feature_flags",
+    )
+    .fetch_all(pool)
+    .await?;
 
     Ok(rows.into_iter().map(|r| (r.key, r.enabled)).collect())
 }

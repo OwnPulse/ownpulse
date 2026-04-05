@@ -4,6 +4,7 @@
 pub mod checkin;
 pub mod event;
 pub mod explore;
+pub mod feature_flag;
 pub mod friend_share;
 pub mod genetics;
 pub mod health_record;
@@ -18,5 +19,4 @@ pub mod protocol;
 pub mod sleep;
 pub mod source_preference;
 pub mod stats;
-pub mod feature_flag;
 pub mod user;

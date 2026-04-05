@@ -181,7 +181,6 @@ async fn test_upsert_updates_existing_flag() {
     assert_eq!(body["description"], "Beta features (now live)");
 }
 
-
 #[tokio::test]
 async fn test_list_flags_includes_created() {
     let app = common::setup().await;

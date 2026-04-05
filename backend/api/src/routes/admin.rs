@@ -463,8 +463,7 @@ pub async fn upsert_feature_flag(
         ));
     }
     let row =
-        feature_flags::upsert(&state.pool, &key, body.enabled, body.description.as_deref())
-            .await?;
+        feature_flags::upsert(&state.pool, &key, body.enabled, body.description.as_deref()).await?;
     Ok(Json(FeatureFlagResponse {
         id: row.id,
         key: row.key,
