@@ -67,7 +67,7 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-          working-directory: ios
+          working-directory: infra/ios
 
       - uses: actions/cache@v4
         with:
@@ -77,4 +77,8 @@ jobs:
 
       - name: Build and upload to TestFlight
         working-directory: ios
-        run: bundle exec fastlane beta
+        env:
+          FASTLANE_DIR: ${{ github.workspace }}/infra/ios/fastlane
+        run: |
+          export BUNDLE_GEMFILE=${{ github.workspace }}/infra/ios/Gemfile
+          bundle exec fastlane beta
