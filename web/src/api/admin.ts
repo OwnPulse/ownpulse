@@ -4,6 +4,20 @@
 import { api } from "./client";
 import type { ProtocolExport } from "./protocols";
 
+export interface FeatureFlag {
+  id: string;
+  key: string;
+  enabled: boolean;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UpsertFlagRequest {
+  enabled: boolean;
+  description?: string;
+}
+
 export interface AdminUser {
   id: string;
   username?: string;
@@ -50,4 +64,9 @@ export const adminApi = {
   demoteProtocol: (id: string) => api.post<void>(`/api/v1/admin/protocols/${id}/demote`, {}),
   bulkImportProtocols: (data: { url?: string; protocols?: ProtocolExport[] }) =>
     api.post<{ imported: number }>("/api/v1/admin/protocols/import", data),
+  listFeatureFlags: () => api.get<FeatureFlag[]>("/api/v1/admin/feature-flags"),
+  upsertFeatureFlag: (key: string, data: UpsertFlagRequest) =>
+    api.put<FeatureFlag>(`/api/v1/admin/feature-flags/${encodeURIComponent(key)}`, data),
+  deleteFeatureFlag: (key: string) =>
+    api.delete<void>(`/api/v1/admin/feature-flags/${encodeURIComponent(key)}`),
 };

@@ -1242,6 +1242,96 @@
           "repeat_interval_minutes": 15
         }
       }
+    },
+    {
+      "description": "a request to fetch app config (unauthenticated)",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/config"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "feature_flags": {},
+          "ios": {
+            "min_supported_version": null,
+            "force_upgrade_below": null
+          }
+        }
+      }
+    },
+    {
+      "description": "a request to list feature flags",
+      "providerState": "user is admin",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/admin/feature-flags",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "flag-1",
+            "key": "dark_mode_v2",
+            "enabled": true,
+            "description": "Enable dark mode v2",
+            "created_at": "2026-01-01T00:00:00Z",
+            "updated_at": "2026-01-01T00:00:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to upsert a feature flag",
+      "providerState": "user is admin",
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/admin/feature-flags/dark_mode_v2",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "enabled": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "flag-1",
+          "key": "dark_mode_v2",
+          "enabled": false,
+          "description": "Enable dark mode v2",
+          "created_at": "2026-01-01T00:00:00Z",
+          "updated_at": "2026-04-04T00:00:00Z"
+        }
+      }
+    },
+    {
+      "description": "a request to delete a feature flag",
+      "providerState": "user is admin and feature flag exists",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/admin/feature-flags/dark_mode_v2",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 204
+      }
     }
   ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }

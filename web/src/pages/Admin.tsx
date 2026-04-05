@@ -7,6 +7,7 @@ import { type AdminUser, adminApi, type CreateInviteRequest, type InviteCode } f
 import { type InviteClaim, invitesApi } from "../api/invites";
 import type { ProtocolExport, TemplateListItem } from "../api/protocols";
 import { protocolsApi } from "../api/protocols";
+import { FeatureFlagsSection } from "../components/admin/FeatureFlags";
 import { useAuthStore } from "../store/auth";
 import styles from "./Admin.module.css";
 
@@ -690,6 +691,7 @@ export default function Admin() {
       <h2>Users</h2>
       <UsersSection />
       <InvitesSection />
+      <FeatureFlagsSection />
       <ProtocolTemplatesSection />
     </main>
   );
