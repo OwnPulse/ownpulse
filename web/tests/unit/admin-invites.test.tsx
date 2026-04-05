@@ -63,6 +63,9 @@ vi.mock("../../src/api/admin", () => ({
     createInvite: vi.fn(),
     revokeInvite: vi.fn(),
     sendInviteEmail: vi.fn(),
+    listFeatureFlags: vi.fn().mockImplementation(() => Promise.resolve([])),
+    upsertFeatureFlag: vi.fn(),
+    deleteFeatureFlag: vi.fn(),
   },
 }));
 
