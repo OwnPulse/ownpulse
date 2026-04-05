@@ -56,15 +56,3 @@ img {
   height: auto;
 }
 
-/* Unovis chart grid and axis styling */
-.unovis-xy-container .unovis-axis .tick line {
-  stroke: var(--chart-grid-color);
-}
-
-.unovis-xy-container .unovis-axis .domain {
-  stroke: var(--chart-axis-color);
-}
-
-.unovis-xy-container .unovis-axis text {
-  fill: var(--color-text-secondary);
-}
