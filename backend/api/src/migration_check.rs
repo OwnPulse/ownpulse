@@ -18,7 +18,7 @@ use tracing::{error, info, warn};
 ///
 /// When adding a new migration, update this constant. The unit test
 /// `test_expected_count_matches_migration_files` verifies it stays in sync.
-pub const EXPECTED_MIGRATION_COUNT: i64 = 24;
+pub const EXPECTED_MIGRATION_COUNT: i64 = 25;
 
 /// Shared flag indicating whether migrations are up to date.
 /// `true` means the database schema matches the binary's expectations.

@@ -12,9 +12,10 @@ use uuid::Uuid;
 
 use crate::AppState;
 use crate::auth::extractor::AdminUser;
-use crate::db::{invites, protocols, refresh_tokens, users};
+use crate::db::{feature_flags, invites, protocols, refresh_tokens, users};
 use crate::email;
 use crate::error::ApiError;
+use crate::models::feature_flag::{FeatureFlagResponse, UpsertFlagRequest};
 use crate::models::invite::{
     CreateInviteRequest, InviteCheckResponse, InviteClaimResponse, InviteResponse,
     InviteStatsResponse, SendInviteEmailRequest,
@@ -425,6 +426,62 @@ pub async fn admin_bulk_import(
         protocols::bulk_import_templates(&state.pool, &exports, source_url.as_deref()).await?;
 
     Ok(Json(serde_json::json!({ "imported": count })))
+}
+
+// ─── Feature Flags ────────────────────────────────────────────────────────────
+
+/// GET /admin/feature-flags — list all feature flags (admin only).
+pub async fn list_feature_flags(
+    State(state): State<AppState>,
+    AdminUser(_): AdminUser,
+) -> Result<Json<Vec<FeatureFlagResponse>>, ApiError> {
+    let rows = feature_flags::list(&state.pool).await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| FeatureFlagResponse {
+                id: r.id,
+                key: r.key,
+                enabled: r.enabled,
+                description: r.description,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+            })
+            .collect(),
+    ))
+}
+
+/// PUT /admin/feature-flags/:key — create or update a feature flag (admin only).
+pub async fn upsert_feature_flag(
+    State(state): State<AppState>,
+    AdminUser(_): AdminUser,
+    Path(key): Path<String>,
+    Json(body): Json<UpsertFlagRequest>,
+) -> Result<Json<FeatureFlagResponse>, ApiError> {
+    if key.is_empty() {
+        return Err(ApiError::BadRequest(
+            "feature flag key must not be empty".to_string(),
+        ));
+    }
+    let row =
+        feature_flags::upsert(&state.pool, &key, body.enabled, body.description.as_deref()).await?;
+    Ok(Json(FeatureFlagResponse {
+        id: row.id,
+        key: row.key,
+        enabled: row.enabled,
+        description: row.description,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    }))
+}
+
+/// DELETE /admin/feature-flags/:key — delete a feature flag (admin only).
+pub async fn delete_feature_flag(
+    State(state): State<AppState>,
+    AdminUser(_): AdminUser,
+    Path(key): Path<String>,
+) -> Result<impl IntoResponse, ApiError> {
+    feature_flags::delete(&state.pool, &key).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 fn invite_email_html(inviter: &str, invite_url: &str, expiry_line: &str) -> String {

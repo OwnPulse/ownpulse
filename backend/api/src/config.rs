@@ -92,6 +92,11 @@ pub struct Config {
     pub require_invite: bool,
 
     #[serde(default)]
+    pub ios_min_version: Option<String>,
+    #[serde(default)]
+    pub ios_force_upgrade_below: Option<String>,
+
+    #[serde(default)]
     pub smtp_host: Option<String>,
     #[serde(default = "default_smtp_port")]
     pub smtp_port: u16,
@@ -229,6 +234,8 @@ mod tests {
             web_origin: default_web_origin(),
             rust_log: default_rust_log(),
             require_invite: default_require_invite(),
+            ios_min_version: None,
+            ios_force_upgrade_below: None,
             smtp_host: None,
             smtp_port: default_smtp_port(),
             smtp_username: None,
