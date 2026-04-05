@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import UIKit
-import UserNotifications
+@preconcurrency import UIKit
+@preconcurrency import UserNotifications
 import os
 
 private let logger = Logger(subsystem: "health.ownpulse.app", category: "notifications")
