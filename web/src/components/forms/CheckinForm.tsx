@@ -3,7 +3,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { checkinsApi, type CheckinInput } from "../../api/checkins";
+import { type CheckinInput, checkinsApi } from "../../api/checkins";
 import forms from "./forms.module.css";
 
 const DIMENSION_COLORS: Record<string, string> = {
