@@ -2,11 +2,7 @@ default_platform(:ios)
 
 platform :ios do
   desc "Build and upload to TestFlight"
-  lane :beta do |options|
-    scheme = options[:scheme] || "OwnPulse"
-    configuration = options[:configuration] || "Release"
-    app_id = options[:app_identifier] || "health.ownpulse.app"
-
+  lane :beta do
     key_content = if ENV["ASC_KEY_PATH"]
       File.read(ENV["ASC_KEY_PATH"])
     elsif ENV["ASC_KEY_CONTENT"]
@@ -23,25 +19,25 @@ platform :ios do
 
     match(
       type: "appstore",
-      app_identifier: app_id,
+      app_identifier: "health.ownpulse.app",
       readonly: true,
       api_key: api_key,
     )
 
     current_build = latest_testflight_build_number(
-      app_identifier: app_id,
+      app_identifier: "health.ownpulse.app",
       api_key: api_key,
     )
 
     build_number = current_build + 1
 
     build_app(
-      scheme: scheme,
-      configuration: configuration,
+      scheme: "OwnPulse",
+      configuration: "Release",
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          app_id => "match AppStore #{app_id}",
+          "health.ownpulse.app" => "match AppStore health.ownpulse.app",
         },
       },
       xcargs: "CURRENT_PROJECT_VERSION=#{build_number}",
@@ -49,7 +45,7 @@ platform :ios do
 
     upload_to_testflight(
       api_key: api_key,
-      app_identifier: app_id,
+      app_identifier: "health.ownpulse.app",
       skip_waiting_for_build_processing: true,
     )
   end

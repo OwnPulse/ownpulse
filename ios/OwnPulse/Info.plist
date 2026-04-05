@@ -41,12 +41,8 @@
 	<array>
 		<string>health.ownpulse.sync</string>
 	</array>
-	<key>API_BASE_URL</key>
-	<string>$(API_BASE_URL)</string>
 	<key>GOOGLE_CLIENT_ID</key>
 	<string>$(GOOGLE_CLIENT_ID)</string>
-	<key>WEB_DASHBOARD_URL</key>
-	<string>$(WEB_DASHBOARD_URL)</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

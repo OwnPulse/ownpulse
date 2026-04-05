@@ -1,4 +1,2 @@
-API_BASE_URL = http:/$()/localhost:8080
 GOOGLE_CLIENT_ID = 843091066891-qbdqim8fv1su1tdsfc49s3mal8ph1k62.apps.googleusercontent.com
 DEVELOPMENT_TEAM = J7C37BSM3L
-WEB_DASHBOARD_URL = http:/$()/localhost:5173

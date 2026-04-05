@@ -20,6 +20,7 @@ final class AppDependencies {
     let syncScheduler: SyncScheduler
     let adminService: AdminService
     let notificationManager: NotificationManager
+    let featureFlagService: FeatureFlagService
 
     init(
         keychainService: KeychainServiceProtocol? = nil,
@@ -60,5 +61,7 @@ final class AppDependencies {
         self.adminService = AdminService(networkClient: network)
 
         self.notificationManager = NotificationManager(networkClient: network)
+
+        self.featureFlagService = FeatureFlagService(networkClient: network)
     }
 }

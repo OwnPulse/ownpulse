@@ -8,13 +8,6 @@ on:
   pull_request:
     paths: ['ios/**']
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Build environment'
-        required: true
-        default: 'both'
-        type: choice
-        options: [staging, release, both]
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -48,17 +41,6 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     runs-on: macos-15
     timeout-minutes: 45
-    strategy:
-      matrix:
-        include:
-          - scheme: OwnPulse
-            configuration: Release
-            app_identifier: health.ownpulse.app
-            environment: release
-          - scheme: OwnPulse-Staging
-            configuration: Staging
-            app_identifier: health.ownpulse.app.staging
-            environment: staging
     steps:
       - uses: actions/checkout@v4
 
@@ -94,14 +76,5 @@ jobs:
           restore-keys: spm-
 
       - name: Build and upload to TestFlight
-        if: >
-          matrix.environment == github.event.inputs.environment ||
-          github.event.inputs.environment == 'both' ||
-          github.event.inputs.environment == '' ||
-          startsWith(github.ref, 'refs/tags/v')
         working-directory: ios
-        run: |
-          bundle exec fastlane beta \
-            scheme:"${{ matrix.scheme }}" \
-            configuration:"${{ matrix.configuration }}" \
-            app_identifier:"${{ matrix.app_identifier }}"
+        run: bundle exec fastlane beta

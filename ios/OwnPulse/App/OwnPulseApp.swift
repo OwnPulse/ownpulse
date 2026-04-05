@@ -21,6 +21,9 @@ struct OwnPulseApp: App {
                     registerBackgroundTasks()
                     configureNotificationDelegate()
                 }
+                .task {
+                    await dependencies.featureFlagService.fetch()
+                }
         }
     }
 
