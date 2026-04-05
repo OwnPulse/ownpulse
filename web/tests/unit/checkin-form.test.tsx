@@ -7,10 +7,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import CheckinForm from "../../src/components/forms/CheckinForm";
 
-const mockUpsert = vi.fn();
+const mockCreate = vi.fn();
 vi.mock("../../src/api/checkins", () => ({
   checkinsApi: {
-    upsert: (...args: unknown[]) => mockUpsert(...args),
+    create: (...args: unknown[]) => mockCreate(...args),
   },
 }));
 
@@ -27,7 +27,7 @@ function renderWithProviders() {
 
 describe("CheckinForm", () => {
   beforeEach(() => {
-    mockUpsert.mockReset();
+    mockCreate.mockReset();
   });
 
   it("renders score inputs", () => {
@@ -44,7 +44,7 @@ describe("CheckinForm", () => {
   });
 
   it("submits correct data", async () => {
-    mockUpsert.mockResolvedValue({
+    mockCreate.mockResolvedValue({
       id: "uuid-1",
       user_id: "user-1",
       date: "2026-03-18",
@@ -80,10 +80,10 @@ describe("CheckinForm", () => {
     await user.click(screen.getByRole("button", { name: /save check-in/i }));
 
     await waitFor(() => {
-      expect(mockUpsert).toHaveBeenCalledOnce();
+      expect(mockCreate).toHaveBeenCalledOnce();
     });
 
-    const submitted = mockUpsert.mock.calls[0][0];
+    const submitted = mockCreate.mock.calls[0][0];
     expect(submitted.date).toBe("2026-03-18");
     expect(submitted.energy).toBe(7);
     expect(submitted.mood).toBe(8);

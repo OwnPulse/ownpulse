@@ -301,7 +301,7 @@ pub async fn import_protocol(
     Ok((StatusCode::CREATED, Json(response)))
 }
 
-/// GET /protocols/todays-doses
+/// GET /protocols/runs/todays-doses
 pub async fn todays_doses(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,

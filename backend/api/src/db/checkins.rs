@@ -3,30 +3,51 @@
 
 use chrono::NaiveDate;
 
-use crate::models::checkin::{CheckinRow, UpsertCheckin};
+use crate::models::checkin::{CheckinInput, CheckinRow};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Upsert a daily check-in. If one already exists for this user+date, update it.
-pub async fn upsert(
+/// Create a new daily check-in.
+pub async fn create(
     pool: &PgPool,
     user_id: Uuid,
-    checkin: &UpsertCheckin,
+    checkin: &CheckinInput,
 ) -> Result<CheckinRow, sqlx::Error> {
     sqlx::query_as::<_, CheckinRow>(
         "INSERT INTO daily_checkins
             (user_id, date, energy, mood, focus, recovery, libido, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (user_id, date) DO UPDATE SET
-            energy   = EXCLUDED.energy,
-            mood     = EXCLUDED.mood,
-            focus    = EXCLUDED.focus,
-            recovery = EXCLUDED.recovery,
-            libido   = EXCLUDED.libido,
-            notes    = EXCLUDED.notes
          RETURNING id, user_id, date, energy, mood, focus, recovery, libido,
                    notes, created_at",
     )
+    .bind(user_id)
+    .bind(checkin.date)
+    .bind(checkin.energy)
+    .bind(checkin.mood)
+    .bind(checkin.focus)
+    .bind(checkin.recovery)
+    .bind(checkin.libido)
+    .bind(&checkin.notes)
+    .fetch_one(pool)
+    .await
+}
+
+/// Update an existing daily check-in by id, scoped to user.
+pub async fn update(
+    pool: &PgPool,
+    user_id: Uuid,
+    id: Uuid,
+    checkin: &CheckinInput,
+) -> Result<CheckinRow, sqlx::Error> {
+    sqlx::query_as::<_, CheckinRow>(
+        "UPDATE daily_checkins
+         SET date = $3, energy = $4, mood = $5, focus = $6,
+             recovery = $7, libido = $8, notes = $9
+         WHERE id = $1 AND user_id = $2
+         RETURNING id, user_id, date, energy, mood, focus, recovery, libido,
+                   notes, created_at",
+    )
+    .bind(id)
     .bind(user_id)
     .bind(checkin.date)
     .bind(checkin.energy)

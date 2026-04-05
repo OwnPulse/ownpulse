@@ -16,7 +16,7 @@ export interface Checkin {
   created_at: string;
 }
 
-export interface UpsertCheckin {
+export interface CheckinInput {
   date: string;
   energy: number;
   mood: number;
@@ -32,6 +32,7 @@ export const checkinsApi = {
     return api.get<Checkin[]>(`/api/v1/checkins${qs}`);
   },
   get: (id: string) => api.get<Checkin>(`/api/v1/checkins/${id}`),
-  upsert: (data: UpsertCheckin) => api.put<Checkin>("/api/v1/checkins", data),
+  create: (data: CheckinInput) => api.post<Checkin>("/api/v1/checkins", data),
+  update: (id: string, data: CheckinInput) => api.put<Checkin>(`/api/v1/checkins/${id}`, data),
   delete: (id: string) => api.delete<void>(`/api/v1/checkins/${id}`),
 };

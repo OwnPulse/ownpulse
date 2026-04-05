@@ -280,7 +280,8 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
 | GET | `/checkins` | List check-ins (paginated) | 1 |
-| POST | `/checkins` | Submit a daily check-in (upsert) | 1 |
+| POST | `/checkins` | Create a check-in (multiple per day allowed) | 1 |
+| PUT | `/checkins/:id` | Update an existing check-in | 1 |
 | GET | `/checkins/:id` | Get a single check-in | 1 |
 | DELETE | `/checkins/:id` | Delete a check-in | 1 |
 

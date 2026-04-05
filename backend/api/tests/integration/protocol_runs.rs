@@ -545,7 +545,7 @@ async fn test_todays_doses_via_run() {
         .clone()
         .oneshot(common::auth_request(
             "GET",
-            "/api/v1/protocols/todays-doses",
+            "/api/v1/protocols/runs/todays-doses",
             &token,
             None,
         ))
@@ -576,7 +576,7 @@ async fn test_todays_doses_empty_without_run() {
         .clone()
         .oneshot(common::auth_request(
             "GET",
-            "/api/v1/protocols/todays-doses",
+            "/api/v1/protocols/runs/todays-doses",
             &token,
             None,
         ))
@@ -632,7 +632,7 @@ async fn test_paused_run_excluded_from_todays_doses() {
         .clone()
         .oneshot(common::auth_request(
             "GET",
-            "/api/v1/protocols/todays-doses",
+            "/api/v1/protocols/runs/todays-doses",
             &token,
             None,
         ))

@@ -312,10 +312,11 @@ fn base_routes() -> Router<AppState> {
         .route("/interventions", get(interventions::list))
         .route("/interventions/:id", get(interventions::get))
         .route("/interventions/:id", delete(interventions::delete))
-        // Check-ins (POST is upsert)
-        .route("/checkins", post(checkins::upsert))
+        // Check-ins
+        .route("/checkins", post(checkins::create))
         .route("/checkins", get(checkins::list))
         .route("/checkins/:id", get(checkins::get))
+        .route("/checkins/:id", put(checkins::update))
         .route("/checkins/:id", delete(checkins::delete))
         // Observations
         .route("/observations", post(observations::create))
@@ -418,7 +419,7 @@ fn base_routes() -> Router<AppState> {
             "/protocols/templates/:id/copy",
             post(protocols::copy_template),
         )
-        .route("/protocols/todays-doses", get(protocols::todays_doses))
+        .route("/protocols/runs/todays-doses", get(protocols::todays_doses))
         .route(
             "/protocols/active-substances",
             get(protocols::active_substances),

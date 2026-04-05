@@ -21,7 +21,7 @@ pub struct CheckinRow {
 }
 
 #[derive(Deserialize)]
-pub struct UpsertCheckin {
+pub struct CheckinInput {
     pub date: NaiveDate,
     pub energy: Option<i32>,
     pub mood: Option<i32>,
