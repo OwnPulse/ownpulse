@@ -143,6 +143,56 @@ pub async fn series_get(
     Ok(Json(result))
 }
 
+/// POST /explore/batch-series — batch time-series for the iOS dashboard.
+///
+/// Accepts up to 10 metric specs and returns an array of series results.
+/// This is the dedicated batch endpoint consumed by the iOS app's sparkline
+/// widgets. The older `POST /explore/series` endpoint has a stricter limit
+/// of 8 and a slightly different contract; both are kept for compatibility.
+pub async fn batch_series(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Json(body): Json<BatchSeriesRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if body.metrics.is_empty() {
+        return Err(ApiError::BadRequest(
+            "at least one metric is required".to_string(),
+        ));
+    }
+    if body.metrics.len() > 10 {
+        return Err(ApiError::BadRequest(
+            "at most 10 metrics per request".to_string(),
+        ));
+    }
+
+    // Validate all metrics before executing any queries.
+    let parsed: Vec<MetricSource> = body
+        .metrics
+        .iter()
+        .map(|m| MetricSource::parse(&m.source, &m.field))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    // Execute queries in parallel.
+    let futures: Vec<_> = parsed
+        .iter()
+        .map(|metric| {
+            db_explore::query_series(
+                &state.pool,
+                user_id,
+                metric,
+                body.start,
+                body.end,
+                body.resolution,
+            )
+        })
+        .collect();
+
+    let results = futures::future::join_all(futures).await;
+    let series: Vec<SeriesResponse> = results.into_iter().collect::<Result<Vec<_>, _>>()?;
+
+    Ok(Json(serde_json::json!({ "series": series })))
+}
+
 /// POST /explore/series — batch time-series (multiple metrics).
 pub async fn series_post(
     State(state): State<AppState>,

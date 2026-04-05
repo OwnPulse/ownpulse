@@ -266,6 +266,7 @@ fn explore_routes() -> Router<AppState> {
         .route("/explore/metrics", get(explore::metrics))
         .route("/explore/series", get(explore::series_get))
         .route("/explore/series", post(explore::series_post))
+        .route("/explore/batch-series", post(explore::batch_series))
         .route("/explore/charts", post(explore::create_chart))
         .route("/explore/charts", get(explore::list_charts))
         .route("/explore/charts/:id", get(explore::get_chart))

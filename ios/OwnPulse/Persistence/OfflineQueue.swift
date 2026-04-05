@@ -46,7 +46,7 @@ final class OfflineQueue: OfflineQueueProtocol, Sendable {
             completedAt: nil
         )
         try databaseManager.dbQueue.write { db in
-            var mutableEntry = entry
+            let mutableEntry = entry
             try mutableEntry.insert(db)
         }
     }
