@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import UIKit
-import UserNotifications
+@preconcurrency import UserNotifications
 import os
 
 private let logger = Logger(subsystem: "health.ownpulse.app", category: "notifications")
@@ -11,11 +11,11 @@ private let logger = Logger(subsystem: "health.ownpulse.app", category: "notific
 /// Retained by the App as a @State property for the lifetime of the app.
 final class NotificationDelegate: NSObject, UIApplicationDelegate, @unchecked Sendable {
     /// Callback invoked when APNs delivers a device token.
-    var onDeviceToken: (@Sendable (Data) -> Void)?
+    nonisolated(unsafe) var onDeviceToken: (@Sendable (Data) -> Void)?
 
     /// Callback invoked when user taps a notification. The String is the
     /// notification category identifier (e.g., "dose_reminder").
-    var onNotificationTap: (@Sendable (String) -> Void)?
+    nonisolated(unsafe) var onNotificationTap: (@Sendable (String) -> Void)?
 
     // MARK: - UIApplicationDelegate
 
@@ -39,9 +39,9 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, @unchecked Se
 
 // MARK: - UNUserNotificationCenterDelegate
 
-@preconcurrency extension NotificationDelegate: UNUserNotificationCenterDelegate {
+extension NotificationDelegate: UNUserNotificationCenterDelegate {
     /// Called when a notification is delivered while the app is in the foreground.
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
@@ -49,7 +49,7 @@ final class NotificationDelegate: NSObject, UIApplicationDelegate, @unchecked Se
     }
 
     /// Called when the user taps a notification.
-    func userNotificationCenter(
+    nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {

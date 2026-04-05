@@ -6,6 +6,11 @@ import Testing
 import UIKit
 @testable import OwnPulse
 
+/// Thread-safe box for capturing values in @Sendable closures.
+private final class Box<T: Sendable>: @unchecked Sendable {
+    var value: T?
+}
+
 @Suite("NotificationDelegate", .serialized)
 @MainActor
 struct NotificationDelegateTests {
@@ -13,10 +18,10 @@ struct NotificationDelegateTests {
     @Test("onDeviceToken callback is invoked with token data")
     func deviceTokenCallback() {
         let delegate = NotificationDelegate()
-        var receivedToken: Data?
+        let receivedToken = Box<Data>()
 
         delegate.onDeviceToken = { data in
-            receivedToken = data
+            receivedToken.value = data
         }
 
         let tokenData = Data([0xDE, 0xAD, 0xBE, 0xEF])
@@ -25,7 +30,7 @@ struct NotificationDelegateTests {
             didRegisterForRemoteNotificationsWithDeviceToken: tokenData
         )
 
-        #expect(receivedToken == tokenData)
+        #expect(receivedToken.value == tokenData)
     }
 
     @Test("didFailToRegister does not crash when no handler set")
