@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import Foundation
-import UserNotifications
+@preconcurrency import UserNotifications
 import os
 
 private let logger = Logger(subsystem: "health.ownpulse.app", category: "notifications")
