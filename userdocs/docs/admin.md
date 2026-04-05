@@ -45,7 +45,7 @@ The Users section lists all registered users with their username, authentication
 Use the role dropdown next to a user to change their role between **admin** and **user**. Role changes take effect on the user's next API request.
 
 !!! warning "Admin access"
-    Granting admin access gives full control over all users and invite codes. Only assign admin to people you trust with instance-level management.
+    Granting admin access gives full control over all users and invite codes. Only assign admin to people you trust with full access to user and invite management.
 
 ### Disabling a user
 
@@ -97,4 +97,4 @@ When a new user receives an invite link:
 On iOS, users can enter the invite code manually during sign-up if they do not have the link.
 
 !!! note "Open signups"
-    If your instance administrator has set `REQUIRE_INVITE` to `false`, anyone can register without an invite code. The invite system is still available for tracking who invited whom, but it is not enforced.
+    If `REQUIRE_INVITE` is set to `false`, anyone can register without an invite code. The invite system is still available for tracking who invited whom, but it is not enforced.

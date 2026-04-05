@@ -51,7 +51,7 @@ Tap **Unlink** next to the provider you want to remove. You must always have at 
 
 If you signed in with Apple or Google OAuth, your display name and email are pulled from your provider account. These update automatically if you change them on the provider side.
 
-For username/password accounts, contact your instance administrator to update your email or reset your password.
+For username/password accounts, contact support or your administrator (self-hosted) to update your email or reset your password.
 
 ### Deleting your account
 
@@ -65,4 +65,4 @@ To delete your account:
 3. Tap **Delete Account**. You will be asked to confirm.
 4. After confirmation, your account and all associated data are permanently removed from the system. This includes all health records, check-ins, interventions, observations, lab results, integration tokens, and export history.
 
-Deletion is immediate. There is no grace period and no way to recover a deleted account. If you are on a shared instance, deletion only affects your data -- other users are not impacted.
+Deletion is immediate. There is no grace period and no way to recover a deleted account. Deletion only affects your own data -- other users are not impacted.

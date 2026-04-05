@@ -25,7 +25,7 @@ If you have an invite link, open it in your browser. The registration page loads
 If you have an invite code but not a link, go to the registration page manually and enter the code along with your chosen username and password.
 
 !!! note "Invite codes"
-    Most OwnPulse instances require an invite code to register. Ask your instance administrator for one. See [User Management & Invites](admin.md) for more on how invite codes work.
+    Registration requires an invite code. Request one at ownpulse.health, or ask your administrator on self-hosted deployments. See [User Management & Invites](admin.md) for more on how invite codes work.
 
 ## Email already in use
 
@@ -52,7 +52,7 @@ You can be logged in on multiple devices simultaneously. Each device maintains i
 
 ## Troubleshooting
 
-If you are stuck on the login screen after clicking **Sign in with Apple** or **Sign in with Google**, check that your browser allows popups and redirects from your OwnPulse domain. If you are using a username/password account and cannot log in, contact your instance administrator to reset your password.
+If you are stuck on the login screen after clicking **Sign in with Apple** or **Sign in with Google**, check that your browser allows popups and redirects from your OwnPulse domain. If you are using a username/password account and cannot log in, contact support or your administrator (self-hosted) to reset your password.
 
 ## Security notes
 

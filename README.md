@@ -5,7 +5,13 @@
 
 OwnPulse is an open source health data platform owned by its users as a cooperative. You track interventions, wearable data, labs, and subjective scores; the platform finds correlations and lets you export everything in open formats. Licensed AGPL-3.0; the open data schema is CC0.
 
-## Quick Start: Self-Hosting
+## Quick Start
+
+Sign up at [ownpulse.health](https://ownpulse.health) to get started on the cooperative platform.
+
+### Self-Hosting (optional)
+
+Prefer to run your own infrastructure? Deploy with Helm:
 
 ```bash
 # Install k3s and Helm

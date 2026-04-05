@@ -10,7 +10,7 @@ Open your OwnPulse web dashboard in a browser. If you have an invite link, open 
 - **Username and password** -- choose a username and password on the registration page, or enter existing credentials on the login page.
 
 !!! note "Invite codes"
-    Most instances require an invite code to register. If you do not have one, ask your instance administrator.
+    Registration requires an invite code. If you do not have one, request one at ownpulse.health or ask your administrator (self-hosted deployments).
 
 ## Step 2: Set up the iOS app (optional)
 

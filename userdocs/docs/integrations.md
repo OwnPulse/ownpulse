@@ -21,7 +21,7 @@ To connect an integration, tap the **Connect** button next to the source name. Y
 
 ## Disconnecting a source
 
-Tap **Disconnect** next to any connected integration. This immediately stops all future syncs for that source. Data that was already synced remains in your OwnPulse account -- disconnecting does not delete historical data. If you want to remove the data as well, use the data export feature to review what exists and contact your instance administrator for selective deletion.
+Tap **Disconnect** next to any connected integration. This immediately stops all future syncs for that source. Data that was already synced remains in your OwnPulse account -- disconnecting does not delete historical data. If you want to remove the data as well, use the data export feature to review what exists and contact support or your administrator (self-hosted) for selective deletion.
 
 ## Source preferences
 
