@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
     paths: ['ios/**']
-    tags: ['v*']
   pull_request:
     paths: ['ios/**']
   workflow_dispatch:
@@ -15,7 +14,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: macos-15
+    runs-on: macos-16
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -35,50 +34,3 @@ jobs:
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             -clonedSourcePackagesDirPath .build \
             | xcbeautify --is-ci
-
-  build-and-upload:
-    needs: test
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
-    runs-on: macos-15
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/checkout@v4
-        with:
-          repository: OwnPulse/ownpulse-infra
-          path: infra
-          ssh-key: ${{ secrets.INFRA_DEPLOY_KEY }}
-
-      - uses: OwnPulse/gh-actions/sops-setup@v1
-        with:
-          age-key: ${{ secrets.SOPS_AGE_KEY }}
-
-      - name: Decrypt iOS secrets
-        run: |
-          sops -d infra/secrets/ios/appstore-connect.sops.yaml > "$RUNNER_TEMP/ios-secrets.yaml"
-          echo "ASC_KEY_ID=$(yq '.key_id' "$RUNNER_TEMP/ios-secrets.yaml")" >> $GITHUB_ENV
-          echo "ASC_ISSUER_ID=$(yq '.issuer_id' "$RUNNER_TEMP/ios-secrets.yaml")" >> $GITHUB_ENV
-          sops -d --output "$RUNNER_TEMP/AuthKey.p8" infra/secrets/ios/AuthKey.p8.sops
-          echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> $GITHUB_ENV
-          echo "MATCH_PASSWORD=$(sops -d --extract '["match_password"]' infra/secrets/ios/appstore-connect.sops.yaml)" >> $GITHUB_ENV
-
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '3.3'
-          bundler-cache: true
-          working-directory: infra/ios
-
-      - uses: actions/cache@v4
-        with:
-          path: ios/.build
-          key: spm-${{ hashFiles('ios/OwnPulse.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
-          restore-keys: spm-
-
-      - name: Build and upload to TestFlight
-        working-directory: ios
-        env:
-          FASTLANE_DIR: ${{ github.workspace }}/infra/ios/fastlane
-        run: |
-          export BUNDLE_GEMFILE=${{ github.workspace }}/infra/ios/Gemfile
-          bundle exec fastlane beta
