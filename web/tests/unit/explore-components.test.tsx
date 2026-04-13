@@ -79,6 +79,7 @@ describe("MetricPicker", () => {
       hiddenMetrics: new Set(),
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
+      movingAverageMetrics: new Set(),
     });
   });
 
@@ -159,6 +160,7 @@ describe("DateRangeBar", () => {
       hiddenMetrics: new Set(),
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
+      movingAverageMetrics: new Set(),
     });
   });
 
@@ -197,6 +199,7 @@ describe("ResolutionToggle", () => {
       hiddenMetrics: new Set(),
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
+      movingAverageMetrics: new Set(),
     });
   });
 
@@ -231,6 +234,7 @@ describe("ExploreChart", () => {
       hiddenMetrics: new Set(),
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
+      movingAverageMetrics: new Set(),
     });
   });
 
@@ -321,6 +325,7 @@ describe("ChartLegend", () => {
       hiddenMetrics: new Set(),
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
+      movingAverageMetrics: new Set(),
     });
   });
 
@@ -369,6 +374,45 @@ describe("ChartLegend", () => {
 
     await user.click(screen.getByLabelText("Toggle energy visibility"));
     expect(useExploreStore.getState().hiddenMetrics.has("checkins:energy")).toBe(false);
+  });
+
+  it("renders MA toggle button for each metric", () => {
+    const series = [
+      {
+        source: "checkins",
+        field: "energy",
+        unit: "score",
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+      },
+      {
+        source: "checkins",
+        field: "mood",
+        unit: "score",
+        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }],
+      },
+    ];
+    render(<ChartLegend series={series} />, { wrapper: createWrapper() });
+    expect(screen.getByLabelText("Toggle moving average for energy")).toBeDefined();
+    expect(screen.getByLabelText("Toggle moving average for mood")).toBeDefined();
+  });
+
+  it("clicking MA toggle adds metric to movingAverageMetrics", async () => {
+    const user = userEvent.setup();
+    const series = [
+      {
+        source: "checkins",
+        field: "energy",
+        unit: "score",
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+      },
+    ];
+    render(<ChartLegend series={series} />, { wrapper: createWrapper() });
+
+    await user.click(screen.getByLabelText("Toggle moving average for energy"));
+    expect(useExploreStore.getState().movingAverageMetrics.has("checkins:energy")).toBe(true);
+
+    await user.click(screen.getByLabelText("Toggle moving average for energy"));
+    expect(useExploreStore.getState().movingAverageMetrics.has("checkins:energy")).toBe(false);
   });
 });
 
@@ -472,6 +516,7 @@ describe("ExploreChart with interventions", () => {
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
       hiddenSubstances: [],
+      movingAverageMetrics: new Set(),
     });
   });
 
@@ -533,6 +578,7 @@ describe("ExploreChart with observer data", () => {
       hiddenMetrics: new Set(),
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
+      movingAverageMetrics: new Set(),
     });
   });
 
@@ -570,6 +616,7 @@ describe("MetricPicker with observer sources", () => {
       hiddenMetrics: new Set(),
       dateRange: { type: "preset", preset: "30d" },
       resolution: "daily",
+      movingAverageMetrics: new Set(),
     });
   });
 

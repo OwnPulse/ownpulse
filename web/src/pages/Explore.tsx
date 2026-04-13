@@ -2,8 +2,8 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { exploreApi } from "../api/explore";
 import { interventionsApi } from "../api/interventions";
 import { ChartLegend } from "../components/explore/ChartLegend";
@@ -19,6 +19,7 @@ import styles from "./Explore.module.css";
 export default function Explore() {
   const { chartId } = useParams<{ chartId?: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [saveOpen, setSaveOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -27,6 +28,15 @@ export default function Explore() {
   const dateRange = useExploreStore((s) => s.dateRange);
   const resolution = useExploreStore((s) => s.resolution);
   const loadConfig = useExploreStore((s) => s.loadConfig);
+  const loadPreset = useExploreStore((s) => s.loadPreset);
+
+  // Load preset from URL param on mount
+  const presetParam = searchParams.get("preset");
+  useEffect(() => {
+    if (presetParam) {
+      loadPreset(presetParam);
+    }
+  }, [presetParam, loadPreset]);
 
   // Load saved chart by URL param
   const savedChartQuery = useQuery({
@@ -82,6 +92,17 @@ export default function Explore() {
       <div className="op-page-header">
         <h1>Explore</h1>
         <div>
+          <button
+            type="button"
+            className="op-btn op-btn-secondary"
+            onClick={() => {
+              loadPreset("health-overview");
+              navigate("/explore?preset=health-overview");
+            }}
+            style={{ marginRight: "0.5rem" }}
+          >
+            Health Overview
+          </button>
           {selectedMetrics.length >= 2 && (
             <button
               type="button"

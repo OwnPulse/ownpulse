@@ -17,6 +17,19 @@ import type { Intervention } from "../../api/interventions";
 import { metricKey, useExploreStore } from "../../stores/exploreStore";
 import { CHART_COLORS, INTERVENTION_COLOR, LINE_STYLES } from "./chartColors";
 
+/** Compute a simple moving average over points with a given window size. */
+export function computeMovingAverage(
+  points: Array<{ t: string; v: number }>,
+  window: number,
+): Array<{ t: string; v: number }> {
+  return points.map((point, i) => {
+    const start = Math.max(0, i - window + 1);
+    const windowPoints = points.slice(start, i + 1);
+    const avg = windowPoints.reduce((sum, p) => sum + p.v, 0) / windowPoints.length;
+    return { t: point.t, v: avg };
+  });
+}
+
 /** Unified data point: one entry per timestamp, with per-series values as dynamic keys. */
 interface ChartDataPoint {
   timestamp: number;
@@ -38,6 +51,7 @@ interface ExploreChartProps {
 export function ExploreChart({ series, interventions = [] }: ExploreChartProps) {
   const hiddenMetrics = useExploreStore((s) => s.hiddenMetrics);
   const hiddenSubstances = useExploreStore((s) => s.hiddenSubstances);
+  const movingAverageMetrics = useExploreStore((s) => s.movingAverageMetrics);
   const setZoomRange = useExploreStore((s) => s.setZoomRange);
 
   const visibleSeries = useMemo(
@@ -51,9 +65,10 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
   );
 
   /** Merge all series into a single flat array keyed by timestamp. */
-  const { chartData, seriesKeys } = useMemo(() => {
+  const { chartData, seriesKeys, maKeys } = useMemo(() => {
     const tsMap = new Map<number, ChartDataPoint>();
     const keys: string[] = [];
+    const activeMaKeys: string[] = [];
 
     for (const s of visibleSeries) {
       const key = `${s.source}:${s.field}`;
@@ -67,11 +82,27 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
         }
         entry[key] = p.v;
       }
+
+      // Inject moving average data if enabled for this series
+      if (movingAverageMetrics.has(key)) {
+        const maKey = `${key}:ma`;
+        activeMaKeys.push(maKey);
+        const maPoints = computeMovingAverage(s.points, 7);
+        for (const p of maPoints) {
+          const ts = new Date(p.t).getTime();
+          let entry = tsMap.get(ts);
+          if (!entry) {
+            entry = { timestamp: ts };
+            tsMap.set(ts, entry);
+          }
+          entry[maKey] = p.v;
+        }
+      }
     }
 
     const sorted = Array.from(tsMap.values()).sort((a, b) => a.timestamp - b.timestamp);
-    return { chartData: sorted, seriesKeys: keys };
-  }, [visibleSeries]);
+    return { chartData: sorted, seriesKeys: keys, maKeys: activeMaKeys };
+  }, [visibleSeries, movingAverageMetrics]);
 
   const x = useCallback((d: ChartDataPoint) => d.timestamp, []);
 
@@ -139,6 +170,24 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
               lineWidth={2.5}
               color={color}
               lineDashArray={dashArray}
+            />
+          );
+        })}
+        {maKeys.map((maKey) => {
+          const baseKey = maKey.replace(/:ma$/, "");
+          const colorIdx = seriesKeys.indexOf(baseKey);
+          const baseColor = CHART_COLORS[colorIdx % CHART_COLORS.length];
+          // Apply 50% opacity by appending alpha hex to the color
+          const maColor = `${baseColor}80`;
+          return (
+            <VisLine<ChartDataPoint>
+              key={maKey}
+              x={x}
+              y={(d: ChartDataPoint) => d[maKey] as number | undefined}
+              curveType={CurveType.MonotoneX}
+              lineWidth={3}
+              color={maColor}
+              lineDashArray={[6, 4]}
             />
           );
         })}

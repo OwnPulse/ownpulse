@@ -21,6 +21,7 @@ interface ExploreState {
   resolution: Resolution;
   zoomRange: [number, number] | null;
   hiddenSubstances: string[];
+  movingAverageMetrics: Set<string>;
 
   addMetric: (m: MetricRef) => void;
   removeMetric: (m: MetricRef) => void;
@@ -30,7 +31,9 @@ interface ExploreState {
   setZoomRange: (range: [number, number] | null) => void;
   resetZoom: () => void;
   toggleSubstanceVisibility: (substance: string) => void;
+  toggleMovingAverage: (key: string) => void;
   clearAll: () => void;
+  loadPreset: (name: string) => void;
   loadConfig: (config: {
     metrics: Array<{ source: string; field: string }>;
     range: { preset?: string; start?: string; end?: string };
@@ -106,6 +109,7 @@ export const useExploreStore = create<ExploreState>((set) => ({
   resolution: "daily",
   zoomRange: null,
   hiddenSubstances: [],
+  movingAverageMetrics: new Set<string>(),
 
   addMetric: (m) =>
     set((state) => {
@@ -159,6 +163,17 @@ export const useExploreStore = create<ExploreState>((set) => ({
       return { hiddenSubstances: [...state.hiddenSubstances, substance] };
     }),
 
+  toggleMovingAverage: (key) =>
+    set((state) => {
+      const next = new Set(state.movingAverageMetrics);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return { movingAverageMetrics: next };
+    }),
+
   clearAll: () =>
     set({
       selectedMetrics: [],
@@ -167,6 +182,29 @@ export const useExploreStore = create<ExploreState>((set) => ({
       resolution: "daily",
       zoomRange: null,
       hiddenSubstances: [],
+      movingAverageMetrics: new Set<string>(),
+    }),
+
+  loadPreset: (name) =>
+    set(() => {
+      switch (name) {
+        case "health-overview":
+          return {
+            selectedMetrics: [
+              { source: "health_records", field: "body_mass" },
+              { source: "health_records", field: "heart_rate" },
+              { source: "health_records", field: "sleep_analysis" },
+            ],
+            hiddenMetrics: new Set<string>(),
+            dateRange: { type: "preset", preset: "90d" } as DateRange,
+            resolution: "daily" as Resolution,
+            zoomRange: null,
+            hiddenSubstances: [],
+            movingAverageMetrics: new Set(["health_records:body_mass"]),
+          };
+        default:
+          return {};
+      }
     }),
 
   loadConfig: (config) =>
