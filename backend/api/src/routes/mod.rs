@@ -28,6 +28,7 @@ pub mod observations;
 pub mod observer_polls;
 pub mod oura;
 pub mod protocols;
+pub mod saved_medicines;
 pub mod sleep;
 pub mod source_preferences;
 pub mod stats;
@@ -312,6 +313,11 @@ fn base_routes() -> Router<AppState> {
         .route("/interventions", get(interventions::list))
         .route("/interventions/:id", get(interventions::get))
         .route("/interventions/:id", delete(interventions::delete))
+        // Saved medicines
+        .route("/saved-medicines", get(saved_medicines::list))
+        .route("/saved-medicines", post(saved_medicines::create))
+        .route("/saved-medicines/:id", put(saved_medicines::update))
+        .route("/saved-medicines/:id", delete(saved_medicines::delete))
         // Check-ins
         .route("/checkins", post(checkins::create))
         .route("/checkins", get(checkins::list))

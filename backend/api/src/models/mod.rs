@@ -16,6 +16,7 @@ pub mod lab_result;
 pub mod observation;
 pub mod observer_poll;
 pub mod protocol;
+pub mod saved_medicine;
 pub mod sleep;
 pub mod source_preference;
 pub mod stats;
