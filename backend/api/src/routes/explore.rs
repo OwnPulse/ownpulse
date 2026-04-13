@@ -24,19 +24,45 @@ pub async fn metrics(
     let lab_markers = db_explore::distinct_lab_markers(&state.pool, user_id).await?;
     let observer_polls = db_explore::user_observer_polls(&state.pool, user_id).await?;
 
-    let mut sources = vec![
-        MetricSourceGroup {
-            source: "health_records".to_string(),
-            label: "Health Records".to_string(),
-            metrics: HealthRecordField::all()
-                .iter()
-                .map(|f| MetricOption {
-                    field: f.record_type().to_string(),
-                    label: f.label().to_string(),
-                    unit: f.unit().to_string(),
-                })
-                .collect(),
-        },
+    // Group health record fields by category, preserving the order from all().
+    let category_order = [
+        "Vitals",
+        "Body",
+        "Activity",
+        "Running",
+        "Cycling",
+        "Mobility",
+        "Sleep",
+        "Dietary",
+        "Environment",
+        "Events",
+    ];
+    let mut category_metrics: std::collections::HashMap<&str, Vec<MetricOption>> =
+        std::collections::HashMap::new();
+    for field in HealthRecordField::all() {
+        category_metrics
+            .entry(field.category())
+            .or_default()
+            .push(MetricOption {
+                field: field.record_type().to_string(),
+                label: field.label().to_string(),
+                unit: field.unit().to_string(),
+            });
+    }
+
+    let mut sources: Vec<MetricSourceGroup> = category_order
+        .iter()
+        .filter_map(|cat| {
+            let metrics = category_metrics.remove(cat)?;
+            Some(MetricSourceGroup {
+                source: "health_records".to_string(),
+                label: (*cat).to_string(),
+                metrics,
+            })
+        })
+        .collect();
+
+    sources.extend([
         MetricSourceGroup {
             source: "checkins".to_string(),
             label: "Check-ins".to_string(),
@@ -85,7 +111,7 @@ pub async fn metrics(
                 })
                 .collect(),
         },
-    ];
+    ]);
 
     // Add observer poll dimensions as metrics if the user has any active polls.
     if !observer_polls.is_empty() {
