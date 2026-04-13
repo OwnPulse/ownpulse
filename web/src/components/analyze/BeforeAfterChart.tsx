@@ -37,10 +37,7 @@ export function BeforeAfterChart({ before, after, firstDose }: BeforeAfterChartP
 
   const x = useCallback((d: BeforeAfterPoint) => d.timestamp, []);
   const y = useCallback((d: BeforeAfterPoint) => d.value, []);
-  const tickFormat = useCallback(
-    (tick: number | Date) => new Date(tick).toLocaleDateString(),
-    [],
-  );
+  const tickFormat = useCallback((tick: number | Date) => new Date(tick).toLocaleDateString(), []);
   const tooltipTemplate = useCallback(
     (d: BeforeAfterPoint) =>
       `<strong>${new Date(d.timestamp).toLocaleDateString()}</strong><br/>${d.value}`,

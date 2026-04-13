@@ -615,10 +615,9 @@ impl HealthRecordField {
             | Self::RunningVerticalOscillation
             | Self::RunningGroundContactTime => "Running",
 
-            Self::CyclingSpeed
-            | Self::CyclingPower
-            | Self::CyclingCadence
-            | Self::CyclingFtp => "Cycling",
+            Self::CyclingSpeed | Self::CyclingPower | Self::CyclingCadence | Self::CyclingFtp => {
+                "Cycling"
+            }
 
             Self::WalkingSpeed
             | Self::WalkingDoubleSupport
@@ -648,9 +647,7 @@ impl HealthRecordField {
             | Self::DietaryZinc
             | Self::DietaryMagnesium => "Dietary",
 
-            Self::TimeInDaylight
-            | Self::EnvironmentalAudio
-            | Self::HeadphoneAudio => "Environment",
+            Self::TimeInDaylight | Self::EnvironmentalAudio | Self::HeadphoneAudio => "Environment",
 
             Self::MindfulSession
             | Self::HighHeartRateEvent
@@ -1442,11 +1439,7 @@ mod tests {
         for field in HealthRecordField::all() {
             let rt = field.record_type();
             let parsed = HealthRecordField::parse(rt);
-            assert_eq!(
-                parsed,
-                Some(*field),
-                "parse roundtrip failed for {rt}"
-            );
+            assert_eq!(parsed, Some(*field), "parse roundtrip failed for {rt}");
         }
     }
 
@@ -1471,9 +1464,19 @@ mod tests {
         for field in HealthRecordField::all() {
             let cat = field.category();
             assert!(
-                ["Vitals", "Body", "Activity", "Running", "Cycling",
-                 "Mobility", "Sleep", "Dietary", "Environment", "Events"]
-                    .contains(&cat),
+                [
+                    "Vitals",
+                    "Body",
+                    "Activity",
+                    "Running",
+                    "Cycling",
+                    "Mobility",
+                    "Sleep",
+                    "Dietary",
+                    "Environment",
+                    "Events"
+                ]
+                .contains(&cat),
                 "unexpected category {cat} for {:?}",
                 field
             );
@@ -1484,11 +1487,26 @@ mod tests {
     fn aggregation_values_correct() {
         assert_eq!(HealthRecordField::HeartRate.aggregation(), Aggregation::Avg);
         assert_eq!(HealthRecordField::Steps.aggregation(), Aggregation::Sum);
-        assert_eq!(HealthRecordField::SleepAnalysis.aggregation(), Aggregation::SleepDuration);
-        assert_eq!(HealthRecordField::HighHeartRateEvent.aggregation(), Aggregation::CountEvents);
-        assert_eq!(HealthRecordField::DietaryProtein.aggregation(), Aggregation::Sum);
-        assert_eq!(HealthRecordField::RunningSpeed.aggregation(), Aggregation::Avg);
-        assert_eq!(HealthRecordField::MindfulSession.aggregation(), Aggregation::SleepDuration);
+        assert_eq!(
+            HealthRecordField::SleepAnalysis.aggregation(),
+            Aggregation::SleepDuration
+        );
+        assert_eq!(
+            HealthRecordField::HighHeartRateEvent.aggregation(),
+            Aggregation::CountEvents
+        );
+        assert_eq!(
+            HealthRecordField::DietaryProtein.aggregation(),
+            Aggregation::Sum
+        );
+        assert_eq!(
+            HealthRecordField::RunningSpeed.aggregation(),
+            Aggregation::Avg
+        );
+        assert_eq!(
+            HealthRecordField::MindfulSession.aggregation(),
+            Aggregation::SleepDuration
+        );
         assert_eq!(HealthRecordField::Falls.aggregation(), Aggregation::Sum);
     }
 

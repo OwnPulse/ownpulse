@@ -75,13 +75,10 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
 
   const x = useCallback((d: ChartDataPoint) => d.timestamp, []);
 
-  const tickFormat = useCallback(
-    (tick: number | Date) => {
-      const d = tick instanceof Date ? tick : new Date(tick);
-      return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-    },
-    [],
-  );
+  const tickFormat = useCallback((tick: number | Date) => {
+    const d = tick instanceof Date ? tick : new Date(tick);
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }, []);
 
   /** Build crosshair tooltip showing all series values at a given point. */
   const tooltipTemplate = useCallback(
@@ -163,11 +160,7 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
           gridLine={false}
           tickTextFontSize="11px"
         />
-        <VisAxis<ChartDataPoint>
-          type="y"
-          label={unitOrder[0] ?? ""}
-          tickTextFontSize="11px"
-        />
+        <VisAxis<ChartDataPoint> type="y" label={unitOrder[0] ?? ""} tickTextFontSize="11px" />
         {unitOrder.length >= 2 && (
           <VisAxis<ChartDataPoint>
             type="y"

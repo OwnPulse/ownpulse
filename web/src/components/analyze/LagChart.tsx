@@ -13,7 +13,10 @@ interface LagChartProps {
 export function LagChart({ lags, bestLag }: LagChartProps) {
   const x = useCallback((_d: LagEntry, i: number) => i, []);
   const y = useCallback((d: LagEntry) => d.r, []);
-  const color = useCallback((d: LagEntry) => (d.lag === bestLag ? "#c2654a" : "#3d8b8b"), [bestLag]);
+  const color = useCallback(
+    (d: LagEntry) => (d.lag === bestLag ? "#c2654a" : "#3d8b8b"),
+    [bestLag],
+  );
   const tickFormat = useCallback(
     (tick: number | Date) => {
       const idx = typeof tick === "number" ? Math.round(tick) : 0;
@@ -21,10 +24,7 @@ export function LagChart({ lags, bestLag }: LagChartProps) {
     },
     [lags],
   );
-  const tooltipTemplate = useCallback(
-    (d: LagEntry) => `Lag: ${d.lag} days<br/>r = ${d.r}`,
-    [],
-  );
+  const tooltipTemplate = useCallback((d: LagEntry) => `Lag: ${d.lag} days<br/>r = ${d.r}`, []);
 
   if (lags.length === 0) {
     return <div className="op-empty">No lag data available.</div>;
