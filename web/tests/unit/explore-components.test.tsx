@@ -18,25 +18,17 @@ import { ResolutionToggle } from "../../src/components/explore/ResolutionToggle"
 import { SavedChartCard } from "../../src/components/explore/SavedChartCard";
 import { useExploreStore } from "../../src/stores/exploreStore";
 
-// Mock echarts-for-react (canvas doesn't render in jsdom)
-vi.mock("echarts-for-react", () => ({
-  default: (props: { option: Record<string, unknown> }) => (
-    <div
-      data-testid="echarts"
-      data-series-count={Array.isArray(props.option?.series) ? props.option.series.length : 0}
-    />
-  ),
-}));
-
-// Mock unovis (SVG/D3 doesn't render in jsdom) — still used by analysis charts
+// Mock unovis (SVG/D3 doesn't render in jsdom)
 vi.mock("@unovis/react", () => ({
   VisXYContainer: ({ children }: { children: ReactNode }) => (
     <div data-testid="xy-container">{children}</div>
   ),
-  VisLine: () => <div data-testid="vis-line" />,
+  VisLine: ({ color }: { color?: string }) => <div data-testid="vis-line" data-color={color} />,
+  VisPlotline: () => <div data-testid="vis-plotline" />,
   VisAxis: () => <div />,
   VisCrosshair: () => <div />,
   VisTooltip: () => <div />,
+  VisBrush: () => <div />,
 }));
 
 const metricsResponse = {
@@ -266,9 +258,9 @@ describe("ExploreChart", () => {
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    const chart = screen.getByTestId("echarts");
-    expect(chart).toBeDefined();
-    expect(chart.getAttribute("data-series-count")).toBe("1");
+    expect(screen.getByTestId("xy-container")).toBeDefined();
+    const lines = screen.getAllByTestId("vis-line");
+    expect(lines.length).toBe(1);
   });
 
   it("renders multiple lines for multiple series", () => {
@@ -287,8 +279,8 @@ describe("ExploreChart", () => {
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    const chart = screen.getByTestId("echarts");
-    expect(chart.getAttribute("data-series-count")).toBe("2");
+    const lines = screen.getAllByTestId("vis-line");
+    expect(lines.length).toBe(2);
   });
 
   it("does not render hidden metrics", () => {
@@ -317,8 +309,8 @@ describe("ExploreChart", () => {
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    const chart = screen.getByTestId("echarts");
-    expect(chart.getAttribute("data-series-count")).toBe("1");
+    const lines = screen.getAllByTestId("vis-line");
+    expect(lines.length).toBe(1);
   });
 });
 
@@ -514,21 +506,23 @@ describe("ExploreChart with interventions", () => {
     render(<ExploreChart series={baseSeries} interventions={interventions} />, {
       wrapper: createWrapper(),
     });
-    expect(screen.getByTestId("echarts")).toBeDefined();
+    expect(screen.getByTestId("xy-container")).toBeDefined();
+    expect(screen.getAllByTestId("vis-plotline").length).toBe(1);
   });
 
   it("renders chart without interventions", () => {
     render(<ExploreChart series={baseSeries} interventions={[]} />, {
       wrapper: createWrapper(),
     });
-    expect(screen.getByTestId("echarts")).toBeDefined();
+    expect(screen.getByTestId("xy-container")).toBeDefined();
+    expect(screen.queryByTestId("vis-plotline")).toBeNull();
   });
 
   it("does not render chart when no series data", () => {
     render(<ExploreChart series={[]} interventions={interventions} />, {
       wrapper: createWrapper(),
     });
-    expect(screen.queryByTestId("echarts")).toBeNull();
+    expect(screen.queryByTestId("xy-container")).toBeNull();
   });
 });
 
@@ -564,8 +558,8 @@ describe("ExploreChart with observer data", () => {
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
-    const chart = screen.getByTestId("echarts");
-    expect(chart.getAttribute("data-series-count")).toBe("2");
+    const lines = screen.getAllByTestId("vis-line");
+    expect(lines.length).toBe(2);
   });
 });
 

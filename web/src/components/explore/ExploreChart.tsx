@@ -1,14 +1,34 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import type { EChartsOption } from "echarts";
-import ReactECharts from "echarts-for-react";
+import {
+  VisAxis,
+  VisBrush,
+  VisCrosshair,
+  VisLine,
+  VisPlotline,
+  VisTooltip,
+  VisXYContainer,
+} from "@unovis/react";
+import { CurveType, PlotlineLineStylePresets } from "@unovis/ts";
 import { useCallback, useMemo } from "react";
 import type { SeriesResponse } from "../../api/explore";
 import type { Intervention } from "../../api/interventions";
-import { useTheme } from "../../hooks/useTheme";
 import { metricKey, useExploreStore } from "../../stores/exploreStore";
 import { CHART_COLORS, INTERVENTION_COLOR, LINE_STYLES } from "./chartColors";
+
+/** Unified data point: one entry per timestamp, with per-series values as dynamic keys. */
+interface ChartDataPoint {
+  timestamp: number;
+  [seriesKey: string]: number | undefined;
+}
+
+/** Map LINE_STYLES values to unovis dash arrays. */
+function toDashArray(style: "solid" | "dashed" | number[]): number[] | undefined {
+  if (style === "solid") return undefined;
+  if (style === "dashed") return [6, 4];
+  return style;
+}
 
 interface ExploreChartProps {
   series: SeriesResponse[];
@@ -19,8 +39,6 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
   const hiddenMetrics = useExploreStore((s) => s.hiddenMetrics);
   const hiddenSubstances = useExploreStore((s) => s.hiddenSubstances);
   const setZoomRange = useExploreStore((s) => s.setZoomRange);
-  const { resolvedTheme } = useTheme();
-  const isDark = resolvedTheme === "dark";
 
   const visibleSeries = useMemo(
     () => series.filter((s) => !hiddenMetrics.has(metricKey({ source: s.source, field: s.field }))),
@@ -32,156 +50,60 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
     [interventions, hiddenSubstances],
   );
 
-  const option = useMemo((): EChartsOption => {
-    if (visibleSeries.length === 0) return {};
+  /** Merge all series into a single flat array keyed by timestamp. */
+  const { chartData, seriesKeys } = useMemo(() => {
+    const tsMap = new Map<number, ChartDataPoint>();
+    const keys: string[] = [];
 
-    // Collect unique units preserving order
-    const unitOrder: string[] = [];
     for (const s of visibleSeries) {
-      if (!unitOrder.includes(s.unit)) unitOrder.push(s.unit);
-    }
-    const hasRightAxis = unitOrder.length >= 2;
-
-    // Map each series to a yAxisIndex
-    const yAxisIndexForUnit = (unit: string): number => {
-      const idx = unitOrder.indexOf(unit);
-      return idx <= 1 ? idx : idx % 2;
-    };
-
-    const echartsSeries: EChartsOption["series"] = visibleSeries.map((s, i) => {
-      const base = {
-        type: "line" as const,
-        name: `${s.field} (${s.unit})`,
-        data: s.points.map((p) => [new Date(p.t).getTime(), p.v]),
-        smooth: 0.3,
-        symbol: "none",
-        lineStyle: {
-          width: 2.5,
-          color: CHART_COLORS[i % CHART_COLORS.length],
-          type: LINE_STYLES[i % LINE_STYLES.length],
-        },
-        itemStyle: { color: CHART_COLORS[i % CHART_COLORS.length] },
-        yAxisIndex: yAxisIndexForUnit(s.unit),
-      };
-
-      // Attach intervention markLines to the first series
-      if (i === 0 && visibleInterventions.length > 0) {
-        return {
-          ...base,
-          markLine: {
-            silent: true,
-            symbol: "none",
-            data: visibleInterventions.map((iv) => ({
-              xAxis: new Date(iv.administered_at).getTime(),
-              label: {
-                formatter: iv.substance,
-                position: "start" as const,
-                fontSize: 10,
-                color: INTERVENTION_COLOR,
-              },
-              lineStyle: {
-                color: INTERVENTION_COLOR,
-                type: "dashed" as const,
-                width: 1.5,
-              },
-            })),
-          },
-        };
-      }
-
-      return base;
-    });
-
-    const yAxis: EChartsOption["yAxis"] = [
-      {
-        type: "value",
-        name: unitOrder[0] ?? "",
-        nameTextStyle: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
-        axisLabel: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
-        axisLine: { show: false },
-        splitLine: {
-          lineStyle: { color: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)" },
-        },
-      },
-    ];
-
-    if (hasRightAxis) {
-      yAxis.push({
-        type: "value",
-        name: unitOrder[1],
-        nameTextStyle: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
-        axisLabel: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
-        axisLine: { show: false },
-        splitLine: { show: false },
-        position: "right",
-      });
-    }
-
-    return {
-      grid: {
-        left: 56,
-        right: hasRightAxis ? 56 : 20,
-        top: 20,
-        bottom: 56,
-        containLabel: false,
-      },
-      xAxis: {
-        type: "time",
-        axisLabel: { color: isDark ? "#aaa" : "#666", fontSize: 11 },
-        axisLine: { lineStyle: { color: isDark ? "#444" : "#ddd" } },
-        splitLine: { show: false },
-      },
-      yAxis,
-      series: echartsSeries,
-      tooltip: {
-        trigger: "axis",
-        backgroundColor: isDark ? "#2a2a28" : "#ffffff",
-        borderColor: isDark ? "#3a3a38" : "#e0e0e0",
-        textStyle: { color: isDark ? "#eeeeea" : "#1e1e1c", fontSize: 12 },
-        formatter: (params: unknown) => {
-          if (!Array.isArray(params) || params.length === 0) return "";
-          const first = params[0] as { axisValueLabel?: string };
-          const header = first.axisValueLabel ?? "";
-          const lines = (
-            params as Array<{ marker?: string; seriesName?: string; value?: [number, number] }>
-          )
-            .map((p) => {
-              const val = p.value?.[1];
-              return `<div>${p.marker ?? ""} ${p.seriesName}: ${val != null ? val : "N/A"}</div>`;
-            })
-            .join("");
-          return `<div><strong>${header}</strong>${lines}</div>`;
-        },
-      },
-      dataZoom: [
-        { type: "inside", xAxisIndex: 0 },
-        {
-          type: "slider",
-          xAxisIndex: 0,
-          bottom: 8,
-          height: 20,
-          borderColor: "transparent",
-          backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
-          fillerColor: isDark ? "rgba(194,101,74,0.2)" : "rgba(194,101,74,0.15)",
-          handleStyle: { color: "#c2654a" },
-          textStyle: { color: isDark ? "#aaa" : "#666" },
-        },
-      ],
-      animation: true,
-      animationDuration: 300,
-    };
-  }, [visibleSeries, visibleInterventions, isDark]);
-
-  const onDataZoom = useCallback(
-    (params: Record<string, unknown>) => {
-      const batch = params.batch as Array<{ start?: number; end?: number }> | undefined;
-      if (batch && batch.length > 0) {
-        const { start, end } = batch[0];
-        if (start != null && end != null) {
-          setZoomRange([start, end]);
+      const key = `${s.source}:${s.field}`;
+      keys.push(key);
+      for (const p of s.points) {
+        const ts = new Date(p.t).getTime();
+        let entry = tsMap.get(ts);
+        if (!entry) {
+          entry = { timestamp: ts };
+          tsMap.set(ts, entry);
         }
-      } else if (params.start != null && params.end != null) {
-        setZoomRange([params.start as number, params.end as number]);
+        entry[key] = p.v;
+      }
+    }
+
+    const sorted = Array.from(tsMap.values()).sort((a, b) => a.timestamp - b.timestamp);
+    return { chartData: sorted, seriesKeys: keys };
+  }, [visibleSeries]);
+
+  const x = useCallback((d: ChartDataPoint) => d.timestamp, []);
+
+  const tickFormat = useCallback(
+    (tick: number | Date) => {
+      const d = tick instanceof Date ? tick : new Date(tick);
+      return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    },
+    [],
+  );
+
+  /** Build crosshair tooltip showing all series values at a given point. */
+  const tooltipTemplate = useCallback(
+    (d: ChartDataPoint) => {
+      const date = new Date(d.timestamp).toLocaleString();
+      const lines = visibleSeries
+        .map((s) => {
+          const key = `${s.source}:${s.field}`;
+          const val = d[key];
+          const color = CHART_COLORS[seriesKeys.indexOf(key) % CHART_COLORS.length];
+          return `<div><span style="color:${color}">\u25CF</span> ${s.field} (${s.unit}): ${val != null ? val : "N/A"}</div>`;
+        })
+        .join("");
+      return `<div><strong>${date}</strong>${lines}</div>`;
+    },
+    [visibleSeries, seriesKeys],
+  );
+
+  const onBrushEnd = useCallback(
+    (selection: [number, number] | undefined) => {
+      if (selection) {
+        setZoomRange(selection);
       }
     },
     [setZoomRange],
@@ -197,14 +119,68 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
     );
   }
 
+  // Collect unique units for dual y-axis labels
+  const unitOrder: string[] = [];
+  for (const s of visibleSeries) {
+    if (!unitOrder.includes(s.unit)) unitOrder.push(s.unit);
+  }
+
   return (
     <div style={{ width: "100%", minHeight: 300, height: "50vh" }}>
-      <ReactECharts
-        option={option}
-        style={{ width: "100%", height: "100%" }}
-        notMerge={true}
-        onEvents={{ dataZoom: onDataZoom }}
-      />
+      <VisXYContainer<ChartDataPoint> data={chartData} height="50vh">
+        {visibleSeries.map((s) => {
+          const key = `${s.source}:${s.field}`;
+          const colorIdx = seriesKeys.indexOf(key);
+          const color = CHART_COLORS[colorIdx % CHART_COLORS.length];
+          const dashArray = toDashArray(LINE_STYLES[colorIdx % LINE_STYLES.length]);
+          return (
+            <VisLine<ChartDataPoint>
+              key={key}
+              x={x}
+              y={(d: ChartDataPoint) => d[key] as number | undefined}
+              curveType={CurveType.MonotoneX}
+              lineWidth={2.5}
+              color={color}
+              lineDashArray={dashArray}
+            />
+          );
+        })}
+        {visibleInterventions.map((iv) => (
+          <VisPlotline<ChartDataPoint>
+            key={`iv-${iv.id}`}
+            axis="x"
+            value={new Date(iv.administered_at).getTime()}
+            color={INTERVENTION_COLOR}
+            lineWidth={1.5}
+            lineStyle={PlotlineLineStylePresets.Dash}
+            labelText={iv.substance}
+            labelColor={INTERVENTION_COLOR}
+          />
+        ))}
+        <VisAxis<ChartDataPoint>
+          type="x"
+          tickFormat={tickFormat}
+          gridLine={false}
+          tickTextFontSize="11px"
+        />
+        <VisAxis<ChartDataPoint>
+          type="y"
+          label={unitOrder[0] ?? ""}
+          tickTextFontSize="11px"
+        />
+        {unitOrder.length >= 2 && (
+          <VisAxis<ChartDataPoint>
+            type="y"
+            position="right"
+            label={unitOrder[1]}
+            gridLine={false}
+            tickTextFontSize="11px"
+          />
+        )}
+        <VisCrosshair<ChartDataPoint> template={tooltipTemplate} />
+        <VisTooltip />
+        <VisBrush<ChartDataPoint> onBrushEnd={onBrushEnd} draggable />
+      </VisXYContainer>
     </div>
   );
 }
