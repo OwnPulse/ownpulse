@@ -48,3 +48,37 @@
   color: var(--color-text-muted);
   font-style: italic;
 }
+
+.itemGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.maBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 0.125rem 0.375rem;
+  cursor: pointer;
+  font-size: var(--text-xs);
+  font-family: var(--font-body);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  line-height: 1;
+  transition: all 0.15s ease;
+}
+
+.maBtn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.maBtnActive {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-primary-contrast, #fff);
+}

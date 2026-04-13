@@ -6,6 +6,7 @@ import SwiftUI
 struct MainTabView: View {
     @Environment(AppDependencies.self) private var dependencies
     @State private var selectedTab = 0
+    @State private var showHealthKitPrompt = false
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -29,7 +30,7 @@ struct MainTabView: View {
 
             Tab("Explore", systemImage: "chart.xyaxis.line", value: 3) {
                 NavigationStack {
-                    ExploreWebView()
+                    ExploreView()
                 }
             }
 
@@ -41,5 +42,25 @@ struct MainTabView: View {
         }
         .tint(OPColor.terracotta)
         .accessibilityIdentifier("mainTabView")
+        .task {
+            if !UserDefaults.standard.bool(forKey: "hasSeenHealthKitPrompt") {
+                showHealthKitPrompt = true
+            }
+        }
+        .sheet(isPresented: $showHealthKitPrompt) {
+            HealthKitPromptSheet(
+                onConnect: {
+                    Task {
+                        try? await dependencies.healthKitProvider.requestAuthorization()
+                    }
+                    UserDefaults.standard.set(true, forKey: "hasSeenHealthKitPrompt")
+                    showHealthKitPrompt = false
+                },
+                onDismiss: {
+                    UserDefaults.standard.set(true, forKey: "hasSeenHealthKitPrompt")
+                    showHealthKitPrompt = false
+                }
+            )
+        }
     }
 }

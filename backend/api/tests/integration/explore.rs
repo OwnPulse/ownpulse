@@ -30,24 +30,31 @@ async fn test_explore_metrics_returns_static_sources() {
     let json = common::body_json(resp).await;
     let sources = json["sources"].as_array().unwrap();
 
-    // Should have 5 source groups: health_records, checkins, labs, calendar, sleep
-    assert_eq!(sources.len(), 5);
-    assert_eq!(sources[0]["source"], "health_records");
-    assert_eq!(sources[1]["source"], "checkins");
-    assert_eq!(sources[2]["source"], "labs");
-    assert_eq!(sources[3]["source"], "calendar");
-    assert_eq!(sources[4]["source"], "sleep");
+    // Should have 14 source groups: 10 health_records sub-groups + checkins + labs + calendar + sleep
+    assert_eq!(sources.len(), 14);
 
-    // Health records should have 15 metrics
-    let hr_metrics = sources[0]["metrics"].as_array().unwrap();
-    assert_eq!(hr_metrics.len(), 15);
+    // First 10 groups are health_records sub-groups (Vitals, Body, Activity, etc.)
+    for s in &sources[..10] {
+        assert_eq!(s["source"], "health_records");
+    }
+    assert_eq!(sources[10]["source"], "checkins");
+    assert_eq!(sources[11]["source"], "labs");
+    assert_eq!(sources[12]["source"], "calendar");
+    assert_eq!(sources[13]["source"], "sleep");
+
+    // Total health_records metrics across all sub-groups should be 74
+    let hr_total: usize = sources[..10]
+        .iter()
+        .map(|s| s["metrics"].as_array().unwrap().len())
+        .sum();
+    assert_eq!(hr_total, 74);
 
     // Checkins should have 5
-    let ck_metrics = sources[1]["metrics"].as_array().unwrap();
+    let ck_metrics = sources[10]["metrics"].as_array().unwrap();
     assert_eq!(ck_metrics.len(), 5);
 
     // Labs should be empty for a new user
-    let lab_metrics = sources[2]["metrics"].as_array().unwrap();
+    let lab_metrics = sources[11]["metrics"].as_array().unwrap();
     assert!(lab_metrics.is_empty());
 }
 
@@ -90,7 +97,11 @@ async fn test_explore_metrics_includes_lab_markers() {
 
     assert_eq!(resp.status(), 200);
     let json = common::body_json(resp).await;
-    let lab_source = &json["sources"][2];
+    let sources = json["sources"].as_array().unwrap();
+    let lab_source = sources
+        .iter()
+        .find(|s| s["source"] == "labs")
+        .expect("labs source group");
     let lab_metrics = lab_source["metrics"].as_array().unwrap();
     assert_eq!(lab_metrics.len(), 1);
     assert_eq!(lab_metrics[0]["field"], "testosterone_total");
@@ -1170,9 +1181,12 @@ async fn test_explore_metrics_includes_observer_polls() {
     let json = common::body_json(resp).await;
     let sources = json["sources"].as_array().unwrap();
 
-    // Should have 6 source groups now (5 static + 1 observer_polls)
-    assert_eq!(sources.len(), 6);
-    let poll_source = &sources[5];
+    // Should have 15 source groups now (14 static + 1 observer_polls)
+    assert_eq!(sources.len(), 15);
+    let poll_source = sources
+        .iter()
+        .find(|s| s["source"] == "observer_polls")
+        .expect("observer_polls source group");
     assert_eq!(poll_source["source"], "observer_polls");
     assert_eq!(poll_source["label"], "Observer Polls");
 
@@ -1209,8 +1223,8 @@ async fn test_explore_metrics_no_observer_polls_when_user_has_none() {
     let json = common::body_json(resp).await;
     let sources = json["sources"].as_array().unwrap();
 
-    // Should still have 5 sources (no observer_polls)
-    assert_eq!(sources.len(), 5);
+    // Should still have 14 sources (no observer_polls)
+    assert_eq!(sources.len(), 14);
     assert!(sources.iter().all(|s| s["source"] != "observer_polls"));
 }
 

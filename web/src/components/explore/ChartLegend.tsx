@@ -17,6 +17,8 @@ export function ChartLegend({ series, interventions = [] }: ChartLegendProps) {
   const toggleVisibility = useExploreStore((s) => s.toggleVisibility);
   const hiddenSubstances = useExploreStore((s) => s.hiddenSubstances);
   const toggleSubstanceVisibility = useExploreStore((s) => s.toggleSubstanceVisibility);
+  const movingAverageMetrics = useExploreStore((s) => s.movingAverageMetrics);
+  const toggleMovingAverage = useExploreStore((s) => s.toggleMovingAverage);
 
   if (series.length === 0 && interventions.length === 0) return null;
 
@@ -33,21 +35,31 @@ export function ChartLegend({ series, interventions = [] }: ChartLegendProps) {
         const hidden = hiddenMetrics.has(key);
         const color = CHART_COLORS[i % CHART_COLORS.length];
         const hasData = s.points.length > 0;
+        const maActive = movingAverageMetrics.has(key);
         return (
-          <button
-            key={key}
-            type="button"
-            className={`${styles.item} ${hidden ? styles.hidden : ""}`}
-            onClick={() => toggleVisibility(key)}
-            aria-label={`Toggle ${s.field} visibility`}
-          >
-            <span className={styles.swatch} style={{ backgroundColor: color }} />
-            <span className={styles.label}>
-              {s.field} ({s.unit})
-              {hasData && <span className={styles.points}> ({s.points.length} pts)</span>}
-              {!hasData && <span className={styles.noData}> - no data</span>}
-            </span>
-          </button>
+          <span key={key} className={styles.itemGroup}>
+            <button
+              type="button"
+              className={`${styles.item} ${hidden ? styles.hidden : ""}`}
+              onClick={() => toggleVisibility(key)}
+              aria-label={`Toggle ${s.field} visibility`}
+            >
+              <span className={styles.swatch} style={{ backgroundColor: color }} />
+              <span className={styles.label}>
+                {s.field} ({s.unit})
+                {hasData && <span className={styles.points}> ({s.points.length} pts)</span>}
+                {!hasData && <span className={styles.noData}> - no data</span>}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`${styles.maBtn} ${maActive ? styles.maBtnActive : ""}`}
+              onClick={() => toggleMovingAverage(key)}
+              aria-label={`Toggle moving average for ${s.field}`}
+            >
+              MA
+            </button>
+          </span>
         );
       })}
       {substances.map((sub) => {

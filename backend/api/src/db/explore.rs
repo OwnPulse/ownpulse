@@ -6,8 +6,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::models::explore::{
-    CalendarField, CheckinField, DataPoint, HealthRecordField, InterventionMarker, MetricSource,
-    ObserverPollField, Resolution, SeriesResponse, SleepField,
+    Aggregation, CalendarField, CheckinField, DataPoint, HealthRecordField, InterventionMarker,
+    MetricSource, ObserverPollField, Resolution, SeriesResponse, SleepField,
 };
 
 /// Row returned by aggregation queries.
@@ -31,7 +31,21 @@ pub async fn query_series(
 
     let (source_str, field_str, unit, points) = match metric {
         MetricSource::HealthRecord(field) => {
-            let rows = query_health_record(pool, user_id, field, start, end, interval).await?;
+            let rows = match field.aggregation() {
+                Aggregation::Avg => {
+                    query_health_record_avg(pool, user_id, field, start, end, interval).await?
+                }
+                Aggregation::Sum => {
+                    query_health_record_sum(pool, user_id, field, start, end, interval).await?
+                }
+                Aggregation::SleepDuration => {
+                    query_health_record_sleep_duration(pool, user_id, field, start, end, interval)
+                        .await?
+                }
+                Aggregation::CountEvents => {
+                    query_health_record_count(pool, user_id, field, start, end, interval).await?
+                }
+            };
             (
                 "health_records".to_string(),
                 field.record_type().to_string(),
@@ -106,7 +120,7 @@ fn agg_to_points(rows: Vec<AggRow>) -> Vec<DataPoint> {
         .collect()
 }
 
-async fn query_health_record(
+async fn query_health_record_avg(
     pool: &PgPool,
     user_id: Uuid,
     field: &HealthRecordField,
@@ -123,6 +137,93 @@ async fn query_health_record(
          WHERE user_id = $1 AND record_type = $2
            AND start_time >= $3 AND start_time <= $4
            AND value IS NOT NULL
+         GROUP BY bucket
+         ORDER BY bucket ASC"
+    ))
+    .bind(user_id)
+    .bind(record_type)
+    .bind(start)
+    .bind(end)
+    .fetch_all(pool)
+    .await
+}
+
+async fn query_health_record_sum(
+    pool: &PgPool,
+    user_id: Uuid,
+    field: &HealthRecordField,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    interval: &str,
+) -> Result<Vec<AggRow>, sqlx::Error> {
+    let record_type = field.record_type();
+    sqlx::query_as::<_, AggRow>(&format!(
+        "SELECT date_trunc('{interval}', start_time) AS bucket,
+                SUM(value) AS avg_val,
+                COUNT(*) AS cnt
+         FROM health_records
+         WHERE user_id = $1 AND record_type = $2
+           AND start_time >= $3 AND start_time <= $4
+           AND value IS NOT NULL
+         GROUP BY bucket
+         ORDER BY bucket ASC"
+    ))
+    .bind(user_id)
+    .bind(record_type)
+    .bind(start)
+    .bind(end)
+    .fetch_all(pool)
+    .await
+}
+
+/// Sleep/mindful duration: sum of segment durations in minutes for sleep
+/// categories (1=InBed, 3=Core, 4=Deep, 5=REM) where end_time is present.
+async fn query_health_record_sleep_duration(
+    pool: &PgPool,
+    user_id: Uuid,
+    field: &HealthRecordField,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    interval: &str,
+) -> Result<Vec<AggRow>, sqlx::Error> {
+    let record_type = field.record_type();
+    sqlx::query_as::<_, AggRow>(&format!(
+        "SELECT date_trunc('{interval}', start_time) AS bucket,
+                SUM(EXTRACT(EPOCH FROM (end_time - start_time)) / 60) AS avg_val,
+                COUNT(*) AS cnt
+         FROM health_records
+         WHERE user_id = $1 AND record_type = $2
+           AND start_time >= $3 AND start_time <= $4
+           AND end_time IS NOT NULL
+           AND value IN (1, 3, 4, 5)
+         GROUP BY bucket
+         ORDER BY bucket ASC"
+    ))
+    .bind(user_id)
+    .bind(record_type)
+    .bind(start)
+    .bind(end)
+    .fetch_all(pool)
+    .await
+}
+
+/// Count events per bucket (no value aggregation — just COUNT(*)).
+async fn query_health_record_count(
+    pool: &PgPool,
+    user_id: Uuid,
+    field: &HealthRecordField,
+    start: DateTime<Utc>,
+    end: DateTime<Utc>,
+    interval: &str,
+) -> Result<Vec<AggRow>, sqlx::Error> {
+    let record_type = field.record_type();
+    sqlx::query_as::<_, AggRow>(&format!(
+        "SELECT date_trunc('{interval}', start_time) AS bucket,
+                COUNT(*)::double precision AS avg_val,
+                COUNT(*) AS cnt
+         FROM health_records
+         WHERE user_id = $1 AND record_type = $2
+           AND start_time >= $3 AND start_time <= $4
          GROUP BY bucket
          ORDER BY bucket ASC"
     ))
