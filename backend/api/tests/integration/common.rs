@@ -67,7 +67,7 @@ fn test_config(database_url: &str) -> api::config::Config {
         ios_min_version: None,
         ios_force_upgrade_below: None,
         smtp_host: None,
-        smtp_port: 587,
+        smtp_port: 2587,
         smtp_username: None,
         smtp_password: None,
         smtp_from: None,

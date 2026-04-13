@@ -34,9 +34,9 @@ pub async fn send_email(
         .header(ContentType::TEXT_HTML)
         .body(html_body.to_string())?;
 
-    // Port 465 uses implicit TLS; port 587 uses STARTTLS
-    let mut transport_builder = if config.smtp_port == 465 {
-        AsyncSmtpTransport::<Tokio1Executor>::relay(smtp_host)?.port(465)
+    // Implicit TLS on ports 465/2465; STARTTLS on ports 587/2587/other
+    let mut transport_builder = if config.smtp_port == 465 || config.smtp_port == 2465 {
+        AsyncSmtpTransport::<Tokio1Executor>::relay(smtp_host)?.port(config.smtp_port)
     } else {
         AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(smtp_host)?.port(config.smtp_port)
     };
@@ -94,7 +94,7 @@ mod tests {
             ios_min_version: None,
             ios_force_upgrade_below: None,
             smtp_host: None,
-            smtp_port: 587,
+            smtp_port: 2587,
             smtp_username: None,
             smtp_password: None,
             smtp_from: None,
