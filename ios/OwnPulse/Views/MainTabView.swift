@@ -30,7 +30,7 @@ struct MainTabView: View {
 
             Tab("Explore", systemImage: "chart.xyaxis.line", value: 3) {
                 NavigationStack {
-                    ExploreWebView()
+                    ExploreView()
                 }
             }
 
