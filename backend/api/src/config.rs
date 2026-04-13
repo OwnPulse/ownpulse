@@ -153,7 +153,7 @@ fn default_require_invite() -> bool {
 }
 
 fn default_smtp_port() -> u16 {
-    587
+    2587
 }
 
 impl Config {
