@@ -25,6 +25,7 @@ mod password_reset;
 mod protocol_runs;
 mod protocol_templates;
 mod protocols;
+mod saved_medicines;
 mod security_fixes;
 mod sleep;
 mod stats;

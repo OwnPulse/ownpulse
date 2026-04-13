@@ -40,3 +40,10 @@
 .metricLabel {
   flex: 1;
 }
+
+@media (max-width: 768px) {
+  .groups {
+    max-height: none;
+    overflow-y: visible;
+  }
+}

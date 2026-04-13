@@ -8,6 +8,34 @@ struct InterventionForm: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            // Saved Medicines
+            if !viewModel.savedMedicines.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("My Medicines")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            Task { await viewModel.saveMedicine() }
+                        } label: {
+                            Image(systemName: "plus.circle")
+                                .foregroundStyle(OPColor.terracotta)
+                        }
+                        .disabled(viewModel.substance.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .accessibilityIdentifier("saveMedicineButton")
+                    }
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.savedMedicines) { medicine in
+                                savedMedicineChip(medicine)
+                            }
+                        }
+                    }
+                }
+                .accessibilityIdentifier("savedMedicinesSection")
+            }
+
             // Substance
             TextField("Substance", text: $viewModel.substance)
                 .textFieldStyle(.roundedBorder)
@@ -82,5 +110,39 @@ struct InterventionForm: View {
             .sensoryFeedback(.success, trigger: viewModel.submitState == .success("Intervention logged"))
             .accessibilityIdentifier("saveInterventionButton")
         }
+        .task {
+            await viewModel.loadSavedMedicines()
+        }
+    }
+
+    private func savedMedicineChip(_ medicine: SavedMedicine) -> some View {
+        Button {
+            viewModel.applySavedMedicine(medicine)
+        } label: {
+            Text(savedMedicineLabel(medicine))
+                .font(.caption)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(Capsule().stroke(OPColor.terracotta, lineWidth: 1))
+        }
+        .contextMenu {
+            Button(role: .destructive) {
+                Task { await viewModel.deleteSavedMedicine(medicine.id) }
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .accessibilityIdentifier("savedMedicineChip-\(medicine.id)")
+    }
+
+    private func savedMedicineLabel(_ medicine: SavedMedicine) -> String {
+        var parts = [medicine.substance]
+        if let d = medicine.dose {
+            var dosePart = String(format: "%g", d)
+            if let u = medicine.unit { dosePart += u }
+            parts.append(dosePart)
+        }
+        if let r = medicine.route { parts.append(r) }
+        return parts.joined(separator: " ")
     }
 }

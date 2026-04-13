@@ -29,9 +29,50 @@ const activeSubstances = [
   },
 ];
 
+const testSavedMedicines = [
+  {
+    id: "sm-1",
+    substance: "Magnesium",
+    dose: 400,
+    unit: "mg",
+    route: "oral",
+    sort_order: 0,
+    created_at: "2026-03-01T00:00:00Z",
+  },
+  {
+    id: "sm-2",
+    substance: "Vitamin D",
+    dose: 5000,
+    unit: "IU",
+    route: "oral",
+    sort_order: 1,
+    created_at: "2026-03-01T00:00:00Z",
+  },
+];
+
 const server = setupServer(
   http.get("/api/v1/protocols/active-substances", () => {
     return HttpResponse.json(activeSubstances);
+  }),
+  http.get("/api/v1/saved-medicines", () => {
+    return HttpResponse.json(testSavedMedicines);
+  }),
+  http.post("/api/v1/saved-medicines", () => {
+    return HttpResponse.json(
+      {
+        id: "sm-new",
+        substance: "Creatine",
+        dose: 5,
+        unit: "g",
+        route: "oral",
+        sort_order: 2,
+        created_at: "2026-04-12T00:00:00Z",
+      },
+      { status: 201 },
+    );
+  }),
+  http.delete("/api/v1/saved-medicines/:id", () => {
+    return new HttpResponse(null, { status: 204 });
   }),
   http.post("/api/v1/interventions", () => {
     return HttpResponse.json(
@@ -173,5 +214,66 @@ describe("InterventionForm", () => {
     await waitFor(() => {
       expect(screen.getByText(/error:/i)).toBeDefined();
     });
+  });
+
+  it("renders saved medicine chips in My Medicines section", async () => {
+    renderForm();
+    await waitFor(() => {
+      expect(screen.getByTestId("saved-medicines-section")).toBeDefined();
+    });
+    expect(screen.getByText("Magnesium 400mg oral")).toBeDefined();
+    expect(screen.getByText("Vitamin D 5000IU oral")).toBeDefined();
+  });
+
+  it("clicking a saved medicine chip pre-fills form", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await waitFor(() => {
+      expect(screen.getByText("Magnesium 400mg oral")).toBeDefined();
+    });
+
+    await user.click(screen.getByText("Magnesium 400mg oral"));
+
+    expect(screen.getByLabelText(/substance/i)).toHaveValue("Magnesium");
+    expect(screen.getByLabelText(/dose/i)).toHaveValue(400);
+    expect(screen.getByLabelText(/unit/i)).toHaveValue("mg");
+    expect(screen.getByLabelText(/route/i)).toHaveValue("oral");
+  });
+
+  it("+ button creates a new saved medicine", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("saved-medicines-section")).toBeDefined();
+    });
+
+    // Fill in a substance so the + button is enabled
+    await user.type(screen.getByLabelText(/substance/i), "Creatine");
+    await user.type(screen.getByLabelText(/dose/i), "5");
+    await user.type(screen.getByLabelText(/unit/i), "g");
+    await user.type(screen.getByLabelText(/route/i), "oral");
+
+    const addBtn = screen.getByRole("button", { name: /save current medicine/i });
+    expect(addBtn).not.toBeDisabled();
+    await user.click(addBtn);
+
+    // After mutation, the saved-medicines query gets invalidated and refetched
+    await waitFor(() => {
+      expect(screen.getByTestId("saved-medicines-section")).toBeDefined();
+    });
+  });
+
+  it("does not render saved medicines section when no saved medicines and no substance", async () => {
+    server.use(
+      http.get("/api/v1/saved-medicines", () => {
+        return HttpResponse.json([]);
+      }),
+    );
+    renderForm();
+    // Wait for queries to settle
+    await new Promise((r) => setTimeout(r, 100));
+    expect(screen.queryByTestId("saved-medicines-section")).toBeNull();
   });
 });

@@ -36,6 +36,7 @@
 		46B3707001710B3621543EC1 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DD6815D274C9513C8AC117 /* DashboardView.swift */; };
 		4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CF4D7068AEF598DB5632A8 /* SleepChartView.swift */; };
 		57EE1C7CC900455D2ADB35D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 768780B3383F621DD4B4996C /* Assets.xcassets */; };
+		590BC0501B1AE531D9D87F12 /* SavedMedicineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60DE424464C7A6C35A08720 /* SavedMedicineModels.swift */; };
 		59D192908D41DDC03D4C6BBD /* OverlayChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CF5CD1DBD7749FA6F6744EA /* OverlayChartView.swift */; };
 		5A6F54C3577640EA7A61B537 /* ClinicalRecordProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF3CF46259AD8ED8B3D26B6 /* ClinicalRecordProvider.swift */; };
 		63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FF64D436027417304D659C /* MockNetworkClient.swift */; };
@@ -206,6 +207,7 @@
 		E75554390D361CB2DC5B1694 /* OfflineQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueTests.swift; sourceTree = "<group>"; };
 		EDBC022C75CBDEC3C059973B /* CreateInviteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateInviteSheet.swift; sourceTree = "<group>"; };
 		F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProvider.swift; sourceTree = "<group>"; };
+		F60DE424464C7A6C35A08720 /* SavedMedicineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedMedicineModels.swift; sourceTree = "<group>"; };
 		F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAuthService.swift; sourceTree = "<group>"; };
 		FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTypeMap.swift; sourceTree = "<group>"; };
 		FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigTests.swift; sourceTree = "<group>"; };
@@ -397,6 +399,7 @@
 				7351C0E5E3BB61A29712219B /* NetworkClient.swift */,
 				D2EFCC3ABFED4F18B7F5DF8B /* NotificationModels.swift */,
 				B2D4A97A4F90CDBCA4EFF22B /* ProtocolModels.swift */,
+				F60DE424464C7A6C35A08720 /* SavedMedicineModels.swift */,
 			);
 			path = Network;
 			sourceTree = "<group>";
@@ -656,6 +659,7 @@
 				3B0FD461A49B85D216380765 /* ProtocolModels.swift in Sources */,
 				1B2C6DA8394E5EADFA452C47 /* ProtocolsListView.swift in Sources */,
 				7CC463CD27576924170DB812 /* ProtocolsViewModel.swift in Sources */,
+				590BC0501B1AE531D9D87F12 /* SavedMedicineModels.swift in Sources */,
 				E74306B68AF98B5E6EFA49C3 /* ScoreSlider.swift in Sources */,
 				82FD284E95344C2E5110ED3F /* SettingsView.swift in Sources */,
 				4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */,

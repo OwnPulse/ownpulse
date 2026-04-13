@@ -24,6 +24,7 @@ pub mod observer_polls;
 pub mod password_reset_tokens;
 pub mod protocols;
 pub mod refresh_tokens;
+pub mod saved_medicines;
 pub mod snp_seed;
 pub mod source_preferences;
 pub mod stats;

@@ -69,6 +69,7 @@ final class LogViewModel {
     var interventionDate = Date()
     var fasted = false
     var interventionNotes = ""
+    var savedMedicines: [SavedMedicine] = []
 
     static let doseUnits = ["mg", "mcg", "mL", "IU", "g", "drops", "puffs"]
     static let routes = ["oral", "sublingual", "subq", "IM", "IV", "topical", "inhaled", "nasal", "rectal", "transdermal"]
@@ -239,6 +240,63 @@ final class LogViewModel {
             logger.error("Failed to submit observation: \(error.localizedDescription, privacy: .public)")
             submitState = .error("Failed to log observation: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - Saved Medicines
+
+    func loadSavedMedicines() async {
+        do {
+            let medicines: [SavedMedicine] = try await networkClient.request(
+                method: "GET",
+                path: Endpoints.savedMedicines,
+                body: nil as String?
+            )
+            savedMedicines = medicines
+        } catch {
+            logger.error("Failed to load saved medicines: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func saveMedicine() async {
+        guard !substance.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+
+        let body = CreateSavedMedicine(
+            substance: substance.trimmingCharacters(in: .whitespaces),
+            dose: Double(dose),
+            unit: doseUnit,
+            route: route
+        )
+
+        do {
+            let _: SavedMedicine = try await networkClient.request(
+                method: "POST",
+                path: Endpoints.savedMedicines,
+                body: body
+            )
+            await loadSavedMedicines()
+        } catch {
+            logger.error("Failed to save medicine: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func deleteSavedMedicine(_ id: String) async {
+        do {
+            try await networkClient.requestNoContent(
+                method: "DELETE",
+                path: "\(Endpoints.savedMedicines)/\(id)",
+                body: nil as String?
+            )
+            savedMedicines.removeAll { $0.id == id }
+        } catch {
+            logger.error("Failed to delete saved medicine: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func applySavedMedicine(_ medicine: SavedMedicine) {
+        substance = medicine.substance
+        if let d = medicine.dose { dose = String(d) }
+        if let u = medicine.unit { doseUnit = u }
+        if let r = medicine.route { route = r }
     }
 
     // MARK: - Reset

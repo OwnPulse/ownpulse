@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CreateIntervention, interventionsApi } from "../../api/interventions";
 import { type ActiveSubstance, protocolsApi } from "../../api/protocols";
+import { type SavedMedicine, savedMedicinesApi } from "../../api/savedMedicines";
 import forms from "./forms.module.css";
 import styles from "./InterventionForm.module.css";
 
@@ -14,6 +15,14 @@ function nowLocal() {
 
 function chipLabel(s: ActiveSubstance): string {
   return `${s.substance} ${s.dose}${s.unit} ${s.route}`;
+}
+
+function savedMedicineLabel(m: SavedMedicine): string {
+  const parts = [m.substance];
+  if (m.dose != null) parts.push(String(m.dose));
+  if (m.unit) parts[parts.length - 1] += m.unit;
+  if (m.route) parts.push(m.route);
+  return parts.join(" ");
 }
 
 export default function InterventionForm() {
@@ -26,9 +35,16 @@ export default function InterventionForm() {
   const [fasted, setFasted] = useState(false);
   const [notes, setNotes] = useState("");
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
   const activeSubstances = useQuery({
     queryKey: ["protocols", "active-substances"],
     queryFn: () => protocolsApi.activeSubstances(),
+  });
+
+  const savedMedicines = useQuery({
+    queryKey: ["saved-medicines"],
+    queryFn: () => savedMedicinesApi.list(),
   });
 
   const mutation = useMutation({
@@ -45,11 +61,47 @@ export default function InterventionForm() {
     },
   });
 
+  const saveMedicineMutation = useMutation({
+    mutationFn: () =>
+      savedMedicinesApi.create({
+        substance,
+        dose: dose ? parseFloat(dose) : undefined,
+        unit: unit || undefined,
+        route: route || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-medicines"] });
+    },
+  });
+
+  const deleteMedicineMutation = useMutation({
+    mutationFn: (id: string) => savedMedicinesApi.remove(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["saved-medicines"] });
+      setDeletingId(null);
+    },
+  });
+
   const handleChipClick = (s: ActiveSubstance) => {
     setSubstance(s.substance);
     setDose(String(s.dose));
     setUnit(s.unit);
     setRoute(s.route);
+  };
+
+  const handleSavedMedicineClick = (m: SavedMedicine) => {
+    setSubstance(m.substance);
+    if (m.dose != null) setDose(String(m.dose));
+    if (m.unit) setUnit(m.unit);
+    if (m.route) setRoute(m.route);
+  };
+
+  const handleDeleteMedicine = (id: string) => {
+    if (deletingId === id) {
+      deleteMedicineMutation.mutate(id);
+    } else {
+      setDeletingId(id);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -66,9 +118,60 @@ export default function InterventionForm() {
   };
 
   const substances = activeSubstances.data;
+  const medicines = savedMedicines.data;
 
   return (
     <form onSubmit={handleSubmit} className={forms.form}>
+      {medicines && medicines.length > 0 && (
+        <div className={styles.savedMedicines} data-testid="saved-medicines-section">
+          <span className={styles.quickPickLabel}>My Medicines:</span>
+          <div className={styles.chipContainer}>
+            {medicines.map((m) => (
+              <span key={m.id} className={styles.savedChipWrapper}>
+                <button
+                  type="button"
+                  className={styles.chip}
+                  onClick={() => handleSavedMedicineClick(m)}
+                >
+                  {savedMedicineLabel(m)}
+                </button>
+                <button
+                  type="button"
+                  className={styles.deleteChipBtn}
+                  aria-label={`Delete ${m.substance}`}
+                  onClick={() => handleDeleteMedicine(m.id)}
+                >
+                  {deletingId === m.id ? "?" : "\u00d7"}
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              className={styles.addBtn}
+              disabled={!substance.trim()}
+              onClick={() => saveMedicineMutation.mutate()}
+              aria-label="Save current medicine"
+            >
+              +
+            </button>
+          </div>
+        </div>
+      )}
+      {medicines && medicines.length === 0 && substance.trim() && (
+        <div className={styles.savedMedicines} data-testid="saved-medicines-section">
+          <span className={styles.quickPickLabel}>My Medicines:</span>
+          <div className={styles.chipContainer}>
+            <button
+              type="button"
+              className={styles.addBtn}
+              onClick={() => saveMedicineMutation.mutate()}
+              aria-label="Save current medicine"
+            >
+              +
+            </button>
+          </div>
+        </div>
+      )}
       {substances && substances.length > 0 && (
         <div className={styles.quickPick} data-testid="quick-pick-section">
           <span className={styles.quickPickLabel}>Quick pick:</span>
