@@ -163,4 +163,8 @@
   .overlayVisible {
     display: block;
   }
+
+  .menuBtnHidden {
+    display: none;
+  }
 }

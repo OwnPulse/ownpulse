@@ -41,7 +41,7 @@ export default function Layout() {
     <div className={styles.layout}>
       <button
         type="button"
-        className={styles.menuBtn}
+        className={`${styles.menuBtn}${sidebarOpen ? ` ${styles.menuBtnHidden}` : ""}`}
         onClick={() => setSidebarOpen(!sidebarOpen)}
         aria-label="Toggle menu"
       >
