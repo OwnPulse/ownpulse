@@ -172,26 +172,24 @@ struct SettingsView: View {
                 }
                 .accessibilityIdentifier("hkAuthStatus")
 
-                Button {
-                    Task {
-                        try? await dependencies.healthKitProvider.requestAuthorization()
-                        hkAuthorized = dependencies.healthKitProvider.isAuthorized()
+                if !hkAuthorized {
+                    Button {
+                        Task {
+                            try? await dependencies.healthKitProvider.requestAuthorization()
+                            hkAuthorized = dependencies.healthKitProvider.isAuthorized()
+                        }
+                    } label: {
+                        Label("Connect Apple Health", systemImage: "heart.text.square")
                     }
-                } label: {
-                    Label(hkAuthorized ? "Update Permissions" : "Connect Apple Health",
-                          systemImage: hkAuthorized ? "arrow.triangle.2.circlepath" : "heart.text.square")
-                }
-                .accessibilityIdentifier("requestHKAccessButton")
-
-                if hkAuthorized {
+                    .accessibilityIdentifier("requestHKAccessButton")
+                } else {
                     Button {
                         if let url = URL(string: "x-apple-health://") {
                             UIApplication.shared.open(url)
                         }
                     } label: {
-                        Label("Open Health App", systemImage: "arrow.up.forward.app")
+                        Label("Manage Permissions in Health App", systemImage: "arrow.up.forward.app")
                     }
-                    .foregroundStyle(.secondary)
                     .accessibilityIdentifier("openHealthAppButton")
                 }
 

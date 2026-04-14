@@ -54,8 +54,13 @@ final class DashboardViewModel {
 
             summaryState = .loaded
         } catch {
-            logger.error("Failed to load dashboard summary: \(error.localizedDescription, privacy: .public)")
-            summaryState = .error("Failed to load dashboard")
+            logger.error("Failed to load dashboard: \(error.localizedDescription, privacy: .public)")
+            Task { await FlowTracker.shared.track(event: "flow", flow: "dashboard_load", outcome: "error") }
+            #if DEBUG
+            summaryState = .error(error.localizedDescription)
+            #else
+            summaryState = .error("Unable to load dashboard. Pull to retry.")
+            #endif
         }
 
         // Load sparklines and insights in parallel, non-blocking

@@ -111,7 +111,7 @@ struct DashboardViewModelTests {
         await vm.loadDashboard()
 
         if case .error(let msg) = vm.summaryState {
-            #expect(msg == "Failed to load dashboard")
+            #expect(!msg.isEmpty)
         } else {
             Issue.record("Expected error state, got \(vm.summaryState)")
         }
