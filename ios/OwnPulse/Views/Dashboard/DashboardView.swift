@@ -19,7 +19,8 @@ struct DashboardView: View {
             }
         }
         .refreshable {
-            await viewModel?.performSync()
+            // Sync HealthKit in background — don't block dashboard load
+            Task { await viewModel?.performSync() }
             await viewModel?.loadDashboard()
         }
         .navigationTitle("Dashboard")
@@ -31,9 +32,8 @@ struct DashboardView: View {
                     Task {
                         try? await dependencies.healthKitProvider.requestAuthorization()
                         hkAuthorized = dependencies.healthKitProvider.isAuthorized()
-                        // Sync immediately after authorization
-                        await viewModel?.performSync()
-                        await viewModel?.loadDashboard()
+                        // Sync in background after authorization
+                        Task { await viewModel?.performSync() }
                     }
                     showHealthKitSheet = false
                 },
