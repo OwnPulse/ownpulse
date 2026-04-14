@@ -83,6 +83,7 @@ actor SyncEngine {
             }
 
             // 4. Sync medication dose events (iOS 26+)
+            #if swift(>=6.1)
             if #available(iOS 26.0, *) {
                 if let provider = medicationSyncProvider as? MedicationSyncProviderProtocol {
                     do {
@@ -92,6 +93,7 @@ actor SyncEngine {
                     }
                 }
             }
+            #endif
 
             // 5. Process write-back queue
             try await processWriteBack()
@@ -219,6 +221,7 @@ actor SyncEngine {
         }
     }
 
+    #if swift(>=6.1)
     @available(iOS 26.0, *)
     private func syncMedicationDoses(_ provider: MedicationSyncProviderProtocol) async throws {
         let anchorKey = "medication_dose_event"
@@ -262,6 +265,7 @@ actor SyncEngine {
             try anchorStore.saveAnchor(newAnchor, forRecordType: anchorKey)
         }
     }
+    #endif
 
     private func processWriteBack() async throws {
         let items: [HealthKitWriteQueueItem] = try await networkClient.request(

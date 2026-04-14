@@ -14,6 +14,10 @@ struct MedicationDoseRecord: Sendable {
     let conceptIdentifier: String
 }
 
+// The medication APIs require the iOS 26 SDK (Xcode 26+, Swift 6.1+).
+// Gate at compile time so this file is inert when built with Xcode 16.x / Swift 6.0.
+#if swift(>=6.1)
+
 @available(iOS 26.0, *)
 protocol MedicationSyncProviderProtocol: Sendable {
     func requestAuthorization() async throws
@@ -25,8 +29,9 @@ protocol MedicationSyncProviderProtocol: Sendable {
 final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked Sendable {
     private let store = HKHealthStore()
 
-    // Cache of concept identifier → medication info, refreshed each sync
-    private var medicationCache: [String: (name: String, form: HKMedicationGeneralForm)] = [:]
+    // Concept identifier → medication info, refreshed each sync.
+    // Form stored as String so the route mapper has no HealthKit dependency.
+    private var medicationCache: [String: (name: String, form: String)] = [:]
 
     func requestAuthorization() async throws {
         try await store.requestPerObjectReadAuthorization(
@@ -47,7 +52,6 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
     }
 
     func queryDoseEvents(anchor: Data?) async throws -> (records: [MedicationDoseRecord], newAnchor: Data?) {
-        // Refresh medication cache so we can map concept IDs to names
         try await refreshMedicationCache()
 
         let hkAnchor: HKQueryAnchor?
@@ -115,11 +119,11 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
         let descriptor = HKUserAnnotatedMedicationQueryDescriptor()
         let medications = try await descriptor.result(for: store)
 
-        var cache: [String: (name: String, form: HKMedicationGeneralForm)] = [:]
+        var cache: [String: (name: String, form: String)] = [:]
         for med in medications {
             let id = med.medication.identifier.description
             let name = med.nickname ?? med.medication.displayText
-            cache[id] = (name: name, form: med.medication.generalForm)
+            cache[id] = (name: name, form: String(med.medication.generalForm.rawValue))
         }
         medicationCache = cache
     }
@@ -132,25 +136,27 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
         )
     }
 
-    static func mapFormToRoute(_ form: HKMedicationGeneralForm?) -> String {
+    static func mapFormToRoute(_ form: String?) -> String {
         guard let form else { return "oral" }
         switch form {
-        case .capsule, .liquid, .powder, .tablet:
+        case "Capsule", "Liquid", "Powder", "Tablet":
             return "oral"
-        case .injection:
+        case "Injection":
             return "injection"
-        case .inhaler:
+        case "Inhaler":
             return "inhalation"
-        case .cream, .gel, .lotion, .ointment, .patch, .topical, .foam:
+        case "Cream", "Gel", "Lotion", "Ointment", "Patch", "Topical", "Foam":
             return "topical"
-        case .suppository:
+        case "Suppository":
             return "rectal"
-        case .spray:
+        case "Spray":
             return "nasal"
-        case .drops:
+        case "Drops":
             return "sublingual"
         default:
             return "oral"
         }
     }
 }
+
+#endif

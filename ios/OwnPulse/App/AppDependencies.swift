@@ -46,11 +46,15 @@ final class AppDependencies {
         self.clinicalRecordProvider = HKHealthStore.isHealthDataAvailable()
             ? ClinicalRecordProvider() : nil
 
+        #if swift(>=6.1)
         if #available(iOS 26.0, *), HKHealthStore.isHealthDataAvailable() {
             self.medicationSyncProvider = MedicationSyncProvider()
         } else {
             self.medicationSyncProvider = nil
         }
+        #else
+        self.medicationSyncProvider = nil
+        #endif
 
         self.databaseManager = DatabaseManager()
 
