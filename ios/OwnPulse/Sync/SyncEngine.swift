@@ -25,6 +25,7 @@ actor SyncEngine {
     private let networkClient: NetworkClientProtocol
     private let healthKitProvider: HealthKitProviderProtocol
     private let clinicalRecordProvider: ClinicalRecordProviderProtocol?
+    private let medicationSyncProvider: (any Sendable)?
     private let offlineQueue: OfflineQueueProtocol
     private let anchorStore: AnchorStore
     private let batchSize = 100
@@ -42,12 +43,14 @@ actor SyncEngine {
         networkClient: NetworkClientProtocol,
         healthKitProvider: HealthKitProviderProtocol,
         clinicalRecordProvider: ClinicalRecordProviderProtocol? = nil,
+        medicationSyncProvider: (any Sendable)? = nil,
         offlineQueue: OfflineQueueProtocol,
         anchorStore: AnchorStore
     ) {
         self.networkClient = networkClient
         self.healthKitProvider = healthKitProvider
         self.clinicalRecordProvider = clinicalRecordProvider
+        self.medicationSyncProvider = medicationSyncProvider
         self.offlineQueue = offlineQueue
         self.anchorStore = anchorStore
     }
@@ -79,7 +82,18 @@ actor SyncEngine {
                 }
             }
 
-            // 4. Process write-back queue
+            // 4. Sync medication dose events (iOS 26+)
+            if #available(iOS 26.0, *) {
+                if let provider = medicationSyncProvider as? MedicationSyncProviderProtocol {
+                    do {
+                        try await syncMedicationDoses(provider)
+                    } catch {
+                        _lastError = "Medication sync failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+
+            // 5. Process write-back queue
             try await processWriteBack()
 
             _lastSyncDate = Date()
@@ -202,6 +216,50 @@ actor SyncEngine {
 
         if let newAnchor = result.newAnchor {
             try anchorStore.saveAnchor(newAnchor, forRecordType: "clinical_lab_result")
+        }
+    }
+
+    @available(iOS 26.0, *)
+    private func syncMedicationDoses(_ provider: MedicationSyncProviderProtocol) async throws {
+        let anchorKey = "medication_dose_event"
+        let anchor = try anchorStore.anchor(forRecordType: anchorKey)
+        let result = try await provider.queryDoseEvents(anchor: anchor)
+
+        guard !result.records.isEmpty else {
+            if let newAnchor = result.newAnchor {
+                try anchorStore.saveAnchor(newAnchor, forRecordType: anchorKey)
+            }
+            return
+        }
+
+        let formatter = ISO8601DateFormatter()
+
+        for batch in stride(from: 0, to: result.records.count, by: batchSize).map({
+            Array(result.records[$0..<min($0 + batchSize, result.records.count)])
+        }) {
+            let interventions = batch.map { record in
+                CreateIntervention(
+                    substance: record.substance,
+                    dose: record.dose,
+                    unit: record.unit,
+                    route: record.route,
+                    administeredAt: formatter.string(from: record.administeredAt),
+                    fasted: false,
+                    notes: "Synced from Apple Health"
+                )
+            }
+
+            for intervention in interventions {
+                let _: InterventionResponse = try await networkClient.request(
+                    method: "POST",
+                    path: Endpoints.interventions,
+                    body: intervention
+                )
+            }
+        }
+
+        if let newAnchor = result.newAnchor {
+            try anchorStore.saveAnchor(newAnchor, forRecordType: anchorKey)
         }
     }
 

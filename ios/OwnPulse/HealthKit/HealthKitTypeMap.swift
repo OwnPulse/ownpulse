@@ -119,14 +119,14 @@ enum HealthKitTypeMap {
             recordType: "exercise_time",
             unit: .minute(),
             unitString: "min",
-            writable: true
+            writable: false
         ),
         Mapping(
             hkType: HKQuantityType(.appleStandTime),
             recordType: "stand_time",
             unit: .minute(),
             unitString: "min",
-            writable: true
+            writable: false
         ),
         Mapping(
             hkType: HKQuantityType(.vo2Max),

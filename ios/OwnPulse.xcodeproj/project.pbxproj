@@ -25,6 +25,7 @@
 		26656421C976B47BF433E327 /* OfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6049367D20366FC7493CBC2 /* OfflineQueue.swift */; };
 		27CF1FFD6541FF4B629FE067 /* MockNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B294575765E4C92C7F8290 /* MockNotificationManager.swift */; };
 		281AF7A8CA053E4DA1D1FC81 /* MockFeatureFlagService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5ECF4C4691493011E79B690 /* MockFeatureFlagService.swift */; };
+		28CA3D3620ACB6EBA5A2269B /* MedicationSyncProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17B51D542E7FFB01F34E90E /* MedicationSyncProvider.swift */; };
 		29D6DD6A5FFAD5FD2B951CD9 /* APIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */; };
 		2AE644AB92D5704C8E8B7244 /* ProtocolsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D310A48E0E8683AB879E13 /* ProtocolsViewModelTests.swift */; };
 		2CBC758F6DF27FCAB1722851 /* AdminServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54949C1E6E149322C32F0B1B /* AdminServiceTests.swift */; };
@@ -214,6 +215,7 @@
 		E6049367D20366FC7493CBC2 /* OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueue.swift; sourceTree = "<group>"; };
 		E75554390D361CB2DC5B1694 /* OfflineQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueTests.swift; sourceTree = "<group>"; };
 		EDBC022C75CBDEC3C059973B /* CreateInviteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateInviteSheet.swift; sourceTree = "<group>"; };
+		F17B51D542E7FFB01F34E90E /* MedicationSyncProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSyncProvider.swift; sourceTree = "<group>"; };
 		F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProvider.swift; sourceTree = "<group>"; };
 		F60DE424464C7A6C35A08720 /* SavedMedicineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedMedicineModels.swift; sourceTree = "<group>"; };
 		F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAuthService.swift; sourceTree = "<group>"; };
@@ -375,6 +377,7 @@
 				3E42F8EDD5D3A046B6B5CC17 /* ClinicalRecordSettings.swift */,
 				F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */,
 				FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */,
+				F17B51D542E7FFB01F34E90E /* MedicationSyncProvider.swift */,
 			);
 			path = HealthKit;
 			sourceTree = "<group>";
@@ -664,6 +667,7 @@
 				F63AF6EC6D3C364369D3CB53 /* LogViewModel.swift in Sources */,
 				99270E7F933636BB3FC28C4C /* LoginView.swift in Sources */,
 				64D12DC15E48D8140ADCFF91 /* MainTabView.swift in Sources */,
+				28CA3D3620ACB6EBA5A2269B /* MedicationSyncProvider.swift in Sources */,
 				9E72E02192CCDF3E34F8599E /* MetricDetailView.swift in Sources */,
 				CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */,
 				14E81CAFFCED3283B3286208 /* MovingAverage.swift in Sources */,
