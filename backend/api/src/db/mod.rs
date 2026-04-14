@@ -28,5 +28,6 @@ pub mod saved_medicines;
 pub mod snp_seed;
 pub mod source_preferences;
 pub mod stats;
+pub mod telemetry;
 pub mod user_auth_methods;
 pub mod users;

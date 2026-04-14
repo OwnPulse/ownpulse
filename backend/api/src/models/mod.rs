@@ -20,4 +20,5 @@ pub mod saved_medicine;
 pub mod sleep;
 pub mod source_preference;
 pub mod stats;
+pub mod telemetry;
 pub mod user;

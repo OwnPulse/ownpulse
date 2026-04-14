@@ -32,6 +32,7 @@ pub mod saved_medicines;
 pub mod sleep;
 pub mod source_preferences;
 pub mod stats;
+pub mod telemetry;
 pub mod waitlist;
 
 use axum::http;
@@ -342,6 +343,8 @@ fn base_routes() -> Router<AppState> {
         // Source preferences
         .route("/source-preferences", get(source_preferences::list))
         .route("/source-preferences", post(source_preferences::upsert))
+        // Telemetry (JWT-gated but anonymous storage)
+        .route("/telemetry/report", post(telemetry::report))
         // Account
         .route("/account", get(account::get_account))
         .route("/account", delete(account::delete_account))
