@@ -161,39 +161,58 @@ struct SettingsView: View {
 
     var body: some View {
         List {
-            Section("HealthKit") {
+            Section("Apple Health") {
                 HStack {
-                    Text("Authorization")
+                    Image(systemName: hkAuthorized ? "checkmark.circle.fill" : "xmark.circle")
+                        .foregroundStyle(hkAuthorized ? OPColor.sage : .secondary)
+                    Text(hkAuthorized ? "Connected" : "Not Connected")
                     Spacer()
-                    Text(hkAuthorized ? "Granted" : "Not Authorized")
-                        .foregroundStyle(.secondary)
                 }
                 .accessibilityIdentifier("hkAuthStatus")
 
-                if !hkAuthorized {
-                    Button("Request Access") {
-                        Task {
-                            try? await dependencies.healthKitProvider.requestAuthorization()
-                            hkAuthorized = dependencies.healthKitProvider.isAuthorized()
-                        }
+                Button {
+                    Task {
+                        try? await dependencies.healthKitProvider.requestAuthorization()
+                        hkAuthorized = dependencies.healthKitProvider.isAuthorized()
                     }
-                    .accessibilityIdentifier("requestHKAccessButton")
+                } label: {
+                    Label(hkAuthorized ? "Update Permissions" : "Connect Apple Health",
+                          systemImage: hkAuthorized ? "arrow.triangle.2.circlepath" : "heart.text.square")
                 }
-            }
+                .accessibilityIdentifier("requestHKAccessButton")
 
-            Section("Health Records") {
-                Toggle("Sync Lab Results", isOn: $clinicalRecordsSyncEnabled)
-                    .onChange(of: clinicalRecordsSyncEnabled) { _, newValue in
-                        ClinicalRecordSettings.isSyncEnabled = newValue
-                        if newValue {
-                            Task {
-                                try? await dependencies.clinicalRecordProvider?.requestAuthorization()
-                            }
+                if hkAuthorized {
+                    Button {
+                        if let url = URL(string: "x-apple-health://") {
+                            UIApplication.shared.open(url)
                         }
+                    } label: {
+                        Label("Open Health App", systemImage: "arrow.up.forward.app")
                     }
-                Text("Import lab results from Epic, MyChart, Quest Diagnostics, and other connected health providers.")
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("openHealthAppButton")
+                }
+
+                Text("Syncs \(HealthKitTypeMap.mappings.count) data types including heart rate, sleep, activity, nutrition, and more.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            if dependencies.clinicalRecordProvider != nil {
+                Section("Health Records") {
+                    Toggle("Sync Lab Results", isOn: $clinicalRecordsSyncEnabled)
+                        .onChange(of: clinicalRecordsSyncEnabled) { _, newValue in
+                            ClinicalRecordSettings.isSyncEnabled = newValue
+                            if newValue {
+                                Task {
+                                    try? await dependencies.clinicalRecordProvider?.requestAuthorization()
+                                }
+                            }
+                        }
+                    Text("Import lab results from Epic, MyChart, Quest Diagnostics, and other connected health providers. Requires permission in Health > OwnPulse.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             if let vm = viewModel {
