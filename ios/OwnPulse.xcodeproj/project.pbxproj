@@ -71,6 +71,7 @@
 		9FA3B9180E813D0EEA3BD43D /* HealthKitPromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D9D39CD864279A19075499 /* HealthKitPromptSheet.swift */; };
 		A14FC677EEF0E3ABB7D8FF54 /* MockHealthKitProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6946B4A3B390ED063952B5 /* MockHealthKitProvider.swift */; };
 		A2DFFDF78F1019AE623CF7C0 /* FeatureFlagService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ECD3EF4637C840BF4A9A98A /* FeatureFlagService.swift */; };
+		A31F7A11910B3207F65931DC /* SyncStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B3BD27FEC29DA8F177AD1A /* SyncStatusView.swift */; };
 		A67BDB45434152D64A52429A /* AppleAuthHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D6A8FE94F8EE834971CFD60 /* AppleAuthHelper.swift */; };
 		ACC332E7F45ED8A7D9C05D79 /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7EE472EEBD42E355D92E53 /* LogView.swift */; };
 		AD908556FEE7A7146DD6F315 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 649703259D6C4F6BFE3BB74D /* AuthService.swift */; };
@@ -85,6 +86,7 @@
 		C747FC63938C3826E2870EFB /* FlowTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A864E7B479E2596E8BB649 /* FlowTracker.swift */; };
 		C8800B69528885EE9AF3C8C4 /* ExploreViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEFA24761B447BB3CCFA15A /* ExploreViewModel.swift */; };
 		CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA76F6599478222F387A59 /* Migrations.swift */; };
+		D0F99DBBAD7A3204D17D2C4E /* SyncProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3140A26FC1E3242A80B7C45 /* SyncProgress.swift */; };
 		DD05735EFCA7651A0C730B6E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 06208BEB784209E228C86FC6 /* GRDB */; };
 		E0488EF52A020B1D724D1FBD /* ClinicalRecordSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E42F8EDD5D3A046B6B5CC17 /* ClinicalRecordSettings.swift */; };
 		E0D8A7044773E3267198A68B /* JWTDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */; };
@@ -141,6 +143,7 @@
 		3E28FE3D0872E6AA33C7382F /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		3E42F8EDD5D3A046B6B5CC17 /* ClinicalRecordSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalRecordSettings.swift; sourceTree = "<group>"; };
 		3FF6D8B6C509F8643B88BCD4 /* ProtocolDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolDetailView.swift; sourceTree = "<group>"; };
+		43B3BD27FEC29DA8F177AD1A /* SyncStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatusView.swift; sourceTree = "<group>"; };
 		49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCEHelperTests.swift; sourceTree = "<group>"; };
 		4BBEEEB77231155980E6056B /* LogViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogViewModelTests.swift; sourceTree = "<group>"; };
 		510AACF348448F516940B31C /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
@@ -193,6 +196,7 @@
 		B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelsTests.swift; sourceTree = "<group>"; };
 		B854DF581C080F7DF1307D72 /* DateRangeSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateRangeSegment.swift; sourceTree = "<group>"; };
 		C061B329BCCD5829A91ED84A /* ProtocolsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolsViewModel.swift; sourceTree = "<group>"; };
+		C3140A26FC1E3242A80B7C45 /* SyncProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncProgress.swift; sourceTree = "<group>"; };
 		C4245A1A03B84BDF2DF58525 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
 		C7928246CBD1BDB2F72B47DB /* AuthServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthServiceTests.swift; sourceTree = "<group>"; };
 		C7E10063C58B07C0C81C01DE /* PKCEHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCEHelper.swift; sourceTree = "<group>"; };
@@ -252,6 +256,7 @@
 				0502A9C0D2B87EB6B9DB2CBE /* Log */,
 				4AA47BE5D5ED4B949169C36A /* Onboarding */,
 				C3CBFAB39C3E2DE03B0FA4DF /* Protocols */,
+				3F22545557E32B980C06A6DE /* Settings */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -354,6 +359,14 @@
 			);
 			sourceTree = "<group>";
 		};
+		3F22545557E32B980C06A6DE /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				43B3BD27FEC29DA8F177AD1A /* SyncStatusView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
 		4AA47BE5D5ED4B949169C36A /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
@@ -434,6 +447,7 @@
 			children = (
 				0DE2B17DFA620BA4FBD5C8FF /* AnchorStore.swift */,
 				B516C3CA42E3AFBDE677B93C /* SyncEngine.swift */,
+				C3140A26FC1E3242A80B7C45 /* SyncProgress.swift */,
 				136CD56F07957B933BFC9D13 /* SyncScheduler.swift */,
 			);
 			path = Sync;
@@ -691,7 +705,9 @@
 				4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */,
 				F226F127D39C61A87E623588 /* SparklineCard.swift in Sources */,
 				8EA1C78D5AF3FFBC69812146 /* SyncEngine.swift in Sources */,
+				D0F99DBBAD7A3204D17D2C4E /* SyncProgress.swift in Sources */,
 				E3A7F1EED0F93C71117DBB1F /* SyncScheduler.swift in Sources */,
+				A31F7A11910B3207F65931DC /* SyncStatusView.swift in Sources */,
 				73D6B27E6F546B8468A3682C /* TelemetryModels.swift in Sources */,
 				208E9ABF9B99B54C494A3C3D /* TelemetrySettings.swift in Sources */,
 				203A3757FF6723983649D7E2 /* Theme.swift in Sources */,

@@ -40,6 +40,13 @@ final class AnchorStore: Sendable {
         }
     }
 
+    func allSyncTimestamps() throws -> [String: Date] {
+        try databaseManager.dbQueue.read { db in
+            let records = try SyncAnchorRecord.fetchAll(db)
+            return Dictionary(uniqueKeysWithValues: records.map { ($0.recordType, $0.updatedAt) })
+        }
+    }
+
     func saveAnchor(_ data: Data, forRecordType recordType: String) throws {
         let record = SyncAnchorRecord(
             recordType: recordType,

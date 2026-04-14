@@ -195,6 +195,11 @@ struct SettingsView: View {
                     .accessibilityIdentifier("openHealthAppButton")
                 }
 
+                NavigationLink("Sync Status") {
+                    SyncStatusView()
+                }
+                .accessibilityIdentifier("syncStatusLink")
+
                 Text("Syncs \(HealthKitTypeMap.mappings.count) data types including heart rate, sleep, activity, nutrition, and more.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
