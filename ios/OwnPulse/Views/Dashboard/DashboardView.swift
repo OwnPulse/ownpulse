@@ -19,6 +19,7 @@ struct DashboardView: View {
             }
         }
         .refreshable {
+            await viewModel?.performSync()
             await viewModel?.loadDashboard()
         }
         .navigationTitle("Dashboard")
@@ -30,6 +31,9 @@ struct DashboardView: View {
                     Task {
                         try? await dependencies.healthKitProvider.requestAuthorization()
                         hkAuthorized = dependencies.healthKitProvider.isAuthorized()
+                        // Sync immediately after authorization
+                        await viewModel?.performSync()
+                        await viewModel?.loadDashboard()
                     }
                     showHealthKitSheet = false
                 },

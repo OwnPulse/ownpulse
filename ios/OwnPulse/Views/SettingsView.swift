@@ -278,6 +278,28 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .accessibilityIdentifier("appVersion")
+
+                if let ref = AppConfig.buildRef, !ref.isEmpty {
+                    HStack {
+                        Text("Release")
+                        Spacer()
+                        Text(ref)
+                            .foregroundStyle(.secondary)
+                            .font(.footnote.monospaced())
+                    }
+                    .accessibilityIdentifier("appBuildRef")
+                }
+
+                if let sha = AppConfig.gitSHA, !sha.isEmpty {
+                    HStack {
+                        Text("Commit")
+                        Spacer()
+                        Text(sha)
+                            .foregroundStyle(.secondary)
+                            .font(.footnote.monospaced())
+                    }
+                    .accessibilityIdentifier("appGitSHA")
+                }
             }
 
             Section {
