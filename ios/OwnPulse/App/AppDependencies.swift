@@ -17,6 +17,7 @@ final class AppDependencies {
     let offlineQueue: OfflineQueueProtocol
     let anchorStore: AnchorStore
     let clinicalRecordProvider: ClinicalRecordProviderProtocol?
+    let medicationSyncProvider: (any Sendable)?
     let syncEngine: SyncEngine
     let syncScheduler: SyncScheduler
     let adminService: AdminService
@@ -45,6 +46,16 @@ final class AppDependencies {
         self.clinicalRecordProvider = HKHealthStore.isHealthDataAvailable()
             ? ClinicalRecordProvider() : nil
 
+        #if swift(>=6.3)
+        if #available(iOS 26.0, *), HKHealthStore.isHealthDataAvailable() {
+            self.medicationSyncProvider = MedicationSyncProvider()
+        } else {
+            self.medicationSyncProvider = nil
+        }
+        #else
+        self.medicationSyncProvider = nil
+        #endif
+
         self.databaseManager = DatabaseManager()
 
         self.offlineQueue = OfflineQueue(databaseManager: databaseManager)
@@ -54,6 +65,7 @@ final class AppDependencies {
             networkClient: network,
             healthKitProvider: self.healthKitProvider,
             clinicalRecordProvider: self.clinicalRecordProvider,
+            medicationSyncProvider: self.medicationSyncProvider,
             offlineQueue: offlineQueue,
             anchorStore: anchorStore
         )

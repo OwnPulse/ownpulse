@@ -144,6 +144,7 @@ struct SettingsView: View {
     @State private var showUnlinkConfirmation = false
     @State private var unlinkProvider: String?
     @State private var hkAuthorized = false
+    @State private var medicationCount: Int = 0
     @State private var clinicalRecordsSyncEnabled = ClinicalRecordSettings.isSyncEnabled
     @State private var telemetryEnabled = TelemetrySettings.isEnabled
     @State private var viewModel: SettingsViewModel?
@@ -198,6 +199,29 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            #if swift(>=6.3)
+            if #available(iOS 26.0, *) {
+                Section("Medications") {
+                    Button {
+                        Task { await connectMedications() }
+                    } label: {
+                        Label(
+                            medicationCount > 0
+                                ? "\(medicationCount) Medication\(medicationCount == 1 ? "" : "s") Connected"
+                                : "Connect Medications",
+                            systemImage: medicationCount > 0 ? "pill.fill" : "pill"
+                        )
+                    }
+                    .accessibilityIdentifier("connectMedicationsButton")
+
+                    Text("Dose events logged in Apple Health sync as interventions.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .task { await refreshMedicationCount() }
+            }
+            #endif
 
             if dependencies.clinicalRecordProvider != nil {
                 Section("Health Records") {
@@ -399,5 +423,26 @@ struct SettingsView: View {
         default:
             return "person.circle"
         }
+    }
+
+    #if swift(>=6.3)
+    @available(iOS 26.0, *)
+    private func connectMedications() async {
+        guard let provider = dependencies.medicationSyncProvider as? MedicationSyncProviderProtocol else { return }
+        do {
+            try await provider.requestAuthorization()
+            await refreshMedicationCount()
+        } catch {
+            // User dismissed or denied — not an error
+        }
+    }
+    #endif
+
+    private func refreshMedicationCount() async {
+        #if swift(>=6.3)
+        guard #available(iOS 26.0, *) else { return }
+        guard let provider = dependencies.medicationSyncProvider as? MedicationSyncProviderProtocol else { return }
+        medicationCount = (try? await provider.authorizedMedicationCount()) ?? 0
+        #endif
     }
 }
