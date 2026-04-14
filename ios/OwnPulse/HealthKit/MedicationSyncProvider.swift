@@ -16,7 +16,7 @@ struct MedicationDoseRecord: Sendable {
 
 // The medication APIs require the iOS 26 SDK (Xcode 26+, Swift 6.1+).
 // Gate at compile time so this file is inert when built with Xcode 16.x / Swift 6.0.
-#if swift(>=6.1)
+#if swift(>=6.3)
 
 @available(iOS 26.0, *)
 protocol MedicationSyncProviderProtocol: Sendable {

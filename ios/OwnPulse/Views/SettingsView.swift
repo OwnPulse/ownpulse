@@ -200,7 +200,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            #if swift(>=6.1)
+            #if swift(>=6.3)
             if #available(iOS 26.0, *) {
                 Section("Medications") {
                     Button {
@@ -425,7 +425,7 @@ struct SettingsView: View {
         }
     }
 
-    #if swift(>=6.1)
+    #if swift(>=6.3)
     @available(iOS 26.0, *)
     private func connectMedications() async {
         guard let provider = dependencies.medicationSyncProvider as? MedicationSyncProviderProtocol else { return }
@@ -439,7 +439,7 @@ struct SettingsView: View {
     #endif
 
     private func refreshMedicationCount() async {
-        #if swift(>=6.1)
+        #if swift(>=6.3)
         guard #available(iOS 26.0, *) else { return }
         guard let provider = dependencies.medicationSyncProvider as? MedicationSyncProviderProtocol else { return }
         medicationCount = (try? await provider.authorizedMedicationCount()) ?? 0

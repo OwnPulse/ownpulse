@@ -83,7 +83,7 @@ actor SyncEngine {
             }
 
             // 4. Sync medication dose events (iOS 26+)
-            #if swift(>=6.1)
+            #if swift(>=6.3)
             if #available(iOS 26.0, *) {
                 if let provider = medicationSyncProvider as? MedicationSyncProviderProtocol {
                     do {
@@ -221,7 +221,7 @@ actor SyncEngine {
         }
     }
 
-    #if swift(>=6.1)
+    #if swift(>=6.3)
     @available(iOS 26.0, *)
     private func syncMedicationDoses(_ provider: MedicationSyncProviderProtocol) async throws {
         let anchorKey = "medication_dose_event"
