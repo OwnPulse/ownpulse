@@ -190,6 +190,8 @@ pub async fn create_run(
         repeat_reminders: run.repeat_reminders,
         repeat_interval_minutes: run.repeat_interval_minutes,
         progress_pct,
+        doses_today: 0,
+        doses_completed_today: 0,
         created_at: run.created_at,
     };
 

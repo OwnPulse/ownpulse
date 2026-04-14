@@ -127,13 +127,23 @@ export interface UpdateRunRequest {
   repeat_interval_minutes?: number;
 }
 
-export interface ActiveRun {
-  run: ProtocolRun;
-  protocol_name: string;
+export interface ActiveRunResponse {
+  id: string;
+  protocol_id: string;
+  protocol_name: string | null;
+  user_id: string;
+  start_date: string;
+  duration_days: number | null;
+  status: "active" | "paused" | "completed";
+  notify: boolean;
+  notify_time: string | null;
+  notify_times: string[] | null;
+  repeat_reminders: boolean;
+  repeat_interval_minutes: number | null;
+  progress_pct: number;
   doses_today: number;
   doses_completed_today: number;
-  total_doses: number;
-  completed_doses: number;
+  created_at: string;
 }
 
 export interface ShareResponse {
@@ -207,7 +217,7 @@ export const protocolsApi = {
   startRun: (protocolId: string, data: CreateRunRequest) =>
     api.post<ProtocolRun>(`/api/v1/protocols/${protocolId}/runs`, data),
   listRuns: (protocolId: string) => api.get<ProtocolRun[]>(`/api/v1/protocols/${protocolId}/runs`),
-  activeRuns: () => api.get<ActiveRun[]>("/api/v1/protocols/runs/active"),
+  activeRuns: () => api.get<ActiveRunResponse[]>("/api/v1/protocols/runs/active"),
   updateRun: (runId: string, data: UpdateRunRequest) =>
     api.patch<ProtocolRun>(`/api/v1/protocols/runs/${runId}`, data),
 

@@ -30,6 +30,7 @@ final class ProtocolsViewModel {
 
     var listState: LoadState = .idle
     var protocols: [ProtocolListItem] = []
+    var activeRuns: [ActiveRunResponse] = []
     var filter: ProtocolFilter = .active
 
     enum ProtocolFilter: String, CaseIterable, Sendable {
@@ -41,9 +42,9 @@ final class ProtocolsViewModel {
     var filteredProtocols: [ProtocolListItem] {
         switch filter {
         case .active:
-            return protocols.filter { $0.status == .active || $0.status == .paused }
+            return protocols.filter { $0.status == .active || $0.status == .paused || $0.status == .draft }
         case .completed:
-            return protocols.filter { $0.status == .completed }
+            return protocols.filter { $0.status == .completed || $0.status == .archived }
         case .all:
             return protocols
         }
@@ -85,16 +86,38 @@ final class ProtocolsViewModel {
         listState = .loading
 
         do {
-            let items: [ProtocolListItem] = try await networkClient.request(
+            async let fetchProtocols: [ProtocolListItem] = networkClient.request(
                 method: "GET",
                 path: Endpoints.protocols,
                 body: nil as String?
             )
+            async let fetchRuns: [ActiveRunResponse] = networkClient.request(
+                method: "GET",
+                path: Endpoints.activeRuns,
+                body: nil as String?
+            )
+            let (items, runs) = try await (fetchProtocols, fetchRuns)
             protocols = items
+            activeRuns = runs
             listState = .loaded
         } catch {
             logger.error("Failed to load protocols: \(error.localizedDescription, privacy: .public)")
             listState = .error("Failed to load protocols")
+        }
+    }
+
+    func startRun(protocolId: String) async -> Bool {
+        let body = StartRunRequest(startDate: formatDate(Date()), notify: false)
+        do {
+            let _: ActiveRunResponse = try await networkClient.request(
+                method: "POST",
+                path: Endpoints.protocolRuns(protocolId),
+                body: body
+            )
+            return true
+        } catch {
+            logger.error("Failed to start run: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 
@@ -167,32 +190,64 @@ final class ProtocolsViewModel {
 
     // MARK: - Dose Actions
 
-    func logDose(protocolId: String, lineId: String, dayNumber: Int) async {
+    func logDose(protocolId: String, runId: String?, lineId: String, dayNumber: Int) async {
         let body = LogDoseRequest(protocolLineId: lineId, dayNumber: dayNumber)
         do {
-            let _: ProtocolDose = try await networkClient.request(
-                method: "POST",
-                path: Endpoints.protocolLogDose(protocolId),
-                body: body
-            )
-            // Reload detail to reflect the change
+            if let runId {
+                let _: ProtocolDose = try await networkClient.request(
+                    method: "POST",
+                    path: Endpoints.runLogDose(runId),
+                    body: body
+                )
+            } else {
+                let _: ProtocolDose = try await networkClient.request(
+                    method: "POST",
+                    path: Endpoints.protocolLogDose(protocolId),
+                    body: body
+                )
+            }
             await loadProtocol(id: protocolId)
         } catch {
             logger.error("Failed to log dose: \(error.localizedDescription, privacy: .public)")
         }
     }
 
-    func skipDose(protocolId: String, lineId: String, dayNumber: Int) async {
+    func skipDose(protocolId: String, runId: String?, lineId: String, dayNumber: Int) async {
         let body = SkipDoseRequest(protocolLineId: lineId, dayNumber: dayNumber)
         do {
-            try await networkClient.requestNoContent(
-                method: "POST",
-                path: Endpoints.protocolSkipDose(protocolId),
-                body: body
-            )
+            if let runId {
+                try await networkClient.requestNoContent(
+                    method: "POST",
+                    path: Endpoints.runSkipDose(runId),
+                    body: body
+                )
+            } else {
+                try await networkClient.requestNoContent(
+                    method: "POST",
+                    path: Endpoints.protocolSkipDose(protocolId),
+                    body: body
+                )
+            }
             await loadProtocol(id: protocolId)
         } catch {
             logger.error("Failed to skip dose: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    // MARK: - Edit
+
+    func updateProtocol(id: String, name: String?, description: String?, status: String?) async -> Bool {
+        let body = UpdateProtocolRequest(name: name, description: description, status: status)
+        do {
+            try await networkClient.requestNoContent(
+                method: "PATCH",
+                path: Endpoints.protocolDetail(id),
+                body: body
+            )
+            return true
+        } catch {
+            logger.error("Failed to update protocol: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 
@@ -262,32 +317,10 @@ final class ProtocolsViewModel {
         newLines = [LineFormState()]
     }
 
-    // MARK: - Progress Computation
+    // MARK: - Helpers
 
-    func computeProgress(for item: ProtocolListItem) -> (completed: Int, total: Int) {
-        var completed = 0
-        var total = 0
-        for line in item.lines {
-            for day in 0..<item.durationDays {
-                guard day < line.schedulePattern.count, line.schedulePattern[day] else { continue }
-                total += 1
-                if let dose = line.doses.first(where: { $0.dayNumber == day }),
-                   dose.status == .completed {
-                    completed += 1
-                }
-            }
-        }
-        return (completed, total)
-    }
-
-    func todayDayNumber(for item: ProtocolListItem) -> Int? {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        guard let startDate = formatter.date(from: item.startDate) else { return nil }
-        let dayNumber = Calendar.current.dateComponents([.day], from: startDate, to: Date()).day ?? 0
-        guard dayNumber >= 0 && dayNumber < item.durationDays else { return nil }
-        return dayNumber
+    func activeRun(for protocolId: String) -> ActiveRunResponse? {
+        activeRuns.first { $0.protocolId == protocolId }
     }
 }
 

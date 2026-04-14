@@ -267,7 +267,7 @@ pub async fn list_active_runs(
     pool: &PgPool,
     user_id: Uuid,
 ) -> Result<Vec<RunResponse>, sqlx::Error> {
-    // Use a struct to capture the joined data
+    // Use a struct to capture the joined data including dose counts
     #[derive(sqlx::FromRow)]
     struct RunWithProtocol {
         id: Uuid,
@@ -283,13 +283,36 @@ pub async fn list_active_runs(
         created_at: chrono::DateTime<Utc>,
         protocol_name: String,
         duration_days: i32,
+        doses_today: i64,
+        doses_completed_today: i64,
     }
 
     let rows = sqlx::query_as::<_, RunWithProtocol>(
         "SELECT r.id, r.protocol_id, r.user_id, r.start_date, r.status,
                 r.notify, r.notify_time, r.notify_times,
                 r.repeat_reminders, r.repeat_interval_minutes, r.created_at,
-                p.name AS protocol_name, p.duration_days
+                p.name AS protocol_name, p.duration_days,
+                COALESCE((
+                    SELECT COUNT(*)
+                    FROM protocol_lines pl
+                    WHERE pl.protocol_id = p.id
+                      AND (CURRENT_DATE - r.start_date) >= 0
+                      AND (CURRENT_DATE - r.start_date) < p.duration_days
+                      AND (pl.schedule_pattern->((CURRENT_DATE - r.start_date)::int))::text = 'true'
+                ), 0) AS doses_today,
+                COALESCE((
+                    SELECT COUNT(*)
+                    FROM protocol_lines pl
+                    JOIN protocol_doses pd
+                        ON pd.protocol_line_id = pl.id
+                        AND pd.run_id = r.id
+                        AND pd.day_number = (CURRENT_DATE - r.start_date)
+                        AND pd.status = 'completed'
+                    WHERE pl.protocol_id = p.id
+                      AND (CURRENT_DATE - r.start_date) >= 0
+                      AND (CURRENT_DATE - r.start_date) < p.duration_days
+                      AND (pl.schedule_pattern->((CURRENT_DATE - r.start_date)::int))::text = 'true'
+                ), 0) AS doses_completed_today
          FROM protocol_runs r
          JOIN protocols p ON p.id = r.protocol_id
          WHERE r.user_id = $1 AND r.status = 'active'
@@ -315,7 +338,10 @@ pub async fn list_active_runs(
                 repeat_interval_minutes: r.repeat_interval_minutes,
                 created_at: r.created_at,
             };
-            run_to_response(run, Some(r.protocol_name), Some(r.duration_days))
+            let mut resp = run_to_response(run, Some(r.protocol_name), Some(r.duration_days));
+            resp.doses_today = r.doses_today;
+            resp.doses_completed_today = r.doses_completed_today;
+            resp
         })
         .collect())
 }
@@ -1342,6 +1368,8 @@ fn run_to_response(
         repeat_reminders: run.repeat_reminders,
         repeat_interval_minutes: run.repeat_interval_minutes,
         progress_pct,
+        doses_today: 0,
+        doses_completed_today: 0,
         created_at: run.created_at,
     }
 }
