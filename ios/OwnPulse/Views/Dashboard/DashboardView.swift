@@ -6,6 +6,8 @@ import SwiftUI
 struct DashboardView: View {
     @Environment(AppDependencies.self) private var dependencies
     @State private var viewModel: DashboardViewModel?
+    @State private var showHealthKitSheet = false
+    @State private var hkAuthorized = false
 
     var body: some View {
         ScrollView {
@@ -22,14 +24,36 @@ struct DashboardView: View {
         .navigationTitle("Dashboard")
         .navigationBarTitleDisplayMode(.large)
         .background(backgroundGradient)
+        .sheet(isPresented: $showHealthKitSheet) {
+            HealthKitPromptSheet(
+                onConnect: {
+                    Task {
+                        try? await dependencies.healthKitProvider.requestAuthorization()
+                        hkAuthorized = dependencies.healthKitProvider.isAuthorized()
+                    }
+                    showHealthKitSheet = false
+                },
+                onDismiss: {
+                    showHealthKitSheet = false
+                }
+            )
+        }
         .onAppear {
+            hkAuthorized = dependencies.healthKitProvider.isAuthorized()
             if viewModel == nil {
                 viewModel = DashboardViewModel(
                     networkClient: dependencies.networkClient,
                     syncEngine: dependencies.syncEngine
                 )
             }
-            Task { await viewModel?.loadDashboard() }
+            Task {
+                await viewModel?.loadDashboard()
+                // Show HealthKit prompt once after first login, after dashboard has loaded
+                if !hkAuthorized && !UserDefaults.standard.bool(forKey: "hasSeenHealthKitPrompt") {
+                    showHealthKitSheet = true
+                    UserDefaults.standard.set(true, forKey: "hasSeenHealthKitPrompt")
+                }
+            }
         }
     }
 
@@ -59,6 +83,33 @@ struct DashboardView: View {
                 .accessibilityIdentifier("dashboardError")
 
             case .loaded:
+                // HealthKit connect banner
+                if !hkAuthorized {
+                    Button {
+                        showHealthKitSheet = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "heart.text.square.fill")
+                                .font(.title2)
+                                .foregroundStyle(OPColor.terracotta)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Connect Apple Health")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.primary)
+                                Text("Sync heart rate, sleep, activity, and more")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .opCard()
+                    .accessibilityIdentifier("healthKitConnectBanner")
+                }
+
                 // Hero Metric Card
                 if !vm.heroSeries.isEmpty {
                     HeroMetricCard(

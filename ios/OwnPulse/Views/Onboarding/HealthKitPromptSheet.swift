@@ -22,7 +22,7 @@ struct HealthKitPromptSheet: View {
                 .fontWeight(.semibold)
                 .accessibilityIdentifier("healthKitPromptTitle")
 
-            Text("OwnPulse syncs your health metrics — heart rate, sleep, activity, nutrition, and more — from Apple Health. All data stays on your server. Nothing is shared with third parties.")
+            Text("Sync heart rate, sleep, activity, nutrition, and more from Apple Health into OwnPulse.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
