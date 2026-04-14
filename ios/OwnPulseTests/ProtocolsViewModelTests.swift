@@ -15,7 +15,7 @@ struct ProtocolsViewModelTests {
         name: String = "Test Protocol",
         status: ProtocolStatus = .active,
         durationDays: Int = 28,
-        lines: [ProtocolLine] = []
+        progressPct: Double = 0
     ) -> ProtocolListItem {
         ProtocolListItem(
             id: id,
@@ -23,8 +23,32 @@ struct ProtocolsViewModelTests {
             status: status,
             startDate: "2026-03-01",
             durationDays: durationDays,
-            createdAt: "2026-03-01T00:00:00Z",
-            lines: lines
+            isTemplate: false,
+            progressPct: progressPct,
+            nextDose: nil,
+            createdAt: "2026-03-01T00:00:00Z"
+        )
+    }
+
+    private static func makeActiveRun(
+        id: String = "run-1",
+        protocolId: String = "proto-1",
+        protocolName: String = "Test Protocol",
+        progressPct: Double = 18.0,
+        dosesToday: Int = 2,
+        dosesCompletedToday: Int = 0
+    ) -> ActiveRunResponse {
+        ActiveRunResponse(
+            id: id,
+            protocolId: protocolId,
+            protocolName: protocolName,
+            startDate: "2026-03-28",
+            durationDays: 28,
+            status: "active",
+            progressPct: progressPct,
+            dosesToday: dosesToday,
+            dosesCompletedToday: dosesCompletedToday,
+            createdAt: "2026-03-28T10:00:00Z"
         )
     }
 
@@ -100,7 +124,13 @@ struct ProtocolsViewModelTests {
             Self.makeListItem(id: "p1", name: "Protocol A"),
             Self.makeListItem(id: "p2", name: "Protocol B", status: .completed),
         ]
-        mock.requestHandler = { _, _, _ in items }
+        let runs = [Self.makeActiveRun()]
+        mock.requestHandler = { _, path, _ in
+            if path == Endpoints.activeRuns {
+                return runs
+            }
+            return items
+        }
 
         let vm = ProtocolsViewModel(networkClient: mock)
         #expect(vm.listState == .idle)
@@ -109,9 +139,8 @@ struct ProtocolsViewModelTests {
 
         #expect(vm.listState == .loaded)
         #expect(vm.protocols.count == 2)
-        #expect(mock.requestCalls.count == 1)
-        #expect(mock.requestCalls[0].method == "GET")
-        #expect(mock.requestCalls[0].path == Endpoints.protocols)
+        #expect(vm.activeRuns.count == 1)
+        #expect(mock.requestCalls.count == 2)
     }
 
     // MARK: - Load Protocols - Error
@@ -164,7 +193,11 @@ struct ProtocolsViewModelTests {
             Self.makeListItem(id: "p2", status: .paused),
             Self.makeListItem(id: "p3", status: .completed),
         ]
-        mock.requestHandler = { _, _, _ in items }
+        let runs: [ActiveRunResponse] = []
+        mock.requestHandler = { _, path, _ in
+            if path == Endpoints.activeRuns { return runs }
+            return items
+        }
 
         let vm = ProtocolsViewModel(networkClient: mock)
         await vm.loadProtocols()
@@ -350,36 +383,6 @@ struct ProtocolsViewModelTests {
         #expect(vm.newLines.count == 1)
     }
 
-    // MARK: - Progress Computation
-
-    @Test("computeProgress calculates correctly")
-    func progressComputation() {
-        let mock = MockNetworkClient()
-        let vm = ProtocolsViewModel(networkClient: mock)
-
-        let doses = [
-            Self.makeDose(id: "d0", dayNumber: 0, status: .completed),
-            Self.makeDose(id: "d1", dayNumber: 1, status: .skipped),
-        ]
-        let line = Self.makeLine(durationDays: 7, doses: doses)
-        let item = Self.makeListItem(durationDays: 7, lines: [line])
-
-        let progress = vm.computeProgress(for: item)
-        #expect(progress.total == 7) // all days on
-        #expect(progress.completed == 1) // only day 0 completed
-    }
-
-    @Test("computeProgress with no lines returns zero")
-    func progressNoLines() {
-        let mock = MockNetworkClient()
-        let vm = ProtocolsViewModel(networkClient: mock)
-
-        let item = Self.makeListItem(durationDays: 7, lines: [])
-        let progress = vm.computeProgress(for: item)
-        #expect(progress.total == 0)
-        #expect(progress.completed == 0)
-    }
-
     // MARK: - Delete Protocol - Success
 
     @Test("deleteProtocol success returns true")
@@ -413,8 +416,8 @@ struct ProtocolsViewModelTests {
 
     // MARK: - Log Dose
 
-    @Test("logDose makes correct network call and reloads detail")
-    func logDose() async {
+    @Test("logDose with runId uses run endpoint")
+    func logDoseWithRun() async {
         let mock = MockNetworkClient()
         let dose = Self.makeDose()
         let detail = Self.makeDetail()
@@ -426,31 +429,49 @@ struct ProtocolsViewModelTests {
         }
 
         let vm = ProtocolsViewModel(networkClient: mock)
-        await vm.logDose(protocolId: "proto-1", lineId: "line-1", dayNumber: 0)
+        await vm.logDose(protocolId: "proto-1", runId: "run-1", lineId: "line-1", dayNumber: 0)
 
-        // Should have made POST for log + GET for reload
+        #expect(mock.requestCalls.count == 2)
+        #expect(mock.requestCalls[0].method == "POST")
+        #expect(mock.requestCalls[0].path == Endpoints.runLogDose("run-1"))
+        #expect(mock.requestCalls[1].method == "GET")
+    }
+
+    @Test("logDose without runId uses legacy endpoint")
+    func logDoseLegacy() async {
+        let mock = MockNetworkClient()
+        let dose = Self.makeDose()
+        let detail = Self.makeDetail()
+        mock.requestHandler = { method, path, _ in
+            if method == "POST" && path.contains("doses/log") {
+                return dose
+            }
+            return detail
+        }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.logDose(protocolId: "proto-1", runId: nil, lineId: "line-1", dayNumber: 0)
+
         #expect(mock.requestCalls.count == 2)
         #expect(mock.requestCalls[0].method == "POST")
         #expect(mock.requestCalls[0].path == Endpoints.protocolLogDose("proto-1"))
-        #expect(mock.requestCalls[1].method == "GET")
     }
 
     // MARK: - Skip Dose
 
-    @Test("skipDose makes correct network call and reloads detail")
-    func skipDose() async {
+    @Test("skipDose with runId uses run endpoint")
+    func skipDoseWithRun() async {
         let mock = MockNetworkClient()
         let detail = Self.makeDetail()
         mock.requestNoContentHandler = { _, _, _ in }
         mock.requestHandler = { _, _, _ in detail }
 
         let vm = ProtocolsViewModel(networkClient: mock)
-        await vm.skipDose(protocolId: "proto-1", lineId: "line-1", dayNumber: 0)
+        await vm.skipDose(protocolId: "proto-1", runId: "run-1", lineId: "line-1", dayNumber: 0)
 
-        // Should have made POST for skip + GET for reload
         #expect(mock.requestCalls.count == 2)
         #expect(mock.requestCalls[0].method == "POST")
-        #expect(mock.requestCalls[0].path == Endpoints.protocolSkipDose("proto-1"))
+        #expect(mock.requestCalls[0].path == Endpoints.runSkipDose("run-1"))
     }
 
     // MARK: - Reset Form

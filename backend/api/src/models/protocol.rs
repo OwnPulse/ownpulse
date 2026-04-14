@@ -175,6 +175,8 @@ pub struct RunResponse {
     pub repeat_reminders: bool,
     pub repeat_interval_minutes: Option<i32>,
     pub progress_pct: f64,
+    pub doses_today: i64,
+    pub doses_completed_today: i64,
     pub created_at: DateTime<Utc>,
 }
 

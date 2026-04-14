@@ -78,26 +78,48 @@ struct ProtocolsListView: View {
                 .accessibilityIdentifier("protocolsError")
 
             case .loaded:
-                if vm.filteredProtocols.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Protocols", systemImage: "list.bullet.clipboard")
-                    } description: {
-                        Text(vm.protocols.isEmpty
-                            ? "Create your first dosing protocol."
-                            : "No protocols match this filter.")
-                    } actions: {
-                        if vm.protocols.isEmpty {
-                            Button("New Protocol") {
-                                showingBuilder = true
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        // Active Runs section
+                        if !vm.activeRuns.isEmpty {
+                            Text("Active Runs")
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .padding(.top, 4)
+
+                            ForEach(vm.activeRuns) { run in
+                                NavigationLink(value: run.protocolId) {
+                                    ActiveRunCardView(run: run)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityIdentifier("activeRunCard-\(run.id)")
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(OPColor.terracotta)
                         }
-                    }
-                    .accessibilityIdentifier("protocolsEmpty")
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 12) {
+
+                        // My Protocols section
+                        Text("My Protocols")
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                            .padding(.top, vm.activeRuns.isEmpty ? 4 : 12)
+
+                        if vm.filteredProtocols.isEmpty {
+                            ContentUnavailableView {
+                                Label("No Protocols", systemImage: "list.bullet.clipboard")
+                            } description: {
+                                Text(vm.protocols.isEmpty
+                                    ? "Create your first dosing protocol."
+                                    : "No protocols match this filter.")
+                            } actions: {
+                                if vm.protocols.isEmpty {
+                                    Button("New Protocol") {
+                                        showingBuilder = true
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(OPColor.terracotta)
+                                }
+                            }
+                            .accessibilityIdentifier("protocolsEmpty")
+                        } else {
                             ForEach(vm.filteredProtocols) { proto in
                                 NavigationLink(value: proto.id) {
                                     ProtocolCardView(item: proto, viewModel: vm)
@@ -106,19 +128,72 @@ struct ProtocolsListView: View {
                                 .accessibilityIdentifier("protocolCard-\(proto.id)")
                             }
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
                     }
-                    .refreshable {
-                        await vm.loadProtocols()
-                    }
-                    .accessibilityIdentifier("protocolsList")
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                 }
+                .refreshable {
+                    await vm.loadProtocols()
+                }
+                .accessibilityIdentifier("protocolsList")
             }
         }
         .navigationDestination(for: String.self) { protocolId in
             ProtocolDetailView(protocolId: protocolId, viewModel: vm)
         }
+    }
+}
+
+// MARK: - Active Run Card
+
+private struct ActiveRunCardView: View {
+    let run: ActiveRunResponse
+
+    private var hasPending: Bool {
+        run.dosesToday > 0 && run.dosesCompletedToday < run.dosesToday
+    }
+
+    private var doseBadge: String {
+        if run.dosesToday == 0 { return "No doses today" }
+        if run.dosesCompletedToday >= run.dosesToday { return "All done" }
+        let pending = run.dosesToday - run.dosesCompletedToday
+        return "\(pending) dose\(pending != 1 ? "s" : "") pending"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(run.protocolName ?? "Protocol")
+                    .font(.headline)
+                    .lineLimit(1)
+                Spacer()
+                Text(doseBadge)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(hasPending
+                        ? OPColor.terracotta.opacity(0.15)
+                        : OPColor.sage.opacity(0.15))
+                    .foregroundStyle(hasPending ? OPColor.terracotta : OPColor.sage)
+                    .clipShape(Capsule())
+            }
+
+            ProgressView(value: run.progressPct / 100.0)
+                .tint(OPColor.terracotta)
+
+            Text("Started \(run.startDate) · \(Int(run.progressPct))% complete")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .opCard()
+        .overlay(
+            Rectangle()
+                .fill(hasPending ? OPColor.terracotta : .clear)
+                .frame(width: 3),
+            alignment: .leading
+        )
+        .accessibilityIdentifier("activeRunCard")
     }
 }
 
@@ -128,33 +203,59 @@ private struct ProtocolCardView: View {
     let item: ProtocolListItem
     let viewModel: ProtocolsViewModel
 
-    var body: some View {
-        let progress = viewModel.computeProgress(for: item)
-        let pct = progress.total > 0
-            ? Double(progress.completed) / Double(progress.total)
-            : 0
+    @State private var startingRun = false
 
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(item.name)
-                    .font(.headline)
-                    .lineLimit(1)
-                Spacer()
-                StatusBadge(status: item.status)
+    private var hasActiveRun: Bool {
+        viewModel.activeRun(for: item.id) != nil
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(item.name)
+                        .font(.headline)
+                        .lineLimit(1)
+                    Spacer()
+                    StatusBadge(status: item.status)
+                }
+
+                HStack {
+                    if let nextDose = item.nextDose {
+                        Text("Next: \(nextDose)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text("\(item.durationDays) days")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
-            ProgressView(value: pct)
+            if !hasActiveRun {
+                Button {
+                    startingRun = true
+                    Task {
+                        let success = await viewModel.startRun(protocolId: item.id)
+                        startingRun = false
+                        if success {
+                            await viewModel.loadProtocols()
+                        }
+                    }
+                } label: {
+                    if startingRun {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text("Start")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
                 .tint(OPColor.terracotta)
-                .accessibilityIdentifier("protocolProgress")
-
-            HStack {
-                Text("\(progress.completed)/\(progress.total) doses")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(item.durationDays) days")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .controlSize(.small)
+                .disabled(startingRun)
+                .accessibilityIdentifier("startRunButton-\(item.id)")
             }
         }
         .opCard()
@@ -182,6 +283,8 @@ struct StatusBadge: View {
         case .active: return OPColor.sage
         case .paused: return OPColor.gold
         case .completed: return OPColor.teal
+        case .draft: return .secondary
+        case .archived: return .secondary
         }
     }
 }

@@ -4,22 +4,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import type { ActiveRun } from "../api/protocols";
+import type { ActiveRunResponse } from "../api/protocols";
 import { protocolsApi } from "../api/protocols";
 import { ImportModal } from "../components/protocols/ImportModal";
 import { StartRunModal } from "../components/protocols/StartRunModal";
 import { TemplateCard } from "../components/protocols/TemplateCard";
 import styles from "./Protocols.module.css";
 
-function doseBadgeText(run: ActiveRun): string {
+function doseBadgeText(run: ActiveRunResponse): string {
   if (run.doses_today === 0) return "No doses today";
   if (run.doses_completed_today >= run.doses_today) return "All done";
   const pending = run.doses_today - run.doses_completed_today;
   return `${pending} dose${pending !== 1 ? "s" : ""} pending`;
-}
-
-function runProgressPct(run: ActiveRun): number {
-  return run.total_doses > 0 ? Math.round((run.completed_doses / run.total_doses) * 100) : 0;
 }
 
 export default function Protocols() {
@@ -103,12 +99,12 @@ export default function Protocols() {
           <h2>Active Runs</h2>
           <div className={styles.cardList}>
             {activeRuns.map((ar) => {
-              const pct = runProgressPct(ar);
+              const pct = Math.round(ar.progress_pct);
               const hasPending = ar.doses_today > 0 && ar.doses_completed_today < ar.doses_today;
               return (
                 <Link
-                  key={ar.run.id}
-                  to={`/protocols/${ar.run.protocol_id}`}
+                  key={ar.id}
+                  to={`/protocols/${ar.protocol_id}`}
                   className={`op-card ${styles.protocolCard} ${hasPending ? styles.activeRunHighlight : ""}`}
                 >
                   <div className={styles.cardHeader}>
@@ -126,7 +122,7 @@ export default function Protocols() {
                     <div className={styles.progressFill} style={{ width: `${pct}%` }} />
                   </div>
                   <span className={styles.nextDose}>
-                    Started {ar.run.start_date} &middot; {pct}% complete
+                    Started {ar.start_date} &middot; {pct}% complete
                   </span>
                 </Link>
               );

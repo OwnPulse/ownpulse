@@ -8,6 +8,7 @@ struct ProtocolDetailView: View {
     @Bindable var viewModel: ProtocolsViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showingDeleteConfirmation = false
+    @State private var showingEdit = false
 
     var body: some View {
         Group {
@@ -42,11 +43,30 @@ struct ProtocolDetailView: View {
         .navigationTitle(viewModel.selectedProtocol?.name ?? "Protocol")
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Edit") {
+                    showingEdit = true
+                }
+                .accessibilityIdentifier("editProtocolButton")
+            }
             ToolbarItem(placement: .destructiveAction) {
                 Button("Delete", role: .destructive) {
                     showingDeleteConfirmation = true
                 }
                 .accessibilityIdentifier("deleteProtocolButton")
+            }
+        }
+        .sheet(isPresented: $showingEdit) {
+            if let proto = viewModel.selectedProtocol {
+                NavigationStack {
+                    ProtocolEditView(
+                        protocolId: proto.id,
+                        initialName: proto.name,
+                        initialDescription: proto.description ?? "",
+                        initialStatus: proto.status,
+                        viewModel: viewModel
+                    )
+                }
             }
         }
         .confirmationDialog(
@@ -173,10 +193,12 @@ struct ProtocolDetailView: View {
                         Spacer()
 
                         if doseInfo.status == .pending {
+                            let runId = viewModel.activeRun(for: proto.id)?.id
                             Button("Log") {
                                 Task {
                                     await viewModel.logDose(
                                         protocolId: proto.id,
+                                        runId: runId,
                                         lineId: doseInfo.lineId,
                                         dayNumber: doseInfo.dayNumber
                                     )
@@ -191,6 +213,7 @@ struct ProtocolDetailView: View {
                                 Task {
                                     await viewModel.skipDose(
                                         protocolId: proto.id,
+                                        runId: runId,
                                         lineId: doseInfo.lineId,
                                         dayNumber: doseInfo.dayNumber
                                     )
@@ -317,6 +340,78 @@ struct ProtocolDetailView: View {
                 dayNumber: dayNumber,
                 status: status
             )
+        }
+    }
+}
+
+// MARK: - Edit View
+
+struct ProtocolEditView: View {
+    let protocolId: String
+    @State var name: String
+    @State var description: String
+    @State var status: ProtocolStatus
+    @Bindable var viewModel: ProtocolsViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var saving = false
+
+    private static let editableStatuses: [ProtocolStatus] = [.draft, .active, .paused, .completed, .archived]
+
+    init(protocolId: String, initialName: String, initialDescription: String, initialStatus: ProtocolStatus, viewModel: ProtocolsViewModel) {
+        self.protocolId = protocolId
+        self._name = State(initialValue: initialName)
+        self._description = State(initialValue: initialDescription)
+        self._status = State(initialValue: initialStatus)
+        self._viewModel = Bindable(viewModel)
+    }
+
+    var body: some View {
+        Form {
+            Section("Details") {
+                TextField("Name", text: $name)
+                    .accessibilityIdentifier("editProtocolName")
+                TextField("Description", text: $description, axis: .vertical)
+                    .lineLimit(2...4)
+                    .accessibilityIdentifier("editProtocolDescription")
+            }
+
+            Section("Status") {
+                Picker("Status", selection: $status) {
+                    ForEach(Self.editableStatuses, id: \.self) { s in
+                        Text(s.rawValue.capitalized).tag(s)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("editProtocolStatus")
+            }
+        }
+        .navigationTitle("Edit Protocol")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel") { dismiss() }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("Save") {
+                    saving = true
+                    Task {
+                        let success = await viewModel.updateProtocol(
+                            id: protocolId,
+                            name: name.trimmingCharacters(in: .whitespaces),
+                            description: description.isEmpty ? nil : description,
+                            status: status.rawValue
+                        )
+                        saving = false
+                        if success {
+                            await viewModel.loadProtocol(id: protocolId)
+                            await viewModel.loadProtocols()
+                            dismiss()
+                        }
+                    }
+                }
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || saving)
+                .accessibilityIdentifier("saveProtocolButton")
+            }
         }
     }
 }

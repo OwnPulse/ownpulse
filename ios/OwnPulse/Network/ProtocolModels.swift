@@ -9,17 +9,21 @@ struct ProtocolListItem: Codable, Sendable, Identifiable {
     let id: String
     let name: String
     let status: ProtocolStatus
-    let startDate: String
+    let startDate: String?
     let durationDays: Int
+    let isTemplate: Bool?
+    let progressPct: Double
+    let nextDose: String?
     let createdAt: String
-    let lines: [ProtocolLine]
 
     enum CodingKeys: String, CodingKey {
         case id, name, status
         case startDate = "start_date"
         case durationDays = "duration_days"
+        case isTemplate = "is_template"
+        case progressPct = "progress_pct"
+        case nextDose = "next_dose"
         case createdAt = "created_at"
-        case lines
     }
 }
 
@@ -104,6 +108,8 @@ enum ProtocolStatus: String, Codable, Sendable, CaseIterable {
     case active
     case paused
     case completed
+    case draft
+    case archived
 }
 
 enum DoseStatus: String, Codable, Sendable {
@@ -176,13 +182,66 @@ struct UpdateProtocolRequest: Codable, Sendable {
     let status: String?
 }
 
+// MARK: - Active Run
+
+struct ActiveRunResponse: Codable, Sendable, Identifiable {
+    let id: String
+    let protocolId: String
+    let protocolName: String?
+    let startDate: String
+    let durationDays: Int?
+    let status: String
+    let progressPct: Double
+    let dosesToday: Int
+    let dosesCompletedToday: Int
+    let createdAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case protocolId = "protocol_id"
+        case protocolName = "protocol_name"
+        case startDate = "start_date"
+        case durationDays = "duration_days"
+        case status
+        case progressPct = "progress_pct"
+        case dosesToday = "doses_today"
+        case dosesCompletedToday = "doses_completed_today"
+        case createdAt = "created_at"
+    }
+}
+
+// MARK: - Start Run
+
+struct StartRunRequest: Codable, Sendable {
+    let startDate: String?
+    let notify: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case startDate = "start_date"
+        case notify
+    }
+}
+
 // MARK: - Endpoint Extensions
 
 extension Endpoints {
     static let protocols = "/api/v1/protocols"
+    static let activeRuns = "/api/v1/protocols/runs/active"
 
     static func protocolDetail(_ id: String) -> String {
         "/api/v1/protocols/\(id)"
+    }
+
+    static func protocolRuns(_ protocolId: String) -> String {
+        "/api/v1/protocols/\(protocolId)/runs"
+    }
+
+    static func runLogDose(_ runId: String) -> String {
+        "/api/v1/protocols/runs/\(runId)/doses/log"
+    }
+
+    static func runSkipDose(_ runId: String) -> String {
+        "/api/v1/protocols/runs/\(runId)/doses/skip"
     }
 
     static func protocolLogDose(_ protocolId: String) -> String {
