@@ -3,6 +3,7 @@
 
 import Foundation
 import HealthKit
+import MetricKit
 import Observation
 
 @Observable
@@ -21,6 +22,7 @@ final class AppDependencies {
     let adminService: AdminService
     let notificationManager: NotificationManager
     let featureFlagService: FeatureFlagService
+    private var crashReporter: CrashReporter?
 
     init(
         keychainService: KeychainServiceProtocol? = nil,
@@ -63,5 +65,13 @@ final class AppDependencies {
         self.notificationManager = NotificationManager(networkClient: network)
 
         self.featureFlagService = FeatureFlagService(networkClient: network)
+
+        // Telemetry — consent-gated crash reporting and flow tracking
+        if TelemetrySettings.isEnabled {
+            let reporter = CrashReporter(networkClient: network)
+            MXMetricManager.shared.add(reporter)
+            self.crashReporter = reporter
+        }
+        Task { await FlowTracker.shared.configure(networkClient: network) }
     }
 }

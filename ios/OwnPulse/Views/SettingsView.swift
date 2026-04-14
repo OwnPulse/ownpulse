@@ -145,6 +145,7 @@ struct SettingsView: View {
     @State private var unlinkProvider: String?
     @State private var hkAuthorized = false
     @State private var clinicalRecordsSyncEnabled = ClinicalRecordSettings.isSyncEnabled
+    @State private var telemetryEnabled = TelemetrySettings.isEnabled
     @State private var viewModel: SettingsViewModel?
 
     private var isAdmin: Bool {
@@ -227,6 +228,17 @@ struct SettingsView: View {
                     }
                     .accessibilityIdentifier("userManagementLink")
                 }
+            }
+
+            Section("Analytics") {
+                Toggle("Help Improve OwnPulse", isOn: $telemetryEnabled)
+                    .onChange(of: telemetryEnabled) { _, newValue in
+                        TelemetrySettings.isEnabled = newValue
+                    }
+                    .accessibilityIdentifier("telemetryToggle")
+                Text("Send anonymous crash reports and usage statistics. No health data is ever included.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Dashboard") {
