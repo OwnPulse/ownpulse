@@ -39,13 +39,16 @@ actor SyncEngine {
     var lastSyncDate: Date? { _lastSyncDate }
     var lastError: String? { _lastError }
 
+    private let progress: SyncProgress
+
     init(
         networkClient: NetworkClientProtocol,
         healthKitProvider: HealthKitProviderProtocol,
         clinicalRecordProvider: ClinicalRecordProviderProtocol? = nil,
         medicationSyncProvider: (any Sendable)? = nil,
         offlineQueue: OfflineQueueProtocol,
-        anchorStore: AnchorStore
+        anchorStore: AnchorStore,
+        progress: SyncProgress
     ) {
         self.networkClient = networkClient
         self.healthKitProvider = healthKitProvider
@@ -53,6 +56,7 @@ actor SyncEngine {
         self.medicationSyncProvider = medicationSyncProvider
         self.offlineQueue = offlineQueue
         self.anchorStore = anchorStore
+        self.progress = progress
     }
 
     func sync() async {
@@ -66,10 +70,29 @@ actor SyncEngine {
             // 1. Drain offline queue first
             try await drainOfflineQueue()
 
-            // 2. Query HK for each type and upload
-            for mapping in HealthKitTypeMap.mappings {
-                try await syncType(mapping)
+            // 2. Initialize progress tracking
+            let timestamps = (try? anchorStore.allSyncTimestamps()) ?? [:]
+            let types = HealthKitTypeMap.mappings.map {
+                (recordType: $0.recordType, displayName: $0.recordType.replacingOccurrences(of: "_", with: " ").capitalized)
             }
+            await MainActor.run { progress.reset(types: types, timestamps: timestamps) }
+
+            // 3. Query HK for each type and upload — continue on per-type errors
+            for mapping in HealthKitTypeMap.mappings {
+                await MainActor.run { progress.markSyncing(mapping.recordType) }
+                do {
+                    let count = try await syncType(mapping)
+                    if count > 0 {
+                        await MainActor.run { progress.markSynced(mapping.recordType, count: count, at: Date()) }
+                    } else {
+                        await MainActor.run { progress.markSkipped(mapping.recordType) }
+                    }
+                } catch {
+                    await MainActor.run { progress.markFailed(mapping.recordType, error: error.localizedDescription) }
+                    // Continue to next type — don't halt
+                }
+            }
+            await MainActor.run { progress.finish() }
 
             // 3. Sync clinical records (lab results from Apple Health Records) if enabled
             if let clinicalProvider = clinicalRecordProvider,
@@ -121,7 +144,9 @@ actor SyncEngine {
         }
     }
 
-    private func syncType(_ mapping: HealthKitTypeMap.Mapping) async throws {
+    /// Returns the number of records synced (0 if no new data).
+    @discardableResult
+    private func syncType(_ mapping: HealthKitTypeMap.Mapping) async throws -> Int {
         let anchor = try anchorStore.anchor(forRecordType: mapping.recordType)
         let result = try await healthKitProvider.querySamples(
             type: mapping.hkType,
@@ -132,7 +157,7 @@ actor SyncEngine {
             if let newAnchor = result.newAnchor {
                 try anchorStore.saveAnchor(newAnchor, forRecordType: mapping.recordType)
             }
-            return
+            return 0
         }
 
         // Batch upload
@@ -172,6 +197,8 @@ actor SyncEngine {
         if let newAnchor = result.newAnchor {
             try anchorStore.saveAnchor(newAnchor, forRecordType: mapping.recordType)
         }
+
+        return result.samples.count
     }
 
     private func syncClinicalRecords(_ provider: ClinicalRecordProviderProtocol) async throws {

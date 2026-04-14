@@ -19,6 +19,7 @@ final class AppDependencies {
     let clinicalRecordProvider: ClinicalRecordProviderProtocol?
     let medicationSyncProvider: (any Sendable)?
     let syncEngine: SyncEngine
+    let syncProgress: SyncProgress
     let syncScheduler: SyncScheduler
     let adminService: AdminService
     let notificationManager: NotificationManager
@@ -61,13 +62,16 @@ final class AppDependencies {
         self.offlineQueue = OfflineQueue(databaseManager: databaseManager)
         self.anchorStore = AnchorStore(databaseManager: databaseManager)
 
+        self.syncProgress = SyncProgress()
+
         self.syncEngine = SyncEngine(
             networkClient: network,
             healthKitProvider: self.healthKitProvider,
             clinicalRecordProvider: self.clinicalRecordProvider,
             medicationSyncProvider: self.medicationSyncProvider,
             offlineQueue: offlineQueue,
-            anchorStore: anchorStore
+            anchorStore: anchorStore,
+            progress: self.syncProgress
         )
 
         self.syncScheduler = SyncScheduler()
