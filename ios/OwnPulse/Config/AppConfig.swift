@@ -27,4 +27,15 @@ enum AppConfig {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         return "\(version) (\(build))"
     }
+
+    static var gitSHA: String? {
+        let sha = Bundle.main.infoDictionary?["OPGitSHA"] as? String
+        // Build setting substitution leaves "$(GIT_SHA)" when unset
+        return (sha?.hasPrefix("$(") == true) ? nil : sha
+    }
+
+    static var buildRef: String? {
+        let ref = Bundle.main.infoDictionary?["OPBuildRef"] as? String
+        return (ref?.hasPrefix("$(") == true) ? nil : ref
+    }
 }

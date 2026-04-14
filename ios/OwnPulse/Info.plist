@@ -58,6 +58,10 @@
 	<false/>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>OPGitSHA</key>
+	<string>$(GIT_SHA)</string>
+	<key>OPBuildRef</key>
+	<string>$(BUILD_REF)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
