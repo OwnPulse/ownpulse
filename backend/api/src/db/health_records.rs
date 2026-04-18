@@ -4,7 +4,34 @@
 use crate::models::health_record::{CreateHealthRecord, HealthRecordRow};
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use std::collections::HashMap;
 use uuid::Uuid;
+
+/// A cross-source dedup match for a single record in a bulk-insert batch.
+/// Emitted by [`bulk_insert_healthkit`] so the caller can log/metric each
+/// match without re-querying the DB.
+pub struct BulkDedupMatch {
+    /// Index into the input `records` slice that this match refers to.
+    pub batch_idx: usize,
+    /// `record_type` copied from the input record (saves the caller a lookup).
+    pub record_type: String,
+    /// The id of the existing row we detected as a near-duplicate.
+    pub existing_id: Uuid,
+    /// The `source` of the existing row (e.g. `"garmin"`, `"oura"`).
+    pub existing_source: String,
+}
+
+/// Result of a bulk HealthKit insert: number of rows actually written plus
+/// the full set of cross-source duplicate matches detected for this batch.
+pub struct BulkInsertResult {
+    /// Rows inserted after `ON CONFLICT DO NOTHING` — same-source replays
+    /// count zero here.
+    pub inserted: usize,
+    /// Cross-source near-duplicate matches (one per input record that matched
+    /// an existing non-healthkit row within 60s / 2% tolerance). Each match
+    /// has its `duplicate_of` column populated on the newly inserted row.
+    pub duplicates: Vec<BulkDedupMatch>,
+}
 
 /// Find a potential duplicate: same user, same record_type, within 60 seconds
 /// and 2% value tolerance, from a *different* source.
@@ -37,28 +64,36 @@ pub async fn find_duplicate(
     .await
 }
 
-/// Bulk insert HealthKit-sourced records in a single round trip via `UNNEST`.
+/// Bulk insert HealthKit-sourced records with batched cross-source dedup.
 ///
 /// Used by `POST /healthkit/sync` to avoid the per-record `find_duplicate` +
-/// `insert` loop (200 DB round trips for a 100-record batch). Relies on the
-/// `UNIQUE(user_id, source, record_type, start_time, source_id)` constraint on
-/// `health_records` for same-source idempotency — duplicate batches replay
-/// cleanly with zero new rows.
+/// `insert` loop that used to cost 200 DB round trips per 100-record batch.
+/// This function does exactly **two** round trips per call:
 ///
-/// Cross-source deduplication (`duplicate_of`) is **not** computed here. That
-/// logic is deferred to a future async reconciliation job; rows inserted via
-/// this path always have `duplicate_of = NULL`. Source is forced to
-/// `'healthkit'` in the SQL for defence in depth, independent of any value
-/// passed in by the caller.
+/// 1. A preflight `UNNEST`-driven `SELECT` that returns, for each input row,
+///    the closest existing record from a *different* source within 60 seconds
+///    and 2% value tolerance (the project's deduplication rule — see
+///    `CLAUDE.md`).
+/// 2. A single `INSERT ... SELECT FROM UNNEST(...)` that writes the whole
+///    batch. Each new row's `duplicate_of` is populated from the preflight
+///    result at the same batch index. `ON CONFLICT DO NOTHING` on
+///    `UNIQUE(user_id, source, record_type, start_time, source_id)` makes
+///    same-source replays a no-op.
 ///
-/// Returns the number of rows actually inserted (after `ON CONFLICT DO NOTHING`).
+/// Source is forced to `'healthkit'` in the SQL for defence in depth,
+/// independent of any value passed by the caller. The caller is responsible
+/// for logging each [`BulkDedupMatch`] in the returned result — this layer
+/// does not log because it has no handle to tracing conventions.
 pub async fn bulk_insert_healthkit(
     pool: &PgPool,
     user_id: Uuid,
     records: &[CreateHealthRecord],
-) -> Result<usize, sqlx::Error> {
+) -> Result<BulkInsertResult, sqlx::Error> {
     if records.is_empty() {
-        return Ok(0);
+        return Ok(BulkInsertResult {
+            inserted: 0,
+            duplicates: Vec::new(),
+        });
     }
 
     // Build parallel column arrays for UNNEST. Each array has one entry per
@@ -81,15 +116,93 @@ pub async fn bulk_insert_healthkit(
         source_ids.push(r.source_id.clone());
     }
 
-    // Single INSERT with UNNEST expanding the parallel arrays to rows.
-    // source is forced to 'healthkit' in SQL — defence in depth.
-    // ON CONFLICT DO NOTHING on the UNIQUE constraint makes this idempotent.
-    // RETURNING 1 + fetch_all().len() gives us the count of newly inserted rows.
-    let inserted = sqlx::query(
+    // --- Step 1: preflight cross-source dedup.
+    //
+    // For each row in the input batch, find the closest existing record from
+    // a *different* source within the 60-second / 2% tolerance window. We use
+    // `WITH ORDINALITY` on the UNNEST so the lateral subquery can project a
+    // stable 1-based index back into the input batch; that beats keying on
+    // `(record_type, start_time)` because duplicate keys can appear within a
+    // single batch (same device logging the same metric at the same instant).
+    //
+    // PostgreSQL enforces a uniform length across all arrays passed to one
+    // UNNEST call. All column arrays here are built from the same `records`
+    // slice, so their lengths are equal by construction.
+    let dedup_rows: Vec<(Uuid, String, i64)> = sqlx::query_as(
+        "SELECT hr.id AS existing_id,
+                hr.source AS existing_source,
+                b.idx AS batch_idx
+         FROM UNNEST($2::text[], $3::timestamptz[], $4::double precision[])
+              WITH ORDINALITY AS b(record_type, start_time, value, idx)
+         CROSS JOIN LATERAL (
+             SELECT id, source
+             FROM health_records
+             WHERE user_id = $1
+               AND record_type = b.record_type
+               AND source <> 'healthkit'
+               AND start_time BETWEEN b.start_time - INTERVAL '60 seconds'
+                                  AND b.start_time + INTERVAL '60 seconds'
+               AND (b.value IS NULL
+                    OR value BETWEEN b.value * 0.98 AND b.value * 1.02)
+             ORDER BY ABS(EXTRACT(EPOCH FROM (start_time - b.start_time)))
+             LIMIT 1
+         ) hr",
+    )
+    .bind(user_id)
+    .bind(&record_types)
+    .bind(&start_times)
+    .bind(&values)
+    .fetch_all(pool)
+    .await?;
+
+    // Map batch_idx (1-based from WITH ORDINALITY, converted to 0-based) to
+    // the existing row's (id, source). `HashMap` is fine here — at most N
+    // entries, all in-memory, no DB work.
+    let mut dedup_by_idx: HashMap<usize, (Uuid, String)> = HashMap::new();
+    let mut duplicates: Vec<BulkDedupMatch> = Vec::with_capacity(dedup_rows.len());
+    for (existing_id, existing_source, idx_1based) in dedup_rows {
+        // UNNEST...WITH ORDINALITY is always >= 1, so this subtraction is safe.
+        let batch_idx = (idx_1based as usize).saturating_sub(1);
+        if batch_idx >= records.len() {
+            // Defensive: shouldn't happen (ordinality is bounded by array
+            // length) but we never want to panic on adversarial DB input.
+            continue;
+        }
+        dedup_by_idx.insert(batch_idx, (existing_id, existing_source.clone()));
+        duplicates.push(BulkDedupMatch {
+            batch_idx,
+            record_type: records[batch_idx].record_type.clone(),
+            existing_id,
+            existing_source,
+        });
+    }
+
+    // Build the parallel `duplicate_of` array aligned with the other input
+    // arrays. `None` -> NULL in Postgres.
+    let mut duplicate_ofs: Vec<Option<Uuid>> = Vec::with_capacity(records.len());
+    for i in 0..records.len() {
+        duplicate_ofs.push(dedup_by_idx.get(&i).map(|(id, _)| *id));
+    }
+
+    // --- Step 2: single INSERT with UNNEST expanding the parallel arrays to rows.
+    //
+    // `source` is hard-coded as the SQL literal `'healthkit'` in the SELECT
+    // projection — we never bind user-controlled input for that column. The
+    // route handler also forces `record.source = "healthkit"` on the way in
+    // as belt-and-braces defence in depth (see `routes/healthkit.rs`), but
+    // even if that check were somehow bypassed the DB query physically
+    // cannot write a different source for this code path.
+    //
+    // `ON CONFLICT DO NOTHING` on the UNIQUE constraint makes same-source
+    // replays a no-op. We only need the *count* of newly inserted rows
+    // (never the IDs — `duplicate_of` is computed in Step 1 and fed as an
+    // input column here), so `execute().rows_affected()` is the correct
+    // primitive: no extra data on the wire compared to `RETURNING 1`.
+    let rows_affected = sqlx::query(
         "INSERT INTO health_records
             (user_id, source, record_type, value, unit, start_time, end_time,
-             metadata, source_id)
-         SELECT $1, 'healthkit', rt, v, u, st, et, md, sid
+             metadata, source_id, duplicate_of)
+         SELECT $1, 'healthkit', rt, v, u, st, et, md, sid, dof
          FROM UNNEST(
              $2::text[],
              $3::double precision[],
@@ -97,11 +210,11 @@ pub async fn bulk_insert_healthkit(
              $5::timestamptz[],
              $6::timestamptz[],
              $7::jsonb[],
-             $8::text[]
-         ) AS t(rt, v, u, st, et, md, sid)
+             $8::text[],
+             $9::uuid[]
+         ) AS t(rt, v, u, st, et, md, sid, dof)
          ON CONFLICT (user_id, source, record_type, start_time, source_id)
-             DO NOTHING
-         RETURNING 1",
+             DO NOTHING",
     )
     .bind(user_id)
     .bind(&record_types)
@@ -111,10 +224,15 @@ pub async fn bulk_insert_healthkit(
     .bind(&end_times)
     .bind(&metadatas)
     .bind(&source_ids)
-    .fetch_all(pool)
-    .await?;
+    .bind(&duplicate_ofs)
+    .execute(pool)
+    .await?
+    .rows_affected();
 
-    Ok(inserted.len())
+    Ok(BulkInsertResult {
+        inserted: rows_affected as usize,
+        duplicates,
+    })
 }
 
 /// Insert a health record, optionally marking it as a duplicate of another.

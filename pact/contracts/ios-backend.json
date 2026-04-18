@@ -186,6 +186,11 @@
         "status": 201,
         "headers": {
           "Content-Type": "application/json"
+        },
+        "body": {
+          "received": 1,
+          "inserted": 1,
+          "duplicates": 0
         }
       }
     },

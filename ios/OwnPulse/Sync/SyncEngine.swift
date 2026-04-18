@@ -135,7 +135,9 @@ actor SyncEngine {
         let pending = try offlineQueue.dequeuePending()
         for entry in pending {
             do {
-                let _: [HealthRecordResponse] = try await networkClient.request(
+                // POST /healthkit/sync returns a JSON ack body we don't use here.
+                // requestNoContent discards it — avoids decoding churn on every retry.
+                try await networkClient.requestNoContent(
                     method: "POST",
                     path: Endpoints.healthKitSync,
                     body: entry.insert
@@ -186,7 +188,10 @@ actor SyncEngine {
             let insert = HealthKitBulkInsert(records: records)
 
             do {
-                let _: [HealthRecordResponse] = try await networkClient.request(
+                // POST /healthkit/sync returns a JSON ack body with counts.
+                // We only care that the request succeeded; requestNoContent
+                // discards the body and avoids coupling to its schema.
+                try await networkClient.requestNoContent(
                     method: "POST",
                     path: Endpoints.healthKitSync,
                     body: insert
