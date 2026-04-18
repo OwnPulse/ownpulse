@@ -36,8 +36,18 @@ struct SyncStatusView: View {
             .padding(.vertical, 12)
         }
         .navigationTitle("Sync Status")
+        .task {
+            // Load historical sync timestamps on appear
+            if progress.typeStatuses.isEmpty {
+                let timestamps = (try? dependencies.anchorStore.allSyncTimestamps()) ?? [:]
+                let types = HealthKitTypeMap.mappings.map {
+                    (recordType: $0.recordType, displayName: $0.recordType.replacingOccurrences(of: "_", with: " ").capitalized)
+                }
+                progress.reset(types: types, timestamps: timestamps)
+            }
+        }
         .refreshable {
-            Task { await dependencies.syncEngine.sync() }
+            await dependencies.syncEngine.sync()
         }
         .alert("Sync Error", isPresented: .constant(errorDetail != nil)) {
             Button("OK") { errorDetail = nil }

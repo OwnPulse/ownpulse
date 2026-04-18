@@ -118,8 +118,12 @@ actor SyncEngine {
             }
             #endif
 
-            // 5. Process write-back queue
-            try await processWriteBack()
+            // 5. Process write-back queue (non-fatal)
+            do {
+                try await processWriteBack()
+            } catch {
+                _lastError = "Write-back failed: \(error.localizedDescription)"
+            }
 
             _lastSyncDate = Date()
         } catch {
@@ -138,8 +142,8 @@ actor SyncEngine {
                 )
                 try offlineQueue.markComplete(id: entry.id)
             } catch {
-                // Leave in queue for next sync
-                throw error
+                // Skip and continue — don't let stale queue entries block the entire sync
+                _lastError = "Offline queue retry failed: \(error.localizedDescription)"
             }
         }
     }
@@ -188,9 +192,9 @@ actor SyncEngine {
                     body: insert
                 )
             } catch {
-                // Queue for offline retry
-                try offlineQueue.enqueue(insert)
-                throw error
+                // Queue for offline retry but don't halt — continue to next batch/type
+                try? offlineQueue.enqueue(insert)
+                throw error // still throw to mark this TYPE as failed, but outer loop catches per-type
             }
         }
 
