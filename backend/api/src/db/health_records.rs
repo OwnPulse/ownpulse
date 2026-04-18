@@ -37,6 +37,86 @@ pub async fn find_duplicate(
     .await
 }
 
+/// Bulk insert HealthKit-sourced records in a single round trip via `UNNEST`.
+///
+/// Used by `POST /healthkit/sync` to avoid the per-record `find_duplicate` +
+/// `insert` loop (200 DB round trips for a 100-record batch). Relies on the
+/// `UNIQUE(user_id, source, record_type, start_time, source_id)` constraint on
+/// `health_records` for same-source idempotency — duplicate batches replay
+/// cleanly with zero new rows.
+///
+/// Cross-source deduplication (`duplicate_of`) is **not** computed here. That
+/// logic is deferred to a future async reconciliation job; rows inserted via
+/// this path always have `duplicate_of = NULL`. Source is forced to
+/// `'healthkit'` in the SQL for defence in depth, independent of any value
+/// passed in by the caller.
+///
+/// Returns the number of rows actually inserted (after `ON CONFLICT DO NOTHING`).
+pub async fn bulk_insert_healthkit(
+    pool: &PgPool,
+    user_id: Uuid,
+    records: &[CreateHealthRecord],
+) -> Result<usize, sqlx::Error> {
+    if records.is_empty() {
+        return Ok(0);
+    }
+
+    // Build parallel column arrays for UNNEST. Each array has one entry per
+    // record at the same index. Option<T> entries become NULLs in the array.
+    let mut record_types: Vec<String> = Vec::with_capacity(records.len());
+    let mut values: Vec<Option<f64>> = Vec::with_capacity(records.len());
+    let mut units: Vec<Option<String>> = Vec::with_capacity(records.len());
+    let mut start_times: Vec<DateTime<Utc>> = Vec::with_capacity(records.len());
+    let mut end_times: Vec<Option<DateTime<Utc>>> = Vec::with_capacity(records.len());
+    let mut metadatas: Vec<Option<serde_json::Value>> = Vec::with_capacity(records.len());
+    let mut source_ids: Vec<Option<String>> = Vec::with_capacity(records.len());
+
+    for r in records {
+        record_types.push(r.record_type.clone());
+        values.push(r.value);
+        units.push(r.unit.clone());
+        start_times.push(r.start_time);
+        end_times.push(r.end_time);
+        metadatas.push(r.metadata.clone());
+        source_ids.push(r.source_id.clone());
+    }
+
+    // Single INSERT with UNNEST expanding the parallel arrays to rows.
+    // source is forced to 'healthkit' in SQL — defence in depth.
+    // ON CONFLICT DO NOTHING on the UNIQUE constraint makes this idempotent.
+    // RETURNING 1 + fetch_all().len() gives us the count of newly inserted rows.
+    let inserted = sqlx::query(
+        "INSERT INTO health_records
+            (user_id, source, record_type, value, unit, start_time, end_time,
+             metadata, source_id)
+         SELECT $1, 'healthkit', rt, v, u, st, et, md, sid
+         FROM UNNEST(
+             $2::text[],
+             $3::double precision[],
+             $4::text[],
+             $5::timestamptz[],
+             $6::timestamptz[],
+             $7::jsonb[],
+             $8::text[]
+         ) AS t(rt, v, u, st, et, md, sid)
+         ON CONFLICT (user_id, source, record_type, start_time, source_id)
+             DO NOTHING
+         RETURNING 1",
+    )
+    .bind(user_id)
+    .bind(&record_types)
+    .bind(&values)
+    .bind(&units)
+    .bind(&start_times)
+    .bind(&end_times)
+    .bind(&metadatas)
+    .bind(&source_ids)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(inserted.len())
+}
+
 /// Insert a health record, optionally marking it as a duplicate of another.
 pub async fn insert(
     pool: &PgPool,
