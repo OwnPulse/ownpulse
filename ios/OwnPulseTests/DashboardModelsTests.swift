@@ -63,48 +63,123 @@ struct DashboardModelsTests {
 
     // MARK: - LatestCheckin
 
-    @Test("LatestCheckin.isToday returns true for today's date")
-    func latestCheckinIsToday() {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withFullDate]
+    /// Helper: returns the user's local "today" as yyyy-MM-dd using the same
+    /// formatter configuration `LatestCheckin.isToday` uses internally.
+    private func localTodayString() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
-        let todayStr = formatter.string(from: Date())
+        return formatter.string(from: Date())
+    }
 
+    private func localDateString(daysOffset: Int) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        let date = Calendar.current.date(byAdding: .day, value: daysOffset, to: Date())!
+        return formatter.string(from: date)
+    }
+
+    @Test("LatestCheckin.isToday returns true for today's local date")
+    func latestCheckinIsToday() {
         let checkin = LatestCheckin(
             energy: 7, mood: 8, focus: 6, recovery: 7, libido: 5,
-            date: todayStr
+            date: localTodayString()
         )
         #expect(checkin.isToday == true)
     }
 
-    @Test("LatestCheckin.isToday handles date that is today in local timezone")
-    func latestCheckinIsTodayLocalTimezone() {
-        // Use the first 10 chars of today's date in the current timezone
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
-        let todayString = formatter.string(from: Date())
+    @Test("LatestCheckin.isToday returns false for yesterday (the production bug)")
+    func latestCheckinNotTodayYesterday() {
+        // Regression test: the old ISO8601DateFormatter-based implementation
+        // produced a Date whose timezone interpretation diverged from
+        // Calendar.current.isDateInToday, causing yesterday's checkins to be
+        // treated as today in some timezones. This test locks in the fix.
+        let checkin = LatestCheckin(
+            energy: 7, mood: 8, focus: 6, recovery: 7, libido: 5,
+            date: localDateString(daysOffset: -1)
+        )
+        #expect(checkin.isToday == false)
+    }
 
-        // Construct a full ISO 8601 string — isToday uses only prefix(10)
+    @Test("LatestCheckin.isToday returns false for tomorrow")
+    func latestCheckinNotTodayTomorrow() {
+        let checkin = LatestCheckin(
+            energy: 7, mood: 8, focus: 6, recovery: 7, libido: 5,
+            date: localDateString(daysOffset: 1)
+        )
+        #expect(checkin.isToday == false)
+    }
+
+    @Test("LatestCheckin.isToday truncates full ISO 8601 strings to the date prefix")
+    func latestCheckinIsTodayFullISOString() {
+        // Confirms the existing truncation behaviour survives the formatter
+        // swap: only the first 10 characters are parsed, so a full timestamp
+        // like "2026-01-01T23:59:59Z" is read as "2026-01-01".
         let checkin = LatestCheckin(
             energy: 5, mood: 5, focus: 5, recovery: 5, libido: 5,
-            date: "\(todayString)T23:59:59Z"
+            date: "\(localTodayString())T23:59:59Z"
         )
         #expect(checkin.isToday == true)
     }
 
-    @Test("LatestCheckin.isToday returns false for yesterday")
-    func latestCheckinNotToday() {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
-        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date())!
-        let yesterdayString = formatter.string(from: yesterday)
-
+    @Test("LatestCheckin.isToday returns false for malformed date strings")
+    func latestCheckinIsTodayMalformed() {
         let checkin = LatestCheckin(
-            energy: 7, mood: 8, focus: 6, recovery: 7, libido: 5,
-            date: "\(yesterdayString)T12:00:00Z"
+            energy: 5, mood: 5, focus: 5, recovery: 5, libido: 5,
+            date: "not-a-date"
         )
+        #expect(checkin.isToday == false)
+    }
+
+    @Test("LatestCheckin decodes with a yyyy-MM-dd date and evaluates isToday in local TZ")
+    func decodeLatestCheckinAndIsToday() throws {
+        // The backend returns `latest_checkin.date` as a chrono::NaiveDate,
+        // which serializes to a bare "YYYY-MM-DD" string. Confirm the decode
+        // path preserves that string verbatim and that isToday works against
+        // the user's local calendar without being tripped up by UTC offsets.
+        //
+        // Note: we can't force Calendar.current onto a non-current timezone
+        // from a unit test, so this test documents why the
+        // `timeZone = .current` + en_US_POSIX locale combo is correct: the
+        // parsed date's calendar components match the string in the user's
+        // local day, which is exactly what Calendar.current.isDateInToday
+        // compares against.
+        let today = localTodayString()
+        let json = """
+        {
+            "energy": 7,
+            "mood": 8,
+            "focus": 6,
+            "recovery": 7,
+            "libido": 5,
+            "date": "\(today)"
+        }
+        """.data(using: .utf8)!
+
+        let checkin = try decoder.decode(LatestCheckin.self, from: json)
+        #expect(checkin.date == today)
+        #expect(checkin.isToday == true)
+    }
+
+    @Test("LatestCheckin decoded with yesterday's date is not today")
+    func decodeLatestCheckinYesterdayNotToday() throws {
+        let yesterday = localDateString(daysOffset: -1)
+        let json = """
+        {
+            "energy": 4,
+            "mood": 5,
+            "focus": 5,
+            "recovery": 6,
+            "libido": null,
+            "date": "\(yesterday)"
+        }
+        """.data(using: .utf8)!
+
+        let checkin = try decoder.decode(LatestCheckin.self, from: json)
+        #expect(checkin.date == yesterday)
         #expect(checkin.isToday == false)
     }
 

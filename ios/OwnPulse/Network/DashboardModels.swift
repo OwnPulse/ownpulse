@@ -34,8 +34,15 @@ struct LatestCheckin: Codable, Sendable {
     let date: String
 
     var isToday: Bool {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withFullDate]
+        // Use an explicit DateFormatter with POSIX locale rather than
+        // ISO8601DateFormatter(.withFullDate). The ISO formatter's handling of
+        // date-only strings is fragile across iOS versions — the resulting
+        // Date's "midnight" can be interpreted in UTC or the formatter's
+        // timezone depending on the runtime, which caused the dashboard to
+        // show yesterday's checkin as today's for users outside UTC.
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = .current
         guard let checkinDate = formatter.date(from: String(date.prefix(10))) else {
             return false
