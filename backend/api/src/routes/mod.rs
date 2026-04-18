@@ -53,6 +53,14 @@ use crate::AppState;
 /// later in the [`AuthUser`](crate::auth::extractor::AuthUser) extractor. The
 /// rate limiter only needs a consistent key; an invalid/expired token will be
 /// rejected by the handler before any real work is done.
+///
+/// Extraction failure (missing `Authorization` header, malformed JWT, base64
+/// decode error, missing `sub` field) falls back to a static `"anonymous"` key
+/// rather than returning [`GovernorError::UnableToExtractKey`]. `tower_governor`
+/// renders that error as a raw 500 response, which would preempt the downstream
+/// [`AuthUser`] extractor from returning the correct 401. The rate limiter's
+/// only job is to bound request rate; rejecting unauthenticated callers is
+/// [`AuthUser`]'s responsibility.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct JwtSubjectKeyExtractor;
 
@@ -60,34 +68,34 @@ impl KeyExtractor for JwtSubjectKeyExtractor {
     type Key = String;
 
     fn extract<T>(&self, req: &http::Request<T>) -> Result<Self::Key, GovernorError> {
-        let header = req
-            .headers()
-            .get(http::header::AUTHORIZATION)
-            .and_then(|v: &http::HeaderValue| v.to_str().ok())
-            .and_then(|v: &str| v.strip_prefix("Bearer "))
-            .ok_or(GovernorError::UnableToExtractKey)?;
-
-        // JWT is three base64url segments separated by dots.
-        let payload_b64 = header
-            .split('.')
-            .nth(1)
-            .ok_or(GovernorError::UnableToExtractKey)?;
-
-        // base64url decode (JWT uses URL-safe alphabet, no padding).
-        let payload_bytes =
-            base64url_decode(payload_b64).map_err(|_| GovernorError::UnableToExtractKey)?;
-
-        // Extract the `sub` field with minimal parsing.
-        #[derive(serde::Deserialize)]
-        struct Sub {
-            sub: String,
-        }
-
-        let parsed: Sub = serde_json::from_slice(&payload_bytes)
-            .map_err(|_| GovernorError::UnableToExtractKey)?;
-
-        Ok(parsed.sub)
+        Ok(extract_jwt_sub(req).unwrap_or_else(|| "anonymous".to_string()))
     }
+}
+
+/// Try to pull the JWT `sub` claim out of the `Authorization: Bearer <token>`
+/// header. Returns `None` on any failure so the caller can fall back to a
+/// stable default key.
+fn extract_jwt_sub<T>(req: &http::Request<T>) -> Option<String> {
+    let header = req
+        .headers()
+        .get(http::header::AUTHORIZATION)
+        .and_then(|v: &http::HeaderValue| v.to_str().ok())
+        .and_then(|v: &str| v.strip_prefix("Bearer "))?;
+
+    // JWT is three base64url segments separated by dots.
+    let payload_b64 = header.split('.').nth(1)?;
+
+    // base64url decode (JWT uses URL-safe alphabet, no padding).
+    let payload_bytes = base64url_decode(payload_b64).ok()?;
+
+    // Extract the `sub` field with minimal parsing.
+    #[derive(serde::Deserialize)]
+    struct Sub {
+        sub: String,
+    }
+
+    let parsed: Sub = serde_json::from_slice(&payload_bytes).ok()?;
+    Some(parsed.sub)
 }
 
 /// Decode base64url (RFC 4648 section 5) without padding, as used in JWTs.
@@ -508,4 +516,52 @@ fn base_routes() -> Router<AppState> {
             "/observer-polls/:id/my-responses",
             get(observer_polls::my_responses),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::Engine as _;
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+
+    /// Build a syntactically valid JWT with an arbitrary payload. The signature
+    /// segment is not verified by [`JwtSubjectKeyExtractor`] so we use a
+    /// placeholder.
+    fn make_jwt(payload: &serde_json::Value) -> String {
+        let header = URL_SAFE_NO_PAD.encode(br#"{"alg":"HS256","typ":"JWT"}"#);
+        let payload_json = serde_json::to_vec(payload).unwrap();
+        let payload = URL_SAFE_NO_PAD.encode(payload_json);
+        let sig = URL_SAFE_NO_PAD.encode(b"signature");
+        format!("{header}.{payload}.{sig}")
+    }
+
+    fn request_with_header(auth: Option<&str>) -> http::Request<()> {
+        let mut builder = http::Request::builder().uri("/api/v1/explore/series");
+        if let Some(value) = auth {
+            builder = builder.header(http::header::AUTHORIZATION, value);
+        }
+        builder.body(()).unwrap()
+    }
+
+    #[test]
+    fn missing_authorization_header_falls_back_to_anonymous() {
+        let req = request_with_header(None);
+        let key = JwtSubjectKeyExtractor.extract(&req).unwrap();
+        assert_eq!(key, "anonymous");
+    }
+
+    #[test]
+    fn malformed_bearer_token_falls_back_to_anonymous() {
+        let req = request_with_header(Some("Bearer not-a-jwt"));
+        let key = JwtSubjectKeyExtractor.extract(&req).unwrap();
+        assert_eq!(key, "anonymous");
+    }
+
+    #[test]
+    fn well_formed_jwt_returns_sub_claim() {
+        let jwt = make_jwt(&serde_json::json!({ "sub": "user-123" }));
+        let req = request_with_header(Some(&format!("Bearer {jwt}")));
+        let key = JwtSubjectKeyExtractor.extract(&req).unwrap();
+        assert_eq!(key, "user-123");
+    }
 }
