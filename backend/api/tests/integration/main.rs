@@ -15,6 +15,7 @@ mod feature_flags;
 mod friends;
 mod genetics;
 mod health_records;
+mod healthkit;
 mod insights;
 mod integrations;
 mod interventions;

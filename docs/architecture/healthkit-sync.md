@@ -73,6 +73,26 @@ The user selects the preferred source per metric type. Preferences are stored in
 - When a duplicate is detected: log a structured warning with both record IDs and sources, insert the record with a `duplicate_of` reference.
 - `source_preferences` determines which record is shown by default.
 
+On the `POST /healthkit/sync` bulk path, this rule is enforced via **batched cross-source dedup**: one preflight `UNNEST`-driven `SELECT` looks up the closest existing non-`healthkit` record for every row in the batch, followed by one `INSERT ... SELECT FROM UNNEST(...)` that writes the whole batch with each row's `duplicate_of` set from the preflight result. Two DB round trips per batch, regardless of batch size — the rule holds for 100-record batches at the same fidelity as the previous per-record path.
+
+### Batch Size Cap
+
+`POST /healthkit/sync` accepts at most **500 records per call** (`MAX_HEALTHKIT_BATCH`). Larger batches are rejected with `400 Bad Request` before reaching the DB. iOS chunks by 100 records, so the cap leaves ~5x headroom. Raising the limit requires a load test at the new ceiling.
+
+### Response Shape
+
+On success, returns `201 Created` with a JSON body:
+
+```json
+{ "received": 100, "inserted": 98, "duplicates": 2 }
+```
+
+- `received` — records the server accepted from the request body.
+- `inserted` — rows actually written (post `ON CONFLICT DO NOTHING`). Same-source replays are not counted.
+- `duplicates` — cross-source near-duplicates detected and marked via `duplicate_of`. These rows **are** included in `inserted` — they land with a `duplicate_of` reference to the existing non-`healthkit` row, they are not dropped.
+
+iOS currently consumes the endpoint with `requestNoContent` and discards the body; the ack shape exists so the HTTP contract is honest and so a future sync-status UI can read the counts without a wire change.
+
 ## HealthKit Type Mappings
 
 Each structured `health_records.record_type` maps to a HealthKit type identifier. The mapping is maintained in the iOS `HealthKitProvider` implementation. Only record types with a known HealthKit mapping are eligible for write-back.
