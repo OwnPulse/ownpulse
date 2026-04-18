@@ -164,11 +164,16 @@ actor SyncEngine {
             return 0
         }
 
+        let total = result.samples.count
+        let recordType = mapping.recordType
+        await MainActor.run { progress.setTotalSamples(recordType, total: total) }
+
         // Batch upload
-        let batches = stride(from: 0, to: result.samples.count, by: batchSize).map {
-            Array(result.samples[$0..<min($0 + batchSize, result.samples.count)])
+        let batches = stride(from: 0, to: total, by: batchSize).map {
+            Array(result.samples[$0..<min($0 + batchSize, total)])
         }
 
+        var uploaded = 0
         for batch in batches {
             let records = batch.map { sample in
                 CreateHealthRecord(
@@ -191,6 +196,9 @@ actor SyncEngine {
                     path: Endpoints.healthKitSync,
                     body: insert
                 )
+                uploaded += batch.count
+                let running = uploaded
+                await MainActor.run { progress.updateUploadProgress(recordType, uploaded: running) }
             } catch {
                 // Queue for offline retry but don't halt — continue to next batch/type
                 try? offlineQueue.enqueue(insert)
@@ -202,7 +210,7 @@ actor SyncEngine {
             try anchorStore.saveAnchor(newAnchor, forRecordType: mapping.recordType)
         }
 
-        return result.samples.count
+        return total
     }
 
     private func syncClinicalRecords(_ provider: ClinicalRecordProviderProtocol) async throws {

@@ -57,13 +57,21 @@ struct SyncStatusView: View {
     }
 
     private var overallCard: some View {
-        VStack(spacing: 12) {
-            HStack {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
                 if isSyncing {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Syncing \(progress.completedTypes)/\(progress.totalTypes)...")
-                        .font(.subheadline)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Syncing \(progress.completedTypes) / \(progress.totalTypes) types")
+                            .font(.subheadline)
+                        if progress.totalRecordsUploaded > 0 {
+                            Text("\(progress.totalRecordsUploaded.formatted()) records uploaded")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                    }
                 } else {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(OPColor.sage)
@@ -78,6 +86,14 @@ struct SyncStatusView: View {
                     }
                 }
                 Spacer()
+            }
+
+            if isSyncing && progress.totalTypes > 0 {
+                ProgressView(
+                    value: Double(progress.completedTypes),
+                    total: Double(progress.totalTypes)
+                )
+                .tint(OPColor.terracotta)
             }
 
             if !isSyncing {
@@ -124,34 +140,51 @@ struct SyncStatusView: View {
                 errorDetail = "\(status.displayName): \(error)"
             }
         } label: {
-            HStack(spacing: 10) {
-                statusIcon(status.status)
-                    .frame(width: 20)
+            VStack(spacing: 4) {
+                HStack(spacing: 10) {
+                    statusIcon(status.status)
+                        .frame(width: 20)
 
-                Text(status.displayName)
-                    .font(.subheadline)
-                    .foregroundStyle(.primary)
+                    Text(status.displayName)
+                        .font(.subheadline)
+                        .foregroundStyle(.primary)
 
-                Spacer()
+                    Spacer()
 
-                if status.status == .syncing {
-                    ProgressView()
-                        .controlSize(.mini)
-                } else if let time = status.lastSyncTime {
-                    Text(time, format: .relative(presentation: .named))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    Text("never")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                    if status.status == .syncing {
+                        if status.totalSamples > 0 {
+                            Text("\(status.recordsSynced) / \(status.totalSamples)")
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ProgressView()
+                                .controlSize(.mini)
+                        }
+                    } else if let time = status.lastSyncTime {
+                        Text(time, format: .relative(presentation: .named))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("never")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+
+                    if status.status != .syncing && status.recordsSynced > 0 {
+                        Text("\(status.recordsSynced)")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                            .frame(minWidth: 30, alignment: .trailing)
+                    }
                 }
 
-                if status.recordsSynced > 0 {
-                    Text("\(status.recordsSynced)")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(minWidth: 30, alignment: .trailing)
+                if status.status == .syncing && status.totalSamples > 0 {
+                    ProgressView(
+                        value: Double(status.recordsSynced),
+                        total: Double(status.totalSamples)
+                    )
+                    .tint(OPColor.teal)
+                    .padding(.leading, 30)
                 }
             }
             .padding(.vertical, 6)
