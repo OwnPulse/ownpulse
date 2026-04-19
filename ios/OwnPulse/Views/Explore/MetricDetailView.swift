@@ -151,12 +151,21 @@ struct MetricDetailView: View {
         let min = values.min() ?? 0
         let max = values.max() ?? 0
 
+        let isBodyMass = series.field == "body_mass"
+        let displayUnit = isBodyMass ? WeightFormatter.unitString() : series.unit
+        let fmt: (Double) -> String = { v in
+            if isBodyMass {
+                return WeightFormatter.formatValueOnly(kg: v)
+            }
+            return String(format: "%.1f", v)
+        }
+
         HStack(spacing: 0) {
-            statItem(title: "Avg", value: String(format: "%.1f", avg), unit: series.unit)
+            statItem(title: "Avg", value: fmt(avg), unit: displayUnit)
             Divider().frame(height: 40)
-            statItem(title: "Min", value: String(format: "%.1f", min), unit: series.unit)
+            statItem(title: "Min", value: fmt(min), unit: displayUnit)
             Divider().frame(height: 40)
-            statItem(title: "Max", value: String(format: "%.1f", max), unit: series.unit)
+            statItem(title: "Max", value: fmt(max), unit: displayUnit)
         }
         .opCard()
         .padding(.horizontal, 16)

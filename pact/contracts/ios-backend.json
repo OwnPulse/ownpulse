@@ -598,6 +598,55 @@
       }
     },
     {
+      "description": "a request to fetch Explore browse-card sparklines for health_records metrics",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/explore/batch-series",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "metrics": [
+            {"source": "health_records", "field": "body_mass"},
+            {"source": "health_records", "field": "heart_rate"}
+          ],
+          "start": "2026-03-21T00:00:00Z",
+          "end": "2026-03-28T00:00:00Z",
+          "resolution": "1d"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "series": [
+            {
+              "source": "health_records",
+              "field": "body_mass",
+              "unit": "kg",
+              "points": [
+                {"t": "2026-03-21", "v": 72.5, "n": 1},
+                {"t": "2026-03-22", "v": 72.3, "n": 1}
+              ]
+            },
+            {
+              "source": "health_records",
+              "field": "heart_rate",
+              "unit": "bpm",
+              "points": [
+                {"t": "2026-03-21", "v": 65.0, "n": 1},
+                {"t": "2026-03-22", "v": 62.0, "n": 1}
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
       "description": "a request to get insights",
       "providerState": "an authenticated user exists",
       "request": {

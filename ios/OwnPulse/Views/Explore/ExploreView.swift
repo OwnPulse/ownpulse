@@ -104,6 +104,13 @@ struct ExploreView: View {
                 .font(.headline)
                 .foregroundStyle(.primary)
                 .padding(.leading, 4)
+                .onAppear {
+                    // Lazy batch fetch: when a section's header scrolls into
+                    // view, fetch the first 10 sparklines for it. Paginates
+                    // inside the view model for sections with more than 10
+                    // metrics.
+                    Task { await vm.loadSparklines(source: group.source, fields: group.metrics.map(\.field)) }
+                }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -117,8 +124,12 @@ struct ExploreView: View {
                             )
                         } label: {
                             MetricBrowseCard(
+                                source: group.source,
+                                field: item.field,
                                 label: item.label,
-                                unit: item.unit
+                                unit: item.unit,
+                                points: vm.sparklineData[ExploreViewModel.sparklineKey(source: group.source, field: item.field)],
+                                isLoading: vm.sparklineLoadingSections.contains(ExploreViewModel.sparklineKey(source: group.source, field: item.field))
                             )
                         }
                         .accessibilityIdentifier("metricCard-\(item.field)")
@@ -133,8 +144,29 @@ struct ExploreView: View {
 // MARK: - Metric Browse Card
 
 private struct MetricBrowseCard: View {
+    let source: String
+    let field: String
     let label: String
     let unit: String
+    let points: [DataPoint]?
+    let isLoading: Bool
+
+    private var displayUnit: String {
+        field == "body_mass" ? WeightFormatter.unitString() : unit
+    }
+
+    private var latestValueText: String? {
+        guard let last = points?.last else { return nil }
+        if field == "body_mass" {
+            return WeightFormatter.formatValueOnly(kg: last.v)
+        }
+        // Show a compact number: 1 decimal if the value has a fractional part
+        // within a small range, otherwise no decimals.
+        if abs(last.v) < 10 {
+            return String(format: "%.1f", last.v)
+        }
+        return String(format: "%.0f", last.v)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -143,21 +175,78 @@ private struct MetricBrowseCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
-            Text(unit)
+            Text(displayUnit)
                 .font(.system(.caption2, design: .rounded))
                 .foregroundStyle(.tertiary)
 
-            // Placeholder sparkline area
+            sparkline
+                .frame(height: 36)
+
+            if let value = latestValueText {
+                Text(value)
+                    .font(.system(.footnote, design: .rounded, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .accessibilityIdentifier("metricCardValue-\(field)")
+            } else {
+                Text("—")
+                    .font(.system(.footnote, design: .rounded, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(width: 130)
+        .opCard()
+    }
+
+    @ViewBuilder
+    private var sparkline: some View {
+        if let points, !points.isEmpty {
+            MetricSparklineChart(points: points)
+        } else if isLoading {
+            HStack {
+                Spacer()
+                ProgressView()
+                    .controlSize(.mini)
+                Spacer()
+            }
+        } else {
             RoundedRectangle(cornerRadius: 4)
                 .fill(OPColor.teal.opacity(0.1))
-                .frame(height: 40)
                 .overlay {
                     Image(systemName: "chart.xyaxis.line")
                         .font(.caption2)
                         .foregroundStyle(OPColor.teal.opacity(0.3))
                 }
         }
-        .frame(width: 130)
-        .opCard()
+    }
+}
+
+// MARK: - Sparkline
+
+private struct SparklinePoint: Identifiable {
+    let index: Int
+    let value: Double
+    var id: Int { index }
+}
+
+private struct MetricSparklineChart: View {
+    let points: [DataPoint]
+
+    private var chartPoints: [SparklinePoint] {
+        points.enumerated().map { i, p in SparklinePoint(index: i, value: p.v) }
+    }
+
+    var body: some View {
+        Chart(chartPoints) { point in
+            LineMark(
+                x: .value("Index", point.index),
+                y: .value("Value", point.value)
+            )
+            .foregroundStyle(OPColor.teal)
+            .interpolationMethod(.monotone)
+            .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round))
+        }
+        .chartYScale(domain: .automatic(includesZero: false))
+        .chartXAxis(.hidden)
+        .chartYAxis(.hidden)
     }
 }

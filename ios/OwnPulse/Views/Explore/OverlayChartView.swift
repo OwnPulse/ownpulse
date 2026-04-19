@@ -66,6 +66,11 @@ struct OverlayChartView: View {
 
     @ViewBuilder
     private func chartLayer(metrics layerMetrics: [ChartMetric], axisPosition: AxisMarkPosition) -> some View {
+        // `body_mass` is the only metric that needs unit-preference conversion
+        // on the axis. Other metrics are shown as-returned from the server.
+        let isBodyMassAxis = layerMetrics.contains { $0.field == "body_mass" }
+        let weightPrefs = UserPreferences.weightUnit
+
         Chart {
             ForEach(layerMetrics) { metric in
                 ForEach(metric.points) { point in
@@ -77,20 +82,6 @@ struct OverlayChartView: View {
                     .foregroundStyle(metric.color)
                     .interpolationMethod(.catmullRom)
                     .lineStyle(StrokeStyle(lineWidth: 2.5))
-
-                    AreaMark(
-                        x: .value("Date", point.date),
-                        y: .value(metric.label, point.value),
-                        series: .value("Metric", metric.field)
-                    )
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [metric.color.opacity(0.2), metric.color.opacity(0.02)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .interpolationMethod(.catmullRom)
                 }
 
                 // Moving average overlay
@@ -127,14 +118,25 @@ struct OverlayChartView: View {
                     }
             }
         }
+        .chartYScale(domain: .automatic(includesZero: false))
         .chartScrollableAxes(.horizontal)
         .chartYAxis {
             AxisMarks(position: axisPosition, values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
                     .foregroundStyle(.secondary.opacity(0.3))
-                AxisValueLabel()
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                if isBodyMassAxis {
+                    AxisValueLabel {
+                        if let kg = value.as(Double.self) {
+                            Text(WeightFormatter.formatValueOnly(kg: kg, prefs: weightPrefs))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } else {
+                    AxisValueLabel()
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .chartXAxis {

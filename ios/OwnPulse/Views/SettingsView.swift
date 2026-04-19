@@ -147,6 +147,7 @@ struct SettingsView: View {
     @State private var medicationCount: Int = 0
     @State private var clinicalRecordsSyncEnabled = ClinicalRecordSettings.isSyncEnabled
     @State private var telemetryEnabled = TelemetrySettings.isEnabled
+    @State private var weightUnit: WeightUnitPreference = UserPreferences.weightUnit
     @State private var viewModel: SettingsViewModel?
 
     private var isAdmin: Bool {
@@ -241,6 +242,21 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            Section("Units") {
+                Picker("Weight", selection: $weightUnit) {
+                    ForEach(WeightUnitPreference.allCases, id: \.self) { unit in
+                        Text(unit.displayName).tag(unit)
+                    }
+                }
+                .accessibilityIdentifier("weightUnitPicker")
+                .onChange(of: weightUnit) { _, newValue in
+                    UserPreferences.weightUnit = newValue
+                }
+                Text("Affects how body weight is displayed. Data is stored in kilograms and converted only for display.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             if let vm = viewModel {

@@ -101,7 +101,7 @@ struct HealthOverviewView: View {
                 : nil
             return ChartMetric(
                 field: series.field,
-                label: series.field.replacingOccurrences(of: "_", with: " ").capitalized,
+                label: humanLabel(for: series.field),
                 unit: series.unit,
                 color: color,
                 points: points,
@@ -109,11 +109,14 @@ struct HealthOverviewView: View {
             )
         }
 
-        OverlayChartView(
+        // Small multiples: each metric gets its own auto-scaled panel.
+        // Overlay charts force a shared axis which crushes mixed-unit signals
+        // (kg / bpm / min) against the baseline.
+        SmallMultiplesChartView(
             metrics: chartMetrics,
             interventions: vm.interventions,
             hiddenSubstances: hiddenSubstances,
-            height: UIScreen.main.bounds.height * 0.4,
+            panelHeight: 140,
             showMovingAverage: true
         )
         .padding(.horizontal, 16)
@@ -129,7 +132,7 @@ struct HealthOverviewView: View {
                     Circle()
                         .fill(color)
                         .frame(width: 10, height: 10)
-                    Text(series.field.replacingOccurrences(of: "_", with: " ").capitalized)
+                    Text(humanLabel(for: series.field))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -137,6 +140,15 @@ struct HealthOverviewView: View {
         }
         .padding(.horizontal, 16)
         .accessibilityIdentifier("healthOverviewLegend")
+    }
+
+    /// Human-readable label with unit-preference applied for body mass.
+    private func humanLabel(for field: String) -> String {
+        let base = field.replacingOccurrences(of: "_", with: " ").capitalized
+        if field == "body_mass" {
+            return "\(base) (\(WeightFormatter.unitString()))"
+        }
+        return base
     }
 
     @ViewBuilder

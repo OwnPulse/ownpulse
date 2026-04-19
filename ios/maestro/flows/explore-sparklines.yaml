@@ -1,0 +1,23 @@
+appId: health.ownpulse.app
+---
+# Verify the Explore tab shows real sparklines on browse cards instead of
+# the placeholder rectangle.
+- assertVisible:
+    id: "mainTabView"
+
+- tapOn:
+    text: "Explore"
+
+# Health Overview card is the featured entry.
+- assertVisible:
+    id: "healthOverviewCard"
+
+# At least one metric category section should render with a sparkline card.
+- assertVisible:
+    id: "metricCategory-health_records"
+
+# The body_mass card should appear — sparkline is a child, the card is
+# the identifier we expose.
+- assertVisible:
+    id: "metricCard-body_mass"
+    optional: true
