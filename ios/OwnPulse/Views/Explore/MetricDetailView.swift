@@ -111,15 +111,19 @@ struct MetricDetailView: View {
 
     @ViewBuilder
     private func chartSection(vm: ExploreViewModel) -> some View {
+        // Lift the date formatter out of the per-point closure — allocating
+        // an ISO8601DateFormatter per point is wasteful for charts with
+        // hundreds of points.
+        let isoFormatter = ISO8601DateFormatter()
         let chartMetrics = vm.seriesData.map { series in
             let color = colorForMetric(series.field)
             let points = series.points.compactMap { point -> ChartPoint? in
-                guard let date = ISO8601DateFormatter().date(from: point.t) else { return nil }
+                guard let date = isoFormatter.date(from: point.t) else { return nil }
                 return ChartPoint(date: date, value: point.v)
             }
             let maPoints: [ChartPoint]? = vm.showMovingAverage
                 ? movingAverage(points: series.points, window: 7).compactMap { point in
-                    guard let date = ISO8601DateFormatter().date(from: point.t) else { return nil }
+                    guard let date = isoFormatter.date(from: point.t) else { return nil }
                     return ChartPoint(date: date, value: point.v)
                 }
                 : nil
@@ -151,12 +155,21 @@ struct MetricDetailView: View {
         let min = values.min() ?? 0
         let max = values.max() ?? 0
 
+        let isBodyMass = series.field == "body_mass"
+        let displayUnit = isBodyMass ? WeightFormatter.unitString() : series.unit
+        let fmt: (Double) -> String = { v in
+            if isBodyMass {
+                return WeightFormatter.formatValueOnly(kg: v)
+            }
+            return String(format: "%.1f", v)
+        }
+
         HStack(spacing: 0) {
-            statItem(title: "Avg", value: String(format: "%.1f", avg), unit: series.unit)
+            statItem(title: "Avg", value: fmt(avg), unit: displayUnit)
             Divider().frame(height: 40)
-            statItem(title: "Min", value: String(format: "%.1f", min), unit: series.unit)
+            statItem(title: "Min", value: fmt(min), unit: displayUnit)
             Divider().frame(height: 40)
-            statItem(title: "Max", value: String(format: "%.1f", max), unit: series.unit)
+            statItem(title: "Max", value: fmt(max), unit: displayUnit)
         }
         .opCard()
         .padding(.horizontal, 16)

@@ -44,6 +44,7 @@ struct WeightChartView: View {
 
     @ViewBuilder
     private var chartContent: some View {
+        let prefs = UserPreferences.weightUnit
         Chart(points) { point in
             LineMark(
                 x: .value("Date", point.date, unit: .day),
@@ -59,12 +60,13 @@ struct WeightChartView: View {
             .foregroundStyle(Color(hex: 0x3D8B8B))
             .symbolSize(20)
         }
+        .chartYScale(domain: .automatic(includesZero: ChartAxisConfig.includesZeroInYAxis))
         .chartYAxis {
             AxisMarks(position: .leading) { value in
                 AxisGridLine()
                 AxisValueLabel {
                     if let kg = value.as(Double.self) {
-                        Text(String(format: "%.1f", kg))
+                        Text(WeightFormatter.formatValueOnly(kg: kg, prefs: prefs))
                     }
                 }
             }
@@ -79,12 +81,13 @@ struct WeightChartView: View {
         // Summary
         if let latest = points.last, let earliest = points.first {
             let delta = latest.value - earliest.value
+            let (deltaValue, unitStr) = WeightFormatter.display(kg: delta, prefs: prefs)
             HStack {
-                Text("Latest: \(String(format: "%.1f", latest.value)) kg")
+                Text("Latest: \(WeightFormatter.format(kg: latest.value, prefs: prefs))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text("\(delta >= 0 ? "+" : "")\(String(format: "%.1f", delta)) kg over period")
+                Text("\(delta >= 0 ? "+" : "")\(String(format: "%.1f", deltaValue)) \(unitStr) over period")
                     .font(.caption)
                     .foregroundStyle(delta >= 0 ? .orange : .green)
             }

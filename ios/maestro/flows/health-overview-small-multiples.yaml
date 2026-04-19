@@ -1,0 +1,31 @@
+appId: health.ownpulse.app
+---
+# Verify the Health Overview preset now renders small multiples
+# (one auto-scaled chart per metric) instead of the overlay chart.
+- assertVisible:
+    id: "mainTabView"
+
+- tapOn:
+    text: "Explore"
+
+- tapOn:
+    id: "healthOverviewCard"
+
+- extendedWaitUntil:
+    visible:
+      id: "healthOverviewChart"
+    timeout: 10000
+
+- assertVisible:
+    id: "smallMultiplesChart"
+
+# Each metric panel is tagged smallMultiple-<field>.
+- assertVisible:
+    id: "smallMultiple-body_mass"
+    optional: true
+- assertVisible:
+    id: "smallMultiple-heart_rate"
+    optional: true
+- assertVisible:
+    id: "smallMultiple-sleep_analysis"
+    optional: true

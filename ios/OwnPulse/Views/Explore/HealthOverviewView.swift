@@ -85,23 +85,27 @@ struct HealthOverviewView: View {
 
     @ViewBuilder
     private func chartSection(vm: ExploreViewModel) -> some View {
+        // Lift the date formatter out of the per-point closure — allocating
+        // an ISO8601DateFormatter per point is wasteful for charts with
+        // hundreds of points.
+        let isoFormatter = ISO8601DateFormatter()
         let chartMetrics = vm.seriesData.map { series in
             let color = Self.metricColors[series.field] ?? OPColor.teal
             let alwaysMA = series.field == "body_mass"
             let showMA = vm.showMovingAverage || alwaysMA
             let points = series.points.compactMap { point -> ChartPoint? in
-                guard let date = ISO8601DateFormatter().date(from: point.t) else { return nil }
+                guard let date = isoFormatter.date(from: point.t) else { return nil }
                 return ChartPoint(date: date, value: point.v)
             }
             let maPoints: [ChartPoint]? = showMA
                 ? movingAverage(points: series.points, window: 7).compactMap { point in
-                    guard let date = ISO8601DateFormatter().date(from: point.t) else { return nil }
+                    guard let date = isoFormatter.date(from: point.t) else { return nil }
                     return ChartPoint(date: date, value: point.v)
                 }
                 : nil
             return ChartMetric(
                 field: series.field,
-                label: series.field.replacingOccurrences(of: "_", with: " ").capitalized,
+                label: humanLabel(for: series.field),
                 unit: series.unit,
                 color: color,
                 points: points,
@@ -109,11 +113,14 @@ struct HealthOverviewView: View {
             )
         }
 
-        OverlayChartView(
+        // Small multiples: each metric gets its own auto-scaled panel.
+        // Overlay charts force a shared axis which crushes mixed-unit signals
+        // (kg / bpm / min) against the baseline.
+        SmallMultiplesChartView(
             metrics: chartMetrics,
             interventions: vm.interventions,
             hiddenSubstances: hiddenSubstances,
-            height: UIScreen.main.bounds.height * 0.4,
+            panelHeight: 140,
             showMovingAverage: true
         )
         .padding(.horizontal, 16)
@@ -129,7 +136,7 @@ struct HealthOverviewView: View {
                     Circle()
                         .fill(color)
                         .frame(width: 10, height: 10)
-                    Text(series.field.replacingOccurrences(of: "_", with: " ").capitalized)
+                    Text(humanLabel(for: series.field))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -137,6 +144,13 @@ struct HealthOverviewView: View {
         }
         .padding(.horizontal, 16)
         .accessibilityIdentifier("healthOverviewLegend")
+    }
+
+    /// Human-readable label with unit-preference applied for body mass.
+    /// Delegates to `HealthOverviewPresenter` so the logic is covered by
+    /// unit tests without a SwiftUI runtime.
+    private func humanLabel(for field: String) -> String {
+        HealthOverviewPresenter.humanLabel(for: field)
     }
 
     @ViewBuilder
@@ -151,11 +165,10 @@ struct HealthOverviewView: View {
                     ForEach(uniqueSubstances(vm: vm), id: \.self) { substance in
                         let isHidden = hiddenSubstances.contains(substance)
                         Button {
-                            if isHidden {
-                                hiddenSubstances.remove(substance)
-                            } else {
-                                hiddenSubstances.insert(substance)
-                            }
+                            hiddenSubstances = HealthOverviewPresenter.toggleHidden(
+                                substance,
+                                in: hiddenSubstances
+                            )
                         } label: {
                             Text(substance)
                                 .font(.caption)
@@ -182,6 +195,6 @@ struct HealthOverviewView: View {
     }
 
     private func uniqueSubstances(vm: ExploreViewModel) -> [String] {
-        Array(Set(vm.interventions.map(\.substance))).sorted()
+        HealthOverviewPresenter.uniqueSubstances(from: vm.interventions)
     }
 }

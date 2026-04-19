@@ -2,6 +2,15 @@
 
 The Explore page lets you chart any combination of your health metrics on a single timeline. You can overlay heart rate with mood scores, compare sleep duration against lab results, or visualize any data OwnPulse has collected -- all in one view.
 
+## On iOS
+
+The iOS Explore tab has two entry points:
+
+- **Browse cards.** Each metric has a small card showing its label, unit, a 7-day sparkline (a mini line chart), and the latest value. Tap a card to open the full detail view. The sparkline is generated from the same data the detail view uses, so what you see at a glance matches what you see when you drill in.
+- **Health Overview.** The featured card at the top of the tab opens a **small-multiples** chart: Body Mass, Heart Rate, and Sleep Analysis each render as their own panel, stacked vertically, with each panel scaled independently to its own data range. This avoids the common pitfall of forcing a shared axis across metrics with mismatched units (kilograms, beats per minute, minutes), which would squash smaller signals against the baseline. Intervention markers still render as dashed vertical lines across every panel so you can see them against each metric.
+
+Y-axes on iOS Explore charts always fit the actual data -- they do not force zero as the baseline. For weight, that means the axis reflects the range you actually live in, not "0 to 150 kg."
+
 ## Adding metrics
 
 To start building a chart, open the metric picker. Your available metrics are organized by source:

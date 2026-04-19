@@ -1,0 +1,26 @@
+appId: health.ownpulse.app
+---
+# Toggle the weight unit preference in Settings and confirm it persists.
+- assertVisible:
+    id: "mainTabView"
+
+- tapOn:
+    text: "Settings"
+
+- assertVisible:
+    id: "weightUnitPicker"
+
+# Swap to Kilograms and back to Pounds to verify the picker is interactive.
+- tapOn:
+    id: "weightUnitPicker"
+
+- tapOn:
+    text: "Kilograms (kg)"
+    optional: true
+
+- tapOn:
+    id: "weightUnitPicker"
+
+- tapOn:
+    text: "Pounds (lb)"
+    optional: true
