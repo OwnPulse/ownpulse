@@ -12,7 +12,13 @@ final class MockNetworkClient: NetworkClientProtocol, @unchecked Sendable {
     /// Optional async variant. When non-nil, takes precedence over
     /// `requestHandler`. Used by tests that need to stall a request mid-flight
     /// (e.g. the "events during in-flight sync" suite).
-    var asyncRequestHandler: ((String, String, (any Encodable & Sendable)?) async throws -> Any)?
+    ///
+    /// Returns `any Sendable` rather than `Any` because Swift 6 refuses to
+    /// send non-Sendable values across actor hops. Every response type in
+    /// this codebase already conforms to `Sendable`, so callers return the
+    /// same values as before — we cast to `T` at the call site the same way
+    /// the sync path does.
+    var asyncRequestHandler: (@Sendable (String, String, (any Encodable & Sendable)?) async throws -> any Sendable)?
 
     private(set) var requestCalls: [(method: String, path: String)] = []
 

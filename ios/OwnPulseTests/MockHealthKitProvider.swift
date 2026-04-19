@@ -3,10 +3,17 @@
 
 import Foundation
 import HealthKit
+import os
 @testable import OwnPulse
 
 final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
-    private let lock = NSLock()
+    // Swift 6 flags `NSLock.lock()` as unavailable from async contexts. The
+    // mock is touched from both the test body and from `SyncCoordinator`
+    // (which is an actor that hops off MainActor), so a real mutex is still
+    // required — but `OSAllocatedUnfairLock.withLock` is the async-safe
+    // alternative: it's synchronous, runs the closure under the lock, and
+    // never suspends.
+    private let lock = OSAllocatedUnfairLock()
 
     var authorizationRequested = false
     var isAuthorizedResult = true
@@ -29,8 +36,7 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     private var _observerStartCount = 0
 
     var observerStartCount: Int {
-        lock.lock(); defer { lock.unlock() }
-        return _observerStartCount
+        lock.withLock { _observerStartCount }
     }
 
     func requestAuthorization() async throws {
@@ -63,9 +69,9 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     }
 
     func observeSampleUpdates() -> AsyncStream<Void> {
-        lock.lock()
-        _observerStartCount += 1
-        lock.unlock()
+        lock.withLock {
+            _observerStartCount += 1
+        }
 
         return AsyncStream { continuation in
             self.setContinuation(continuation)
@@ -76,35 +82,35 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     }
 
     func enableBackgroundDelivery() async throws {
-        lock.lock()
-        backgroundDeliveryCallCount += 1
-        let shouldThrow = backgroundDeliveryError
-        lock.unlock()
+        let shouldThrow: Error? = lock.withLock {
+            backgroundDeliveryCallCount += 1
+            return backgroundDeliveryError
+        }
 
         if let error = shouldThrow {
             throw error
         }
 
-        lock.lock()
-        backgroundDeliveryEnabled = true
-        backgroundDeliveryDisabled = false
-        lock.unlock()
+        lock.withLock {
+            backgroundDeliveryEnabled = true
+            backgroundDeliveryDisabled = false
+        }
     }
 
     func disableAllBackgroundDelivery() async throws {
-        lock.lock()
-        disableBackgroundDeliveryCallCount += 1
-        let shouldThrow = disableBackgroundDeliveryError
-        lock.unlock()
+        let shouldThrow: Error? = lock.withLock {
+            disableBackgroundDeliveryCallCount += 1
+            return disableBackgroundDeliveryError
+        }
 
         if let error = shouldThrow {
             throw error
         }
 
-        lock.lock()
-        backgroundDeliveryDisabled = true
-        backgroundDeliveryEnabled = false
-        lock.unlock()
+        lock.withLock {
+            backgroundDeliveryDisabled = true
+            backgroundDeliveryEnabled = false
+        }
     }
 
     // MARK: - Test driver
@@ -112,25 +118,21 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     /// Simulate HealthKit firing the observer query. Tests call this to drive
     /// the subscription logic in `SyncCoordinator`.
     func fireObserver() {
-        lock.lock()
-        let cont = observerContinuation
-        lock.unlock()
+        let cont = lock.withLock { observerContinuation }
         cont?.yield()
     }
 
     /// Signal that the observer stream has ended (e.g. on logout).
     func endObserver() {
-        lock.lock()
-        let cont = observerContinuation
-        lock.unlock()
+        let cont = lock.withLock { observerContinuation }
         cont?.finish()
     }
 
     // MARK: - Private
 
     private func setContinuation(_ continuation: AsyncStream<Void>.Continuation?) {
-        lock.lock()
-        observerContinuation = continuation
-        lock.unlock()
+        lock.withLock {
+            observerContinuation = continuation
+        }
     }
 }
