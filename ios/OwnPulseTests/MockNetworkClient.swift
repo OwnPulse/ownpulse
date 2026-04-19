@@ -9,6 +9,11 @@ final class MockNetworkClient: NetworkClientProtocol, @unchecked Sendable {
     var requestHandler: ((String, String, (any Encodable & Sendable)?) throws -> Any)?
     var requestNoContentHandler: ((String, String, (any Encodable & Sendable)?) throws -> Void)?
 
+    /// Optional async variant. When non-nil, takes precedence over
+    /// `requestHandler`. Used by tests that need to stall a request mid-flight
+    /// (e.g. the "events during in-flight sync" suite).
+    var asyncRequestHandler: ((String, String, (any Encodable & Sendable)?) async throws -> Any)?
+
     private(set) var requestCalls: [(method: String, path: String)] = []
 
     func request<T: Decodable & Sendable>(
@@ -17,10 +22,16 @@ final class MockNetworkClient: NetworkClientProtocol, @unchecked Sendable {
         body: (any Encodable & Sendable)?
     ) async throws -> T {
         requestCalls.append((method: method, path: path))
-        guard let handler = requestHandler else {
+
+        let result: Any
+        if let asyncHandler = asyncRequestHandler {
+            result = try await asyncHandler(method, path, body)
+        } else if let handler = requestHandler {
+            result = try handler(method, path, body)
+        } else {
             fatalError("MockNetworkClient.requestHandler not set")
         }
-        let result = try handler(method, path, body)
+
         guard let typed = result as? T else {
             fatalError("MockNetworkClient handler returned wrong type")
         }

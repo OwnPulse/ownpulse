@@ -17,7 +17,10 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     // Background delivery hooks for tests.
     private(set) var backgroundDeliveryEnabled = false
     private(set) var backgroundDeliveryCallCount = 0
+    private(set) var backgroundDeliveryDisabled = false
+    private(set) var disableBackgroundDeliveryCallCount = 0
     var backgroundDeliveryError: Error?
+    var disableBackgroundDeliveryError: Error?
 
     // Observer stream wiring: tests drive updates through `fireObserver()`.
     // Guarded by `lock` because the coordinator's actor and the test body
@@ -84,6 +87,23 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
 
         lock.lock()
         backgroundDeliveryEnabled = true
+        backgroundDeliveryDisabled = false
+        lock.unlock()
+    }
+
+    func disableAllBackgroundDelivery() async throws {
+        lock.lock()
+        disableBackgroundDeliveryCallCount += 1
+        let shouldThrow = disableBackgroundDeliveryError
+        lock.unlock()
+
+        if let error = shouldThrow {
+            throw error
+        }
+
+        lock.lock()
+        backgroundDeliveryDisabled = true
+        backgroundDeliveryEnabled = false
         lock.unlock()
     }
 

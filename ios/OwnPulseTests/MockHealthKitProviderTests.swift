@@ -73,4 +73,34 @@ struct MockHealthKitProviderTests {
         #expect(provider.backgroundDeliveryEnabled == false)
         #expect(provider.backgroundDeliveryCallCount == 1)
     }
+
+    @Test("disableAllBackgroundDelivery flips state and increments counter")
+    func disableBackgroundDeliverySuccess() async throws {
+        let provider = MockHealthKitProvider()
+        try await provider.enableBackgroundDelivery()
+        #expect(provider.backgroundDeliveryEnabled == true)
+
+        try await provider.disableAllBackgroundDelivery()
+        #expect(provider.backgroundDeliveryDisabled == true)
+        #expect(provider.backgroundDeliveryEnabled == false)
+        #expect(provider.disableBackgroundDeliveryCallCount == 1)
+    }
+
+    @Test("disableAllBackgroundDelivery surfaces configured errors")
+    func disableBackgroundDeliveryFailure() async throws {
+        struct Fail: Error {}
+        let provider = MockHealthKitProvider()
+        try await provider.enableBackgroundDelivery()
+
+        provider.disableBackgroundDeliveryError = Fail()
+
+        do {
+            try await provider.disableAllBackgroundDelivery()
+            Issue.record("expected throw")
+        } catch {
+            // Expected
+        }
+        #expect(provider.disableBackgroundDeliveryCallCount == 1)
+        #expect(provider.backgroundDeliveryDisabled == false, "state must not flip when disable throws")
+    }
 }

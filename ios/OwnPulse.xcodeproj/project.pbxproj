@@ -43,6 +43,7 @@
 		452B66444DF333AB9E302CBF /* CheckinForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4835EF3237AF28AFEF0CE9 /* CheckinForm.swift */; };
 		46B3707001710B3621543EC1 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DD6815D274C9513C8AC117 /* DashboardView.swift */; };
 		4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CF4D7068AEF598DB5632A8 /* SleepChartView.swift */; };
+		4DA1BF49C8E6350FD193333E /* HealthKitProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 394B8B12B67A3604ECD3CF1A /* HealthKitProviderTests.swift */; };
 		57EE1C7CC900455D2ADB35D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 768780B3383F621DD4B4996C /* Assets.xcassets */; };
 		590BC0501B1AE531D9D87F12 /* SavedMedicineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60DE424464C7A6C35A08720 /* SavedMedicineModels.swift */; };
 		59D192908D41DDC03D4C6BBD /* OverlayChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CF5CD1DBD7749FA6F6744EA /* OverlayChartView.swift */; };
@@ -105,6 +106,7 @@
 		D0F99DBBAD7A3204D17D2C4E /* SyncProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3140A26FC1E3242A80B7C45 /* SyncProgress.swift */; };
 		D26ED267DE518AE02F64D9BE /* HealthOverviewPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5BD57BDC67D2B9798A89338 /* HealthOverviewPresenter.swift */; };
 		D605A2E0A9354325954175CE /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BFF4111D86972B616E9C8D3 /* SyncCoordinator.swift */; };
+		D9C2762F33071710E90C749A /* AppDependenciesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4003A698FBB10A19D2BBB779 /* AppDependenciesTests.swift */; };
 		DD05735EFCA7651A0C730B6E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 06208BEB784209E228C86FC6 /* GRDB */; };
 		E0488EF52A020B1D724D1FBD /* ClinicalRecordSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E42F8EDD5D3A046B6B5CC17 /* ClinicalRecordSettings.swift */; };
 		E0D8A7044773E3267198A68B /* JWTDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */; };
@@ -160,6 +162,7 @@
 		28E3F70DEB75DC508144AF95 /* WeightChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightChartView.swift; sourceTree = "<group>"; };
 		3082C7776F6ADD738DDD69F3 /* AdminModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminModels.swift; sourceTree = "<group>"; };
 		36CA7789454C212221803836 /* TelemetryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetryModels.swift; sourceTree = "<group>"; };
+		394B8B12B67A3604ECD3CF1A /* HealthKitProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProviderTests.swift; sourceTree = "<group>"; };
 		39BE160B6890EFD903FD7D4F /* SyncCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinatorTests.swift; sourceTree = "<group>"; };
 		3B2024FFBD0E30AB4B5C5C38 /* MetricDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricDetailView.swift; sourceTree = "<group>"; };
 		3C3DFD3320220CCEDFA00910 /* LoginViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewModelTests.swift; sourceTree = "<group>"; };
@@ -167,6 +170,7 @@
 		3E28FE3D0872E6AA33C7382F /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
 		3E42F8EDD5D3A046B6B5CC17 /* ClinicalRecordSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalRecordSettings.swift; sourceTree = "<group>"; };
 		3FF6D8B6C509F8643B88BCD4 /* ProtocolDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolDetailView.swift; sourceTree = "<group>"; };
+		4003A698FBB10A19D2BBB779 /* AppDependenciesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependenciesTests.swift; sourceTree = "<group>"; };
 		43B3BD27FEC29DA8F177AD1A /* SyncStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatusView.swift; sourceTree = "<group>"; };
 		44DAC2D411F7B322237A118A /* UserPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferencesTests.swift; sourceTree = "<group>"; };
 		49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCEHelperTests.swift; sourceTree = "<group>"; };
@@ -368,6 +372,7 @@
 				E5DB85C7B75B2B3CCCDFF201 /* AnchorStoreTests.swift */,
 				B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */,
 				FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */,
+				4003A698FBB10A19D2BBB779 /* AppDependenciesTests.swift */,
 				C7928246CBD1BDB2F72B47DB /* AuthServiceTests.swift */,
 				E1E681F4CCF28BDCBE6DC5CD /* BrowseCardPresenterTests.swift */,
 				5868F7EE0B35D3986890B880 /* ChartAxisConfigTests.swift */,
@@ -375,6 +380,7 @@
 				A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */,
 				A077B02C456D93D3B29D233E /* ExploreViewModelTests.swift */,
 				7CEB7C232DCDE33E216A94C6 /* FeatureFlagServiceTests.swift */,
+				394B8B12B67A3604ECD3CF1A /* HealthKitProviderTests.swift */,
 				A3CF51E74D2A5D23EB666510 /* HealthKitTypeMapTests.swift */,
 				E13258E84B902620661AD0FB /* HealthOverviewPresenterTests.swift */,
 				858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */,
@@ -795,6 +801,7 @@
 				2CBC758F6DF27FCAB1722851 /* AdminServiceTests.swift in Sources */,
 				FC991521672354702B6079B8 /* AnchorStoreTests.swift in Sources */,
 				C61339D33CC14D51DE65164F /* AppConfigTests.swift in Sources */,
+				D9C2762F33071710E90C749A /* AppDependenciesTests.swift in Sources */,
 				0C3C7A807E0BA9C70B684B65 /* AuthServiceTests.swift in Sources */,
 				0C9DEF013A3BE08CA8FFC631 /* BrowseCardPresenterTests.swift in Sources */,
 				6664FDB133640BD2F9912611 /* ChartAxisConfigTests.swift in Sources */,
@@ -802,6 +809,7 @@
 				77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */,
 				6713CB352021864506D8D810 /* ExploreViewModelTests.swift in Sources */,
 				EA1EBA297D65489C2D211415 /* FeatureFlagServiceTests.swift in Sources */,
+				4DA1BF49C8E6350FD193333E /* HealthKitProviderTests.swift in Sources */,
 				6D4B93AFBD5E73E73A0D59CE /* HealthKitTypeMapTests.swift in Sources */,
 				B3C829C33384D54FD1EFA9EC /* HealthOverviewPresenterTests.swift in Sources */,
 				E0D8A7044773E3267198A68B /* JWTDecoderTests.swift in Sources */,

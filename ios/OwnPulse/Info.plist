@@ -41,6 +41,13 @@
 	<array>
 		<string>health.ownpulse.sync</string>
 	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<!-- `fetch` is required for BGAppRefresh tasks to fire on device.
+		     Without this entry, iOS silently ignores BGAppRefreshTaskRequest
+		     submissions and the background-sync chain never wakes the app. -->
+		<string>fetch</string>
+	</array>
 	<key>GOOGLE_CLIENT_ID</key>
 	<string>$(GOOGLE_CLIENT_ID)</string>
 	<key>UISupportedInterfaceOrientations</key>

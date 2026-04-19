@@ -439,4 +439,84 @@ struct AuthServiceTests {
         #expect(fired == false)
         #expect(service.isAuthenticated == true)
     }
+
+    // MARK: - onLogout callback
+
+    @Test("logout fires onLogout BEFORE clearing keychain or flipping isAuthenticated")
+    func logoutFiresHookBeforeClearingKeychain() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        try mockKeychain.save(key: AuthService.accessTokenKey, data: Data("access".utf8))
+        try mockKeychain.save(key: AuthService.refreshTokenKey, data: Data("refresh".utf8))
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        #expect(service.isAuthenticated == true)
+
+        // Inside the hook, capture the state of the world as the subscriber
+        // sees it. The contract is: hook fires first, THEN keychain is
+        // cleared and isAuthenticated flips.
+        var hookFired = false
+        var accessTokenAtFireTime: Data?
+        var refreshTokenAtFireTime: Data?
+        var authenticatedAtFireTime = false
+        service.onLogout = {
+            hookFired = true
+            accessTokenAtFireTime = try? mockKeychain.load(key: AuthService.accessTokenKey)
+            refreshTokenAtFireTime = try? mockKeychain.load(key: AuthService.refreshTokenKey)
+            authenticatedAtFireTime = service.isAuthenticated
+        }
+
+        await service.logout()
+
+        #expect(hookFired == true)
+        #expect(accessTokenAtFireTime == Data("access".utf8))
+        #expect(refreshTokenAtFireTime == Data("refresh".utf8))
+        #expect(authenticatedAtFireTime == true)
+
+        // After logout returns, keychain is cleared and state is flipped.
+        #expect(service.isAuthenticated == false)
+        let accessAfter = try mockKeychain.load(key: AuthService.accessTokenKey)
+        let refreshAfter = try mockKeychain.load(key: AuthService.refreshTokenKey)
+        #expect(accessAfter == nil)
+        #expect(refreshAfter == nil)
+    }
+
+    @Test("logout with no onLogout hook still clears keychain and flips state")
+    func logoutWithoutHookStillWorks() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        try mockKeychain.save(key: AuthService.accessTokenKey, data: Data("access".utf8))
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        await service.logout()
+
+        #expect(service.isAuthenticated == false)
+        #expect(try mockKeychain.load(key: AuthService.accessTokenKey) == nil)
+    }
+
+    @Test("logout awaits the onLogout hook before returning")
+    func logoutAwaitsHook() async {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        // The hook sleeps 50ms; logout must not return before the sleep
+        // completes. Without `await` on the hook, teardown could race with
+        // the UI switching to the login screen.
+        var hookCompletedAt: Date?
+        service.onLogout = {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            hookCompletedAt = Date()
+        }
+
+        await service.logout()
+        let logoutReturnedAt = Date()
+
+        #expect(hookCompletedAt != nil)
+        if let completed = hookCompletedAt {
+            #expect(logoutReturnedAt >= completed)
+        }
+    }
 }

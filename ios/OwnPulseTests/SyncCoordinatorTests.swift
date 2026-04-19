@@ -177,6 +177,78 @@ struct SyncCoordinatorTests {
         try await Task.sleep(nanoseconds: 1_100_000_000)
         #expect(syncCount(from: network) == 0)
     }
+
+    // MARK: - Fix #3: events during in-flight sync trigger a follow-up
+
+    @Test("observer events arriving DURING an in-flight sync trigger a follow-up sync")
+    @MainActor
+    func followUpAfterInFlightEvent() async throws {
+        let provider = MockHealthKitProvider()
+        let network = MockNetworkClient()
+
+        // Stall the first sync mid-flight by blocking the `GET write-queue`
+        // request until the test releases it. Subsequent syncs return
+        // immediately. This simulates a long-running upload.
+        let gate = Gate()
+        let counter = CallCounter()
+        network.asyncRequestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                let isFirst = await counter.incrementAndReturnIsFirst()
+                if isFirst {
+                    // Block the first sync on the gate. The test fires a
+                    // second observer event while we're stuck here, then
+                    // opens the gate.
+                    await gate.wait()
+                }
+                return [HealthKitWriteQueueItem]()
+            }
+            return [] as [HealthKitWriteQueueItem]
+        }
+        network.requestNoContentHandler = { _, _, _ in /* no-op */ }
+
+        let db = DatabaseManager(inMemory: true)
+        let queue = OfflineQueue(databaseManager: db)
+        let anchors = AnchorStore(databaseManager: db)
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: provider,
+            offlineQueue: queue,
+            anchorStore: anchors,
+            progress: progress
+        )
+
+        let coordinator = SyncCoordinator(
+            healthKitProvider: provider,
+            syncEngine: engine,
+            debounceSeconds: 0.05
+        )
+        await coordinator.start()
+
+        // Fire observer #1. Coordinator debounces, then starts sync #1,
+        // which blocks on the gate.
+        provider.fireObserver()
+
+        // Wait for the sync to actually start (first GET write-queue lands
+        // in requestCalls) before we fire the second observer, so we know
+        // the fire happens DURING the in-flight sync, not before it starts.
+        try await eventually(timeout: 2.0) {
+            self.syncCount(from: network) == 1
+        }
+
+        // Fire observer #2 while sync #1 is stuck on the gate.
+        provider.fireObserver()
+
+        // Let sync #1 complete. The coordinator should re-enter the
+        // debounce pipeline and fire sync #2 picking up observer #2.
+        await gate.open()
+
+        try await eventually(timeout: 3.0) {
+            self.syncCount(from: network) == 2
+        }
+
+        await coordinator.stop()
+    }
 }
 
 /// Polls `condition` up to `timeout` seconds, sleeping 20ms between checks.
@@ -191,4 +263,37 @@ private func eventually(
         try await Task.sleep(nanoseconds: 20_000_000)
     }
     Issue.record("Condition never became true within \(timeout)s")
+}
+
+/// Deterministic one-shot gate: `wait()` blocks until `open()` is called.
+/// Used to stall a request inside the sync engine while the test fires a
+/// second observer event.
+private actor Gate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            waiters.append(cont)
+        }
+    }
+
+    func open() {
+        isOpen = true
+        let pending = waiters
+        waiters.removeAll()
+        for w in pending {
+            w.resume()
+        }
+    }
+}
+
+/// Tiny actor-isolated counter that reports whether a call is the first.
+private actor CallCounter {
+    private var count = 0
+    func incrementAndReturnIsFirst() -> Bool {
+        count += 1
+        return count == 1
+    }
 }

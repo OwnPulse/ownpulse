@@ -21,11 +21,6 @@ final class SyncState {
     }
 }
 
-/// Invalid task identifier returned by the background task host when no task
-/// is active. Matches the semantics of `UIBackgroundTaskIdentifier.invalid`
-/// but avoids coupling to UIKit so this file compiles in the test target.
-private let invalidBackgroundTask = 0
-
 actor SyncEngine {
     private let networkClient: NetworkClientProtocol
     private let healthKitProvider: HealthKitProviderProtocol

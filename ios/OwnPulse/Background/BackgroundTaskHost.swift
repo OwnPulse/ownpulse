@@ -6,6 +6,11 @@ import Foundation
 import UIKit
 #endif
 
+/// Shared constant for "no background task active". Mirrors the semantics
+/// of `UIBackgroundTaskIdentifier.invalid.rawValue` but avoids requiring
+/// UIKit in the test target.
+let invalidBackgroundTask: Int = 0
+
 /// Abstraction over `UIApplication.begin/endBackgroundTask(_:)` so the sync
 /// engine can request extra execution time without a direct dependency on
 /// UIKit in test builds.

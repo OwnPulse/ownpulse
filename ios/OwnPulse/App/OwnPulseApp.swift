@@ -32,7 +32,9 @@ struct OwnPulseApp: App {
                 }
         }
         .onChange(of: scenePhase) { _, newPhase in
-            handleScenePhaseChange(newPhase)
+            // Delegate to a pure method on AppDependencies so the policy is
+            // unit-testable. See `AppDependenciesScenePhaseTests`.
+            dependencies.handleScenePhase(newPhase)
         }
     }
 
@@ -67,20 +69,6 @@ struct OwnPulseApp: App {
         }
     }
 
-    /// Handles ScenePhase transitions. On transition to `.active`, if the
-    /// user is signed in we kick off a sync — this covers the "open the app
-    /// and see today's data" path without waiting for iOS's BGAppRefresh
-    /// schedule. `SyncEngine.sync()` is guarded against re-entry so rapid
-    /// phase flips (e.g. the system briefly showing the app switcher) won't
-    /// pile up overlapping syncs.
-    private func handleScenePhaseChange(_ newPhase: ScenePhase) {
-        guard newPhase == .active else { return }
-        guard dependencies.authService.isAuthenticated else { return }
-
-        Task { [syncEngine = dependencies.syncEngine] in
-            await syncEngine.sync()
-        }
-    }
 }
 
 struct ContentView: View {

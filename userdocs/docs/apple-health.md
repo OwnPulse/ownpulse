@@ -19,11 +19,12 @@ OwnPulse uses bidirectional sync with Apple Health:
 - **Inbound:** Health data recorded by your Apple Watch, other apps, or manual entries in the Health app flows into OwnPulse automatically.
 - **Outbound:** Manual entries you create in OwnPulse (via the web or iOS app) are written back to Apple Health, so other apps on your device can access them.
 
-Sync runs automatically in three situations:
+Sync runs automatically in four situations:
 
+- **When you sign in.** OwnPulse runs an initial sync the moment authentication succeeds, so the dashboard is populated by the time you finish the login animation.
 - **When you open the app.** OwnPulse triggers a sync every time the app becomes active, so opening the app gives you an up-to-date view of your recent Apple Health data.
 - **When new samples arrive while the app is open.** OwnPulse listens for Apple Health change notifications and, after a short debounce, pulls any new data into your instance. This covers scenarios like finishing a workout on your Apple Watch while the iOS app is in the foreground.
-- **In the background.** iOS periodically wakes OwnPulse to sync recent samples even when the app is closed. The wake frequency is controlled by iOS based on battery, network, and your usage patterns — it is not a guaranteed schedule, and the exact timing is up to the operating system.
+- **In the background.** iOS periodically wakes OwnPulse to sync recent samples even when the app is closed. The wake frequency is controlled by iOS based on battery, network, and your usage patterns — it is not a guaranteed schedule, and the exact timing is up to the operating system. When you sign out, OwnPulse tells iOS to stop waking the app so a signed-out device doesn't spend battery on background work.
 
 You can also tap **Sync Now** in **Settings → Sync Status** to trigger an immediate sync.
 

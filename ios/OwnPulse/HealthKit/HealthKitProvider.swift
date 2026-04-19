@@ -3,6 +3,9 @@
 
 import Foundation
 import HealthKit
+import os
+
+private let logger = Logger(subsystem: "health.ownpulse.app", category: "healthkit")
 
 struct HealthKitSample: Sendable {
     let recordType: String
@@ -47,10 +50,34 @@ protocol HealthKitProviderProtocol: Sendable {
     /// new samples are written for the given types. Safe to call more than
     /// once — HealthKit coalesces repeated registrations.
     func enableBackgroundDelivery() async throws
+
+    /// Disable all background-delivery registrations set up by
+    /// `enableBackgroundDelivery()`. Call on logout so iOS doesn't keep
+    /// waking the app for a user that's no longer signed in.
+    func disableAllBackgroundDelivery() async throws
 }
 
 final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
     private let store = HKHealthStore()
+
+    /// Record types that use `.immediate` background-delivery frequency.
+    /// Extracted as a pure lookup so the policy can be unit-tested without
+    /// a real HKHealthStore — see `HealthKitProviderTests`.
+    ///
+    /// Rationale: `.immediate` keeps latency low for real-time metrics
+    /// (workouts, blood-oxygen spikes) where users expect the OwnPulse
+    /// server to reflect Apple Health within minutes. Everything else is
+    /// `.hourly` to stay gentle on iOS's power budget — and iOS throttles
+    /// `.immediate` itself under thermal/battery pressure, so this is a
+    /// hint, not a contract.
+    static let immediateDeliveryRecordTypes: Set<String> = ["heart_rate", "blood_oxygen"]
+
+    /// Pure helper: returns the background-delivery frequency for a given
+    /// record type. Tests pin this to guard against new mappings silently
+    /// inheriting the wrong policy.
+    static func backgroundDeliveryFrequency(for recordType: String) -> HKUpdateFrequency {
+        immediateDeliveryRecordTypes.contains(recordType) ? .immediate : .hourly
+    }
 
     func requestAuthorization() async throws {
         try await store.requestAuthorization(
@@ -167,9 +194,13 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
             for sampleType in sampleTypes {
                 let query = HKObserverQuery(sampleType: sampleType, predicate: nil) { _, completionHandler, error in
                     // HealthKit expects us to call `completionHandler` so it
-                    // knows the delivery was handled. Even on error, yield to
-                    // let the sync engine decide whether to retry.
-                    if error == nil {
+                    // knows the delivery was handled. On error, log without
+                    // sample IDs (no PHI) and still invoke completionHandler
+                    // so HealthKit doesn't think we've hung. We skip the
+                    // yield so the coordinator doesn't sync on noise.
+                    if let error {
+                        logger.error("HKObserverQuery delivery error: \(error.localizedDescription, privacy: .public)")
+                    } else {
                         continuation.yield()
                     }
                     completionHandler()
@@ -187,19 +218,29 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
     }
 
     func enableBackgroundDelivery() async throws {
-        // Frequency choice: we use `.hourly` for most quantity types to avoid
-        // hammering iOS's power budget. `heartRate` and `oxygenSaturation` use
-        // `.immediate` so real-time events (workouts, blood-oxygen spikes)
-        // sync promptly. This is a deliberate trade-off — longer-latency
-        // types don't need sub-hour freshness, and iOS throttles .immediate
-        // under thermal/battery pressure anyway.
-        let immediateRecordTypes: Set<String> = ["heart_rate", "blood_oxygen"]
-
         for mapping in HealthKitTypeMap.mappings {
-            let frequency: HKUpdateFrequency = immediateRecordTypes.contains(mapping.recordType)
-                ? .immediate
-                : .hourly
+            let frequency = Self.backgroundDeliveryFrequency(for: mapping.recordType)
             try await store.enableBackgroundDelivery(for: mapping.hkType, frequency: frequency)
+        }
+    }
+
+    func disableAllBackgroundDelivery() async throws {
+        // HKHealthStore exposes `disableAllBackgroundDelivery(completion:)`
+        // which is the correct call on logout — it blanket-tears-down every
+        // enable registration this app made, including ones from older
+        // sessions whose types we may no longer register for.
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            store.disableAllBackgroundDelivery { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if !success {
+                    // HealthKit returned (false, nil) — undocumented but
+                    // historically means "nothing to disable". Treat as OK.
+                    continuation.resume()
+                } else {
+                    continuation.resume()
+                }
+            }
         }
     }
 }
