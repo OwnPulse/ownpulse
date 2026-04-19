@@ -23,8 +23,9 @@ struct SmallMultiplesChartView: View {
 
     /// Exposed for unit tests — hidden substances must not render as
     /// `RuleMark`s. Kept as a static pure function so tests don't have to
-    /// instantiate a View.
-    static func filterVisibleInterventions(
+    /// instantiate a View. `nonisolated` because it's a pure transform and
+    /// the enclosing `View` type is `@MainActor` by inference.
+    nonisolated static func filterVisibleInterventions(
         _ interventions: [InterventionMarker],
         hiddenSubstances: Set<String>
     ) -> [InterventionMarker] {
@@ -33,8 +34,9 @@ struct SmallMultiplesChartView: View {
 
     /// Exposed for unit tests — body_mass panels must reflect the user's
     /// weight-unit preference in the unit label, everything else passes
-    /// through the backend-supplied unit.
-    static func unitLabel(
+    /// through the backend-supplied unit. `nonisolated` for the same reason
+    /// as `filterVisibleInterventions` above.
+    nonisolated static func unitLabel(
         for metric: ChartMetric,
         prefs: WeightUnitPreference = UserPreferences.weightUnit
     ) -> String {

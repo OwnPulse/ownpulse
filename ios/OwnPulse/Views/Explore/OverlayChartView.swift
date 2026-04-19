@@ -10,7 +10,7 @@ struct ChartPoint: Identifiable, Sendable {
     var id: Double { date.timeIntervalSince1970 }
 }
 
-struct ChartMetric: Identifiable {
+struct ChartMetric: Identifiable, Sendable {
     let field: String
     let label: String
     let unit: String
