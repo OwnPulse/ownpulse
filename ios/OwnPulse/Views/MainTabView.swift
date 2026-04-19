@@ -5,10 +5,11 @@ import SwiftUI
 
 struct MainTabView: View {
     @Environment(AppDependencies.self) private var dependencies
-    @State private var selectedTab = 0
 
     var body: some View {
-        TabView(selection: $selectedTab) {
+        @Bindable var deps = dependencies
+
+        TabView(selection: $deps.selectedTab) {
             Tab("Dashboard", systemImage: "heart.text.clipboard", value: 0) {
                 NavigationStack {
                     DashboardView()

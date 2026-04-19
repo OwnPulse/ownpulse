@@ -5,6 +5,7 @@ import SwiftUI
 
 struct CheckinSummaryCard: View {
     let latestCheckin: LatestCheckin?
+    var onLogTap: (() -> Void)? = nil
 
     @State private var pulseAnimation = false
 
@@ -46,7 +47,7 @@ struct CheckinSummaryCard: View {
             } else {
                 // Prompt to log
                 Button {
-                    // Navigation handled by parent via tab switch
+                    onLogTap?()
                 } label: {
                     HStack {
                         Image(systemName: "plus.circle.fill")
