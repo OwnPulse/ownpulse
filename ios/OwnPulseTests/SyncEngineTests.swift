@@ -292,9 +292,11 @@ fileprivate actor Gate {
 }
 
 /// Polls `condition` up to `timeout` seconds, sleeping 20ms between checks.
+/// `@MainActor` because callers read MainActor-isolated state.
+@MainActor
 fileprivate func eventually(
     timeout: TimeInterval,
-    _ condition: @Sendable () async -> Bool
+    _ condition: @MainActor () async -> Bool
 ) async throws {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {

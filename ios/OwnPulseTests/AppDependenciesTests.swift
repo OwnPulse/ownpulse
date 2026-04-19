@@ -56,10 +56,10 @@ struct AppDependenciesTests {
         try await deps.authService.processCallback(url: url)
 
         try await eventually(timeout: 2.0) {
-            await provider.backgroundDeliveryCallCount >= 1
+            provider.backgroundDeliveryCallCount >= 1
         }
         try await eventually(timeout: 2.0) {
-            await provider.observerStartCount >= 1
+            provider.observerStartCount >= 1
         }
 
         // Logout triggers the teardown hook.
@@ -92,7 +92,7 @@ struct AppDependenciesTests {
             submitter.requests.count >= 1
         }
         try await eventually(timeout: 2.0) {
-            await provider.backgroundDeliveryCallCount >= 1
+            provider.backgroundDeliveryCallCount >= 1
         }
         #expect(provider.observerStartCount >= 1)
 
@@ -177,9 +177,10 @@ fileprivate final class RecordingSubmitter: BackgroundTaskSubmitter, @unchecked 
 
 /// Polls `condition` up to `timeout` seconds, sleeping 20ms between checks.
 /// Records an Issue if the condition never becomes true.
+@MainActor
 private func eventually(
     timeout: TimeInterval,
-    _ condition: @Sendable () async -> Bool
+    _ condition: @MainActor () async -> Bool
 ) async throws {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {

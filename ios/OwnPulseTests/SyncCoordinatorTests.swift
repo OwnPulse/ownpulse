@@ -44,7 +44,9 @@ struct SyncCoordinatorTests {
 
     // Sync-call counter — one `GET` to `/healthkit/write-queue` happens per
     // `SyncEngine.sync()` invocation, so counting those requests tells us
-    // exactly how many syncs ran.
+    // exactly how many syncs ran. `@MainActor` because `MockNetworkClient`
+    // is MainActor-isolated under Swift 6 strict concurrency.
+    @MainActor
     private func syncCount(from network: MockNetworkClient) -> Int {
         network.requestCalls.filter {
             $0.method == "GET" && $0.path == Endpoints.healthKitWriteQueue
@@ -253,9 +255,14 @@ struct SyncCoordinatorTests {
 
 /// Polls `condition` up to `timeout` seconds, sleeping 20ms between checks.
 /// Fails the test via `Issue.record` if the condition never becomes true.
+/// `@MainActor` closure because the condition typically reads from
+/// MainActor-isolated state (`MockNetworkClient.requestCalls` et al). Under
+/// Swift 6 strict concurrency we have to be explicit about isolation —
+/// `@Sendable` alone is not enough.
+@MainActor
 private func eventually(
     timeout: TimeInterval,
-    _ condition: @Sendable () async -> Bool
+    _ condition: @MainActor () async -> Bool
 ) async throws {
     let deadline = Date().addingTimeInterval(timeout)
     while Date() < deadline {
