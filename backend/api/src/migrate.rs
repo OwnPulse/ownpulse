@@ -108,6 +108,18 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0025_feature_flags.sql",
         include_str!("../../../db/migrations/0025_feature_flags.sql"),
     ),
+    (
+        "0026_checkins_multi_per_day.sql",
+        include_str!("../../../db/migrations/0026_checkins_multi_per_day.sql"),
+    ),
+    (
+        "0027_saved_medicines.sql",
+        include_str!("../../../db/migrations/0027_saved_medicines.sql"),
+    ),
+    (
+        "0028_app_events.sql",
+        include_str!("../../../db/migrations/0028_app_events.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
@@ -119,6 +131,11 @@ pub enum MigrateError {
     },
     #[error("migration tracking query failed: {0}")]
     Tracking(#[from] sqlx::Error),
+    #[error(
+        "migration runner finished with {applied} applied, expected {expected} — \
+         the MIGRATIONS array in migrate.rs is missing entries for files in db/migrations/"
+    )]
+    Incomplete { applied: i64, expected: i64 },
 }
 
 /// Run all pending migrations against the database.
@@ -196,6 +213,21 @@ pub async fn run_migrations(pool: &PgPool) -> Result<(), MigrateError> {
             source: e,
         })?;
     info!("SNP annotation seeding complete");
+
+    // Post-flight safety net: verify the DB actually has the number of
+    // migrations this build expects. Catches the case where a .sql file was
+    // added to `db/migrations/` and `EXPECTED_MIGRATION_COUNT` was bumped but
+    // the entry was never added to [`MIGRATIONS`]. In that scenario the loop
+    // above has nothing to apply, so without this check the runner would
+    // silently exit 0 and the init container would "succeed" against an
+    // out-of-date database — which then fails `/readyz` forever.
+    let applied: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM _applied_migrations")
+        .fetch_one(pool)
+        .await?;
+    let expected = crate::migration_check::EXPECTED_MIGRATION_COUNT;
+    if applied < expected {
+        return Err(MigrateError::Incomplete { applied, expected });
+    }
 
     info!("migration runner complete");
     Ok(())
@@ -368,4 +400,59 @@ async fn detect_applied_migrations(pool: &PgPool) -> Result<(), MigrateError> {
 /// Returns the filenames in the embedded MIGRATIONS array (for test verification).
 pub fn migration_filenames() -> Vec<&'static str> {
     MIGRATIONS.iter().map(|(name, _)| *name).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every .sql file in `db/migrations/` must have a matching entry in the
+    /// [`MIGRATIONS`] array. The April 2026 staging outage was caused by
+    /// three migrations being added to disk without being registered here:
+    /// the runner saw nothing to do, exited 0, and the readiness check
+    /// returned 503 forever because the DB was three schema versions behind.
+    ///
+    /// This test fails loudly in CI so the mismatch can't ship again.
+    #[test]
+    fn every_sql_file_is_registered() {
+        let migrations_dir =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../db/migrations");
+        let mut on_disk: Vec<String> = std::fs::read_dir(&migrations_dir)
+            .unwrap_or_else(|e| panic!("failed to read {}: {e}", migrations_dir.display()))
+            .filter_map(|entry| {
+                let entry = entry.ok()?;
+                let name = entry.file_name().to_string_lossy().into_owned();
+                name.ends_with(".sql").then_some(name)
+            })
+            .collect();
+        on_disk.sort();
+
+        let mut registered: Vec<String> = MIGRATIONS
+            .iter()
+            .map(|(name, _)| (*name).to_string())
+            .collect();
+        registered.sort();
+
+        assert_eq!(
+            on_disk, registered,
+            "mismatch between .sql files in db/migrations/ and the MIGRATIONS array \
+             in backend/api/src/migrate.rs. Add the missing entries (with include_str!) \
+             and bump EXPECTED_MIGRATION_COUNT in migration_check.rs."
+        );
+    }
+
+    /// Guard against the bug from the other side: the runner's array length
+    /// must equal the declared expected count. Without this, a partial edit
+    /// (bump one, forget the other) still ships.
+    #[test]
+    fn migrations_array_matches_expected_count() {
+        assert_eq!(
+            MIGRATIONS.len() as i64,
+            crate::migration_check::EXPECTED_MIGRATION_COUNT,
+            "MIGRATIONS array length ({}) does not match \
+             EXPECTED_MIGRATION_COUNT ({}).",
+            MIGRATIONS.len(),
+            crate::migration_check::EXPECTED_MIGRATION_COUNT,
+        );
+    }
 }
