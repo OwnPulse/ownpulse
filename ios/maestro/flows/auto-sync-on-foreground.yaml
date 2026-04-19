@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: auto-sync when the app is foregrounded.
+#
+# Verifies that after backgrounding and foregrounding the app, the sync
+# status screen still reports a healthy sync state. The ScenePhase hook
+# added in OwnPulseApp.swift fires on transition to .active, so the "Sync
+# Now" button must remain interactable and no error banner should show.
+#
+# Note: the iOS Simulator does not generate real HealthKit samples, so we
+# can't assert on new record counts. The flow passing is sufficient
+# evidence that the ScenePhase hook doesn't crash on foreground.
+appId: health.ownpulse.app
+---
+- launchApp
+
+- assertVisible:
+    id: "mainTabView"
+
+- tapOn: "Settings"
+- assertVisible:
+    id: "syncStatusLink"
+- tapOn:
+    id: "syncStatusLink"
+
+- assertVisible:
+    id: "syncNowButton"
+
+# Background the app, then bring it back to foreground. The app's
+# ScenePhase handler should fire a sync; this is a smoke test that the
+# handler doesn't crash or leave the UI wedged.
+- pressKey: Home
+- launchApp
+
+# Re-navigate to Sync Status and confirm the screen still renders.
+- assertVisible:
+    id: "mainTabView"
+- tapOn: "Settings"
+- tapOn:
+    id: "syncStatusLink"
+- assertVisible:
+    id: "syncNowButton"

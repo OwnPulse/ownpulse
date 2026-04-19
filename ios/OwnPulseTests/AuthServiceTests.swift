@@ -334,4 +334,109 @@ struct AuthServiceTests {
         #expect(service.isAuthenticated == false)
         #expect(mockNetwork.requestCalls.isEmpty)
     }
+
+    // MARK: - onLoginSuccess callback
+
+    @Test("password login fires onLoginSuccess after isAuthenticated flips true")
+    func passwordLoginFiresOnLoginSuccess() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        mockNetwork.requestHandler = { method, path, _ in
+            if method == "POST" && path == Endpoints.authLogin {
+                return TokenResponse(accessToken: "jwt", tokenType: "Bearer", expiresIn: 3600)
+            }
+            fatalError("Unexpected request: \(method) \(path)")
+        }
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        var fired = false
+        var authenticatedAtFireTime = false
+        service.onLoginSuccess = {
+            fired = true
+            authenticatedAtFireTime = service.isAuthenticated
+        }
+
+        try await service.loginWithPassword(username: "a", password: "b")
+
+        #expect(fired == true)
+        #expect(authenticatedAtFireTime == true)
+    }
+
+    @Test("Apple login fires onLoginSuccess after isAuthenticated flips true")
+    func appleLoginFiresOnLoginSuccess() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        mockNetwork.requestHandler = { _, _, _ in
+            TokenResponseWithRefresh(
+                accessToken: "jwt",
+                refreshToken: "refresh",
+                tokenType: "Bearer",
+                expiresIn: 3600
+            )
+        }
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        var fired = false
+        service.onLoginSuccess = { fired = true }
+
+        try await service.processAppleCredential(idToken: "id-token")
+
+        #expect(fired == true)
+    }
+
+    @Test("Google OAuth callback fires onLoginSuccess after isAuthenticated flips true")
+    func googleCallbackFiresOnLoginSuccess() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        var fired = false
+        service.onLoginSuccess = { fired = true }
+
+        let url = URL(string: "ownpulse://auth#token=jwt&refresh_token=refresh")!
+        try await service.processCallback(url: url)
+
+        #expect(fired == true)
+    }
+
+    @Test("failed password login does not fire onLoginSuccess")
+    func failedLoginDoesNotFire() async {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        mockNetwork.requestHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        var fired = false
+        service.onLoginSuccess = { fired = true }
+
+        do {
+            try await service.loginWithPassword(username: "a", password: "b")
+            Issue.record("expected throw")
+        } catch { /* expected */ }
+
+        #expect(fired == false)
+    }
+
+    @Test("session restore via init does not fire onLoginSuccess")
+    func sessionRestoreDoesNotFire() {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        let validJWT = makeTestJWT(exp: Date().addingTimeInterval(3600))
+        try! mockKeychain.save(key: AuthService.accessTokenKey, data: Data(validJWT.utf8))
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        var fired = false
+        service.onLoginSuccess = { fired = true }
+
+        // Give the init `Task` a moment — should remain untouched because
+        // session restore should not masquerade as a fresh login.
+        #expect(fired == false)
+        #expect(service.isAuthenticated == true)
+    }
 }

@@ -34,6 +34,14 @@ private class AuthPresentationContext: NSObject, ASWebAuthenticationPresentation
 final class AuthService: AuthServiceProtocol {
     private(set) var isAuthenticated = false
 
+    /// Called exactly once per successful login (password, Apple, Google).
+    /// Not called on session restore — callers that care about "user has a
+    /// session" should gate on `isAuthenticated` in their own init.
+    ///
+    /// The handler runs on the MainActor. Kick off long-running work in an
+    /// unstructured `Task` inside — don't block here.
+    var onLoginSuccess: (@MainActor @Sendable () -> Void)?
+
     private let networkClient: NetworkClientProtocol
     private let keychainService: KeychainServiceProtocol
     private var authContinuation: CheckedContinuation<URL, Error>?
@@ -151,6 +159,7 @@ final class AuthService: AuthServiceProtocol {
         try keychainService.save(key: Self.refreshTokenKey, data: Data(response.refreshToken.utf8))
         isAuthenticated = true
         logger.info("Apple Sign-In: authentication successful")
+        onLoginSuccess?()
     }
 
     func loginWithPassword(username: String, password: String) async throws {
@@ -169,6 +178,7 @@ final class AuthService: AuthServiceProtocol {
         // Users will need to re-authenticate when the token expires (acceptable for MVP).
         isAuthenticated = true
         logger.info("Password login: authentication successful")
+        onLoginSuccess?()
     }
 
     func handleCallback(url: URL) {
@@ -218,6 +228,7 @@ final class AuthService: AuthServiceProtocol {
         try keychainService.save(key: Self.accessTokenKey, data: Data(token.utf8))
         try keychainService.save(key: Self.refreshTokenKey, data: Data(refreshToken.utf8))
         isAuthenticated = true
+        onLoginSuccess?()
     }
 
     private func buildGoogleAuthURL() throws -> URL {

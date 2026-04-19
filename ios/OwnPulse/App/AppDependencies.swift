@@ -5,6 +5,9 @@ import Foundation
 import HealthKit
 import MetricKit
 import Observation
+import os
+
+private let syncLogger = Logger(subsystem: "health.ownpulse.app", category: "sync")
 
 @Observable
 @MainActor
@@ -21,6 +24,7 @@ final class AppDependencies {
     let syncEngine: SyncEngine
     let syncProgress: SyncProgress
     let syncScheduler: SyncScheduler
+    let syncCoordinator: SyncCoordinator
     let adminService: AdminService
     let notificationManager: NotificationManager
     let featureFlagService: FeatureFlagService
@@ -64,6 +68,12 @@ final class AppDependencies {
 
         self.syncProgress = SyncProgress()
 
+        #if canImport(UIKit)
+        let backgroundTaskHost: BackgroundTaskHost = UIKitBackgroundTaskHost()
+        #else
+        let backgroundTaskHost: BackgroundTaskHost? = nil
+        #endif
+
         self.syncEngine = SyncEngine(
             networkClient: network,
             healthKitProvider: self.healthKitProvider,
@@ -71,10 +81,16 @@ final class AppDependencies {
             medicationSyncProvider: self.medicationSyncProvider,
             offlineQueue: offlineQueue,
             anchorStore: anchorStore,
-            progress: self.syncProgress
+            progress: self.syncProgress,
+            backgroundTaskHost: backgroundTaskHost
         )
 
         self.syncScheduler = SyncScheduler()
+
+        self.syncCoordinator = SyncCoordinator(
+            healthKitProvider: self.healthKitProvider,
+            syncEngine: self.syncEngine
+        )
 
         self.adminService = AdminService(networkClient: network)
 
@@ -89,5 +105,46 @@ final class AppDependencies {
             self.crashReporter = reporter
         }
         Task { await FlowTracker.shared.configure(networkClient: network) }
+
+        // Wire auto-sync hooks: first sync on login, subscribe to HealthKit
+        // observer updates so new samples trigger a debounced sync.
+        self.authService.onLoginSuccess = { [weak self] in
+            guard let self else { return }
+            syncLogger.info("Login succeeded — starting initial sync and HealthKit observer")
+            Task { [syncEngine = self.syncEngine] in
+                await syncEngine.sync()
+            }
+            Task { [coordinator = self.syncCoordinator] in
+                await coordinator.start()
+            }
+        }
+    }
+
+    /// Called once on app launch. Kicks off the BGAppRefresh chain if the
+    /// user is authenticated, and starts the HealthKit observer subscription
+    /// so foreground HealthKit updates trigger automatic syncs.
+    ///
+    /// Safe to call multiple times — both `SyncScheduler.scheduleNextSync`
+    /// and `SyncCoordinator.start` are idempotent.
+    func bootstrapAutoSync() {
+        guard authService.isAuthenticated else { return }
+
+        syncScheduler.scheduleNextSync()
+
+        Task { [coordinator = syncCoordinator] in
+            await coordinator.start()
+        }
+
+        // Enable background delivery so iOS wakes us when HealthKit data is
+        // written outside of a foreground session. Best-effort; log and
+        // continue if it fails (e.g. the user revoked HealthKit access).
+        let hkProvider = healthKitProvider
+        Task {
+            do {
+                try await hkProvider.enableBackgroundDelivery()
+            } catch {
+                syncLogger.error("enableBackgroundDelivery failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 }

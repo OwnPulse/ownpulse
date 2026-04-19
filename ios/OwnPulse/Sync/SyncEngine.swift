@@ -21,6 +21,11 @@ final class SyncState {
     }
 }
 
+/// Invalid task identifier returned by the background task host when no task
+/// is active. Matches the semantics of `UIBackgroundTaskIdentifier.invalid`
+/// but avoids coupling to UIKit so this file compiles in the test target.
+private let invalidBackgroundTask = 0
+
 actor SyncEngine {
     private let networkClient: NetworkClientProtocol
     private let healthKitProvider: HealthKitProviderProtocol
@@ -28,6 +33,7 @@ actor SyncEngine {
     private let medicationSyncProvider: (any Sendable)?
     private let offlineQueue: OfflineQueueProtocol
     private let anchorStore: AnchorStore
+    private let backgroundTaskHost: BackgroundTaskHost?
     private let batchSize = 100
 
     private var _isSyncing = false
@@ -48,7 +54,8 @@ actor SyncEngine {
         medicationSyncProvider: (any Sendable)? = nil,
         offlineQueue: OfflineQueueProtocol,
         anchorStore: AnchorStore,
-        progress: SyncProgress
+        progress: SyncProgress,
+        backgroundTaskHost: BackgroundTaskHost? = nil
     ) {
         self.networkClient = networkClient
         self.healthKitProvider = healthKitProvider
@@ -57,6 +64,7 @@ actor SyncEngine {
         self.offlineQueue = offlineQueue
         self.anchorStore = anchorStore
         self.progress = progress
+        self.backgroundTaskHost = backgroundTaskHost
     }
 
     func sync() async {
@@ -64,7 +72,37 @@ actor SyncEngine {
         _isSyncing = true
         _lastError = nil
 
-        defer { _isSyncing = false }
+        // Request extra execution time so the sync doesn't stall if the user
+        // backgrounds the app mid-upload. iOS suspends foreground processes
+        // within seconds of backgrounding; this keeps us alive for up to
+        // ~30s (sometimes more) to finish the current batch. If the
+        // expiration handler fires we just mark our flag and the next
+        // foreground sync picks up where we left off via the anchor store
+        // and the offline queue.
+        let host = backgroundTaskHost
+        let taskHandle = TaskHandle()
+        if let host {
+            let handle = taskHandle
+            let id = await MainActor.run {
+                host.beginBackgroundTask(name: "healthkit-sync") {
+                    // Expiration handler runs on the main thread. iOS wants to
+                    // kill us — end the task promptly so it doesn't terminate
+                    // the whole process. `endIfNeeded` is idempotent, so the
+                    // later `defer` call becomes a no-op.
+                    Task { await handle.endIfNeeded(host: host) }
+                }
+            }
+            await taskHandle.setId(id)
+        }
+
+        defer {
+            _isSyncing = false
+            if let host {
+                Task { [taskHandle, host] in
+                    await taskHandle.endIfNeeded(host: host)
+                }
+            }
+        }
 
         do {
             // 1. Drain offline queue first
@@ -347,6 +385,28 @@ actor SyncEngine {
                 path: Endpoints.healthKitConfirm,
                 body: HealthKitConfirm(ids: confirmedIDs)
             )
+        }
+    }
+}
+
+/// Actor-isolated holder for the background task identifier. Guards against
+/// the expiration handler (which fires on the main thread) racing with the
+/// normal post-sync cleanup — both call `endIfNeeded`, and the second call
+/// is a no-op.
+private actor TaskHandle {
+    private var id: Int = invalidBackgroundTask
+    private var ended = false
+
+    func setId(_ newId: Int) {
+        id = newId
+    }
+
+    func endIfNeeded(host: BackgroundTaskHost) async {
+        guard !ended, id != invalidBackgroundTask else { return }
+        ended = true
+        let taskId = id
+        await MainActor.run {
+            host.endBackgroundTask(taskId)
         }
     }
 }
