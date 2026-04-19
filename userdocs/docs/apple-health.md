@@ -19,7 +19,14 @@ OwnPulse uses bidirectional sync with Apple Health:
 - **Inbound:** Health data recorded by your Apple Watch, other apps, or manual entries in the Health app flows into OwnPulse automatically.
 - **Outbound:** Manual entries you create in OwnPulse (via the web or iOS app) are written back to Apple Health, so other apps on your device can access them.
 
-Sync runs automatically in the background whenever the iOS app is active or receives a background refresh. You can also tap the **Sync Now** button in the app to trigger an immediate sync.
+Sync runs automatically in four situations:
+
+- **When you sign in.** OwnPulse runs an initial sync the moment authentication succeeds, so the dashboard is populated by the time you finish the login animation.
+- **When you open the app.** OwnPulse triggers a sync every time the app becomes active, so opening the app gives you an up-to-date view of your recent Apple Health data.
+- **When new samples arrive while the app is open.** OwnPulse listens for Apple Health change notifications and, after a short debounce, pulls any new data into your instance. This covers scenarios like finishing a workout on your Apple Watch while the iOS app is in the foreground.
+- **In the background.** iOS periodically wakes OwnPulse to sync recent samples even when the app is closed. The wake frequency is controlled by iOS based on battery, network, and your usage patterns — it is not a guaranteed schedule, and the exact timing is up to the operating system. When you sign out, OwnPulse tells iOS to stop waking the app so a signed-out device doesn't spend battery on background work.
+
+You can also tap **Sync Now** in **Settings → Sync Status** to trigger an immediate sync.
 
 ## Deduplication
 
@@ -35,3 +42,11 @@ OwnPulse syncs the following categories with Apple Health: heart rate, resting h
 ## Troubleshooting
 
 If sync appears stuck, open the OwnPulse iOS app and check the sync status on the Settings screen. If the last sync time is stale, try tapping **Sync Now**. If that does not help, verify HealthKit permissions in iOS Settings and ensure background app refresh is enabled for OwnPulse.
+
+Background sync relies on iOS's background-delivery and app-refresh mechanisms, both of which can be throttled or disabled by the system to save power. If background sync stops working entirely, check:
+
+1. **Settings → General → Background App Refresh → OwnPulse** is enabled.
+2. **Settings → Privacy & Security → Health → OwnPulse** still has read permission for the data types you care about.
+3. Low Power Mode is not enabled — it suspends most background tasks, including background delivery from HealthKit.
+
+If all three look right and background sync is still missing data, opening the app will always trigger a foreground sync as a reliable fallback.

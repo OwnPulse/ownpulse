@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import Foundation
 import HealthKit
+import os
+
+private let logger = Logger(subsystem: "health.ownpulse.app", category: "healthkit")
 
 struct HealthKitSample: Sendable {
     let recordType: String
@@ -32,10 +36,48 @@ protocol HealthKitProviderProtocol: Sendable {
         start: Date,
         end: Date
     ) async throws
+
+    /// Emits a `Void` each time HealthKit notifies the app of new samples for
+    /// any of the configured read types. The stream stays open until the
+    /// returned task handle is cancelled via `.finish()`/termination.
+    ///
+    /// Callers should debounce this stream — HealthKit fires it eagerly during
+    /// bulk writes (e.g. during a workout) and we don't want to kick off a
+    /// network sync for every individual heartbeat sample.
+    func observeSampleUpdates() -> AsyncStream<Void>
+
+    /// After authorization, enable iOS to wake the app in the background when
+    /// new samples are written for the given types. Safe to call more than
+    /// once — HealthKit coalesces repeated registrations.
+    func enableBackgroundDelivery() async throws
+
+    /// Disable all background-delivery registrations set up by
+    /// `enableBackgroundDelivery()`. Call on logout so iOS doesn't keep
+    /// waking the app for a user that's no longer signed in.
+    func disableAllBackgroundDelivery() async throws
 }
 
 final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
     private let store = HKHealthStore()
+
+    /// Record types that use `.immediate` background-delivery frequency.
+    /// Extracted as a pure lookup so the policy can be unit-tested without
+    /// a real HKHealthStore — see `HealthKitProviderTests`.
+    ///
+    /// Rationale: `.immediate` keeps latency low for real-time metrics
+    /// (workouts, blood-oxygen spikes) where users expect the OwnPulse
+    /// server to reflect Apple Health within minutes. Everything else is
+    /// `.hourly` to stay gentle on iOS's power budget — and iOS throttles
+    /// `.immediate` itself under thermal/battery pressure, so this is a
+    /// hint, not a contract.
+    static let immediateDeliveryRecordTypes: Set<String> = ["heart_rate", "blood_oxygen"]
+
+    /// Pure helper: returns the background-delivery frequency for a given
+    /// record type. Tests pin this to guard against new mappings silently
+    /// inheriting the wrong policy.
+    static func backgroundDeliveryFrequency(for recordType: String) -> HKUpdateFrequency {
+        immediateDeliveryRecordTypes.contains(recordType) ? .immediate : .hourly
+    }
 
     func requestAuthorization() async throws {
         try await store.requestAuthorization(
@@ -138,5 +180,85 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
             end: end
         )
         try await store.save(sample)
+    }
+
+    func observeSampleUpdates() -> AsyncStream<Void> {
+        AsyncStream { continuation in
+            // Retain the running queries so we can stop them when the stream
+            // terminates. HealthKit keeps observer queries alive between app
+            // launches via background delivery, but we stop ours explicitly
+            // on logout/stream cancellation to avoid duplicate notifications.
+            let sampleTypes = HealthKitTypeMap.mappings.compactMap { $0.hkType as? HKSampleType }
+            let queries = QueryBag()
+
+            for sampleType in sampleTypes {
+                let query = HKObserverQuery(sampleType: sampleType, predicate: nil) { _, completionHandler, error in
+                    // HealthKit expects us to call `completionHandler` so it
+                    // knows the delivery was handled. On error, log without
+                    // sample IDs (no PHI) and still invoke completionHandler
+                    // so HealthKit doesn't think we've hung. We skip the
+                    // yield so the coordinator doesn't sync on noise.
+                    if let error {
+                        logger.error("HKObserverQuery delivery error: \(error.localizedDescription, privacy: .public)")
+                    } else {
+                        continuation.yield()
+                    }
+                    completionHandler()
+                }
+                store.execute(query)
+                queries.append(query)
+            }
+
+            continuation.onTermination = { [queries, store] _ in
+                for query in queries.snapshot() {
+                    store.stop(query)
+                }
+            }
+        }
+    }
+
+    func enableBackgroundDelivery() async throws {
+        for mapping in HealthKitTypeMap.mappings {
+            let frequency = Self.backgroundDeliveryFrequency(for: mapping.recordType)
+            try await store.enableBackgroundDelivery(for: mapping.hkType, frequency: frequency)
+        }
+    }
+
+    func disableAllBackgroundDelivery() async throws {
+        // HKHealthStore exposes `disableAllBackgroundDelivery(completion:)`
+        // which is the correct call on logout — it blanket-tears-down every
+        // enable registration this app made, including ones from older
+        // sessions whose types we may no longer register for.
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            store.disableAllBackgroundDelivery { success, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else if !success {
+                    // HealthKit returned (false, nil) — undocumented but
+                    // historically means "nothing to disable". Treat as OK.
+                    continuation.resume()
+                } else {
+                    continuation.resume()
+                }
+            }
+        }
+    }
+}
+
+/// Thread-safe container for HKObserverQuery instances held by the observer
+/// stream. Exists only so the `onTermination` closure can stop queries
+/// without capturing a mutable array.
+private final class QueryBag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var queries: [HKObserverQuery] = []
+
+    func append(_ query: HKObserverQuery) {
+        lock.lock(); defer { lock.unlock() }
+        queries.append(query)
+    }
+
+    func snapshot() -> [HKObserverQuery] {
+        lock.lock(); defer { lock.unlock() }
+        return queries
     }
 }

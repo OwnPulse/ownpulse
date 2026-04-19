@@ -8,6 +8,7 @@ import UserNotifications
 @main
 struct OwnPulseApp: App {
     @State private var dependencies = AppDependencies()
+    @Environment(\.scenePhase) private var scenePhase
     @UIApplicationDelegateAdaptor private var notificationDelegate: NotificationDelegate
 
     var body: some Scene {
@@ -20,10 +21,20 @@ struct OwnPulseApp: App {
                 .onAppear {
                     registerBackgroundTasks()
                     configureNotificationDelegate()
+                    // Bootstrap the BGAppRefresh chain and live observer — this
+                    // is where we break the chicken-and-egg in the old code.
+                    // `scheduleNextSync()` was only called from inside the
+                    // background task handler, so the chain never started.
+                    dependencies.bootstrapAutoSync()
                 }
                 .task {
                     await dependencies.featureFlagService.fetch()
                 }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            // Delegate to a pure method on AppDependencies so the policy is
+            // unit-testable. See `AppDependenciesScenePhaseTests`.
+            dependencies.handleScenePhase(newPhase)
         }
     }
 
@@ -57,6 +68,7 @@ struct OwnPulseApp: App {
             // ContentView's default tab selection.
         }
     }
+
 }
 
 struct ContentView: View {

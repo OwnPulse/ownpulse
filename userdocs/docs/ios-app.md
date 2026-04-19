@@ -25,7 +25,16 @@ You can change these permissions at any time in iOS Settings under **Privacy & S
 
 ## Background sync
 
-The app syncs automatically in the background and on every launch. iOS controls background refresh scheduling, so sync frequency depends on how often you use the app and your device's battery state. Failed syncs are queued locally in an offline database and retried automatically when connectivity returns.
+The app keeps your data current through several automatic sync paths:
+
+- **On sign-in.** OwnPulse kicks off an initial sync the moment you authenticate, so your dashboard is populated when you land on it.
+- **On every launch / when you foreground the app.** Becoming active always triggers a sync.
+- **While the app is open.** An Apple Health change observer watches for new samples (e.g. a workout completing on your Apple Watch) and triggers a short-debounced sync so you see the update within seconds.
+- **In the background.** iOS wakes the app on its own schedule for a few seconds at a time and we run a quick sync before yielding. Frequency depends on how often you use the app and your device's battery/thermal state — it is not a hard guarantee.
+
+Signing out stops all background-sync registrations so a signed-out device doesn't spend battery on background work.
+
+Failed syncs are queued locally in an offline database and retried automatically when connectivity returns.
 
 ## Offline mode
 

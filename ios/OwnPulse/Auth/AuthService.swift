@@ -34,6 +34,21 @@ private class AuthPresentationContext: NSObject, ASWebAuthenticationPresentation
 final class AuthService: AuthServiceProtocol {
     private(set) var isAuthenticated = false
 
+    /// Called exactly once per successful login (password, Apple, Google).
+    /// Not called on session restore — callers that care about "user has a
+    /// session" should gate on `isAuthenticated` in their own init.
+    ///
+    /// The handler runs on the MainActor. Kick off long-running work in an
+    /// unstructured `Task` inside — don't block here.
+    var onLoginSuccess: (@MainActor @Sendable () -> Void)?
+
+    /// Called once when the user signs out. Fires BEFORE the keychain is
+    /// cleared so downstream cleanup (observer teardown, background-delivery
+    /// disable, final best-effort requests) can still authenticate if they
+    /// need to. Awaited — logout() blocks on this completing so the UI only
+    /// flips to the login screen after teardown is done.
+    var onLogout: (@MainActor @Sendable () async -> Void)?
+
     private let networkClient: NetworkClientProtocol
     private let keychainService: KeychainServiceProtocol
     private var authContinuation: CheckedContinuation<URL, Error>?
@@ -151,6 +166,7 @@ final class AuthService: AuthServiceProtocol {
         try keychainService.save(key: Self.refreshTokenKey, data: Data(response.refreshToken.utf8))
         isAuthenticated = true
         logger.info("Apple Sign-In: authentication successful")
+        onLoginSuccess?()
     }
 
     func loginWithPassword(username: String, password: String) async throws {
@@ -169,6 +185,7 @@ final class AuthService: AuthServiceProtocol {
         // Users will need to re-authenticate when the token expires (acceptable for MVP).
         isAuthenticated = true
         logger.info("Password login: authentication successful")
+        onLoginSuccess?()
     }
 
     func handleCallback(url: URL) {
@@ -182,6 +199,14 @@ final class AuthService: AuthServiceProtocol {
     }
 
     func logout() async {
+        // Fire the logout hook FIRST so subscribers (SyncCoordinator,
+        // HealthKit background delivery, etc.) can tear down while the
+        // session is still technically valid. After this returns we clear
+        // the keychain and flip isAuthenticated, which causes ContentView
+        // to swap in the LoginView.
+        if let hook = onLogout {
+            await hook()
+        }
         try? keychainService.delete(key: Self.accessTokenKey)
         try? keychainService.delete(key: Self.refreshTokenKey)
         isAuthenticated = false
@@ -218,6 +243,7 @@ final class AuthService: AuthServiceProtocol {
         try keychainService.save(key: Self.accessTokenKey, data: Data(token.utf8))
         try keychainService.save(key: Self.refreshTokenKey, data: Data(refreshToken.utf8))
         isAuthenticated = true
+        onLoginSuccess?()
     }
 
     private func buildGoogleAuthURL() throws -> URL {

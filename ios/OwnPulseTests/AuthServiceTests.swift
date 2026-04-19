@@ -334,4 +334,189 @@ struct AuthServiceTests {
         #expect(service.isAuthenticated == false)
         #expect(mockNetwork.requestCalls.isEmpty)
     }
+
+    // MARK: - onLoginSuccess callback
+
+    @Test("password login fires onLoginSuccess after isAuthenticated flips true")
+    func passwordLoginFiresOnLoginSuccess() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        mockNetwork.requestHandler = { method, path, _ in
+            if method == "POST" && path == Endpoints.authLogin {
+                return TokenResponse(accessToken: "jwt", tokenType: "Bearer", expiresIn: 3600)
+            }
+            fatalError("Unexpected request: \(method) \(path)")
+        }
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        var fired = false
+        var authenticatedAtFireTime = false
+        service.onLoginSuccess = {
+            fired = true
+            authenticatedAtFireTime = service.isAuthenticated
+        }
+
+        try await service.loginWithPassword(username: "a", password: "b")
+
+        #expect(fired == true)
+        #expect(authenticatedAtFireTime == true)
+    }
+
+    @Test("Apple login fires onLoginSuccess after isAuthenticated flips true")
+    func appleLoginFiresOnLoginSuccess() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        mockNetwork.requestHandler = { _, _, _ in
+            TokenResponseWithRefresh(
+                accessToken: "jwt",
+                refreshToken: "refresh",
+                tokenType: "Bearer",
+                expiresIn: 3600
+            )
+        }
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        var fired = false
+        service.onLoginSuccess = { fired = true }
+
+        try await service.processAppleCredential(idToken: "id-token")
+
+        #expect(fired == true)
+    }
+
+    @Test("Google OAuth callback fires onLoginSuccess after isAuthenticated flips true")
+    func googleCallbackFiresOnLoginSuccess() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        var fired = false
+        service.onLoginSuccess = { fired = true }
+
+        let url = URL(string: "ownpulse://auth#token=jwt&refresh_token=refresh")!
+        try await service.processCallback(url: url)
+
+        #expect(fired == true)
+    }
+
+    @Test("failed password login does not fire onLoginSuccess")
+    func failedLoginDoesNotFire() async {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        mockNetwork.requestHandler = { _, _, _ in
+            throw NetworkError.unauthorized
+        }
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        var fired = false
+        service.onLoginSuccess = { fired = true }
+
+        do {
+            try await service.loginWithPassword(username: "a", password: "b")
+            Issue.record("expected throw")
+        } catch { /* expected */ }
+
+        #expect(fired == false)
+    }
+
+    @Test("session restore via init does not fire onLoginSuccess")
+    func sessionRestoreDoesNotFire() {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        let validJWT = makeTestJWT(exp: Date().addingTimeInterval(3600))
+        try! mockKeychain.save(key: AuthService.accessTokenKey, data: Data(validJWT.utf8))
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        var fired = false
+        service.onLoginSuccess = { fired = true }
+
+        // Give the init `Task` a moment — should remain untouched because
+        // session restore should not masquerade as a fresh login.
+        #expect(fired == false)
+        #expect(service.isAuthenticated == true)
+    }
+
+    // MARK: - onLogout callback
+
+    @Test("logout fires onLogout BEFORE clearing keychain or flipping isAuthenticated")
+    func logoutFiresHookBeforeClearingKeychain() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        try mockKeychain.save(key: AuthService.accessTokenKey, data: Data("access".utf8))
+        try mockKeychain.save(key: AuthService.refreshTokenKey, data: Data("refresh".utf8))
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        #expect(service.isAuthenticated == true)
+
+        // Inside the hook, capture the state of the world as the subscriber
+        // sees it. The contract is: hook fires first, THEN keychain is
+        // cleared and isAuthenticated flips.
+        var hookFired = false
+        var accessTokenAtFireTime: Data?
+        var refreshTokenAtFireTime: Data?
+        var authenticatedAtFireTime = false
+        service.onLogout = {
+            hookFired = true
+            accessTokenAtFireTime = try? mockKeychain.load(key: AuthService.accessTokenKey)
+            refreshTokenAtFireTime = try? mockKeychain.load(key: AuthService.refreshTokenKey)
+            authenticatedAtFireTime = service.isAuthenticated
+        }
+
+        await service.logout()
+
+        #expect(hookFired == true)
+        #expect(accessTokenAtFireTime == Data("access".utf8))
+        #expect(refreshTokenAtFireTime == Data("refresh".utf8))
+        #expect(authenticatedAtFireTime == true)
+
+        // After logout returns, keychain is cleared and state is flipped.
+        #expect(service.isAuthenticated == false)
+        let accessAfter = try mockKeychain.load(key: AuthService.accessTokenKey)
+        let refreshAfter = try mockKeychain.load(key: AuthService.refreshTokenKey)
+        #expect(accessAfter == nil)
+        #expect(refreshAfter == nil)
+    }
+
+    @Test("logout with no onLogout hook still clears keychain and flips state")
+    func logoutWithoutHookStillWorks() async throws {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+
+        try mockKeychain.save(key: AuthService.accessTokenKey, data: Data("access".utf8))
+
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+        await service.logout()
+
+        #expect(service.isAuthenticated == false)
+        #expect(try mockKeychain.load(key: AuthService.accessTokenKey) == nil)
+    }
+
+    @Test("logout awaits the onLogout hook before returning")
+    func logoutAwaitsHook() async {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        // The hook sleeps 50ms; logout must not return before the sleep
+        // completes. Without `await` on the hook, teardown could race with
+        // the UI switching to the login screen.
+        var hookCompletedAt: Date?
+        service.onLogout = {
+            try? await Task.sleep(nanoseconds: 50_000_000)
+            hookCompletedAt = Date()
+        }
+
+        await service.logout()
+        let logoutReturnedAt = Date()
+
+        #expect(hookCompletedAt != nil)
+        if let completed = hookCompletedAt {
+            #expect(logoutReturnedAt >= completed)
+        }
+    }
 }
