@@ -26,6 +26,10 @@ final class AppDependencies {
     let featureFlagService: FeatureFlagService
     private var crashReporter: CrashReporter?
 
+    /// Currently selected root tab. Lives here so cards on Dashboard can
+    /// switch tabs (e.g. "Log Today's Check-in" jumps to the Log tab).
+    var selectedTab: Int = 0
+
     init(
         keychainService: KeychainServiceProtocol? = nil,
         networkClient: NetworkClientProtocol? = nil,

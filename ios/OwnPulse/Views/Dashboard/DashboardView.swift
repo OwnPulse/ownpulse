@@ -130,7 +130,8 @@ struct DashboardView: View {
 
                 // Today's Check-in Card
                 CheckinSummaryCard(
-                    latestCheckin: vm.summary?.latestCheckin
+                    latestCheckin: vm.summary?.latestCheckin,
+                    onLogTap: { dependencies.selectedTab = 2 }
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
                 .accessibilityIdentifier("checkinSummaryCard")
