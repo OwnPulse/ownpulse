@@ -310,6 +310,36 @@ jobs:
           deployment-name: ${{ matrix.deployment }}
           timeout: ${{ matrix.timeout || '120s' }}
 
+      # When a rollout fails, Helm reports only the generic "resource not ready"
+      # error and then rolls back — which discards the exact state that would
+      # tell you why. Capture pod events, init-container logs, and the current
+      # container's logs into the step summary so the root cause is visible
+      # without shelling into the cluster.
+      - name: Capture failure diagnostics
+        if: failure()
+        run: |
+          set +e
+          echo "## Deploy diagnostics for ${{ matrix.service }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "## Deployment status" >> "$GITHUB_STEP_SUMMARY"
+          kubectl -n ownpulse-staging get deployment "${{ matrix.deployment }}" -o wide >> "$GITHUB_STEP_SUMMARY" 2>&1
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## ReplicaSets" >> "$GITHUB_STEP_SUMMARY"
+          kubectl -n ownpulse-staging get rs -l "app.kubernetes.io/name=${{ matrix.service == 'api' && 'ownpulse-api' || matrix.service == 'web' && 'ownpulse-web' || 'ownpulse-userdocs' }}" --sort-by='.metadata.creationTimestamp' >> "$GITHUB_STEP_SUMMARY" 2>&1
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Pods" >> "$GITHUB_STEP_SUMMARY"
+          kubectl -n ownpulse-staging get pods -l "app.kubernetes.io/name=${{ matrix.service == 'api' && 'ownpulse-api' || matrix.service == 'web' && 'ownpulse-web' || 'ownpulse-userdocs' }}" -o wide >> "$GITHUB_STEP_SUMMARY" 2>&1
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Recent events" >> "$GITHUB_STEP_SUMMARY"
+          kubectl -n ownpulse-staging get events --sort-by='.lastTimestamp' | tail -30 >> "$GITHUB_STEP_SUMMARY" 2>&1
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          LATEST_POD=$(kubectl -n ownpulse-staging get pods -l "app.kubernetes.io/name=${{ matrix.service == 'api' && 'ownpulse-api' || matrix.service == 'web' && 'ownpulse-web' || 'ownpulse-userdocs' }}" --sort-by='.metadata.creationTimestamp' -o jsonpath='{.items[-1].metadata.name}')
+          if [ -n "$LATEST_POD" ]; then
+            echo "## Init container logs ($LATEST_POD)" >> "$GITHUB_STEP_SUMMARY"
+            kubectl -n ownpulse-staging logs "$LATEST_POD" --all-containers=true --tail=100 --prefix=true >> "$GITHUB_STEP_SUMMARY" 2>&1
+          fi
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
   staging-validate:
     needs: staging-services
     runs-on: arc-runner-set
