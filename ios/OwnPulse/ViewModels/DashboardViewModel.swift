@@ -77,6 +77,9 @@ final class DashboardViewModel {
         let now = Date()
         let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: now) ?? now
 
+        // Resolution values must match the backend's `Resolution` enum —
+        // `daily` / `weekly` / `monthly`, see backend/api/src/models/explore.rs.
+        // Sending anything else (e.g. `"1d"`) returns 422.
         let request = BatchSeriesRequest(
             metrics: [
                 MetricSpec(source: "checkins", field: "energy"),
@@ -87,7 +90,7 @@ final class DashboardViewModel {
             ],
             start: formatter.string(from: sevenDaysAgo),
             end: formatter.string(from: now),
-            resolution: "1d"
+            resolution: "daily"
         )
 
         do {
@@ -132,7 +135,7 @@ final class DashboardViewModel {
             metrics: [MetricSpec(source: "health_records", field: "resting_heart_rate")],
             start: formatter.string(from: thirtyDaysAgo),
             end: formatter.string(from: now),
-            resolution: "1d"
+            resolution: "daily"
         )
 
         do {

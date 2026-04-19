@@ -574,7 +574,7 @@
           ],
           "start": "2026-03-21T00:00:00Z",
           "end": "2026-03-28T00:00:00Z",
-          "resolution": "1d"
+          "resolution": "daily"
         }
       },
       "response": {
@@ -614,7 +614,7 @@
           ],
           "start": "2026-03-21T00:00:00Z",
           "end": "2026-03-28T00:00:00Z",
-          "resolution": "1d"
+          "resolution": "daily"
         }
       },
       "response": {
@@ -644,6 +644,33 @@
             }
           ]
         }
+      }
+    },
+    {
+      "description": "a request to fetch intervention markers for chart overlays",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/explore/interventions",
+        "query": "start=2026-03-21T00:00:00Z&end=2026-03-28T00:00:00Z",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "t": "2026-03-22T09:15:00Z",
+            "substance": "Caffeine",
+            "dose": 200.0,
+            "unit": "mg",
+            "route": "oral"
+          }
+        ]
       }
     },
     {

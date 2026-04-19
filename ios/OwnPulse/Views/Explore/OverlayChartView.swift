@@ -118,7 +118,7 @@ struct OverlayChartView: View {
                     }
             }
         }
-        .chartYScale(domain: .automatic(includesZero: false))
+        .chartYScale(domain: .automatic(includesZero: ChartAxisConfig.includesZeroInYAxis))
         .chartScrollableAxes(.horizontal)
         .chartYAxis {
             AxisMarks(position: axisPosition, values: .automatic(desiredCount: 4)) { value in

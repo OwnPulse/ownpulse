@@ -37,4 +37,8 @@ struct InterventionMarker: Codable, Sendable, Identifiable {
 extension Endpoints {
     static let exploreMetrics = "/api/v1/explore/metrics"
     static let exploreSeries = "/api/v1/explore/series"
+    /// Intervention markers (t/substance/dose/unit/route) for chart overlays.
+    /// Distinct from `/api/v1/interventions` which returns the full
+    /// `InterventionRow` shape used by the Log tab.
+    static let exploreInterventions = "/api/v1/explore/interventions"
 }

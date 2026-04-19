@@ -13,6 +13,14 @@
 		D59F582CC955EFB222E6677A /* UserPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CE5FDCD0989A09A2173D467 /* UserPreferencesTests.swift */; };
 		2507C12F8B9ECD0EAAEF509F /* WeightFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A350975BFDD5CB6E3F8E1CD /* WeightFormatterTests.swift */; };
 		889047F2A4210F3095386400 /* ExploreViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D64EA807D3C558ED3212F9EF /* ExploreViewModelTests.swift */; };
+		448311DE60D3B13D7FCD0F52 /* BrowseCardPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64930B12A24FFE3C5F7D70A7 /* BrowseCardPresenter.swift */; };
+		2C8C9748EE0B6EF6FB66B3F6 /* HealthOverviewPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB2068F0CEA8820F7454769 /* HealthOverviewPresenter.swift */; };
+		D428EC25B32AC701787F1040 /* ChartAxisConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8FD38637757D59BBBD863E8 /* ChartAxisConfig.swift */; };
+		31937F0FE8AB12410652CA0D /* BrowseCardPresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5528E3BC60A0958EB71BE741 /* BrowseCardPresenterTests.swift */; };
+		2577124D131D49A07DBE0A47 /* HealthOverviewPresenterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D369523D16D2FF0A6690BBF2 /* HealthOverviewPresenterTests.swift */; };
+		694701EF9B1484546A0174ED /* SettingsUnitsPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A716B35894B3631341AB2173 /* SettingsUnitsPickerTests.swift */; };
+		5685BA2E79362BC4E8E0A276 /* ChartAxisConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF79AD0891838433EA98EC06 /* ChartAxisConfigTests.swift */; };
+		3EFB96024E01C6AF56147D39 /* SmallMultiplesChartViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83FB3510A5DCB520D0487833 /* SmallMultiplesChartViewTests.swift */; };
 		019A14B3D183E10882BE4E49 /* DatabaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56AE0C1D31FFA50FAE6A7861 /* DatabaseManager.swift */; };
 		08841D6CD05639ECE2811997 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EBFD7F464E64194F81BFBF4 /* SettingsViewModelTests.swift */; };
 		0C32E3221E220A0D26228854 /* Endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B18012E9A8E18AC577EE25A /* Endpoints.swift */; };
@@ -134,6 +142,14 @@
 		2CE5FDCD0989A09A2173D467 /* UserPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferencesTests.swift; sourceTree = "<group>"; };
 		0A350975BFDD5CB6E3F8E1CD /* WeightFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightFormatterTests.swift; sourceTree = "<group>"; };
 		D64EA807D3C558ED3212F9EF /* ExploreViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreViewModelTests.swift; sourceTree = "<group>"; };
+		64930B12A24FFE3C5F7D70A7 /* BrowseCardPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseCardPresenter.swift; sourceTree = "<group>"; };
+		2CB2068F0CEA8820F7454769 /* HealthOverviewPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthOverviewPresenter.swift; sourceTree = "<group>"; };
+		A8FD38637757D59BBBD863E8 /* ChartAxisConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartAxisConfig.swift; sourceTree = "<group>"; };
+		5528E3BC60A0958EB71BE741 /* BrowseCardPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseCardPresenterTests.swift; sourceTree = "<group>"; };
+		D369523D16D2FF0A6690BBF2 /* HealthOverviewPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthOverviewPresenterTests.swift; sourceTree = "<group>"; };
+		A716B35894B3631341AB2173 /* SettingsUnitsPickerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsUnitsPickerTests.swift; sourceTree = "<group>"; };
+		CF79AD0891838433EA98EC06 /* ChartAxisConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartAxisConfigTests.swift; sourceTree = "<group>"; };
+		83FB3510A5DCB520D0487833 /* SmallMultiplesChartViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmallMultiplesChartViewTests.swift; sourceTree = "<group>"; };
 		01C52170DFB396263C97C911 /* InsightCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightCardView.swift; sourceTree = "<group>"; };
 		0321F73E335F4082AB05D8E7 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
 		0A7EE472EEBD42E355D92E53 /* LogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
@@ -365,6 +381,11 @@
 				BB11CC22DD33EE44FF556677 /* SyncProgressTests.swift */,
 				2CE5FDCD0989A09A2173D467 /* UserPreferencesTests.swift */,
 				0A350975BFDD5CB6E3F8E1CD /* WeightFormatterTests.swift */,
+				5528E3BC60A0958EB71BE741 /* BrowseCardPresenterTests.swift */,
+				CF79AD0891838433EA98EC06 /* ChartAxisConfigTests.swift */,
+				D369523D16D2FF0A6690BBF2 /* HealthOverviewPresenterTests.swift */,
+				A716B35894B3631341AB2173 /* SettingsUnitsPickerTests.swift */,
+				83FB3510A5DCB520D0487833 /* SmallMultiplesChartViewTests.swift */,
 			);
 			path = OwnPulseTests;
 			sourceTree = "<group>";
@@ -426,6 +447,9 @@
 		7D50716FE9B859A8955AF1DD /* Charts */ = {
 			isa = PBXGroup;
 			children = (
+				64930B12A24FFE3C5F7D70A7 /* BrowseCardPresenter.swift */,
+				A8FD38637757D59BBBD863E8 /* ChartAxisConfig.swift */,
+				2CB2068F0CEA8820F7454769 /* HealthOverviewPresenter.swift */,
 				8BB1EFA3E8BBFD123070BABA /* MovingAverage.swift */,
 				06A231A3DE1F1BD5CB407848 /* WeightFormatter.swift */,
 			);
@@ -716,6 +740,9 @@
 				1A0DE5BE412276141D191AB5 /* SmallMultiplesChartView.swift in Sources */,
 				12430A2F4B96C4AEC6716444 /* UserPreferences.swift in Sources */,
 				F9B7E169F98B82AB7A33FBE2 /* WeightFormatter.swift in Sources */,
+				448311DE60D3B13D7FCD0F52 /* BrowseCardPresenter.swift in Sources */,
+				2C8C9748EE0B6EF6FB66B3F6 /* HealthOverviewPresenter.swift in Sources */,
+				D428EC25B32AC701787F1040 /* ChartAxisConfig.swift in Sources */,
 				E2CAE946D44538FAB76B4E5C /* OwnPulseApp.swift in Sources */,
 				B2056567585D65E67664625C /* PKCEHelper.swift in Sources */,
 				FE5DAC0025952320950C64E6 /* ProtocolBuilderView.swift in Sources */,
@@ -773,6 +800,11 @@
 				D59F582CC955EFB222E6677A /* UserPreferencesTests.swift in Sources */,
 				2507C12F8B9ECD0EAAEF509F /* WeightFormatterTests.swift in Sources */,
 				889047F2A4210F3095386400 /* ExploreViewModelTests.swift in Sources */,
+				31937F0FE8AB12410652CA0D /* BrowseCardPresenterTests.swift in Sources */,
+				2577124D131D49A07DBE0A47 /* HealthOverviewPresenterTests.swift in Sources */,
+				694701EF9B1484546A0174ED /* SettingsUnitsPickerTests.swift in Sources */,
+				5685BA2E79362BC4E8E0A276 /* ChartAxisConfigTests.swift in Sources */,
+				3EFB96024E01C6AF56147D39 /* SmallMultiplesChartViewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

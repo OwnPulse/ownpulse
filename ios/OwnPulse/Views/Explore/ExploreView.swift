@@ -99,18 +99,25 @@ struct ExploreView: View {
 
     @ViewBuilder
     private func metricCategorySection(_ group: MetricSourceGroup, vm: ExploreViewModel) -> some View {
+        ExploreMetricCategorySection(group: group, vm: vm)
+    }
+}
+
+/// One category section on the Explore tab. Isolated to its own `View` so
+/// SwiftUI can scope the `.task(id:)` modifier to this specific section —
+/// the task is automatically cancelled when the section leaves the
+/// hierarchy, preventing detached fetches from mutating `@Observable` state
+/// after dismount.
+private struct ExploreMetricCategorySection: View {
+    let group: MetricSourceGroup
+    let vm: ExploreViewModel
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(group.label)
                 .font(.headline)
                 .foregroundStyle(.primary)
                 .padding(.leading, 4)
-                .onAppear {
-                    // Lazy batch fetch: when a section's header scrolls into
-                    // view, fetch the first 10 sparklines for it. Paginates
-                    // inside the view model for sections with more than 10
-                    // metrics.
-                    Task { await vm.loadSparklines(source: group.source, fields: group.metrics.map(\.field)) }
-                }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -138,6 +145,12 @@ struct ExploreView: View {
             }
         }
         .accessibilityIdentifier("metricCategory-\(group.source)")
+        // `.task(id:)` handles cancellation for free — if the section leaves
+        // the hierarchy or `group.source` changes, the in-flight fetch is
+        // cancelled, so the VM won't try to mutate state after dismount.
+        .task(id: group.source) {
+            await vm.loadSparklines(source: group.source, fields: group.metrics.map(\.field))
+        }
     }
 }
 
@@ -151,23 +164,6 @@ private struct MetricBrowseCard: View {
     let points: [DataPoint]?
     let isLoading: Bool
 
-    private var displayUnit: String {
-        field == "body_mass" ? WeightFormatter.unitString() : unit
-    }
-
-    private var latestValueText: String? {
-        guard let last = points?.last else { return nil }
-        if field == "body_mass" {
-            return WeightFormatter.formatValueOnly(kg: last.v)
-        }
-        // Show a compact number: 1 decimal if the value has a fractional part
-        // within a small range, otherwise no decimals.
-        if abs(last.v) < 10 {
-            return String(format: "%.1f", last.v)
-        }
-        return String(format: "%.0f", last.v)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label)
@@ -175,14 +171,14 @@ private struct MetricBrowseCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
-            Text(displayUnit)
+            Text(BrowseCardPresenter.displayUnit(field: field, unit: unit))
                 .font(.system(.caption2, design: .rounded))
                 .foregroundStyle(.tertiary)
 
             sparkline
                 .frame(height: 36)
 
-            if let value = latestValueText {
+            if let value = BrowseCardPresenter.latestValueText(field: field, points: points) {
                 Text(value)
                     .font(.system(.footnote, design: .rounded, weight: .semibold))
                     .foregroundStyle(.primary)
@@ -191,6 +187,7 @@ private struct MetricBrowseCard: View {
                 Text("—")
                     .font(.system(.footnote, design: .rounded, weight: .semibold))
                     .foregroundStyle(.tertiary)
+                    .accessibilityIdentifier("metricCardValue-\(field)")
             }
         }
         .frame(width: 130)
@@ -199,16 +196,19 @@ private struct MetricBrowseCard: View {
 
     @ViewBuilder
     private var sparkline: some View {
-        if let points, !points.isEmpty {
-            MetricSparklineChart(points: points)
-        } else if isLoading {
+        switch BrowseCardPresenter.sparklineState(points: points, isLoading: isLoading) {
+        case .chart(let pts):
+            MetricSparklineChart(points: pts)
+                .accessibilityIdentifier("metricCardSparkline-\(field)")
+        case .loading:
             HStack {
                 Spacer()
                 ProgressView()
                     .controlSize(.mini)
                 Spacer()
             }
-        } else {
+            .accessibilityIdentifier("metricCardLoading-\(field)")
+        case .empty:
             RoundedRectangle(cornerRadius: 4)
                 .fill(OPColor.teal.opacity(0.1))
                 .overlay {
@@ -216,6 +216,7 @@ private struct MetricBrowseCard: View {
                         .font(.caption2)
                         .foregroundStyle(OPColor.teal.opacity(0.3))
                 }
+                .accessibilityIdentifier("metricCardPlaceholder-\(field)")
         }
     }
 }
@@ -245,7 +246,7 @@ private struct MetricSparklineChart: View {
             .interpolationMethod(.monotone)
             .lineStyle(StrokeStyle(lineWidth: 1.5, lineCap: .round))
         }
-        .chartYScale(domain: .automatic(includesZero: false))
+        .chartYScale(domain: .automatic(includesZero: ChartAxisConfig.includesZeroInYAxis))
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
     }

@@ -157,4 +157,53 @@ struct ExploreViewModelTests {
 
         #expect(vm.sparklineData.isEmpty)
     }
+
+    // Guard test: the backend's Resolution enum uses lowercase strings
+    // (`daily` / `weekly` / `monthly`). Sending `"1d"` returns 422 and the
+    // error is swallowed into a logger line — this test catches that bug
+    // if it reappears on a careless edit.
+    @Test("loadSparklines sends resolution=daily (matches backend enum)")
+    func loadSparklinesSendsDailyResolution() async {
+        let mock = MockNetworkClient()
+        var capturedResolutions: [String] = []
+        mock.requestHandler = { _, path, body -> Any in
+            #expect(path == Endpoints.batchSeries)
+            guard let req = body as? BatchSeriesRequest else {
+                Issue.record("body was not a BatchSeriesRequest")
+                return BatchSeriesResponse(series: [])
+            }
+            capturedResolutions.append(req.resolution)
+            return BatchSeriesResponse(series: req.metrics.map { spec in
+                SeriesData(source: spec.source, field: spec.field, unit: "", points: [])
+            })
+        }
+
+        let vm = ExploreViewModel(networkClient: mock)
+        // Use >10 fields to exercise both chunks and confirm every request
+        // carries the same resolution.
+        let fields = (0..<12).map { "metric_\($0)" }
+        await vm.loadSparklines(source: "health_records", fields: fields)
+
+        #expect(!capturedResolutions.isEmpty)
+        for resolution in capturedResolutions {
+            #expect(resolution == "daily")
+        }
+    }
+
+    @Test("loadInterventions targets /explore/interventions, not /interventions")
+    func loadInterventionsUsesExploreEndpoint() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { method, path, _ -> Any in
+            #expect(method == "GET")
+            // Path includes the query string — assert the endpoint prefix only.
+            #expect(path.hasPrefix(Endpoints.exploreInterventions))
+            #expect(!path.hasPrefix("\(Endpoints.interventions)?"))
+            return [InterventionMarker]()
+        }
+
+        let vm = ExploreViewModel(networkClient: mock)
+        await vm.loadInterventions()
+
+        #expect(vm.interventions.isEmpty)
+    }
 }

@@ -23,6 +23,11 @@ enum UserPreferences {
 
     /// Underlying UserDefaults store. Overridable for tests via `configure(_:)`.
     private static let lock = NSLock()
+    // TODO(concurrency): revisit when we do the broader app-wide Sendable /
+    // actor pass — annotate `UserPreferences` as `@MainActor` (or move it to
+    // an actor) and remove the `nonisolated(unsafe)` + manual `NSLock`. Today
+    // the storage is guarded by `lock` so races are safe at runtime, but the
+    // compiler can't prove it.
     nonisolated(unsafe) private static var _defaults: UserDefaults = .standard
 
     static var defaults: UserDefaults {

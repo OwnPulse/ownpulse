@@ -18,7 +18,30 @@ struct SmallMultiplesChartView: View {
     let showMovingAverage: Bool
 
     private var visibleInterventions: [InterventionMarker] {
+        Self.filterVisibleInterventions(interventions, hiddenSubstances: hiddenSubstances)
+    }
+
+    /// Exposed for unit tests — hidden substances must not render as
+    /// `RuleMark`s. Kept as a static pure function so tests don't have to
+    /// instantiate a View.
+    static func filterVisibleInterventions(
+        _ interventions: [InterventionMarker],
+        hiddenSubstances: Set<String>
+    ) -> [InterventionMarker] {
         interventions.filter { !hiddenSubstances.contains($0.substance) }
+    }
+
+    /// Exposed for unit tests — body_mass panels must reflect the user's
+    /// weight-unit preference in the unit label, everything else passes
+    /// through the backend-supplied unit.
+    static func unitLabel(
+        for metric: ChartMetric,
+        prefs: WeightUnitPreference = UserPreferences.weightUnit
+    ) -> String {
+        if metric.field == "body_mass" {
+            return WeightFormatter.unitString(prefs: prefs)
+        }
+        return metric.unit
     }
 
     var body: some View {
@@ -90,7 +113,7 @@ struct SmallMultiplesChartView: View {
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
             }
         }
-        .chartYScale(domain: .automatic(includesZero: false))
+        .chartYScale(domain: .automatic(includesZero: ChartAxisConfig.includesZeroInYAxis))
         .chartYAxis {
             AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
@@ -122,9 +145,6 @@ struct SmallMultiplesChartView: View {
     }
 
     private func unitLabel(for metric: ChartMetric) -> String {
-        if metric.field == "body_mass" {
-            return WeightFormatter.unitString()
-        }
-        return metric.unit
+        Self.unitLabel(for: metric)
     }
 }

@@ -60,7 +60,7 @@ struct WeightChartView: View {
             .foregroundStyle(Color(hex: 0x3D8B8B))
             .symbolSize(20)
         }
-        .chartYScale(domain: .automatic(includesZero: false))
+        .chartYScale(domain: .automatic(includesZero: ChartAxisConfig.includesZeroInYAxis))
         .chartYAxis {
             AxisMarks(position: .leading) { value in
                 AxisGridLine()

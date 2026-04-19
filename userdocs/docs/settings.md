@@ -10,6 +10,24 @@ The preferred source is used for display on the Timeline and in analysis. Data f
 
 See [Integrations](integrations.md) for more on connecting and managing data sources.
 
+## Units (iOS)
+
+The iOS app has a **Settings > Units** section for controlling how measurements are displayed.
+
+### Weight (pounds / kilograms)
+
+Choose between **Pounds (lb)** and **Kilograms (kg)** for body-mass display. The default on a fresh install is pounds.
+
+This preference affects display only -- the backend always stores weight in kilograms, and changing the unit never modifies your underlying data. You can switch back and forth at any time. Conversion happens on the device: 1 kg is shown as approximately 2.20 lb.
+
+The unit you choose applies to:
+
+- The **Health Overview** chart's body-mass panel (axis tick labels and legend unit suffix).
+- The body-mass card on the **Explore** tab (latest-value display and unit label).
+- The detail view's summary stats for body mass (Avg / Min / Max).
+
+Other units (distance, temperature, energy) are not yet configurable.
+
 ### How source preferences work
 
 When multiple sources report the same metric, the preferred source's value is shown on the dashboard and used in analysis. Non-preferred source data is kept in the database -- it is not deleted, just deprioritized. You can always see data from all sources in exports and detailed data views. Changing your preference takes effect immediately for all future display.

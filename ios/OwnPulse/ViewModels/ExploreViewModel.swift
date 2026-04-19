@@ -132,7 +132,10 @@ final class ExploreViewModel {
         let now = Date()
         let startDate = Calendar.current.date(byAdding: .day, value: -dateRange.daysBack, to: now) ?? now
 
-        let path = "\(Endpoints.interventions)?start=\(formatter.string(from: startDate))&end=\(formatter.string(from: now))"
+        // Use the explore marker endpoint, not the full intervention list.
+        // `/api/v1/interventions` returns `InterventionRow` (full rows) and
+        // decoding into `InterventionMarker` fails silently.
+        let path = "\(Endpoints.exploreInterventions)?start=\(formatter.string(from: startDate))&end=\(formatter.string(from: now))"
 
         do {
             let markers: [InterventionMarker] = try await networkClient.request(
@@ -197,12 +200,15 @@ final class ExploreViewModel {
         let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: now) ?? now
 
         // Chunk by 10 per the backend cap.
+        // Resolution values must match the backend's `Resolution` enum —
+        // `daily` / `weekly` / `monthly`, see backend/api/src/models/explore.rs.
+        // Sending anything else (e.g. `"1d"`) returns 422.
         for chunk in pending.chunked(into: 10) {
             let request = BatchSeriesRequest(
                 metrics: chunk.map { MetricSpec(source: source, field: $0) },
                 start: formatter.string(from: sevenDaysAgo),
                 end: formatter.string(from: now),
-                resolution: "1d"
+                resolution: "daily"
             )
             do {
                 let response: BatchSeriesResponse = try await networkClient.request(

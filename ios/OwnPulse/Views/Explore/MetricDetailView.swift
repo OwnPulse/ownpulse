@@ -111,15 +111,19 @@ struct MetricDetailView: View {
 
     @ViewBuilder
     private func chartSection(vm: ExploreViewModel) -> some View {
+        // Lift the date formatter out of the per-point closure — allocating
+        // an ISO8601DateFormatter per point is wasteful for charts with
+        // hundreds of points.
+        let isoFormatter = ISO8601DateFormatter()
         let chartMetrics = vm.seriesData.map { series in
             let color = colorForMetric(series.field)
             let points = series.points.compactMap { point -> ChartPoint? in
-                guard let date = ISO8601DateFormatter().date(from: point.t) else { return nil }
+                guard let date = isoFormatter.date(from: point.t) else { return nil }
                 return ChartPoint(date: date, value: point.v)
             }
             let maPoints: [ChartPoint]? = vm.showMovingAverage
                 ? movingAverage(points: series.points, window: 7).compactMap { point in
-                    guard let date = ISO8601DateFormatter().date(from: point.t) else { return nil }
+                    guard let date = isoFormatter.date(from: point.t) else { return nil }
                     return ChartPoint(date: date, value: point.v)
                 }
                 : nil
