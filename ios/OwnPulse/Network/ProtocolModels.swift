@@ -35,11 +35,13 @@ struct ProtocolDetail: Codable, Sendable, Identifiable {
     let name: String
     let description: String?
     let status: ProtocolStatus
-    let startDate: String
+    /// Nullable — backend's `ProtocolResponse.start_date` is `Option<NaiveDate>`
+    /// (draft protocols have no start date). The UI must treat nil as
+    /// "not started yet".
+    let startDate: String?
     let durationDays: Int
     let shareToken: String?
     let createdAt: String
-    let updatedAt: String
     let lines: [ProtocolLine]
 
     enum CodingKeys: String, CodingKey {
@@ -50,7 +52,6 @@ struct ProtocolDetail: Codable, Sendable, Identifiable {
         case durationDays = "duration_days"
         case shareToken = "share_token"
         case createdAt = "created_at"
-        case updatedAt = "updated_at"
         case lines
     }
 }
