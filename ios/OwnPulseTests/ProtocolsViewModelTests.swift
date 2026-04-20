@@ -109,8 +109,7 @@ struct ProtocolsViewModelTests {
             dayNumber: dayNumber,
             status: status,
             interventionId: nil,
-            loggedAt: "2026-03-01T08:00:00Z",
-            createdAt: "2026-03-01T08:00:00Z"
+            loggedAt: "2026-03-01T08:00:00Z"
         )
     }
 

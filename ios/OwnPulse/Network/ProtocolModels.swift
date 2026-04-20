@@ -89,8 +89,10 @@ struct ProtocolDose: Codable, Sendable, Identifiable {
     let dayNumber: Int
     let status: DoseStatus
     let interventionId: String?
+    /// Non-optional on the backend (`ProtocolDoseRow.logged_at: DateTime<Utc>`)
+    /// but tolerated as optional here so older seeded rows without a
+    /// populated timestamp don't break the whole detail decode.
     let loggedAt: String?
-    let createdAt: String
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -99,7 +101,6 @@ struct ProtocolDose: Codable, Sendable, Identifiable {
         case status
         case interventionId = "intervention_id"
         case loggedAt = "logged_at"
-        case createdAt = "created_at"
     }
 }
 
