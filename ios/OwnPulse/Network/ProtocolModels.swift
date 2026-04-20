@@ -35,11 +35,13 @@ struct ProtocolDetail: Codable, Sendable, Identifiable {
     let name: String
     let description: String?
     let status: ProtocolStatus
-    let startDate: String
+    /// Nullable — backend's `ProtocolResponse.start_date` is `Option<NaiveDate>`
+    /// (draft protocols have no start date). The UI must treat nil as
+    /// "not started yet".
+    let startDate: String?
     let durationDays: Int
     let shareToken: String?
     let createdAt: String
-    let updatedAt: String
     let lines: [ProtocolLine]
 
     enum CodingKeys: String, CodingKey {
@@ -50,7 +52,6 @@ struct ProtocolDetail: Codable, Sendable, Identifiable {
         case durationDays = "duration_days"
         case shareToken = "share_token"
         case createdAt = "created_at"
-        case updatedAt = "updated_at"
         case lines
     }
 }
@@ -88,8 +89,10 @@ struct ProtocolDose: Codable, Sendable, Identifiable {
     let dayNumber: Int
     let status: DoseStatus
     let interventionId: String?
+    /// Non-optional on the backend (`ProtocolDoseRow.logged_at: DateTime<Utc>`)
+    /// but tolerated as optional here so older seeded rows without a
+    /// populated timestamp don't break the whole detail decode.
     let loggedAt: String?
-    let createdAt: String
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -98,7 +101,6 @@ struct ProtocolDose: Codable, Sendable, Identifiable {
         case status
         case interventionId = "intervention_id"
         case loggedAt = "logged_at"
-        case createdAt = "created_at"
     }
 }
 

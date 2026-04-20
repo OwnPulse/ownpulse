@@ -131,9 +131,15 @@ struct ProtocolDetailView: View {
     private func headerSection(_ proto: ProtocolDetail) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Started \(proto.startDate)")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                if let start = proto.startDate {
+                    Text("Started \(start)")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Not started")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
                 Text("\(proto.durationDays) days")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
@@ -316,7 +322,11 @@ struct ProtocolDetailView: View {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        guard let startDate = formatter.date(from: proto.startDate) else { return [] }
+        guard let startStr = proto.startDate,
+              let startDate = formatter.date(from: startStr) else {
+            // Draft or not-yet-started protocol — nothing scheduled today.
+            return []
+        }
         let dayNumber = Calendar.current.dateComponents([.day], from: startDate, to: Date()).day ?? 0
         guard dayNumber >= 0, dayNumber < proto.durationDays else { return [] }
 
