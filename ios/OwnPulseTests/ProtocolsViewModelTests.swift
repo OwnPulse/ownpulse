@@ -69,7 +69,6 @@ struct ProtocolsViewModelTests {
             durationDays: durationDays,
             shareToken: nil,
             createdAt: "2026-03-01T00:00:00Z",
-            updatedAt: "2026-03-01T00:00:00Z",
             lines: lines
         )
     }
