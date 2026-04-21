@@ -31,6 +31,6 @@ jobs:
           set -o pipefail
           xcodebuild test \
             -scheme OwnPulse \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
             -clonedSourcePackagesDirPath .build \
             | xcbeautify --is-ci
