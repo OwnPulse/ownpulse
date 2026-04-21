@@ -80,11 +80,69 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
     }
 
     func requestAuthorization() async throws {
-        try await store.requestAuthorization(
-            toShare: HealthKitTypeMap.allWriteTypes,
-            read: HealthKitTypeMap.allReadTypes
-        )
+        // HealthKit's `requestAuthorization` raises an `NSException` (not an
+        // `NSError`) if any type in `toShare` is disallowed — e.g. Apple
+        // restricts writing for certain derived/event types, or the current
+        // iOS build disallows a type that was writable in a prior SDK.
+        // Swift can't catch Objective-C exceptions, so the raw call crashes
+        // the process with SIGABRT. Wrap in our ObjC bridge so the exception
+        // becomes a Swift-catchable error and the caller gets a proper
+        // "not connected" state instead of a crash.
+        //
+        // If this path triggers in production, the offending type(s) can be
+        // found by running `probeAuthorizationForWriteTypes` which submits
+        // each write type individually.
+        let store = self.store
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            var caughtError: NSError?
+            let ok = ObjCExceptionCatcher.tryBlock({
+                store.requestAuthorization(
+                    toShare: HealthKitTypeMap.allWriteTypes,
+                    read: HealthKitTypeMap.allReadTypes
+                ) { _, error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }, error: &caughtError)
+            // If `tryBlock` returned NO the call never reached the point
+            // where the completion handler is registered — so the completion
+            // will not fire and we must resume the continuation here.
+            // If `tryBlock` returned YES, the completion handler is on the
+            // hook to resume; we do nothing.
+            if !ok, let caughtError {
+                continuation.resume(throwing: caughtError)
+            }
+        }
     }
+
+    /// Diagnostic helper: requests authorization for each write type in
+    /// isolation and returns the ones whose HealthKit call raised an
+    /// `NSException`. Use from a debug UI or a test to narrow down which
+    /// specific types are disallowed on the current OS without crashing.
+    /// This does NOT mutate authorization state for types that succeed —
+    /// it only triggers the up-front type validation.
+    #if DEBUG
+    func probeAuthorizationForWriteTypes() -> [String] {
+        var failing: [String] = []
+        let store = self.store
+        for mapping in HealthKitTypeMap.mappings where mapping.writable {
+            var err: NSError?
+            let ok = ObjCExceptionCatcher.tryBlock({
+                store.requestAuthorization(
+                    toShare: [mapping.hkType],
+                    read: []
+                ) { _, _ in }
+            }, error: &err)
+            if !ok {
+                failing.append(mapping.recordType)
+            }
+        }
+        return failing
+    }
+    #endif
 
     func isAuthorized() -> Bool {
         HKHealthStore.isHealthDataAvailable()
