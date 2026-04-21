@@ -21,14 +21,14 @@ struct ObjCExceptionCatcherTests {
     @Test("tryBlock does not throw when the block completes normally")
     func noExceptionDoesNotThrow() throws {
         var ran = false
-        try ObjCExceptionCatcher.tryBlock { ran = true }
+        try ObjCExceptionCatcher.`try` { ran = true }
         #expect(ran == true)
     }
 
     @Test("tryBlock converts NSException into a thrown NSError")
     func nsExceptionBecomesThrownNSError() {
         do {
-            try ObjCExceptionCatcher.tryBlock {
+            try ObjCExceptionCatcher.`try` {
                 NSException(
                     name: .invalidArgumentException,
                     reason: "simulated failure",

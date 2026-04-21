@@ -99,7 +99,7 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         let store = self.store
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             do {
-                try ObjCExceptionCatcher.tryBlock {
+                try ObjCExceptionCatcher.`try` {
                     store.requestAuthorization(
                         toShare: HealthKitTypeMap.allWriteTypes,
                         read: HealthKitTypeMap.allReadTypes
@@ -131,7 +131,7 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         let store = self.store
         for mapping in HealthKitTypeMap.mappings where mapping.writable {
             do {
-                try ObjCExceptionCatcher.tryBlock {
+                try ObjCExceptionCatcher.`try` {
                     store.requestAuthorization(
                         toShare: [mapping.hkType],
                         read: []
