@@ -25,12 +25,28 @@ jobs:
           key: spm-${{ hashFiles('ios/OwnPulse.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: spm-
 
+      # Runner images ship without any iOS simulator devices preinstalled —
+      # only the "Any iOS Simulator" placeholder. Create one from the newest
+      # available iPhone device type + iOS runtime so the destination spec
+      # below can resolve to a concrete device.
+      - name: Create iOS simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          DEVICE_TYPE=$(xcrun simctl list devicetypes -j | jq -r '.devicetypes | map(select(.productFamily == "iPhone")) | sort_by(.name) | reverse | .[0].identifier')
+          RUNTIME=$(xcrun simctl list runtimes -j | jq -r '.runtimes | map(select(.platform == "iOS")) | sort_by(.version) | reverse | .[0].identifier')
+          echo "Using device: $DEVICE_TYPE"
+          echo "Using runtime: $RUNTIME"
+          SIM_UDID=$(xcrun simctl create "CITestDevice" "$DEVICE_TYPE" "$RUNTIME")
+          echo "Created simulator: $SIM_UDID"
+          echo "udid=$SIM_UDID" >> "$GITHUB_OUTPUT"
+
       - name: Run tests
         working-directory: ios
         run: |
           set -o pipefail
           xcodebuild test \
             -scheme OwnPulse \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -clonedSourcePackagesDirPath .build \
             | xcbeautify --is-ci
