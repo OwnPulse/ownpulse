@@ -92,28 +92,29 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         // If this path triggers in production, the offending type(s) can be
         // found by running `probeAuthorizationForWriteTypes` which submits
         // each write type individually.
+        //
+        // Swift imports `+tryBlock:error:` as a `throws` function (the
+        // classic NSError-out-pointer pattern), so we use try/catch here,
+        // not a Bool return.
         let store = self.store
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            var caughtError: NSError?
-            let ok = ObjCExceptionCatcher.tryBlock({
-                store.requestAuthorization(
-                    toShare: HealthKitTypeMap.allWriteTypes,
-                    read: HealthKitTypeMap.allReadTypes
-                ) { _, error in
-                    if let error {
-                        continuation.resume(throwing: error)
-                    } else {
-                        continuation.resume()
+            do {
+                try ObjCExceptionCatcher.tryBlock {
+                    store.requestAuthorization(
+                        toShare: HealthKitTypeMap.allWriteTypes,
+                        read: HealthKitTypeMap.allReadTypes
+                    ) { _, error in
+                        if let error {
+                            continuation.resume(throwing: error)
+                        } else {
+                            continuation.resume()
+                        }
                     }
                 }
-            }, error: &caughtError)
-            // If `tryBlock` returned NO the call never reached the point
-            // where the completion handler is registered — so the completion
-            // will not fire and we must resume the continuation here.
-            // If `tryBlock` returned YES, the completion handler is on the
-            // hook to resume; we do nothing.
-            if !ok, let caughtError {
-                continuation.resume(throwing: caughtError)
+                // Success path: completion handler will resume the continuation.
+            } catch {
+                // NSException path: completion never registered.
+                continuation.resume(throwing: error)
             }
         }
     }
@@ -129,14 +130,14 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         var failing: [String] = []
         let store = self.store
         for mapping in HealthKitTypeMap.mappings where mapping.writable {
-            var err: NSError?
-            let ok = ObjCExceptionCatcher.tryBlock({
-                store.requestAuthorization(
-                    toShare: [mapping.hkType],
-                    read: []
-                ) { _, _ in }
-            }, error: &err)
-            if !ok {
+            do {
+                try ObjCExceptionCatcher.tryBlock {
+                    store.requestAuthorization(
+                        toShare: [mapping.hkType],
+                        read: []
+                    ) { _, _ in }
+                }
+            } catch {
                 failing.append(mapping.recordType)
             }
         }
