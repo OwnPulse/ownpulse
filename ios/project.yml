@@ -29,6 +29,9 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
         DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
         DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
+        SWIFT_OBJC_BRIDGING_HEADER: OwnPulse/OwnPulse-Bridging-Header.h
+        CLANG_ENABLE_OBJC_ARC: YES
+        CLANG_ENABLE_OBJC_WEAK: YES
       configs:
         Debug:
           CODE_SIGN_STYLE: Automatic

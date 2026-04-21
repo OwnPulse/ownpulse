@@ -25,12 +25,37 @@ jobs:
           key: spm-${{ hashFiles('ios/OwnPulse.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: spm-
 
+      # Runner images ship without any iOS simulator devices preinstalled —
+      # only the "Any iOS Simulator" placeholder. Create one from the newest
+      # available iPhone device type + iOS runtime so the destination spec
+      # below can resolve to a concrete device.
+      - name: Create iOS simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          # Pick the highest-numbered iPhone N / iPhone N Pro model. The
+          # `productFamily == "iPhone"` predicate misclassifies iPod touch in
+          # some Xcode versions, and lexical sort picks "iPod" before
+          # "iPhone 17". Use an explicit name regex instead.
+          DEVICE_TYPE=$(xcrun simctl list devicetypes -j \
+            | jq -r '.devicetypes
+                     | map(select(.name | test("^iPhone [0-9]+( Pro| Plus| Pro Max)?$")))
+                     | sort_by(.name | capture("iPhone (?<n>[0-9]+)").n | tonumber)
+                     | reverse
+                     | .[0].identifier')
+          RUNTIME=$(xcrun simctl list runtimes -j | jq -r '.runtimes | map(select(.platform == "iOS")) | sort_by(.version) | reverse | .[0].identifier')
+          echo "Using device: $DEVICE_TYPE"
+          echo "Using runtime: $RUNTIME"
+          SIM_UDID=$(xcrun simctl create "CITestDevice" "$DEVICE_TYPE" "$RUNTIME")
+          echo "Created simulator: $SIM_UDID"
+          echo "udid=$SIM_UDID" >> "$GITHUB_OUTPUT"
+
       - name: Run tests
         working-directory: ios
         run: |
           set -o pipefail
           xcodebuild test \
             -scheme OwnPulse \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -clonedSourcePackagesDirPath .build \
             | xcbeautify --is-ci
