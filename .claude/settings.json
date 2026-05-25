@@ -1,5 +1,14 @@
 {
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(ops/diag-crashes.sh:*)",
+      "Bash(./ops/diag-crashes.sh:*)",
+      "Bash(python3 ops/asc_client.py diagnose:*)",
+      "Bash(python3 ops/asc_client.py list-builds:*)",
+      "Bash(python3 ops/asc_client.py crash-feedback:*)"
+    ]
   }
 }
