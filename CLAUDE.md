@@ -429,6 +429,12 @@ All jobs idempotent. No shared runner state. iOS failures do not block deploy �
 
 ---
 
+## Diagnosing crashes
+
+To diagnose iOS crashes a user reports, run `opdev crashes diagnose --since 24h`. It pulls symbolicated crash logs from App Store Connect (and, after Phase 2 of the crash-tooling work, also from our `app_events` table). Requires App Store Connect credentials for whoever publishes the iOS build — self-hosters of just the backend/web stack don't need this. opdev lives in the separate ownpulse-dev repo. See `docs/guides/diagnosing-crashes.md` for setup and flags.
+
+---
+
 ## Local Setup
 
 **k3d vs k3s:** k3d runs k3s inside Docker on your dev machine. k3s runs directly on Linux servers (droplet, self-hosted VPS). Same Helm charts, same kubectl commands — only the install method differs. Use k3d locally, k3s in production.
