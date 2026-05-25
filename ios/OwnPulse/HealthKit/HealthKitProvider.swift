@@ -22,12 +22,34 @@ struct AnchoredQueryResult: Sendable {
     let deletedObjectIDs: [String]
 }
 
+/// Read-permission status for a single HealthKit type.
+/// Mirrors `HKAuthorizationStatus` but is exposed at the protocol level so
+/// tests can stub it without faking a real `HKHealthStore`.
+enum HealthKitReadAuthorizationStatus: Sendable {
+    case notDetermined
+    case sharingDenied
+    case sharingAuthorized
+}
+
 protocol HealthKitProviderProtocol: Sendable {
     func requestAuthorization() async throws
     func isAuthorized() -> Bool
+
+    /// Returns the current authorization status for `type`. iOS only reports
+    /// share (write) status accurately; for read status we treat any
+    /// non-`.notDetermined` value as authorized — this is good enough for
+    /// the diagnostic logging in `AppDependencies.bootstrapAutoSync()`.
+    func authorizationStatus(for type: HKObjectType) -> HealthKitReadAuthorizationStatus
+
+    /// Read up to `limit` samples newer than `anchor`. Pass a finite limit
+    /// (e.g. 5000) when backfilling large types so the consumer can start
+    /// uploading without waiting for the full result set to materialize.
+    /// Callers loop, feeding the returned `newAnchor` back in until the
+    /// result is empty.
     func querySamples(
         type: HKSampleType,
-        anchor: Data?
+        anchor: Data?,
+        limit: Int
     ) async throws -> AnchoredQueryResult
     func writeSample(
         type: HKSampleType,
@@ -149,9 +171,23 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         HKHealthStore.isHealthDataAvailable()
     }
 
+    func authorizationStatus(for type: HKObjectType) -> HealthKitReadAuthorizationStatus {
+        switch store.authorizationStatus(for: type) {
+        case .notDetermined:
+            return .notDetermined
+        case .sharingDenied:
+            return .sharingDenied
+        case .sharingAuthorized:
+            return .sharingAuthorized
+        @unknown default:
+            return .notDetermined
+        }
+    }
+
     func querySamples(
         type: HKSampleType,
-        anchor: Data?
+        anchor: Data?,
+        limit: Int
     ) async throws -> AnchoredQueryResult {
         guard let mapping = HealthKitTypeMap.mapping(forHKType: type) else {
             return AnchoredQueryResult(samples: [], newAnchor: nil, deletedObjectIDs: [])
@@ -168,11 +204,14 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         }
 
         return try await withCheckedThrowingContinuation { continuation in
+            // Cap each round trip at `limit`. The caller drives a paging
+            // loop, so for a 500K-sample type we yield 5K-sample pages
+            // instead of materializing the whole result up front.
             let query = HKAnchoredObjectQuery(
                 type: type,
                 predicate: nil,
                 anchor: hkAnchor,
-                limit: HKObjectQueryNoLimit
+                limit: limit
             ) { _, added, deleted, newAnchor, error in
                 if let error {
                     continuation.resume(throwing: error)

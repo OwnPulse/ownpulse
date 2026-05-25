@@ -4,6 +4,9 @@
 import Foundation
 import HealthKit
 import Observation
+import os
+
+private let engineLogger = Logger(subsystem: "health.ownpulse.app", category: "sync-engine")
 
 // Observable state bag — lives on MainActor, updated by SyncEngine after each operation.
 @Observable
@@ -29,7 +32,21 @@ actor SyncEngine {
     private let offlineQueue: OfflineQueueProtocol
     private let anchorStore: AnchorStore
     private let backgroundTaskHost: BackgroundTaskHost?
-    private let batchSize = 100
+
+    /// Backend caps a single bulk insert at 500 (`MAX_HEALTHKIT_BATCH`).
+    /// Match that — fewer round trips, same per-call work.
+    private let batchSize = 500
+
+    /// Cap on `HKAnchoredObjectQuery` results per page. With heart rate at
+    /// 450K+ samples, materializing the whole array before we can start
+    /// uploading is a memory + latency disaster. 5000 keeps peak memory
+    /// bounded while still amortizing the cost of HealthKit's IPC.
+    private let pageSize = 5000
+
+    /// Max number of types syncing concurrently. The plan calls out 3 as a
+    /// deliberate cap — don't compete with the user's foreground requests
+    /// and don't hit backend rate limits. Measure before raising.
+    private let maxConcurrentTypes = 3
 
     private var _isSyncing = false
     private var _lastSyncDate: Date?
@@ -103,31 +120,21 @@ actor SyncEngine {
             // 1. Drain offline queue first
             try await drainOfflineQueue()
 
-            // 2. Initialize progress tracking
+            // 2. Initialize progress tracking — only set up the per-type
+            // pending rows on the first sync of a session. Subsequent calls
+            // (scene-phase, observer debounce) preserve any in-flight or
+            // completed progress so the UI doesn't flicker on re-entry.
             let timestamps = (try? anchorStore.allSyncTimestamps()) ?? [:]
             let types = HealthKitTypeMap.mappings.map {
                 (recordType: $0.recordType, displayName: $0.recordType.replacingOccurrences(of: "_", with: " ").capitalized)
             }
-            await MainActor.run { progress.reset(types: types, timestamps: timestamps) }
+            await MainActor.run { progress.prepareIfNeeded(types: types, timestamps: timestamps) }
 
-            // 3. Query HK for each type and upload — continue on per-type errors
-            for mapping in HealthKitTypeMap.mappings {
-                await MainActor.run { progress.markSyncing(mapping.recordType) }
-                do {
-                    let count = try await syncType(mapping)
-                    if count > 0 {
-                        await MainActor.run { progress.markSynced(mapping.recordType, count: count, at: Date()) }
-                    } else {
-                        await MainActor.run { progress.markSkipped(mapping.recordType) }
-                    }
-                } catch {
-                    await MainActor.run { progress.markFailed(mapping.recordType, error: error.localizedDescription) }
-                    // Continue to next type — don't halt
-                }
-            }
+            // 3. Sync types in parallel, capped at maxConcurrentTypes.
+            await runTypeSyncs(HealthKitTypeMap.mappings)
             await MainActor.run { progress.finish() }
 
-            // 3. Sync clinical records (lab results from Apple Health Records) if enabled
+            // 4. Sync clinical records (lab results from Apple Health Records) if enabled
             if let clinicalProvider = clinicalRecordProvider,
                ClinicalRecordSettings.isSyncEnabled {
                 do {
@@ -138,7 +145,7 @@ actor SyncEngine {
                 }
             }
 
-            // 4. Sync medication dose events (iOS 26+)
+            // 5. Sync medication dose events (iOS 26+)
             #if swift(>=6.3)
             if #available(iOS 26.0, *) {
                 if let provider = medicationSyncProvider as? MedicationSyncProviderProtocol {
@@ -151,7 +158,7 @@ actor SyncEngine {
             }
             #endif
 
-            // 5. Process write-back queue (non-fatal)
+            // 6. Process write-back queue (non-fatal)
             do {
                 try await processWriteBack()
             } catch {
@@ -178,38 +185,134 @@ actor SyncEngine {
                 try offlineQueue.markComplete(id: entry.id)
             } catch {
                 // Skip and continue — don't let stale queue entries block the entire sync
+                logUploadFailure(error, context: "offline-queue-drain")
                 _lastError = "Offline queue retry failed: \(error.localizedDescription)"
             }
         }
     }
 
-    /// Returns the number of records synced (0 if no new data).
+    /// Runs `syncType` over `mappings` with bounded concurrency.
+    /// Each in-flight task occupies one slot; the dispatcher waits for one
+    /// to finish before starting another. Failures in any single type are
+    /// recorded against the progress object and never bubble out — the
+    /// remaining types keep flowing.
+    private func runTypeSyncs(_ mappings: [HealthKitTypeMap.Mapping]) async {
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = mappings.makeIterator()
+            var inFlight = 0
+
+            // Prime the group with up to maxConcurrentTypes initial tasks.
+            while inFlight < maxConcurrentTypes, let next = iterator.next() {
+                group.addTask { [self] in await self.runSingleType(next) }
+                inFlight += 1
+            }
+
+            // For each completion, spawn the next mapping so we always have
+            // at most `maxConcurrentTypes` running concurrently.
+            while await group.next() != nil {
+                if let next = iterator.next() {
+                    group.addTask { [self] in await self.runSingleType(next) }
+                }
+            }
+        }
+    }
+
+    private func runSingleType(_ mapping: HealthKitTypeMap.Mapping) async {
+        let recordType = mapping.recordType
+        await MainActor.run { progress.markSyncing(recordType) }
+        do {
+            let count = try await syncType(mapping)
+            if count > 0 {
+                await MainActor.run { progress.markSynced(recordType, count: count, at: Date()) }
+            } else {
+                await MainActor.run { progress.markSkipped(recordType) }
+            }
+        } catch {
+            await MainActor.run { progress.markFailed(recordType, error: error.localizedDescription) }
+            // Continue — don't halt other types
+        }
+    }
+
+    /// Returns the total number of records synced across all pages.
+    ///
+    /// Strategy: page through `HealthKitProvider.querySamples(..., limit:)`,
+    /// feeding each page into a bounded `AsyncStream` of upload batches.
+    /// A single consumer drains the stream and uploads batches sequentially
+    /// (one in-flight upload per type, keeping ordering simple and letting
+    /// the outer task group provide cross-type concurrency).
+    /// Producer and consumer overlap — the next HealthKit page is fetched
+    /// while the previous batches are uploading.
     @discardableResult
     private func syncType(_ mapping: HealthKitTypeMap.Mapping) async throws -> Int {
-        let anchor = try anchorStore.anchor(forRecordType: mapping.recordType)
-        let result = try await healthKitProvider.querySamples(
-            type: mapping.hkType,
-            anchor: anchor
+        let recordType = mapping.recordType
+        let hkType = mapping.hkType
+        let batchSize = self.batchSize
+        let pageSize = self.pageSize
+
+        // Bounded AsyncStream — buffer 2 batches keeps the producer one
+        // step ahead of the consumer without piling samples in memory.
+        let (stream, continuation) = AsyncStream<[HealthKitSample]>.makeStream(
+            bufferingPolicy: .bufferingNewest(2)
         )
 
-        guard !result.samples.isEmpty else {
-            if let newAnchor = result.newAnchor {
-                try anchorStore.saveAnchor(newAnchor, forRecordType: mapping.recordType)
+        // Per-type running counters. Held in `nonisolated(unsafe)` boxes
+        // because the producer/consumer Tasks below need to mutate them;
+        // they never run concurrently for the same type — the producer
+        // writes `total`/`anchor`, the consumer writes `uploaded`.
+        actor TypeCounters {
+            var total = 0
+            var uploaded = 0
+            var finalAnchor: Data?
+            func addTotal(_ n: Int) { total += n }
+            func addUploaded(_ n: Int) { uploaded += n }
+            func setAnchor(_ data: Data?) { if data != nil { finalAnchor = data } }
+        }
+        let counters = TypeCounters()
+
+        // Producer: page through HealthKit, yielding upload-sized batches.
+        let producerTask = Task { [healthKitProvider, anchorStore] in
+            var currentAnchor = try anchorStore.anchor(forRecordType: recordType)
+            while !Task.isCancelled {
+                let page = try await healthKitProvider.querySamples(
+                    type: hkType,
+                    anchor: currentAnchor,
+                    limit: pageSize
+                )
+
+                if !page.samples.isEmpty {
+                    await counters.addTotal(page.samples.count)
+                    let pageTotal = await counters.total
+                    await MainActor.run { self.progress.setTotalSamples(recordType, total: pageTotal) }
+
+                    // Chunk the page into upload-sized batches.
+                    let samples = page.samples
+                    var idx = 0
+                    while idx < samples.count {
+                        let end = min(idx + batchSize, samples.count)
+                        continuation.yield(Array(samples[idx..<end]))
+                        idx = end
+                    }
+                }
+
+                // Advance the anchor — both for the next page in this loop
+                // AND to persist progress so a crash doesn't lose ground.
+                if let newAnchor = page.newAnchor {
+                    await counters.setAnchor(newAnchor)
+                    currentAnchor = newAnchor
+                }
+
+                // HealthKit returns < limit when the result set is exhausted.
+                // An empty page after an empty anchor advance also means we're done.
+                if page.samples.count < pageSize {
+                    break
+                }
             }
-            return 0
+            continuation.finish()
         }
 
-        let total = result.samples.count
-        let recordType = mapping.recordType
-        await MainActor.run { progress.setTotalSamples(recordType, total: total) }
-
-        // Batch upload
-        let batches = stride(from: 0, to: total, by: batchSize).map {
-            Array(result.samples[$0..<min($0 + batchSize, total)])
-        }
-
-        var uploaded = 0
-        for batch in batches {
+        // Consumer: drain the stream, uploading each batch.
+        var uploadError: Error?
+        for await batch in stream {
             let records = batch.map { sample in
                 CreateHealthRecord(
                     source: "healthkit",
@@ -222,33 +325,82 @@ actor SyncEngine {
                     sourceId: sample.sourceId
                 )
             }
-
             let insert = HealthKitBulkInsert(records: records)
-
             do {
-                // POST /healthkit/sync returns a JSON ack body with counts.
-                // We only care that the request succeeded; requestNoContent
-                // discards the body and avoids coupling to its schema.
                 try await networkClient.requestNoContent(
                     method: "POST",
                     path: Endpoints.healthKitSync,
                     body: insert
                 )
-                uploaded += batch.count
-                let running = uploaded
-                await MainActor.run { progress.updateUploadProgress(recordType, uploaded: running) }
+                await counters.addUploaded(batch.count)
+                let running = await counters.uploaded
+                await MainActor.run {
+                    self.progress.updateUploadProgress(recordType, uploaded: running)
+                }
             } catch {
-                // Queue for offline retry but don't halt — continue to next batch/type
+                // Queue for offline retry, log the failure mode, and stop
+                // this type's pipeline. The outer loop continues with other
+                // types so a single broken endpoint doesn't kill the run.
                 try? offlineQueue.enqueue(insert)
-                throw error // still throw to mark this TYPE as failed, but outer loop catches per-type
+                logUploadFailure(error, context: "type=\(recordType)")
+                uploadError = error
+                producerTask.cancel()
+                break
             }
         }
 
-        if let newAnchor = result.newAnchor {
-            try anchorStore.saveAnchor(newAnchor, forRecordType: mapping.recordType)
+        // Wait for producer to finish (so we can read its anchor + surface errors).
+        do {
+            try await producerTask.value
+        } catch {
+            // Producer threw — likely a HealthKit read failure. Surface it
+            // if we don't already have an upload error to report.
+            if uploadError == nil {
+                uploadError = error
+            }
         }
 
-        return total
+        // Persist the latest anchor we saw, even on partial-failure paths —
+        // the rows we already uploaded shouldn't be re-fetched next time.
+        if let finalAnchor = await counters.finalAnchor {
+            try? anchorStore.saveAnchor(finalAnchor, forRecordType: recordType)
+        }
+
+        if let uploadError {
+            throw uploadError
+        }
+        return await counters.total
+    }
+
+    /// Categorize the failure mode and log it (no PHI). Helps triage device
+    /// logs when a sync stalls in the field — we want to know "401 vs 5xx
+    /// vs network" without sniffing the wire.
+    nonisolated private func logUploadFailure(_ error: Error, context: String) {
+        let mode: String
+        if let net = error as? NetworkError {
+            switch net {
+            case .unauthorized:
+                mode = "auth"
+            case .serverError(let code, _) where code == 401 || code == 403:
+                mode = "auth"
+            case .serverError(let code, _) where (400..<500).contains(code):
+                mode = "client-4xx-\(code)"
+            case .serverError(let code, _):
+                mode = "server-\(code)"
+            case .decodingFailed:
+                mode = "decode"
+            case .noData:
+                mode = "no-data"
+            }
+        } else {
+            let nserr = error as NSError
+            if nserr.domain == NSURLErrorDomain {
+                mode = "network-\(nserr.code)"
+            } else {
+                mode = "other"
+            }
+        }
+        engineLogger.error("HealthKit batch upload failed: mode=\(mode, privacy: .public) context=\(context, privacy: .public)")
     }
 
     private func syncClinicalRecords(_ provider: ClinicalRecordProviderProtocol) async throws {

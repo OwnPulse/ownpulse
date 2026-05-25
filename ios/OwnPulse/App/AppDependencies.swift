@@ -31,6 +31,11 @@ final class AppDependencies {
     let featureFlagService: FeatureFlagService
     private var crashReporter: CrashReporter?
 
+    /// Long-running backfill task owned by this dependencies container, NOT
+    /// by any view. Survives view dismissal / navigation. See
+    /// `kickOffBackfill()` — the SyncStatusView "Sync Now" button drives it.
+    private var backfillTask: Task<Void, Never>?
+
     /// Currently selected root tab. Lives here so cards on Dashboard can
     /// switch tabs (e.g. "Log Today's Check-in" jumps to the Log tab).
     var selectedTab: Int = 0
@@ -145,31 +150,77 @@ final class AppDependencies {
     /// - `SyncCoordinator.start` guards against double-subscription
     /// - `enableBackgroundDelivery` coalesces repeated registrations
     /// - `SyncEngine.sync` early-returns when a sync is already in flight
+    ///
+    /// Authorization ordering: we call `requestAuthorization()` BEFORE
+    /// starting the coordinator and enabling background delivery. iOS
+    /// no-ops the request if the user has already granted access; if not,
+    /// the prompt fires once at app launch instead of mid-sync. Background
+    /// delivery enable calls fail silently on types the user has denied,
+    /// which we then log (no PHI — type identifiers only) so we can triage.
     func bootstrapAutoSync() {
         guard authService.isAuthenticated else { return }
 
         syncScheduler.scheduleNextSync()
 
-        Task { [coordinator = syncCoordinator] in
-            await coordinator.start()
-        }
-
-        // Enable background delivery so iOS wakes us when HealthKit data is
-        // written outside of a foreground session. Best-effort; log and
-        // continue if it fails (e.g. the user revoked HealthKit access).
+        // Defensive: ensure HealthKit authorization runs before we wire up
+        // observers or background delivery. Each of the next two awaits
+        // depends on at least *some* read permission being granted —
+        // observers fire only for authorized types, and enable-background-
+        // delivery fails per-type for `.sharingDenied`/`.notDetermined`.
         let hkProvider = healthKitProvider
-        Task {
+        Task { [coordinator = syncCoordinator, syncEngine] in
+            do {
+                try await hkProvider.requestAuthorization()
+            } catch {
+                syncLogger.error("HealthKit authorization request failed: \(error.localizedDescription, privacy: .public)")
+            }
+
+            // Structured diagnostic — log types whose read permission is
+            // explicitly denied or still undetermined. No PHI: identifiers
+            // only.
+            for mapping in HealthKitTypeMap.mappings {
+                let status = hkProvider.authorizationStatus(for: mapping.hkType as HKObjectType)
+                switch status {
+                case .sharingDenied:
+                    syncLogger.warning("HealthKit type \(mapping.recordType, privacy: .public) is sharingDenied — sync will skip")
+                case .notDetermined:
+                    syncLogger.notice("HealthKit type \(mapping.recordType, privacy: .public) is notDetermined")
+                case .sharingAuthorized:
+                    break
+                }
+            }
+
+            await coordinator.start()
+
             do {
                 try await hkProvider.enableBackgroundDelivery()
             } catch {
                 syncLogger.error("enableBackgroundDelivery failed: \(error.localizedDescription, privacy: .public)")
             }
-        }
 
-        // Initial sync so the dashboard reflects today's data without the
-        // user having to tap Sync Now. The engine's re-entrancy guard
-        // swallows overlapping calls if the observer races ahead.
-        Task { [syncEngine] in
+            // Initial sync so the dashboard reflects today's data without
+            // the user having to tap Sync Now. The engine's re-entrancy
+            // guard swallows overlapping calls.
+            await syncEngine.sync()
+        }
+    }
+
+    /// Detached entry point for the "Sync Now" button (and any other
+    /// caller that wants the full backfill to survive view dismissal).
+    ///
+    /// Ownership lives on `AppDependencies` (an `@MainActor`-bound
+    /// `@Observable` that lives for the duration of the app process), so
+    /// the task is unaffected by SwiftUI view lifecycle. Calling
+    /// `kickOffBackfill()` while one is already running is a no-op — the
+    /// `SyncEngine`'s own re-entrancy guard would coalesce overlaps
+    /// anyway, but checking here avoids spawning a redundant outer Task.
+    func kickOffBackfill() {
+        if let existing = backfillTask, !existing.isCancelled {
+            // Still running. The engine itself is also re-entrancy safe,
+            // but skipping the spawn saves an Actor hop.
+            return
+        }
+        backfillTask = Task { [syncEngine] in
             await syncEngine.sync()
         }
     }

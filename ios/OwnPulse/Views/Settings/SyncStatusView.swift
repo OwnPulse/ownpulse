@@ -37,17 +37,23 @@ struct SyncStatusView: View {
         }
         .navigationTitle("Sync Status")
         .task {
-            // Load historical sync timestamps on appear
+            // First-time UI bootstrap: populate the per-type rows from the
+            // persisted anchor timestamps so the screen has something to
+            // show before a sync starts. Subsequent appearances do NOT
+            // reset — that would nuke any in-flight progress driven by the
+            // detached backfill task. Only initializes missing rows.
             if progress.typeStatuses.isEmpty {
                 let timestamps = (try? dependencies.anchorStore.allSyncTimestamps()) ?? [:]
                 let types = HealthKitTypeMap.mappings.map {
                     (recordType: $0.recordType, displayName: $0.recordType.replacingOccurrences(of: "_", with: " ").capitalized)
                 }
-                progress.reset(types: types, timestamps: timestamps)
+                progress.prepareIfNeeded(types: types, timestamps: timestamps)
             }
         }
         .refreshable {
-            await dependencies.syncEngine.sync()
+            // Pull-to-refresh kicks off a detached backfill so it survives
+            // the user navigating away from this screen mid-sync.
+            dependencies.kickOffBackfill()
         }
         .alert("Sync Error", isPresented: .constant(errorDetail != nil)) {
             Button("OK") { errorDetail = nil }
@@ -98,7 +104,10 @@ struct SyncStatusView: View {
 
             if !isSyncing {
                 Button {
-                    Task { await dependencies.syncEngine.sync() }
+                    // Detached from view lifecycle — the user can navigate
+                    // away and the sync continues. Re-entering the screen
+                    // shows live progress because `SyncProgress` is shared.
+                    dependencies.kickOffBackfill()
                 } label: {
                     Label("Sync Now", systemImage: "arrow.triangle.2.circlepath")
                         .frame(maxWidth: .infinity)

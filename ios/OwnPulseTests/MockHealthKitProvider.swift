@@ -21,6 +21,27 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     var mockAnchor: Data?
     var writtenSamples: [(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date)] = []
 
+    /// Optional per-type authorization status. Defaults to `.sharingAuthorized`
+    /// when nothing is configured, matching the legacy assumption that
+    /// `isAuthorizedResult == true` implies all reads are allowed.
+    var authorizationStatusByType: [HKObjectType: HealthKitReadAuthorizationStatus] = [:]
+    private(set) var authorizationStatusQueries: [HKObjectType] = []
+
+    /// Pages returned by successive `querySamples` calls. When non-nil,
+    /// each call dequeues the next page; when exhausted, returns an empty
+    /// result with `nil` anchor (signals "done" to the paging loop).
+    /// Tests that need to drive the producer/consumer pipeline set this.
+    /// `nil` (the default) preserves the old behavior: every call returns
+    /// `mockSamples` with `mockAnchor`.
+    var queryPages: [AnchoredQueryResult]?
+
+    /// Captured calls into `querySamples` for assertions in pagination tests.
+    private(set) var queryCallLog: [(type: HKSampleType, anchor: Data?, limit: Int, startedAt: Date, endedAt: Date)] = []
+
+    /// Optional per-call delay applied to `querySamples` (for pipeline timing
+    /// assertions). Defaults to 0.
+    var querySampleDelay: TimeInterval = 0
+
     // Background delivery hooks for tests.
     private(set) var backgroundDeliveryEnabled = false
     private(set) var backgroundDeliveryCallCount = 0
@@ -47,15 +68,42 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
         isAuthorizedResult
     }
 
+    func authorizationStatus(for type: HKObjectType) -> HealthKitReadAuthorizationStatus {
+        lock.withLock {
+            authorizationStatusQueries.append(type)
+            return authorizationStatusByType[type] ?? .sharingAuthorized
+        }
+    }
+
     func querySamples(
         type: HKSampleType,
-        anchor: Data?
+        anchor: Data?,
+        limit: Int
     ) async throws -> AnchoredQueryResult {
-        AnchoredQueryResult(
-            samples: mockSamples,
-            newAnchor: mockAnchor,
-            deletedObjectIDs: []
-        )
+        let started = Date()
+        if querySampleDelay > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(querySampleDelay * 1_000_000_000))
+        }
+        let result: AnchoredQueryResult = lock.withLock {
+            if var pages = queryPages {
+                if pages.isEmpty {
+                    return AnchoredQueryResult(samples: [], newAnchor: nil, deletedObjectIDs: [])
+                }
+                let next = pages.removeFirst()
+                queryPages = pages
+                return next
+            }
+            return AnchoredQueryResult(
+                samples: mockSamples,
+                newAnchor: mockAnchor,
+                deletedObjectIDs: []
+            )
+        }
+        let ended = Date()
+        lock.withLock {
+            queryCallLog.append((type: type, anchor: anchor, limit: limit, startedAt: started, endedAt: ended))
+        }
+        return result
     }
 
     func writeSample(

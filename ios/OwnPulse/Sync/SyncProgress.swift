@@ -55,6 +55,35 @@ final class SyncProgress {
         }
     }
 
+    /// Initialize per-type rows the first time we see the type list, but
+    /// preserve any in-flight or completed status from a prior run so the
+    /// UI doesn't flicker on re-entry or rapid re-syncs.
+    ///
+    /// Specifically: only inserts a `.never` / "last synced" placeholder
+    /// for types that don't yet have a status. Existing rows are left
+    /// alone — `markSyncing`/`markSynced`/`markFailed` continue to drive
+    /// state for those rows.
+    func prepareIfNeeded(types: [(recordType: String, displayName: String)], timestamps: [String: Date]) {
+        totalTypes = types.count
+        // `completedTypes` is only meaningful within a single sync run.
+        // Reset it so the overall progress bar reflects the current run.
+        completedTypes = 0
+        for t in types {
+            if typeStatuses[t.recordType] == nil {
+                let lastSync = timestamps[t.recordType]
+                typeStatuses[t.recordType] = TypeSyncStatus(
+                    recordType: t.recordType,
+                    displayName: t.displayName,
+                    status: lastSync != nil ? .synced : .never,
+                    lastSyncTime: lastSync,
+                    recordsSynced: 0,
+                    totalSamples: 0,
+                    error: nil
+                )
+            }
+        }
+    }
+
     func markSyncing(_ recordType: String) {
         currentType = recordType
         typeStatuses[recordType]?.status = .syncing
