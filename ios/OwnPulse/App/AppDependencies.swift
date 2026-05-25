@@ -172,6 +172,13 @@ final class AppDependencies {
             do {
                 try await hkProvider.requestAuthorization()
             } catch {
+                // Continue on failure (Option A — see plan S4): partial-auth
+                // users (granted some types, denied others) still benefit
+                // from sync over the granted set. `authorizationStatus(for:)`
+                // checks below identify exactly which types are unavailable,
+                // and the engine simply gets empty result sets for them.
+                // Bailing here would punish users whose only "failure" is
+                // an NSException for a single disallowed type.
                 syncLogger.error("HealthKit authorization request failed: \(error.localizedDescription, privacy: .public)")
             }
 
@@ -210,16 +217,12 @@ final class AppDependencies {
     ///
     /// Ownership lives on `AppDependencies` (an `@MainActor`-bound
     /// `@Observable` that lives for the duration of the app process), so
-    /// the task is unaffected by SwiftUI view lifecycle. Calling
-    /// `kickOffBackfill()` while one is already running is a no-op — the
-    /// `SyncEngine`'s own re-entrancy guard would coalesce overlaps
-    /// anyway, but checking here avoids spawning a redundant outer Task.
+    /// the task is unaffected by SwiftUI view lifecycle. Overlap-safety
+    /// is delegated to `SyncEngine.sync()`'s own re-entrancy guard — we
+    /// deliberately do NOT gate on `backfillTask`'s state here because a
+    /// completed Task is not `.isCancelled`, so a naive guard would treat
+    /// every subsequent press of "Sync Now" as a no-op.
     func kickOffBackfill() {
-        if let existing = backfillTask, !existing.isCancelled {
-            // Still running. The engine itself is also re-entrancy safe,
-            // but skipping the spawn saves an Actor hop.
-            return
-        }
         backfillTask = Task { [syncEngine] in
             await syncEngine.sync()
         }

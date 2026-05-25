@@ -63,11 +63,20 @@ final class SyncProgress {
     /// for types that don't yet have a status. Existing rows are left
     /// alone — `markSyncing`/`markSynced`/`markFailed` continue to drive
     /// state for those rows.
+    ///
+    /// Called from both `SyncEngine.sync()` at the start of a run AND
+    /// `SyncStatusView.task` on view appearance. If a sync is currently
+    /// in flight (any row is `.syncing`) we treat THIS call as a no-op for
+    /// the running counters — the in-flight engine owns `completedTypes`
+    /// and we mustn't race its increments back to zero.
     func prepareIfNeeded(types: [(recordType: String, displayName: String)], timestamps: [String: Date]) {
+        let inFlight = typeStatuses.values.contains { $0.status == .syncing }
         totalTypes = types.count
-        // `completedTypes` is only meaningful within a single sync run.
-        // Reset it so the overall progress bar reflects the current run.
-        completedTypes = 0
+        if !inFlight {
+            // No active sync — safe to zero the per-run counter so the
+            // overall progress bar reflects the upcoming run.
+            completedTypes = 0
+        }
         for t in types {
             if typeStatuses[t.recordType] == nil {
                 let lastSync = timestamps[t.recordType]

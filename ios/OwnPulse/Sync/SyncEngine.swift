@@ -233,15 +233,37 @@ actor SyncEngine {
         }
     }
 
+    /// One upload-sized chunk of samples, tagged with the anchor that the
+    /// HealthKit query returned for the page this chunk came from. The
+    /// consumer only persists an anchor AFTER the corresponding batch has
+    /// been acknowledged (either uploaded successfully OR enqueued for
+    /// retry in the offline queue). This is what prevents anchor advance
+    /// past unuploaded data on partial-failure paths.
+    private struct PagedBatch: Sendable {
+        let samples: [HealthKitSample]
+        /// Anchor returned by `querySamples` for the *page* this batch was
+        /// cut from. Identical for every chunk produced from the same page;
+        /// `nil` only if HealthKit didn't give us one (shouldn't happen in
+        /// practice but we tolerate it).
+        let pageAnchor: Data?
+    }
+
     /// Returns the total number of records synced across all pages.
     ///
-    /// Strategy: page through `HealthKitProvider.querySamples(..., limit:)`,
-    /// feeding each page into a bounded `AsyncStream` of upload batches.
-    /// A single consumer drains the stream and uploads batches sequentially
-    /// (one in-flight upload per type, keeping ordering simple and letting
-    /// the outer task group provide cross-type concurrency).
-    /// Producer and consumer overlap — the next HealthKit page is fetched
-    /// while the previous batches are uploading.
+    /// Pipelining strategy:
+    /// - Producer pages HealthKit (`querySamples(..., limit: pageSize)`),
+    ///   chunks each page into upload-sized batches, and yields them into
+    ///   an unbounded AsyncStream. The stream is unbounded so back-pressure
+    ///   from slow uploads never silently drops batches; memory is bounded
+    ///   organically because the producer can only run as fast as
+    ///   `querySamples` returns.
+    /// - Consumer drains the stream and uploads batches sequentially.
+    /// - Anchor safety: we only persist a page's anchor after EVERY batch
+    ///   cut from that page has been acknowledged. On upload failure, the
+    ///   consumer drains the rest of the stream into the offline queue
+    ///   BEFORE persisting the last known-safe anchor — that way the next
+    ///   sync resumes from exactly the right place even if some batches
+    ///   went to the queue rather than the wire.
     @discardableResult
     private func syncType(_ mapping: HealthKitTypeMap.Mapping) async throws -> Int {
         let recordType = mapping.recordType
@@ -249,71 +271,91 @@ actor SyncEngine {
         let batchSize = self.batchSize
         let pageSize = self.pageSize
 
-        // Bounded AsyncStream — buffer 2 batches keeps the producer one
-        // step ahead of the consumer without piling samples in memory.
-        let (stream, continuation) = AsyncStream<[HealthKitSample]>.makeStream(
-            bufferingPolicy: .bufferingNewest(2)
+        // Unbounded AsyncStream. `.bufferingNewest(N)` would silently drop
+        // OLDEST batches under upload back-pressure (data loss). Memory is
+        // bounded by the rate at which `querySamples` can produce pages —
+        // the producer can't outrun HealthKit by very much.
+        let (stream, continuation) = AsyncStream<PagedBatch>.makeStream(
+            bufferingPolicy: .unbounded
         )
 
-        // Per-type running counters. Held in `nonisolated(unsafe)` boxes
-        // because the producer/consumer Tasks below need to mutate them;
-        // they never run concurrently for the same type — the producer
-        // writes `total`/`anchor`, the consumer writes `uploaded`.
+        // Per-type running counters. Actor-isolated because the producer
+        // and consumer Tasks below may both touch them on different
+        // executors. Cheap: one alloc per type, no contention in practice.
         actor TypeCounters {
             var total = 0
             var uploaded = 0
-            var finalAnchor: Data?
             func addTotal(_ n: Int) { total += n }
             func addUploaded(_ n: Int) { uploaded += n }
-            func setAnchor(_ data: Data?) { if data != nil { finalAnchor = data } }
         }
         let counters = TypeCounters()
 
-        // Producer: page through HealthKit, yielding upload-sized batches.
-        let producerTask = Task { [healthKitProvider, anchorStore] in
-            var currentAnchor = try anchorStore.anchor(forRecordType: recordType)
-            while !Task.isCancelled {
-                let page = try await healthKitProvider.querySamples(
-                    type: hkType,
-                    anchor: currentAnchor,
-                    limit: pageSize
-                )
+        // Producer: page through HealthKit, yielding upload-sized batches
+        // each tagged with the page-level anchor.
+        //
+        // Invariant: `continuation.finish()` is called EXACTLY ONCE on
+        // every exit path — normal completion, cancellation, OR throw.
+        // Without the catch+finish, a HealthKit read error on the first
+        // call would leave the consumer's `for await` hanging forever
+        // because the stream would never terminate.
+        let producerTask = Task { [healthKitProvider, anchorStore] () -> Void in
+            do {
+                var currentAnchor = try anchorStore.anchor(forRecordType: recordType)
+                while !Task.isCancelled {
+                    let page = try await healthKitProvider.querySamples(
+                        type: hkType,
+                        anchor: currentAnchor,
+                        limit: pageSize
+                    )
 
-                if !page.samples.isEmpty {
-                    await counters.addTotal(page.samples.count)
-                    let pageTotal = await counters.total
-                    await MainActor.run { self.progress.setTotalSamples(recordType, total: pageTotal) }
+                    if !page.samples.isEmpty {
+                        await counters.addTotal(page.samples.count)
+                        let pageTotal = await counters.total
+                        await MainActor.run { self.progress.setTotalSamples(recordType, total: pageTotal) }
 
-                    // Chunk the page into upload-sized batches.
-                    let samples = page.samples
-                    var idx = 0
-                    while idx < samples.count {
-                        let end = min(idx + batchSize, samples.count)
-                        continuation.yield(Array(samples[idx..<end]))
-                        idx = end
+                        // Chunk the page into upload-sized batches, each
+                        // tagged with this page's anchor.
+                        let samples = page.samples
+                        var idx = 0
+                        while idx < samples.count {
+                            let end = min(idx + batchSize, samples.count)
+                            continuation.yield(PagedBatch(
+                                samples: Array(samples[idx..<end]),
+                                pageAnchor: page.newAnchor
+                            ))
+                            idx = end
+                        }
+                    }
+
+                    if let newAnchor = page.newAnchor {
+                        currentAnchor = newAnchor
+                    }
+
+                    // HealthKit returns < limit when the result set is
+                    // exhausted; that's our terminator.
+                    if page.samples.count < pageSize {
+                        break
                     }
                 }
-
-                // Advance the anchor — both for the next page in this loop
-                // AND to persist progress so a crash doesn't lose ground.
-                if let newAnchor = page.newAnchor {
-                    await counters.setAnchor(newAnchor)
-                    currentAnchor = newAnchor
-                }
-
-                // HealthKit returns < limit when the result set is exhausted.
-                // An empty page after an empty anchor advance also means we're done.
-                if page.samples.count < pageSize {
-                    break
-                }
+                continuation.finish()
+            } catch {
+                // Unconditional finish: any throw from the producer must
+                // still terminate the stream or the consumer hangs.
+                continuation.finish()
+                throw error
             }
-            continuation.finish()
         }
 
-        // Consumer: drain the stream, uploading each batch.
+        // Consumer: drain the stream, uploading each batch. Tracks the
+        // last anchor whose ENTIRE page has been acknowledged so we can
+        // persist a safe resume point even on partial-failure paths.
         var uploadError: Error?
-        for await batch in stream {
-            let records = batch.map { sample in
+        // Anchor of the last batch that was acknowledged (uploaded OR
+        // enqueued). We persist this at the end — never an anchor for a
+        // page whose batches were dropped.
+        var lastAckedAnchor: Data?
+        for await pagedBatch in stream {
+            let records = pagedBatch.samples.map { sample in
                 CreateHealthRecord(
                     source: "healthkit",
                     recordType: sample.recordType,
@@ -332,38 +374,74 @@ actor SyncEngine {
                     path: Endpoints.healthKitSync,
                     body: insert
                 )
-                await counters.addUploaded(batch.count)
+                await counters.addUploaded(pagedBatch.samples.count)
                 let running = await counters.uploaded
                 await MainActor.run {
                     self.progress.updateUploadProgress(recordType, uploaded: running)
                 }
+                if let pageAnchor = pagedBatch.pageAnchor {
+                    lastAckedAnchor = pageAnchor
+                }
             } catch {
-                // Queue for offline retry, log the failure mode, and stop
-                // this type's pipeline. The outer loop continues with other
-                // types so a single broken endpoint doesn't kill the run.
+                // The wire upload failed. Two things must happen before we
+                // stop:
+                //  1. Enqueue THIS batch for retry so it isn't lost.
+                //  2. Drain the REST of the stream into the offline queue
+                //     too — those samples have already been read out of
+                //     HealthKit and would be skipped on the next run
+                //     because the anchor will have moved past them.
+                // Only after both can we safely persist the anchor.
                 try? offlineQueue.enqueue(insert)
+                if let pageAnchor = pagedBatch.pageAnchor {
+                    lastAckedAnchor = pageAnchor
+                }
                 logUploadFailure(error, context: "type=\(recordType)")
                 uploadError = error
+
+                // Stop the producer from fetching MORE pages, but keep
+                // consuming what's already buffered so we can stash it.
                 producerTask.cancel()
+
+                for await leftover in stream {
+                    let leftoverRecords = leftover.samples.map { sample in
+                        CreateHealthRecord(
+                            source: "healthkit",
+                            recordType: sample.recordType,
+                            value: sample.value,
+                            unit: sample.unit,
+                            startTime: sample.startTime,
+                            endTime: sample.endTime,
+                            metadata: nil,
+                            sourceId: sample.sourceId
+                        )
+                    }
+                    let leftoverInsert = HealthKitBulkInsert(records: leftoverRecords)
+                    try? offlineQueue.enqueue(leftoverInsert)
+                    if let pageAnchor = leftover.pageAnchor {
+                        lastAckedAnchor = pageAnchor
+                    }
+                }
                 break
             }
         }
 
-        // Wait for producer to finish (so we can read its anchor + surface errors).
+        // Wait for producer to finish (so we can surface any read error).
         do {
             try await producerTask.value
         } catch {
             // Producer threw — likely a HealthKit read failure. Surface it
-            // if we don't already have an upload error to report.
+            // only if we don't already have an upload error to report.
             if uploadError == nil {
                 uploadError = error
             }
         }
 
-        // Persist the latest anchor we saw, even on partial-failure paths —
-        // the rows we already uploaded shouldn't be re-fetched next time.
-        if let finalAnchor = await counters.finalAnchor {
-            try? anchorStore.saveAnchor(finalAnchor, forRecordType: recordType)
+        // Persist only the last fully-acknowledged anchor. If nothing was
+        // ack'd (e.g. the very first upload failed AND offline-enqueue
+        // failed) we leave the prior anchor alone so the next sync retries
+        // from the same point.
+        if let lastAckedAnchor {
+            try? anchorStore.saveAnchor(lastAckedAnchor, forRecordType: recordType)
         }
 
         if let uploadError {
@@ -375,6 +453,11 @@ actor SyncEngine {
     /// Categorize the failure mode and log it (no PHI). Helps triage device
     /// logs when a sync stalls in the field — we want to know "401 vs 5xx
     /// vs network" without sniffing the wire.
+    ///
+    /// `.decodingFailed` / `.noData` are defense-in-depth: the upload path
+    /// uses `requestNoContent` which never decodes a body, so they should
+    /// be unreachable from here, but exhaustive switch coverage keeps
+    /// `NetworkError` additions from silently slipping past the logger.
     nonisolated private func logUploadFailure(_ error: Error, context: String) {
         let mode: String
         if let net = error as? NetworkError {

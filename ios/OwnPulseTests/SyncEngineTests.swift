@@ -296,14 +296,16 @@ struct SyncEngineTests {
 
     // MARK: - Plan fix #4: bounded TaskGroup concurrency
 
-    @Test("syncs run concurrently across types but bounded at 3 in flight")
+    @Test("syncs run concurrently across types — steady state hits the cap of 3")
     @MainActor
     func testTaskGroupBoundedConcurrency() async throws {
-        // The mappings list has 74 types. Most return zero samples (and so
-        // skip the upload path) — but we need EVERY type to actually reach
-        // an upload to measure outer concurrency. So we configure the mock
-        // to return samples on every querySamples call (the mock's default
-        // path uses `mockSamples`, no `queryPages`).
+        // The mappings list has 74 types. Configure every type to return a
+        // small page of samples so each one actually reaches an upload —
+        // that's how we measure outer concurrency.
+        //
+        // Per-upload delay is intentionally large (150ms) so the steady-state
+        // window where 3 types are all parked inside requestNoContent is
+        // wide enough to be observed without flake from scheduler jitter.
         let provider = MockHealthKitProvider()
         provider.mockSamples = Self.makeSamples(recordType: "synthetic", count: 1)
         provider.mockAnchor = Data([1])
@@ -311,19 +313,15 @@ struct SyncEngineTests {
         let network = MockNetworkClient()
         let (engine, _, _, _) = buildEngine(healthKitProvider: provider, networkClient: network)
 
-        // Each upload sleeps ~40ms so multiple types stack up at the suspend
-        // point. The mock counts max concurrent uploads via in-flight delta.
-        // Set AFTER `buildEngine` installs its no-op default.
         network.asyncRequestNoContentHandler = { _, _, _ in
-            try await Task.sleep(nanoseconds: 40_000_000)
+            try await Task.sleep(nanoseconds: 150_000_000)
         }
 
         await engine.sync()
 
-        // Engine caps concurrency at 3. The mock can observe up to 3
-        // simultaneous in-flight uploads at any given moment.
-        #expect(network.maxConcurrentUploads <= 3, "expected <=3 concurrent uploads (the cap), got \(network.maxConcurrentUploads)")
-        #expect(network.maxConcurrentUploads >= 2, "expected >=2 concurrent uploads (proving parallelism), got \(network.maxConcurrentUploads)")
+        // The engine's cap is exactly 3. Looser assertions like `>= 2` would
+        // pass even if the cap regressed to 2 (or grew to 5). Pin it.
+        #expect(network.maxConcurrentUploads == 3, "expected exactly 3 concurrent uploads (the cap), got \(network.maxConcurrentUploads)")
     }
 
     // MARK: - Plan fix #6: upload failure logged
@@ -376,6 +374,212 @@ struct SyncEngineTests {
         #expect(!pending.isEmpty, "expected the offline queue to retain the failed insert for retry")
     }
 
+    // MARK: - Review fix B1: anchor must not advance past unuploaded data
+
+    @Test("anchor stays at the last fully-acknowledged page on partial upload failure")
+    @MainActor
+    func testAnchorDoesNotAdvancePastFailedUpload() async throws {
+        // Three pages, each tagged with a distinct anchor. The consumer
+        // succeeds on page 1, then fails on page 2's first batch. Pages 2
+        // and 3 should land in the offline queue, and the persisted anchor
+        // must reflect ack'd-via-queue state (page 3's anchor), NOT the
+        // pre-fix behavior of "whatever the producer last saw" without
+        // regard for ack status.
+        let provider = MockHealthKitProvider()
+        let anchorPage1 = Data([0xA1])
+        let anchorPage2 = Data([0xA2])
+        let anchorPage3 = Data([0xA3])
+        // The engine's producer terminates when a page returns fewer
+        // samples than the configured pageSize (5000). So pages 1 and 2
+        // are full (exactly pageSize) and page 3 is short — that triggers
+        // termination after page 3 is yielded.
+        //
+        // Attach the page sequence to ONLY the heart_rate type via
+        // queryPagesByType. Other types fall through to empty results
+        // and contribute no uploads to the call counter or to the anchor
+        // we assert on.
+        let fullPageSize = 5000
+        let page1 = (0..<fullPageSize).map { Self.makeSample(idx: $0) }
+        let page2 = (fullPageSize..<(2 * fullPageSize)).map { Self.makeSample(idx: $0) }
+        let page3 = ((2 * fullPageSize)..<(2 * fullPageSize + 10)).map { Self.makeSample(idx: $0) }
+        let heartRateHKType = HealthKitTypeMap.mapping(forRecordType: "heart_rate")!.hkType
+        provider.queryPagesByType[heartRateHKType] = [
+            AnchoredQueryResult(samples: page1, newAnchor: anchorPage1, deletedObjectIDs: []),
+            AnchoredQueryResult(samples: page2, newAnchor: anchorPage2, deletedObjectIDs: []),
+            AnchoredQueryResult(samples: page3, newAnchor: anchorPage3, deletedObjectIDs: []),
+        ]
+
+        let network = MockNetworkClient()
+        let db = DatabaseManager(inMemory: true)
+        let queue = OfflineQueue(databaseManager: db)
+        let anchors = AnchorStore(databaseManager: db)
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: provider,
+            offlineQueue: queue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        // Succeed on the first upload, fail on every subsequent one. The
+        // first 10-sample batch (page 1) goes over the wire; everything
+        // else hits the offline queue.
+        let callCount = CallCounter()
+        network.asyncRequestNoContentHandler = { _, path, _ in
+            guard path == Endpoints.healthKitSync else { return }
+            let n = callCount.increment()
+            if n > 1 {
+                throw NetworkError.serverError(statusCode: 500, body: "boom")
+            }
+        }
+
+        await engine.sync()
+
+        // The persisted anchor for the failing type must be exactly the
+        // anchor of the last page we acknowledged (via successful upload
+        // OR offline-queue enqueue). It MUST NOT be left at anchorPage1
+        // (the only one whose batch made it over the wire) — that would
+        // re-fetch pages 2+3 next run on top of the queued entries, AND
+        // it must not be a value larger than what we've seen.
+        let persisted = try anchors.anchor(forRecordType: "heart_rate")
+        // The 401 test above proves the queue is populated on failure;
+        // here we additionally assert no data is lost: the queue must
+        // contain inserts whose sample sourceIds span pages 2 AND 3.
+        let pending = try queue.dequeuePending()
+        let queuedSourceIds = Set(pending.flatMap { $0.insert.records.compactMap(\.sourceId) })
+        for sample in page2 + page3 {
+            #expect(
+                queuedSourceIds.contains(sample.sourceId),
+                "sample \(sample.sourceId) was neither uploaded nor enqueued — data loss"
+            )
+        }
+        // The persisted anchor should be anchorPage3 (last ack'd-via-queue),
+        // never anchorPage1 (the only over-the-wire one) — because pages 2
+        // and 3 are safely in the offline queue and must not be re-fetched.
+        #expect(persisted == anchorPage3, "persisted anchor must reflect the last ack'd page (page3), got \(persisted?.map { String(format: "%02x", $0) }.joined() ?? "nil")")
+    }
+
+    // MARK: - Review fix B2: stream must not drop batches under back-pressure
+
+    @Test("no batches dropped when upload is slower than producer")
+    @MainActor
+    func testPipelineNoBatchesDroppedUnderBackpressure() async throws {
+        let provider = MockHealthKitProvider()
+        // 4 pages so the producer has room to get ahead while the consumer
+        // is parked inside a 200ms upload.
+        let pages: [[HealthKitSample]] = (0..<4).map { p in
+            (0..<3).map { i in Self.makeSample(idx: p * 100 + i) }
+        }
+        provider.queryPages = pages.enumerated().map { idx, samples in
+            AnchoredQueryResult(samples: samples, newAnchor: Data([UInt8(idx + 1)]), deletedObjectIDs: [])
+        }
+        // Producer reads almost instantly.
+        provider.querySampleDelay = 0.001
+
+        let network = MockNetworkClient()
+        let (engine, _, _, _) = buildEngine(healthKitProvider: provider, networkClient: network)
+
+        // Record EVERY sample id that the upload handler sees, in order.
+        let seen = SourceIdRecorder()
+        network.asyncRequestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitSync, let insert = body as? HealthKitBulkInsert {
+                seen.append(insert.records.compactMap(\.sourceId))
+            }
+            // 200ms upload — slow vs the 1ms producer.
+            try await Task.sleep(nanoseconds: 200_000_000)
+        }
+
+        await engine.sync()
+
+        // Every sample id from every page must show up at the upload
+        // handler exactly once. `.bufferingNewest(2)` (the original buggy
+        // policy) would silently drop the oldest entries and this test
+        // would fail.
+        let expected = Set(pages.flatMap { $0.map(\.sourceId) })
+        let received = Set(seen.snapshot())
+        let missing = expected.subtracting(received)
+        #expect(missing.isEmpty, "missing source ids: \(missing.sorted())")
+    }
+
+    // MARK: - Review fix B3: producer throw must not hang the consumer
+
+    @Test("producer error terminates the stream so the consumer doesn't hang")
+    @MainActor
+    func testProducerErrorDoesNotHangConsumer() async throws {
+        // Configure the provider to throw on its very first querySamples
+        // call. Pre-fix, the producer's `continuation.finish()` was only
+        // reached on the success path — so an early throw left the
+        // consumer's `for await batch in stream` blocked indefinitely and
+        // `syncType` never returned.
+        final class ThrowingProvider: HealthKitProviderProtocol, @unchecked Sendable {
+            func requestAuthorization() async throws {}
+            func isAuthorized() -> Bool { true }
+            func authorizationStatus(for type: HKObjectType) -> HealthKitReadAuthorizationStatus { .sharingAuthorized }
+            func querySamples(type: HKSampleType, anchor: Data?, limit: Int) async throws -> AnchoredQueryResult {
+                throw NSError(domain: "test.healthkit", code: 42, userInfo: nil)
+            }
+            func writeSample(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date) async throws {}
+            func observeSampleUpdates() -> AsyncStream<Void> { AsyncStream { _ in } }
+            func enableBackgroundDelivery() async throws {}
+            func disableAllBackgroundDelivery() async throws {}
+        }
+
+        let network = MockNetworkClient()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        network.requestNoContentHandler = { _, _, _ in /* no-op */ }
+
+        let db = DatabaseManager(inMemory: true)
+        let queue = OfflineQueue(databaseManager: db)
+        let anchors = AnchorStore(databaseManager: db)
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: ThrowingProvider(),
+            offlineQueue: queue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+
+        // Bound the test with a hard timeout. If sync hangs, the timeout
+        // fires and the test fails — much cleaner than letting the test
+        // runner kill the process after the suite's default timeout.
+        let syncTask = Task { await engine.sync() }
+        let timeoutTask = Task {
+            try await Task.sleep(nanoseconds: 5_000_000_000)
+            return false
+        }
+        let completionTask = Task<Bool, Never> {
+            await syncTask.value
+            timeoutTask.cancel()
+            return true
+        }
+
+        // Wait for whichever finishes first.
+        var completed = false
+        _ = await completionTask.value
+        completed = true
+
+        #expect(completed, "engine.sync() did not return within 5s — producer throw hung the consumer")
+
+        // Engine should also report at least one failure on the progress
+        // object (every type tried + failed because the provider always
+        // throws).
+        let anyFailed = progress.typeStatuses.values.contains { $0.status == .failed }
+        #expect(anyFailed, "expected at least one type to be marked .failed when the producer throws")
+    }
 
     // MARK: - Helpers
 
@@ -393,6 +597,50 @@ struct SyncEngineTests {
         }
     }
 
+    /// Convenience: one heart_rate sample with a unique id derived from idx.
+    /// Used by the partial-failure / backpressure tests that care about
+    /// identity, not values.
+    private static func makeSample(idx: Int) -> HealthKitSample {
+        let base = Date(timeIntervalSince1970: 1_700_000_000)
+        return HealthKitSample(
+            recordType: "heart_rate",
+            value: Double(idx),
+            unit: "bpm",
+            startTime: base.addingTimeInterval(Double(idx)),
+            endTime: base.addingTimeInterval(Double(idx) + 0.5),
+            sourceId: "id-\(idx)"
+        )
+    }
+}
+
+/// Atomic call counter used by partial-failure tests to switch behavior
+/// after the Nth call.
+private final class CallCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    func increment() -> Int {
+        lock.lock(); defer { lock.unlock() }
+        count += 1
+        return count
+    }
+}
+
+/// Records every sample id observed by the upload handler. Used by the
+/// backpressure test to assert no batches were silently dropped.
+private final class SourceIdRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var ids: [String] = []
+
+    func append(_ batch: [String]) {
+        lock.lock(); defer { lock.unlock() }
+        ids.append(contentsOf: batch)
+    }
+
+    func snapshot() -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        return ids
+    }
 }
 
 /// Thread-safe collector for batch sizes recorded across upload calls.

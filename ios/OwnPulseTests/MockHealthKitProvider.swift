@@ -33,7 +33,18 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     /// Tests that need to drive the producer/consumer pipeline set this.
     /// `nil` (the default) preserves the old behavior: every call returns
     /// `mockSamples` with `mockAnchor`.
+    ///
+    /// NB: This pool is shared across ALL types — whichever type asks first
+    /// drains the head. For tests that care about per-type identity, use
+    /// `queryPagesByType` instead.
     var queryPages: [AnchoredQueryResult]?
+
+    /// Per-`HKSampleType` page queues. Takes precedence over `queryPages`
+    /// and `mockSamples` when set for the requested type. Used by tests
+    /// (e.g. anchor partial-failure) that need a deterministic mapping
+    /// from "this specific HealthKit type" to "this sequence of pages."
+    /// Types not present in the dict fall back to `queryPages` / `mockSamples`.
+    var queryPagesByType: [HKSampleType: [AnchoredQueryResult]] = [:]
 
     /// Captured calls into `querySamples` for assertions in pagination tests.
     private(set) var queryCallLog: [(type: HKSampleType, anchor: Data?, limit: Int, startedAt: Date, endedAt: Date)] = []
@@ -85,6 +96,16 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
             try? await Task.sleep(nanoseconds: UInt64(querySampleDelay * 1_000_000_000))
         }
         let result: AnchoredQueryResult = lock.withLock {
+            // Per-type queue takes precedence — used by tests that need
+            // strict "this type, this sequence" mapping.
+            if var byType = queryPagesByType[type] {
+                if byType.isEmpty {
+                    return AnchoredQueryResult(samples: [], newAnchor: nil, deletedObjectIDs: [])
+                }
+                let next = byType.removeFirst()
+                queryPagesByType[type] = byType
+                return next
+            }
             if var pages = queryPages {
                 if pages.isEmpty {
                     return AnchoredQueryResult(samples: [], newAnchor: nil, deletedObjectIDs: [])

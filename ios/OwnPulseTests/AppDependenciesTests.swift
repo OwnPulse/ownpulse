@@ -184,7 +184,13 @@ struct AppDependenciesTests {
 
         // After the "view" dismissed, the sync continues; wait until the
         // engine reports a lastSyncDate (a successful run leaves it set).
-        try await eventually(timeout: 5.0) {
+        //
+        // Timeout is generous (15s) because a full sync touches 74 mapped
+        // HealthKit types × ~4 MainActor hops each for progress updates.
+        // On the iPhone 17 sim under contention this is observed at ~7s;
+        // on iPhone 16 it's ~0.1s. The point of the test isn't the speed
+        // — it's that the Task survives the calling scope's exit.
+        try await eventually(timeout: 15.0) {
             let date = await deps.syncEngine.lastSyncDate
             return date != nil
         }
