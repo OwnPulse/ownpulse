@@ -3,13 +3,19 @@
 ## TL;DR
 
 ```bash
-ops/diag-crashes.sh --since 24h
+opdev crashes diagnose --since 24h
 ```
 
 That pulls recent crash reports the user submitted through Apple's
 "Share with App Developers" dialog, dedup-groups them by signature, and
 prints stack traces. Phase 2 will merge in our own backend's
 `app_events` records.
+
+This is implemented as a subcommand of `opdev`, the OwnPulse developer
+CLI. See [ownpulse-dev](https://github.com/OwnPulse/ownpulse-dev) for
+opdev installation. Once installed, `opdev crashes diagnose --since 24h`
+is your one entry point — no Python or shell scripts required in this
+repo.
 
 ## Who needs this
 
@@ -20,9 +26,8 @@ web app — those run fine without any App Store Connect access.
 If you self-host OwnPulse and distribute your own iOS build (your own
 App Store Connect account or enterprise distribution), you'll need your
 own ASC API key, app ID, and issuer ID. Substitute them everywhere this
-guide references `ownpulse-infra/secrets/ios/`. The Python client and
-shell shim are not specific to our distribution — they'll work with any
-ASC credentials.
+guide references `ownpulse-infra/secrets/ios/`. opdev itself is not
+specific to our distribution — it works with any ASC credentials.
 
 ## Setup (one-time)
 
@@ -55,7 +60,7 @@ Credentials are SOPS-encrypted in the `ownpulse-infra` repo at
 `secrets/ios/appstore-connect.sops.yaml` (per the
 [secrets policy](../../CLAUDE.md): "Secrets in SOPS + age only").
 
-The script decrypts in-process — the PEM never touches disk.
+opdev decrypts in-process — the PEM never touches disk.
 
 ### Option A — SOPS (recommended)
 
@@ -63,27 +68,27 @@ Point `OWNPULSE_INFRA_PATH` at the sibling checkout:
 
 ```bash
 export OWNPULSE_INFRA_PATH="$HOME/src/ownpulse/ownpulse-infra"
-ops/diag-crashes.sh --since 24h
+opdev crashes diagnose --since 24h
 ```
 
 Or pass `--sops-path` explicitly:
 
 ```bash
-ops/diag-crashes.sh --sops-path /path/to/appstore-connect.sops.yaml --since 24h
+opdev crashes diagnose --sops-path /path/to/appstore-connect.sops.yaml --since 24h
 ```
 
 ### Option B — env vars (one-off debugging)
 
-All four must be set together. **`ASC_KEY_PEM` is the contents of the
-`.p8` file, not a path** — this keeps the key off disk in the local
-flow too.
+opdev reads these env vars as overrides when SOPS is unavailable. All
+four must be set together. **`ASC_KEY_PEM` is the contents of the `.p8`
+file, not a path** — this keeps the key off disk in the local flow too.
 
 ```bash
 export ASC_KEY_ID="ABCD123456"
 export ASC_ISSUER_ID="69a6de70-..."
 export ASC_APP_ID="1234567890"
 export ASC_KEY_PEM="$(cat ~/Downloads/AuthKey_ABCD123456.p8)"
-ops/diag-crashes.sh --since 24h
+opdev crashes diagnose --since 24h
 ```
 
 ## Common queries
@@ -91,25 +96,25 @@ ops/diag-crashes.sh --since 24h
 Recent 24 hours, all builds:
 
 ```bash
-ops/diag-crashes.sh --since 24h
+opdev crashes diagnose --since 24h
 ```
 
 Specific build only:
 
 ```bash
-ops/diag-crashes.sh --build 142
+opdev crashes diagnose --build 142
 ```
 
 Specific signal across the last week:
 
 ```bash
-ops/diag-crashes.sh --since 7d --signal SIGSEGV
+opdev crashes diagnose --since 7d --signal SIGSEGV
 ```
 
 Raw JSON for piping into `jq`:
 
 ```bash
-ops/diag-crashes.sh --since 24h --json | jq '.[] | select(.signal=="SIGABRT")'
+opdev crashes diagnose --since 24h --json | jq '.[] | select(.signal=="SIGABRT")'
 ```
 
 ## Troubleshooting
@@ -119,22 +124,23 @@ window (good!), or `ASC_APP_ID` is pointing at the wrong app. Verify
 with:
 
 ```bash
-python3 ops/asc_client.py list-builds
+opdev crashes list-builds
 ```
 
 and confirm the latest TestFlight build shows up.
 
-**`error: ASC 401`** — JWT was rejected. Most common causes:
+**`error: ASC 401`** — JWT was rejected by App Store Connect. Most
+common causes:
 - Key has been revoked in App Store Connect.
 - `ASC_ISSUER_ID` is wrong (it's a UUID, not the Key ID).
 - The PEM in `ASC_KEY_PEM` doesn't match `ASC_KEY_ID`.
 
-**`error: 'sops' not found`** — install with `brew install sops`,
+**`error: sops binary not found`** — install with `brew install sops`,
 then re-run. Only needed when using the SOPS path.
 
-**`ImportError: cryptography`** / **`pyyaml`** — install with
-`pip3 install cryptography pyyaml`. The CLI requires `cryptography` for
-ES256 signing and `pyyaml` to parse SOPS-decrypted YAML.
+**`error: opdev: command not found`** — install opdev from the
+[ownpulse-dev](https://github.com/OwnPulse/ownpulse-dev) repo. See that
+repo's README for installation instructions.
 
 ## Limitations
 
