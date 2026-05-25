@@ -21,6 +21,38 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     var mockAnchor: Data?
     var writtenSamples: [(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date)] = []
 
+    /// Optional per-type authorization status. Defaults to `.sharingAuthorized`
+    /// when nothing is configured, matching the legacy assumption that
+    /// `isAuthorizedResult == true` implies all reads are allowed.
+    var authorizationStatusByType: [HKObjectType: HealthKitReadAuthorizationStatus] = [:]
+    private(set) var authorizationStatusQueries: [HKObjectType] = []
+
+    /// Pages returned by successive `querySamples` calls. When non-nil,
+    /// each call dequeues the next page; when exhausted, returns an empty
+    /// result with `nil` anchor (signals "done" to the paging loop).
+    /// Tests that need to drive the producer/consumer pipeline set this.
+    /// `nil` (the default) preserves the old behavior: every call returns
+    /// `mockSamples` with `mockAnchor`.
+    ///
+    /// NB: This pool is shared across ALL types — whichever type asks first
+    /// drains the head. For tests that care about per-type identity, use
+    /// `queryPagesByType` instead.
+    var queryPages: [AnchoredQueryResult]?
+
+    /// Per-`HKSampleType` page queues. Takes precedence over `queryPages`
+    /// and `mockSamples` when set for the requested type. Used by tests
+    /// (e.g. anchor partial-failure) that need a deterministic mapping
+    /// from "this specific HealthKit type" to "this sequence of pages."
+    /// Types not present in the dict fall back to `queryPages` / `mockSamples`.
+    var queryPagesByType: [HKSampleType: [AnchoredQueryResult]] = [:]
+
+    /// Captured calls into `querySamples` for assertions in pagination tests.
+    private(set) var queryCallLog: [(type: HKSampleType, anchor: Data?, limit: Int, startedAt: Date, endedAt: Date)] = []
+
+    /// Optional per-call delay applied to `querySamples` (for pipeline timing
+    /// assertions). Defaults to 0.
+    var querySampleDelay: TimeInterval = 0
+
     // Background delivery hooks for tests.
     private(set) var backgroundDeliveryEnabled = false
     private(set) var backgroundDeliveryCallCount = 0
@@ -47,15 +79,52 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
         isAuthorizedResult
     }
 
+    func authorizationStatus(for type: HKObjectType) -> HealthKitReadAuthorizationStatus {
+        lock.withLock {
+            authorizationStatusQueries.append(type)
+            return authorizationStatusByType[type] ?? .sharingAuthorized
+        }
+    }
+
     func querySamples(
         type: HKSampleType,
-        anchor: Data?
+        anchor: Data?,
+        limit: Int
     ) async throws -> AnchoredQueryResult {
-        AnchoredQueryResult(
-            samples: mockSamples,
-            newAnchor: mockAnchor,
-            deletedObjectIDs: []
-        )
+        let started = Date()
+        if querySampleDelay > 0 {
+            try? await Task.sleep(nanoseconds: UInt64(querySampleDelay * 1_000_000_000))
+        }
+        let result: AnchoredQueryResult = lock.withLock {
+            // Per-type queue takes precedence — used by tests that need
+            // strict "this type, this sequence" mapping.
+            if var byType = queryPagesByType[type] {
+                if byType.isEmpty {
+                    return AnchoredQueryResult(samples: [], newAnchor: nil, deletedObjectIDs: [])
+                }
+                let next = byType.removeFirst()
+                queryPagesByType[type] = byType
+                return next
+            }
+            if var pages = queryPages {
+                if pages.isEmpty {
+                    return AnchoredQueryResult(samples: [], newAnchor: nil, deletedObjectIDs: [])
+                }
+                let next = pages.removeFirst()
+                queryPages = pages
+                return next
+            }
+            return AnchoredQueryResult(
+                samples: mockSamples,
+                newAnchor: mockAnchor,
+                deletedObjectIDs: []
+            )
+        }
+        let ended = Date()
+        lock.withLock {
+            queryCallLog.append((type: type, anchor: anchor, limit: limit, startedAt: started, endedAt: ended))
+        }
+        return result
     }
 
     func writeSample(
