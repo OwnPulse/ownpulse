@@ -26,6 +26,7 @@
         },
         "body": {
           "access_token": "some-jwt-token",
+          "refresh_token": "some-rotated-refresh-token",
           "token_type": "Bearer",
           "expires_in": 3600
         }

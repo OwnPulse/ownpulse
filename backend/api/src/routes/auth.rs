@@ -265,16 +265,20 @@ pub async fn refresh(
     headers: HeaderMap,
     body: Option<Json<RefreshRequest>>,
 ) -> Result<Response, ApiError> {
-    // Body takes precedence over cookie
-    let token_value = if let Some(Json(req)) = body {
-        req.refresh_token
+    // Body takes precedence over cookie. Track which source provided the
+    // token so we can shape the response appropriately: web clients use the
+    // httpOnly cookie and ignore JSON refresh fields; native clients (iOS)
+    // send the token in the body and need the rotated refresh token back in
+    // the body so they can persist it to Keychain.
+    let (token_value, is_web) = if let Some(Json(req)) = body {
+        (req.refresh_token, false)
     } else {
         let cookie_header = headers
             .get(axum::http::header::COOKIE)
             .and_then(|v| v.to_str().ok())
             .ok_or(ApiError::Unauthorized)?;
 
-        cookie_header
+        let cookie_value = cookie_header
             .split(';')
             .filter_map(|c| {
                 let c = c.trim();
@@ -282,7 +286,9 @@ pub async fn refresh(
             })
             .next()
             .ok_or(ApiError::Unauthorized)?
-            .to_string()
+            .to_string();
+
+        (cookie_value, true)
     };
 
     let token_hash = hash_refresh_token(&token_value, &state.config.jwt_secret);
@@ -301,7 +307,7 @@ pub async fn refresh(
                 .await
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-            issue_tokens_with_family(&state, user_id, family_id).await
+            issue_tokens_with_family(&state, user_id, family_id, is_web).await
         }
         Err(sqlx::Error::RowNotFound) => {
             // Token not found — possible replay attack. The token was already
@@ -1297,6 +1303,7 @@ async fn issue_tokens_with_family(
     state: &AppState,
     user_id: Uuid,
     family_id: Uuid,
+    is_web: bool,
 ) -> Result<Response, ApiError> {
     let user = users::find_by_id(&state.pool, user_id)
         .await
@@ -1330,13 +1337,23 @@ async fn issue_tokens_with_family(
         state.config.refresh_token_expiry_seconds
     );
 
-    let token_response = TokenResponse {
-        access_token,
-        token_type: "Bearer".to_string(),
-        expires_in: state.config.jwt_expiry_seconds,
+    let mut response = if is_web {
+        let token_response = TokenResponse {
+            access_token,
+            token_type: "Bearer".to_string(),
+            expires_in: state.config.jwt_expiry_seconds,
+        };
+        (StatusCode::OK, Json(token_response)).into_response()
+    } else {
+        let token_response = TokenResponseWithRefresh {
+            access_token,
+            refresh_token: raw_refresh,
+            token_type: "Bearer".to_string(),
+            expires_in: state.config.jwt_expiry_seconds,
+        };
+        (StatusCode::OK, Json(token_response)).into_response()
     };
 
-    let mut response = (StatusCode::OK, Json(token_response)).into_response();
     response.headers_mut().insert(
         SET_COOKIE,
         cookie

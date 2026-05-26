@@ -272,6 +272,16 @@ async fn test_refresh_with_json_body() {
     assert!(json["access_token"].is_string());
     assert!(!json["access_token"].as_str().unwrap().is_empty());
     assert_eq!(json["token_type"], "Bearer");
+    // Body-based refresh (iOS) must return the rotated refresh token in the
+    // body so the client can persist it. Without this, the next refresh
+    // attempt replays the deleted token and fails 401.
+    assert!(json["refresh_token"].is_string());
+    let new_refresh = json["refresh_token"].as_str().unwrap();
+    assert!(!new_refresh.is_empty());
+    assert_ne!(
+        new_refresh, refresh_token,
+        "refresh token should be rotated, not echoed back"
+    );
 }
 
 /// Build a Config pointing Google endpoints at the given WireMock server URI,

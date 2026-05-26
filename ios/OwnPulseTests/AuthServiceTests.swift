@@ -242,8 +242,9 @@ struct AuthServiceTests {
         try mockKeychain.save(key: AuthService.accessTokenKey, data: Data(expiredJWT.utf8))
         try mockKeychain.save(key: AuthService.refreshTokenKey, data: Data("valid-refresh-token".utf8))
 
-        let refreshResponse = TokenResponse(
+        let refreshResponse = TokenResponseWithRefresh(
             accessToken: "new-access-token",
+            refreshToken: "rotated-refresh-token",
             tokenType: "Bearer",
             expiresIn: 3600
         )
@@ -265,6 +266,11 @@ struct AuthServiceTests {
         #expect(service.isAuthenticated == true)
         let storedAccess = try mockKeychain.load(key: AuthService.accessTokenKey)
         #expect(String(data: storedAccess!, encoding: .utf8) == "new-access-token")
+        // Backend rotates the refresh token on every refresh — the new value
+        // must replace the stored one or the next launch will replay the
+        // deleted token and force a re-login.
+        let storedRefresh = try mockKeychain.load(key: AuthService.refreshTokenKey)
+        #expect(String(data: storedRefresh!, encoding: .utf8) == "rotated-refresh-token")
     }
 
     @Test("init sets isAuthenticated false when no tokens exist")
@@ -282,7 +288,12 @@ struct AuthServiceTests {
         let mockKeychain = MockKeychainService()
 
         mockNetwork.requestHandler = { _, _, _ in
-            return TokenResponse(accessToken: "new-token", tokenType: "Bearer", expiresIn: 3600)
+            return TokenResponseWithRefresh(
+                accessToken: "new-token",
+                refreshToken: "rotated-refresh-token",
+                tokenType: "Bearer",
+                expiresIn: 3600
+            )
         }
 
         try! mockKeychain.save(key: AuthService.refreshTokenKey, data: Data("refresh-token".utf8))
