@@ -86,12 +86,16 @@ final class AuthService: AuthServiceProtocol {
 
         do {
             let body = RefreshRequest(refreshToken: refreshToken)
-            let response: TokenResponse = try await networkClient.request(
+            let response: TokenResponseWithRefresh = try await networkClient.request(
                 method: "POST",
                 path: Endpoints.authRefresh,
                 body: body
             )
+            // Backend rotates the refresh token on every refresh — persist
+            // the new one so the next launch doesn't try to replay the old
+            // (now-deleted) value and get kicked out to the login screen.
             try keychainService.save(key: Self.accessTokenKey, data: Data(response.accessToken.utf8))
+            try keychainService.save(key: Self.refreshTokenKey, data: Data(response.refreshToken.utf8))
             logger.info("Session restored via refresh token")
         } catch {
             logger.error("Session refresh failed: \(error.localizedDescription, privacy: .public)")
