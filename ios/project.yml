@@ -24,6 +24,7 @@ targets:
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
         INFOPLIST_FILE: OwnPulse/Info.plist
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         CODE_SIGN_ENTITLEMENTS: OwnPulse/OwnPulse.entitlements
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
         ENABLE_HARDENED_RUNTIME: YES
