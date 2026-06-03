@@ -267,6 +267,32 @@ struct DashboardViewModelTests {
         await vm.loadHeroMetric()
 
         #expect(vm.heroTrendIsPositive == true) // lower HR is "positive" for the user
+        // ...but the value went DOWN, so the arrow must point down even though
+        // the change is "good". The grayscale arrow follows the data, not the
+        // polarity. (This is the regression code-review flagged: the arrow used
+        // to be derived from the polarity flag and pointed up here.)
+        #expect(vm.heroTrendDirection == .down)
+        #expect(vm.heroTrendText.hasPrefix("-")) // arrow direction matches the sign of the number
+    }
+
+    @Test("hero arrow direction matches the sign of the change, not the polarity")
+    func trendArrowFollowsDataNotPolarity() async {
+        // Resting HR RISING (bad for the user) must render an UP arrow.
+        let mock = MockNetworkClient()
+        let heroResponse = BatchSeriesResponse(series: [
+            SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
+                DataPoint(t: "2026-03-01", v: 55, n: 1),
+                DataPoint(t: "2026-03-28", v: 70, n: 1),
+            ]),
+        ])
+        mock.requestHandler = { _, _, _ in heroResponse }
+
+        let vm = DashboardViewModel(networkClient: mock)
+        await vm.loadHeroMetric()
+
+        #expect(vm.heroTrendDirection == .up)
+        #expect(vm.heroTrendText.hasPrefix("+"))
+        #expect(vm.heroTrendIsPositive == false) // rising HR is "bad" — color polarity differs from arrow
     }
 
     @Test("loadHeroMetric failure leaves hero empty")
@@ -327,6 +353,10 @@ struct DashboardViewModelTests {
         #expect(snapshot?.heroMetricName == "Resting Heart Rate")
         #expect(snapshot?.heroMetricValue == "56")
         #expect(snapshot?.heroMetricUnit == "bpm")
+        // 60 -> 56 is a decrease: the direction the widget snapshot carries
+        // (which drives the widget's arrow + Wong color) must be .down. The
+        // color-is-not-red assertion lives in TrendIndicatorTests.
+        #expect(snapshot?.heroTrendDirection == .down)
     }
 
     @Test("publishWidgetSnapshot falls back to placeholders when no data loaded")

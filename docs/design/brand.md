@@ -142,6 +142,20 @@ Two rules keep this robust:
 - **Never rely on hue alone.** Pair color with direct labels, distinct line styles, markers, or position so a chart still reads in grayscale.
 - **Keep the assignments stable.** A metric's color is part of its identity; changing it breaks the reader's learned association. Change `tokens.json`, never a one-off override.
 
+### Trend indicators
+
+Trend direction (a metric going up vs. down vs. holding steady) follows the same "never rely on hue alone" rule. Direction is always carried by a **directional arrow** first, with color as secondary reinforcement:
+
+| Direction | Arrow (SF Symbol) | Color |
+|-----------|-------------------|-------|
+| Up | `arrow.up.right` | `#d55e00` Wong vermillion (the `chart.metric.heart_rate` token) |
+| Down | `arrow.down.right` | `#0072b2` Wong blue (the `chart.metric.glucose` token) |
+| Flat | `arrow.forward` | neutral secondary |
+
+The arrow shape alone distinguishes the three states in grayscale and under any color vision deficiency, so the indicator never depends on telling red from green. The earlier red(up)/green(down) scheme is intentionally gone: it failed red-green color vision and was also semantically inverted.
+
+**The arrow follows the DATA, not "good vs. bad".** Direction is the literal sign of the change (did the number go up or down). It must never be derived from a good/bad polarity flag — for resting heart rate, *lower is better*, so a healthy 4% drop still shows a **down** arrow next to "-4%". Whether a change is good or bad is conveyed separately (e.g. the tint on the lock-screen widget), and may legitimately disagree with the arrow. On iOS the direction→(arrow, Wong color, VoiceOver phrase) mapping lives in a single `TrendDirection` type shared by the dashboard cards and the Home/Lock-Screen widgets, so they cannot drift apart. The lock-screen rectangular accessory is system-tinted (monochrome), so there the arrow glyph alone carries direction.
+
 ## What We Don't Do
 
 - No purple gradients

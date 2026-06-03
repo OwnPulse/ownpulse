@@ -30,6 +30,7 @@ private func sampleSnapshot(checkinFilled: Bool = true, value: String = "56") ->
         heroMetricUnit: "bpm",
         heroTrendText: "-4% vs 30d avg",
         heroTrendIsPositive: true,
+        heroTrendDirection: .down,
         lastUpdated: Date(timeIntervalSince1970: 1_700_000_000)
     )
 }
@@ -50,6 +51,30 @@ struct WidgetSnapshotTests {
         #expect(p.checkinFilledToday == false)
         #expect(p.heroMetricValue == "—")
         #expect(p.heroMetricUnit == "bpm")
+        #expect(p.heroTrendDirection == .flat)
+    }
+
+    @Test("decodes a snapshot written before heroTrendDirection existed (defaults to flat)")
+    func decodesLegacySnapshotWithoutDirection() throws {
+        // A payload an older app build would have written — no
+        // heroTrendDirection key. It must still decode rather than failing the
+        // whole read and dropping the widget to its placeholder.
+        let legacyJSON = """
+        {
+          "checkinFilledToday": true,
+          "heroMetricName": "Resting Heart Rate",
+          "heroMetricValue": "56",
+          "heroMetricUnit": "bpm",
+          "heroTrendText": "-4% vs 30d avg",
+          "heroTrendIsPositive": true,
+          "lastUpdated": 0
+        }
+        """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .deferredToDate
+        let decoded = try decoder.decode(WidgetSnapshot.self, from: Data(legacyJSON.utf8))
+        #expect(decoded.heroTrendDirection == .flat)
+        #expect(decoded.heroTrendText == "-4% vs 30d avg")
     }
 
     @Test("isStale is false for a fresh snapshot")

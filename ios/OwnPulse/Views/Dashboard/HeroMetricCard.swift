@@ -9,7 +9,10 @@ struct HeroMetricCard: View {
     let currentValue: String
     let unit: String
     let trendText: String
-    let trendIsPositive: Bool
+    /// The literal DATA direction of the change (did the value go up or down),
+    /// NOT a good/bad polarity. Drives the arrow so the grayscale signal always
+    /// matches the number shown in `trendText`.
+    let trendDirection: TrendDirection
     let dataPoints: [DataPoint]
 
     @State private var animateChart = false
@@ -29,17 +32,22 @@ struct HeroMetricCard: View {
                 Spacer()
 
                 if !trendText.isEmpty {
-                    Text(trendText)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(trendIsPositive ? OPColor.sage.opacity(0.2) : OPColor.trendUp.opacity(0.2))
-                        )
-                        .foregroundStyle(trendIsPositive ? OPColor.sage : OPColor.trendUp)
-                        .accessibilityIdentifier("heroTrendBadge")
+                    // MARK: C9 trend
+                    // Arrow + Wong colorblind-safe color, both keyed off the
+                    // literal data direction so the arrow always matches the
+                    // sign of the number. Direction is never color alone.
+                    HStack(spacing: 3) {
+                        Image(systemName: trendDirection.systemImage)
+                            .accessibilityHidden(true)
+                        Text(trendText)
+                    }
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(trendDirection.color.opacity(0.2)))
+                    .foregroundStyle(trendDirection.color)
+                    .accessibilityIdentifier("heroTrendBadge")
                 }
             }
 
