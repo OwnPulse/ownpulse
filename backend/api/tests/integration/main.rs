@@ -9,6 +9,7 @@ mod auth;
 mod auth_multi;
 mod checkins;
 mod common;
+mod cors;
 mod explore;
 mod export;
 mod feature_flags;

@@ -51,7 +51,7 @@ fn app_version_from_headers(headers: &axum::http::HeaderMap) -> &str {
 }
 
 /// A [`TraceLayer`] that adds the client `X-App-Version` to each request span.
-fn http_trace_layer<B>() -> TraceLayer<
+pub fn http_trace_layer<B>() -> TraceLayer<
     tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
     impl Fn(&Request<B>) -> tracing::Span + Clone,
 > {
@@ -100,7 +100,7 @@ async fn readyz(State(state): State<AppState>) -> impl IntoResponse {
     }
 }
 
-fn cors_layer(web_origin: &str) -> CorsLayer {
+pub fn cors_layer(web_origin: &str) -> CorsLayer {
     CorsLayer::new()
         .allow_origin(
             web_origin
