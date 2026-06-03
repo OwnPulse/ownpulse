@@ -66,18 +66,20 @@ describe("swiftColor", () => {
 
 describe("value parity (CSS <-> Swift)", () => {
   it("renders color.primary.default identically in both outputs", () => {
-    // #c2654a in the source -> --color-primary: #c2654a in CSS,
-    // and OPColor.terracotta as Color(red: 194/255, ...) in Swift.
-    expect(read(cssPath)).toContain("--color-primary: #c2654a;");
+    // #b2573c in the source -> --color-primary: #b2573c in CSS,
+    // and OPColor.terracotta as Color(red: 178/255, ...) in Swift.
+    // (Darkened from #c2654a for WCAG AA — see tools/design-tokens/contrast.js.)
+    expect(read(cssPath)).toContain("--color-primary: #b2573c;");
     expect(read(swiftPath)).toContain(
-      "static let terracotta = Color(red: 194 / 255, green: 101 / 255, blue: 74 / 255)",
+      "static let terracotta = Color(red: 178 / 255, green: 87 / 255, blue: 60 / 255)",
     );
   });
 
   it("renders color.accent.default identically in both outputs", () => {
-    expect(read(cssPath)).toContain("--color-accent: #3d8b8b;");
+    // Darkened from #3d8b8b for WCAG AA — see tools/design-tokens/contrast.js.
+    expect(read(cssPath)).toContain("--color-accent: #377c7c;");
     expect(read(swiftPath)).toContain(
-      "static let teal = Color(red: 61 / 255, green: 139 / 255, blue: 139 / 255)",
+      "static let teal = Color(red: 55 / 255, green: 124 / 255, blue: 124 / 255)",
     );
   });
 });
