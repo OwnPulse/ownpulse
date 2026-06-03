@@ -71,7 +71,7 @@ describe("telemetry opt-in gate", () => {
 
   it("does not buffer or send events when disabled", async () => {
     trackPageView("/dashboard");
-    trackAction("checkin/save");
+    trackAction("settings/save");
     trackApiCall({ endpoint: "/account", method: "GET", status: 200, latency_ms: 12 });
     expect(__bufferLength()).toBe(0);
     await flush();
@@ -103,7 +103,7 @@ describe("platform tagging", () => {
   it("tags every event with platform=web", async () => {
     setTelemetryEnabled(true);
     trackPageView("/dashboard");
-    trackAction("checkin/save");
+    trackAction("settings/save");
     trackApiCall({ endpoint: "/account", method: "GET", status: 200, latency_ms: 5 });
     await flush();
     expect(lastReport?.events.every((e) => e.platform === "web")).toBe(true);
@@ -114,7 +114,7 @@ describe("anonymous device id", () => {
   it("attaches a stable anonymous device id to page_view and action events", async () => {
     setTelemetryEnabled(true);
     trackPageView("/dashboard");
-    trackAction("checkin/save");
+    trackAction("settings/save");
     await flush();
     const ids = lastReport?.events.map((e) => e.device_id) ?? [];
     expect(ids[0]).toBeTruthy();

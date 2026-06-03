@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { create } from "zustand";
+import { resetDeviceId } from "../lib/telemetry";
 import { telemetry } from "../lib/telemetryMiddleware";
 
 /** Decode the payload of a JWT without verification (backend already verified). */
@@ -37,6 +38,12 @@ export const useAuthStore = create<AuthState>()(
     login: (token: string) => {
       const claims = decodeJwtPayload(token);
       const role = typeof claims.role === "string" ? claims.role : "user";
+      // Rotate the anonymous telemetry device id at the start of every session
+      // (password login, register, OAuth callback, or silent restore on load).
+      // Combined with the reset on logout, this guarantees the "sessions can't
+      // be correlated" property holds however the previous session ended —
+      // including closing the tab without an explicit logout.
+      resetDeviceId();
       // The third arg is a coarse action label consumed by the telemetry
       // middleware — no token or claim content is ever included.
       set({ token, isAuthenticated: true, role }, false, "auth/login");

@@ -1355,7 +1355,7 @@
             {
               "type": "flow",
               "device_id": "web-anon-device-id-0001",
-              "payload": { "flow": "checkin/save", "outcome": "completed" },
+              "payload": { "flow": "settings/save", "outcome": "completed" },
               "app_version": "abc1234",
               "platform": "web"
             },

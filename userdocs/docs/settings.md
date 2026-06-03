@@ -52,7 +52,7 @@ When enabled, the web app reports three kinds of anonymous events to your own Ow
 - **Actions** -- coarse labels for things like saving a setting. No content you typed is ever included.
 - **Request timing** -- the endpoint, method, status code, latency, and retry count for API calls. Request and response bodies are never included, and the endpoint has identifier path segments collapsed to `:id`.
 
-No health data is ever sent. Telemetry uses a random, anonymous device identifier that is not linked to your account and is **reset every time you log out**, so sessions cannot be correlated. Turning the toggle off stops collection immediately and discards anything not yet sent.
+No health data is ever sent. Page views are only collected while you are signed in -- nothing is tracked on the login, registration, or invite pages. Telemetry uses a random, anonymous device identifier that is not linked to your account and is **rotated at the start of every session and cleared when you log out**, so two sessions can never be correlated -- even if you simply close the tab without logging out. Turning the toggle off stops collection immediately and discards anything not yet sent.
 
 ## Linked accounts
 

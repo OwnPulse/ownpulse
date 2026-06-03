@@ -80,3 +80,25 @@ describe("logout flow + telemetry", () => {
     expect(logoutCalled).toBe(true);
   });
 });
+
+describe("login rotates the device id (anti-correlation across sessions)", () => {
+  it("issues a fresh device id on login even when a stale one survived (tab close, no logout)", async () => {
+    setTelemetryEnabled(true);
+
+    // Simulate a prior session that ended by closing the tab: the device id is
+    // still in localStorage and no logout ran. trackPageView creates the id
+    // synchronously, so no flush is needed to observe it.
+    trackPageView("/dashboard");
+    const staleId = localStorage.getItem(DEVICE_ID_KEY);
+    expect(staleId).toBeTruthy();
+
+    // A new login on the same browser must rotate the id so the new session
+    // cannot be correlated with the stale one.
+    useAuthStore.getState().login("test-jwt-token");
+    trackPageView("/dashboard");
+    const freshId = localStorage.getItem(DEVICE_ID_KEY);
+
+    expect(freshId).toBeTruthy();
+    expect(freshId).not.toBe(staleId);
+  });
+});
