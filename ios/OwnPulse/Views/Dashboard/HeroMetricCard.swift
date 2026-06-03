@@ -29,17 +29,22 @@ struct HeroMetricCard: View {
                 Spacer()
 
                 if !trendText.isEmpty {
-                    Text(trendText)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(
-                            Capsule()
-                                .fill(trendIsPositive ? OPColor.sage.opacity(0.2) : OPColor.trendUp.opacity(0.2))
-                        )
-                        .foregroundStyle(trendIsPositive ? OPColor.sage : OPColor.trendUp)
-                        .accessibilityIdentifier("heroTrendBadge")
+                    // MARK: C9 trend
+                    // Arrow + Wong colorblind-safe color so direction reads in
+                    // grayscale, never by color alone.
+                    let direction: TrendDirection = trendIsPositive ? .up : .down
+                    HStack(spacing: 3) {
+                        Image(systemName: direction.systemImage)
+                            .accessibilityHidden(true)
+                        Text(trendText)
+                    }
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(direction.color.opacity(0.2)))
+                    .foregroundStyle(direction.color)
+                    .accessibilityIdentifier("heroTrendBadge")
                 }
             }
 

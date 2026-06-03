@@ -142,6 +142,18 @@ Two rules keep this robust:
 - **Never rely on hue alone.** Pair color with direct labels, distinct line styles, markers, or position so a chart still reads in grayscale.
 - **Keep the assignments stable.** A metric's color is part of its identity; changing it breaks the reader's learned association. Change `tokens.json`, never a one-off override.
 
+### Trend indicators
+
+Trend direction (a metric going up vs. down vs. holding steady) follows the same "never rely on hue alone" rule. Direction is always carried by a **directional arrow** first, with color as secondary reinforcement:
+
+| Direction | Arrow (SF Symbol) | Color |
+|-----------|-------------------|-------|
+| Up | `arrow.up.right` | `#d55e00` Wong vermillion (the `chart.metric.heart_rate` token) |
+| Down | `arrow.down.right` | `#0072b2` Wong blue (the `chart.metric.glucose` token) |
+| Flat | `arrow.forward` | neutral secondary |
+
+The arrow shape alone distinguishes the three states in grayscale and under any color vision deficiency, so the indicator never depends on telling red from green. The earlier red(up)/green(down) scheme is intentionally gone: it failed red-green color vision and was also semantically inverted. On iOS this mapping lives in a single `TrendDirection` type so the cards cannot drift apart.
+
 ## What We Don't Do
 
 - No purple gradients
