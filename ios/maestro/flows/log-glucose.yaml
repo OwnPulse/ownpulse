@@ -1,0 +1,32 @@
+appId: health.ownpulse.app
+---
+# Log a manual blood glucose entry via the Log tab
+- assertVisible:
+    id: "mainTabView"
+
+# Navigate to Log tab
+- tapOn:
+    text: "Log"
+- assertVisible:
+    id: "logTabPicker"
+
+# Switch to the Glucose entry tab
+- tapOn:
+    id: "logTab-Glucose"
+- assertVisible:
+    id: "glucoseField"
+- assertVisible:
+    id: "saveGlucoseButton"
+
+# Fill in the form
+- tapOn:
+    id: "glucoseField"
+- inputText: "95"
+
+# Submit
+- tapOn:
+    id: "saveGlucoseButton"
+- extendedWaitUntil:
+    visible:
+      id: "submitSuccess"
+    timeout: 10000

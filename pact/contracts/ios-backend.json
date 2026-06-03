@@ -571,7 +571,10 @@
         },
         "body": {
           "metrics": [
-            {"source": "checkins", "field": "energy"}
+            {
+              "source": "checkins",
+              "field": "energy"
+            }
           ],
           "start": "2026-03-21T00:00:00Z",
           "end": "2026-03-28T00:00:00Z",
@@ -590,8 +593,16 @@
               "field": "energy",
               "unit": "",
               "points": [
-                {"t": "2026-03-21", "v": 6.0, "n": 1},
-                {"t": "2026-03-22", "v": 7.0, "n": 1}
+                {
+                  "t": "2026-03-21",
+                  "v": 6.0,
+                  "n": 1
+                },
+                {
+                  "t": "2026-03-22",
+                  "v": 7.0,
+                  "n": 1
+                }
               ]
             }
           ]
@@ -610,8 +621,14 @@
         },
         "body": {
           "metrics": [
-            {"source": "health_records", "field": "body_mass"},
-            {"source": "health_records", "field": "heart_rate"}
+            {
+              "source": "health_records",
+              "field": "body_mass"
+            },
+            {
+              "source": "health_records",
+              "field": "heart_rate"
+            }
           ],
           "start": "2026-03-21T00:00:00Z",
           "end": "2026-03-28T00:00:00Z",
@@ -630,8 +647,16 @@
               "field": "body_mass",
               "unit": "kg",
               "points": [
-                {"t": "2026-03-21", "v": 72.5, "n": 1},
-                {"t": "2026-03-22", "v": 72.3, "n": 1}
+                {
+                  "t": "2026-03-21",
+                  "v": 72.5,
+                  "n": 1
+                },
+                {
+                  "t": "2026-03-22",
+                  "v": 72.3,
+                  "n": 1
+                }
               ]
             },
             {
@@ -639,8 +664,16 @@
               "field": "heart_rate",
               "unit": "bpm",
               "points": [
-                {"t": "2026-03-21", "v": 65.0, "n": 1},
-                {"t": "2026-03-22", "v": 62.0, "n": 1}
+                {
+                  "t": "2026-03-21",
+                  "v": 65.0,
+                  "n": 1
+                },
+                {
+                  "t": "2026-03-22",
+                  "v": 62.0,
+                  "n": 1
+                }
               ]
             }
           ]
@@ -829,7 +862,15 @@
                 "unit": "mcg",
                 "route": "SubQ",
                 "time_of_day": "AM",
-                "schedule_pattern": [true, true, true, true, true, true, true],
+                "schedule_pattern": [
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true,
+                  true
+                ],
                 "sort_order": 0,
                 "doses": []
               }
@@ -873,7 +914,15 @@
               "unit": "mcg",
               "route": "SubQ",
               "time_of_day": "AM",
-              "schedule_pattern": [true, true, true, true, true, true, true],
+              "schedule_pattern": [
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true
+              ],
               "sort_order": 0,
               "doses": []
             }
@@ -903,7 +952,15 @@
               "unit": "mcg",
               "route": "SubQ",
               "time_of_day": "AM",
-              "schedule_pattern": [true, true, true, true, true, true, true],
+              "schedule_pattern": [
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true
+              ],
               "sort_order": 0
             }
           ]
@@ -934,7 +991,15 @@
               "unit": "mcg",
               "route": "SubQ",
               "time_of_day": "AM",
-              "schedule_pattern": [true, true, true, true, true, true, true],
+              "schedule_pattern": [
+                true,
+                true,
+                true,
+                true,
+                true,
+                true,
+                true
+              ],
               "sort_order": 0,
               "doses": []
             }
@@ -1042,9 +1107,49 @@
         },
         "body": {
           "default_notify": false,
-          "default_notify_times": ["08:00"],
+          "default_notify_times": [
+            "08:00"
+          ],
           "repeat_reminders": false,
           "repeat_interval_minutes": 30
+        }
+      }
+    },
+    {
+      "description": "a request to create a manual health record",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/health-records",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "manual",
+          "record_type": "body_mass",
+          "value": 82.5,
+          "unit": "kg",
+          "start_time": "2026-03-28T08:00:00Z",
+          "end_time": "2026-03-28T08:00:00Z",
+          "metadata": null,
+          "source_id": null
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440010",
+          "user_id": "550e8400-e29b-41d4-a716-446655440001",
+          "source": "manual",
+          "record_type": "body_mass",
+          "value": 82.5,
+          "unit": "kg",
+          "start_time": "2026-03-28T08:00:00Z",
+          "end_time": "2026-03-28T08:00:00Z"
         }
       }
     }
