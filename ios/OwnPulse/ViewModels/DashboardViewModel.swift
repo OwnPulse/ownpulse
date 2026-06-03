@@ -198,10 +198,13 @@ final class DashboardViewModel {
         }
         let pctChange = ((latest - avg) / avg) * 100
         // Round first, then derive sign/label from the rounded value so we
-        // never render a contradictory "-0%" (a tiny negative that rounds to
-        // zero would otherwise print with a leading minus).
-        let rounded = (pctChange).rounded()
-        let direction = rounded > 0 ? "+" : ""
+        // never render a contradictory "-0%". `(-0.0167).rounded()` is negative
+        // zero, which `%.0f` would print as "-0"; `+ 0` normalizes it to
+        // positive zero. We then prefix "+" for any value >= 0 (so zero and
+        // increases read "+0%"/"+3%") and let `%.0f` supply the "-" for real
+        // decreases.
+        let rounded = pctChange.rounded() + 0
+        let direction = rounded >= 0 ? "+" : ""
         heroTrendText = "\(direction)\(String(format: "%.0f", rounded))% vs 30d avg"
         // POLARITY IS RESTING-HR-ONLY. The hero metric is currently hardcoded
         // to resting heart rate (see loadHeroMetric), where *lower* is the
