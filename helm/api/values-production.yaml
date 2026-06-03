@@ -3,9 +3,7 @@
 #
 # Enable the HorizontalPodAutoscaler in production only. The cluster runs
 # metrics-server, so CPU-based autoscaling is available here. Self-hosters keep
-# the default fixed replicaCount and need no metrics-server.
+# the default fixed replicaCount and need no metrics-server. min/max/target come
+# from the base values.yaml autoscaling defaults — only the toggle differs here.
 autoscaling:
   enabled: true
-  minReplicas: 2
-  maxReplicas: 5
-  targetCPUUtilizationPercentage: 70
