@@ -1,0 +1,9 @@
+# Production overrides for the api chart.
+# Applied by .github/workflows/deploy-production.yml on top of values.yaml.
+#
+# Enable the HorizontalPodAutoscaler in production only. The cluster runs
+# metrics-server, so CPU-based autoscaling is available here. Self-hosters keep
+# the default fixed replicaCount and need no metrics-server. min/max/target come
+# from the base values.yaml autoscaling defaults — only the toggle differs here.
+autoscaling:
+  enabled: true

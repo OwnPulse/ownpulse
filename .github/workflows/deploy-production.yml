@@ -145,6 +145,7 @@ jobs:
         include:
           - release: api
             chart: helm/api
+            values: helm/api/values-production.yaml
             deployment: api-ownpulse-api
             service: api
           - release: web
@@ -186,8 +187,13 @@ jobs:
 
       - name: Preview production changes
         run: |
+          VALUES_ARG=""
+          if [ -n "${{ matrix.values }}" ]; then
+            VALUES_ARG="-f ${{ matrix.values }}"
+          fi
           helm diff upgrade "${{ matrix.release }}" "${{ matrix.chart }}" \
             -n ownpulse \
+            $VALUES_ARG \
             --set "image.tag=${{ steps.tag.outputs.tag }}" \
             --suppress-secrets \
             --three-way-merge \
@@ -205,6 +211,7 @@ jobs:
           chart-path: ${{ matrix.chart }}
           namespace: ownpulse
           image-tag: ${{ steps.tag.outputs.tag }}
+          values-file: ${{ matrix.values }}
           deployment-name: ${{ matrix.deployment }}
 
   production-validate:
