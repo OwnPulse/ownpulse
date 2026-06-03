@@ -120,6 +120,9 @@ pub fn build_app(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes())
+        // v2 namespace is mounted but currently empty — see routes/v2/mod.rs
+        // and the API versioning policy in docs/architecture/api.md.
+        .nest("/api/v2", routes::v2::router())
         .layer(TraceLayer::new_for_http())
         .layer(prometheus_layer)
         .layer(cors_layer(&state.config.web_origin))
@@ -134,6 +137,9 @@ pub fn build_app_without_metrics(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes_without_rate_limit())
+        // v2 namespace is mounted but currently empty — see routes/v2/mod.rs
+        // and the API versioning policy in docs/architecture/api.md.
+        .nest("/api/v2", routes::v2::router())
         .layer(TraceLayer::new_for_http())
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)

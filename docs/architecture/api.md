@@ -4,6 +4,30 @@
 
 All endpoints require JWT authentication unless marked as public. Tokens are issued via the auth endpoints and passed as `Authorization: Bearer <token>`.
 
+## API versioning policy
+
+The API is versioned in the URL path: `/api/v1`, `/api/v2`, and so on. A version
+namespace groups a stable contract — clients pin to a version and are not broken
+by additive changes within it.
+
+- **Additive, backward-compatible changes** (new endpoints, new optional request
+  fields, new response fields) are made in place within the current version. They
+  do **not** require a new version.
+- **Breaking changes** (removing or renaming a field, changing a field's type,
+  changing status-code semantics, removing an endpoint) get a **parallel endpoint
+  under the next version**. The `v1` equivalent stays live and gains a
+  `Deprecation` response header for a minimum of **60 days** before removal. The
+  header signals the date the old endpoint stops being maintained; clients should
+  migrate to the `v2` endpoint before then.
+- `/api/v2` is currently a mounted but empty namespace (see
+  `backend/api/src/routes/v2/mod.rs`). Requests under it return a clean `404`
+  until the first `v2` endpoint ships. It exists so a breaking change can be
+  introduced without restructuring the router.
+- Consumer contracts in `pact/contracts/` continue to pin `v1`
+  (`pact/contracts/ios-backend.json`, `pact/contracts/web-backend.json`). A
+  contract is repointed to `v2` only when its consumer actually migrates to a
+  `v2` endpoint — adding the `v2` namespace alone does not change any contract.
+
 ## Implemented
 
 ### Public
