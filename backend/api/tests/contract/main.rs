@@ -311,7 +311,22 @@ fn contracts_dir() -> PathBuf {
 }
 
 /// Verify a single contract file against the running provider.
-async fn verify_contract(app: &ContractTestApp, contract_path: PathBuf) {
+///
+/// `filter` restricts which interactions are replayed. Pass [`FilterInfo::None`]
+/// to verify the whole contract, or [`FilterInfo::Description`] (whose argument is
+/// a regex over the interaction description) to verify a subset.
+///
+/// `expected_verified`, when `Some(n)`, asserts that exactly `n` interactions were
+/// actually replayed. This guards against the silent failure mode where a
+/// description filter matches zero interactions: `verify_provider_async` reports
+/// success when nothing ran, so without this check a renamed interaction would
+/// make the gate pass while verifying nothing.
+async fn verify_contract(
+    app: &ContractTestApp,
+    contract_path: PathBuf,
+    filter: FilterInfo,
+    expected_verified: Option<usize>,
+) {
     let transport = ProviderTransport {
         transport: "HTTP".to_string(),
         port: Some(app.port),
@@ -356,7 +371,7 @@ async fn verify_contract(app: &ContractTestApp, contract_path: PathBuf) {
     let result = verify_provider_async(
         provider,
         vec![source],
-        FilterInfo::None,
+        filter,
         vec![],
         &options,
         None,
@@ -372,28 +387,109 @@ async fn verify_contract(app: &ContractTestApp, contract_path: PathBuf) {
         contract_path.display(),
         result.errors,
     );
+
+    if let Some(expected) = expected_verified {
+        let verified = result.interaction_results.len();
+        assert_eq!(
+            verified,
+            expected,
+            "expected {expected} interaction(s) to be verified for {}, but {verified} ran — \
+             did the contract's interaction descriptions change so the filter no longer matches? \
+             Verified: {:?}",
+            contract_path.display(),
+            result
+                .interaction_results
+                .iter()
+                .map(|r| r.description.as_str())
+                .collect::<Vec<_>>(),
+        );
+    }
 }
 
+/// Regex matching the iOS HealthKit-sync interactions in `ios-backend.json`.
+///
+/// These three interactions are deterministic — their responses are fixed
+/// status codes and fixed bodies (e.g. `{"received":1,"inserted":1,...}`, `[]`,
+/// and an empty 204) — so they can be verified against the live provider without
+/// matching rules or elaborate provider-state seeding. They form the active,
+/// CI-enforced slice of the iOS Pact gate: if a change to `/healthkit/sync`,
+/// `/healthkit/write-queue`, or `/healthkit/confirm` alters the status code or
+/// response shape away from what iOS expects, this test fails.
+const IOS_HEALTHKIT_INTERACTIONS: &str = "^a request to (bulk sync HealthKit records|\
+get the HealthKit write-back queue|confirm HealthKit write-back items)$";
+
+/// The active iOS Pact gate.
+///
+/// This is NOT `#[ignore]`d — it runs on `cargo test --test contract` and in CI,
+/// and it FAILS if the provider drifts from the iOS HealthKit-sync contract.
+///
+/// It deliberately verifies only the deterministic HealthKit-sync subset (see
+/// [`IOS_HEALTHKIT_INTERACTIONS`]). The remaining iOS interactions cannot be
+/// verified today because the committed `ios-backend.json` is a Pact v2 document
+/// with zero matching rules: every dynamic field (generated UUIDs, timestamps,
+/// invite codes) and every literal path id (`proto-1`, fixed admin UUIDs) is
+/// matched by exact equality, which a real provider can never satisfy. Bringing
+/// the full contract under verification requires re-authoring it with type/regex
+/// matchers and seeding every provider state — tracked by `verify_ios_contract`
+/// below, which stays `#[ignore]`d until that work lands.
 #[tokio::test]
-#[ignore = "contract tests need provider state wiring — tracked separately"]
+async fn verify_ios_healthkit_contract() {
+    let contract = contracts_dir().join("ios-backend.json");
+    assert!(
+        contract.exists(),
+        "iOS contract file not found at {}",
+        contract.display()
+    );
+
+    let app = common::setup().await;
+    verify_contract(
+        &app,
+        contract,
+        FilterInfo::Description(IOS_HEALTHKIT_INTERACTIONS.to_string()),
+        // The three HealthKit-sync interactions must all run — see the doc on
+        // `expected_verified`. A renamed interaction must fail the gate, not
+        // silently skip it.
+        Some(3),
+    )
+    .await;
+}
+
+/// Full iOS contract verification.
+///
+/// Ignored: `ios-backend.json` lacks Pact matching rules and seeded provider
+/// state for most interactions (see [`verify_ios_healthkit_contract`]). Re-author
+/// the contract with matchers and complete the `StateExecutor` seeding, then drop
+/// this `#[ignore]`.
+#[tokio::test]
+#[ignore = "ios-backend.json needs matching rules + full provider-state seeding — tracked separately"]
 async fn verify_ios_contract() {
     let contract = contracts_dir().join("ios-backend.json");
-    if !contract.exists() {
-        panic!("iOS contract file not found at {}", contract.display());
-    }
+    assert!(
+        contract.exists(),
+        "iOS contract file not found at {}",
+        contract.display()
+    );
 
     let app = common::setup().await;
-    verify_contract(&app, contract).await;
+    verify_contract(&app, contract, FilterInfo::None, None).await;
 }
 
+/// Full web contract verification.
+///
+/// Ignored: `web-backend.json` provider states (e.g. "user is authenticated")
+/// are not handled by the `StateExecutor`, and the contract lacks matching rules.
+/// Re-author with matchers and complete provider-state seeding, then drop this
+/// `#[ignore]`.
 #[tokio::test]
-#[ignore = "contract tests need provider state wiring — tracked separately"]
+#[ignore = "web-backend.json needs matching rules + full provider-state seeding — tracked separately"]
 async fn verify_web_contract() {
     let contract = contracts_dir().join("web-backend.json");
-    if !contract.exists() {
-        panic!("Web contract file not found at {}", contract.display());
-    }
+    assert!(
+        contract.exists(),
+        "Web contract file not found at {}",
+        contract.display()
+    );
 
     let app = common::setup().await;
-    verify_contract(&app, contract).await;
+    verify_contract(&app, contract, FilterInfo::None, None).await;
 }
