@@ -28,11 +28,33 @@ This regenerates three committed outputs:
 The build is deterministic: running it on a clean tree yields no diff. The
 generated files are committed so the apps build without running this tool.
 
+## Contrast check (WCAG AA)
+
+```bash
+npm run check:contrast
+```
+
+`contrast.js` enumerates every text-on-surface and active UI-component pairing
+the light-mode palette implies, computes WCAG 2.1 relative-contrast ratios, and
+asserts ≥4.5:1 for normal text and ≥3:1 for graphical objects / UI components.
+It exits non-zero with a report of any failing pair + ratio. Resting decorative
+borders (`color.border.*`) are reported informationally but not asserted — they
+draw card outlines and dividers that WCAG 1.4.11 exempts as not required to
+identify a component. Wired into the web CI job; run it before editing colors.
+
+If a pairing fails, fix the offending token VALUE in `docs/design/tokens.json`
+(darken to the nearest compliant shade) and rerun `npm run build:tokens` so the
+generated outputs stay in sync. Do not loosen the thresholds.
+
 ## Tests
 
 The generator is covered by `web/tests/unit/design-tokens-generator.test.ts`
 (name mapping, CSS↔Swift value parity, and an idempotency check that the build
-reproduces the committed files byte-for-byte). Run with `npm test` in `web/`.
+reproduces the committed files byte-for-byte). The contrast math + palette
+compliance is covered by `web/tests/unit/design-tokens-contrast.test.ts`
+(reference ratios, pairing enumeration, and a regression guard that the
+committed palette passes every asserted AA threshold). Run with `npm test` in
+`web/`.
 
 ## Scope
 
