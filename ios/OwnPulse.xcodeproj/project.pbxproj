@@ -45,6 +45,9 @@
 		2CBC758F6DF27FCAB1722851 /* AdminServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54949C1E6E149322C32F0B1B /* AdminServiceTests.swift */; };
 		2DD65D3B1A369A99B888317D /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4245A1A03B84BDF2DF58525 /* APIModels.swift */; };
 		2E751B72783CBB72F71F5FC4 /* SourcePreferenceWizardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3CA96BBEAAE9C820918EA50 /* SourcePreferenceWizardTests.swift */; };
+		C6A1000000000000000000A1 /* OAuthWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F1000000000000000000F1 /* OAuthWebView.swift */; };
+		C6A1000000000000000000A2 /* WearableConnectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F1000000000000000000F2 /* WearableConnectionsView.swift */; };
+		C6A1000000000000000000A3 /* WearableConnectionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F1000000000000000000F3 /* WearableConnectionsViewModelTests.swift */; };
 		32E54794834E7B928F64F00D /* SyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39BE160B6890EFD903FD7D4F /* SyncCoordinatorTests.swift */; };
 		347AFEC6F1E8FB544751AA4F /* WeightEntryForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620BF33A40A0FCF7E3F2DE69 /* WeightEntryForm.swift */; };
 		34C414888AC43A92C7BE1599 /* ProtocolModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E64390E3C00D21BD3C2B16BB /* ProtocolModelsTests.swift */; };
@@ -228,6 +231,9 @@
 		15A864E7B479E2596E8BB649 /* FlowTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowTracker.swift; sourceTree = "<group>"; };
 		17D932C6051B03BD54511175 /* WidgetSnapshotHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotHarness.swift; sourceTree = "<group>"; };
 		17DAA385FC0A305BFCD51835 /* SourcePreferenceWizard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePreferenceWizard.swift; sourceTree = "<group>"; };
+		C6F1000000000000000000F1 /* OAuthWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthWebView.swift; sourceTree = "<group>"; };
+		C6F1000000000000000000F2 /* WearableConnectionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WearableConnectionsView.swift; sourceTree = "<group>"; };
+		C6F1000000000000000000F3 /* WearableConnectionsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WearableConnectionsViewModelTests.swift; sourceTree = "<group>"; };
 		1B22A411AC6BB862732AC59C /* SparklineCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineCard.swift; sourceTree = "<group>"; };
 		1D35E0B6E771C3ABD14DFD0F /* HeroMetricWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroMetricWidget.swift; sourceTree = "<group>"; };
 		1ECD3EF4637C840BF4A9A98A /* FeatureFlagService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlagService.swift; sourceTree = "<group>"; };
@@ -529,6 +535,7 @@
 				63B9EF0C056066E4BAE8A768 /* SyncSchedulerTests.swift */,
 				E7BC1BCAD1F01E138358B163 /* ThemeColorTests.swift */,
 				44DAC2D411F7B322237A118A /* UserPreferencesTests.swift */,
+				C6F1000000000000000000F3 /* WearableConnectionsViewModelTests.swift */,
 				4B87B1D8D0ED5457EF0C48E3 /* WeightFormatterTests.swift */,
 				D1ED110E1D7CCFA9CD8958BB /* WidgetDataPublisherTests.swift */,
 				E27722704B2FF048476AA193 /* WriteBackQueueViewModelTests.swift */,
@@ -550,8 +557,10 @@
 		3F22545557E32B980C06A6DE /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				C6F1000000000000000000F1 /* OAuthWebView.swift */,
 				17DAA385FC0A305BFCD51835 /* SourcePreferenceWizard.swift */,
 				43B3BD27FEC29DA8F177AD1A /* SyncStatusView.swift */,
+				C6F1000000000000000000F2 /* WearableConnectionsView.swift */,
 				962DF52C962765676F4876DA /* WriteBackQueueView.swift */,
 			);
 			path = Settings;
@@ -1014,6 +1023,8 @@
 				82FD284E95344C2E5110ED3F /* SettingsView.swift in Sources */,
 				4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */,
 				0C28682BE61E1664D139276F /* SleepEntryForm.swift in Sources */,
+				C6A1000000000000000000A1 /* OAuthWebView.swift in Sources */,
+				C6A1000000000000000000A2 /* WearableConnectionsView.swift in Sources */,
 				35697B748FDE579D25320ACC /* SmallMultiplesChartView.swift in Sources */,
 				5A53FFCDCAD5B39C1BC8E7C3 /* SourcePreferenceWizard.swift in Sources */,
 				F226F127D39C61A87E623588 /* SparklineCard.swift in Sources */,
@@ -1085,6 +1096,7 @@
 				08841D6CD05639ECE2811997 /* SettingsViewModelTests.swift in Sources */,
 				ED8FFAB48E372B5696C7C161 /* SmallMultiplesChartViewTests.swift in Sources */,
 				2E751B72783CBB72F71F5FC4 /* SourcePreferenceWizardTests.swift in Sources */,
+				C6A1000000000000000000A3 /* WearableConnectionsViewModelTests.swift in Sources */,
 				32E54794834E7B928F64F00D /* SyncCoordinatorTests.swift in Sources */,
 				B474734FE98AABC46A894425 /* SyncEngineTests.swift in Sources */,
 				81CDDB2092AB4AE5FA4D936E /* SyncProgressTests.swift in Sources */,
