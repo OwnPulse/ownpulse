@@ -148,10 +148,21 @@ struct SettingsView: View {
     @State private var clinicalRecordsSyncEnabled = ClinicalRecordSettings.isSyncEnabled
     @State private var telemetryEnabled = TelemetrySettings.isEnabled
     @State private var weightUnit: WeightUnitPreference = UserPreferences.weightUnit
+    // C12 light/dark/system toggle — shared @AppStorage key with the root scene.
+    @AppStorage(ColorSchemePreference.storageKey) private var colorSchemeRaw =
+        ColorSchemePreference.system.rawValue
     @State private var viewModel: SettingsViewModel?
     // --- C4: source-preference wizard ---
     @State private var showSourceWizard = false
     // --- end C4 ---
+
+    // Bridges the raw-string @AppStorage value to a typed Picker selection.
+    private var themeSelection: Binding<ColorSchemePreference> {
+        Binding(
+            get: { ColorSchemePreference.from(rawValue: colorSchemeRaw) },
+            set: { colorSchemeRaw = $0.rawValue }
+        )
+    }
 
     private var isAdmin: Bool {
         guard let tokenData = try? dependencies.keychainService.load(
@@ -267,6 +278,21 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            // MARK: C12 — Appearance (light/dark/system)
+            Section("Appearance") {
+                Picker("Theme", selection: themeSelection) {
+                    ForEach(ColorSchemePreference.allCases, id: \.self) { pref in
+                        Text(pref.displayName).tag(pref)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("colorSchemePicker")
+                Text("Choose Light, Dark, or follow your device's System setting.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            // END C12
 
             // --- C4: source-preference wizard ---
             Section("Data Sources") {
