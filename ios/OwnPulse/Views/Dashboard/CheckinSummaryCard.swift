@@ -95,12 +95,15 @@ struct CheckinSummaryCard: View {
                 Text("\(value)")
                     .font(.system(.callout, design: .rounded, weight: .bold))
             }
-            .accessibilityIdentifier("scoreRing-\(item.label.lowercased())")
 
             Text(item.label)
-                .font(.system(size: 10))
+                .font(.system(.caption2, design: .default))
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("scoreRing-\(item.label.lowercased())")
+        .accessibilityLabel(item.label)
+        .accessibilityValue(item.value == nil ? "Not logged" : "\(value) out of 10")
     }
 
     private func formattedTime(from dateString: String) -> String {

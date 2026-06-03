@@ -97,6 +97,36 @@ struct SmallMultiplesChartViewTests {
         )
     }
 
+    // MARK: - panel accessibility value
+
+    @Test("panel accessibility value spells out the value range and unit")
+    func panelAccessibilityValueDescribesRange() {
+        // points are value 0, 1, 2 for a 3-point metric
+        let value = SmallMultiplesChartView.panelAccessibilityValue(
+            for: metric("heart_rate", unit: "bpm"),
+            prefs: .kilograms
+        )
+        #expect(value == "From 0.0 to 2.0 bpm")
+    }
+
+    @Test("panel accessibility value applies weight-unit preference for body_mass")
+    func panelAccessibilityValueBodyMassUsesPrefUnit() {
+        let value = SmallMultiplesChartView.panelAccessibilityValue(
+            for: metric("body_mass", unit: "kg"),
+            prefs: .pounds
+        )
+        #expect(value.hasSuffix("lb"))
+    }
+
+    @Test("panel accessibility value reports no data for an empty series")
+    func panelAccessibilityValueEmpty() {
+        let value = SmallMultiplesChartView.panelAccessibilityValue(
+            for: metric("heart_rate", unit: "bpm", points: 0),
+            prefs: .kilograms
+        )
+        #expect(value == "No data")
+    }
+
     // MARK: - instantiation smoke test
 
     @Test("view instantiates with 3 metrics without crashing")

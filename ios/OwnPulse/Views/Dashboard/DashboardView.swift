@@ -180,7 +180,6 @@ struct DashboardView: View {
                 HStack(spacing: 12) {
                     ForEach(vm.sparklines) { series in
                         SparklineCard(series: series)
-                            .accessibilityIdentifier("sparkline-\(series.field)")
                     }
                 }
             }
