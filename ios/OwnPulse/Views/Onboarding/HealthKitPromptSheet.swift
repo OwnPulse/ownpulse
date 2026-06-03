@@ -8,12 +8,14 @@ struct HealthKitPromptSheet: View {
     let onConnect: () -> Void
     let onDismiss: () -> Void
 
+    @ScaledMetric(relativeTo: .largeTitle) private var iconSize: CGFloat = 64
+
     var body: some View {
         VStack(spacing: 24) {
             Spacer()
 
             Image(systemName: "heart.text.square.fill")
-                .font(.system(size: 64, relativeTo: .largeTitle))
+                .font(.system(size: iconSize))
                 .foregroundStyle(OPColor.terracotta)
                 .accessibilityIdentifier("healthKitPromptIcon")
                 .accessibilityHidden(true)

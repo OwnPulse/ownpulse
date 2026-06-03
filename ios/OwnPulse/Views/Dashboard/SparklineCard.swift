@@ -82,6 +82,7 @@ struct SparklineCard: View {
         .frame(width: 130)
         .opCard()
         .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("sparkline-\(series.field)")
         .accessibilityLabel(displayName)
         .accessibilityValue("\(latestValue), \(trendDescription)")
     }
