@@ -9,7 +9,10 @@ struct HeroMetricCard: View {
     let currentValue: String
     let unit: String
     let trendText: String
-    let trendIsPositive: Bool
+    /// The literal DATA direction of the change (did the value go up or down),
+    /// NOT a good/bad polarity. Drives the arrow so the grayscale signal always
+    /// matches the number shown in `trendText`.
+    let trendDirection: TrendDirection
     let dataPoints: [DataPoint]
 
     @State private var animateChart = false
@@ -30,11 +33,11 @@ struct HeroMetricCard: View {
 
                 if !trendText.isEmpty {
                     // MARK: C9 trend
-                    // Arrow + Wong colorblind-safe color so direction reads in
-                    // grayscale, never by color alone.
-                    let direction: TrendDirection = trendIsPositive ? .up : .down
+                    // Arrow + Wong colorblind-safe color, both keyed off the
+                    // literal data direction so the arrow always matches the
+                    // sign of the number. Direction is never color alone.
                     HStack(spacing: 3) {
-                        Image(systemName: direction.systemImage)
+                        Image(systemName: trendDirection.systemImage)
                             .accessibilityHidden(true)
                         Text(trendText)
                     }
@@ -42,8 +45,8 @@ struct HeroMetricCard: View {
                     .fontWeight(.medium)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(direction.color.opacity(0.2)))
-                    .foregroundStyle(direction.color)
+                    .background(Capsule().fill(trendDirection.color.opacity(0.2)))
+                    .foregroundStyle(trendDirection.color)
                     .accessibilityIdentifier("heroTrendBadge")
                 }
             }

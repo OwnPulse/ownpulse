@@ -36,14 +36,16 @@ extension OPColor {
     /// white text, clearing AA.
     static let googleBlue = Color(red: 26 / 255, green: 95 / 255, blue: 180 / 255)
 
-    // Colorblind-safe trend colors from the Wong palette, sourced from the
-    // generated ChartColors tokens. These are always paired with a directional
-    // arrow wherever they appear (see TrendDirection) — direction is never
-    // conveyed by color alone. Replaces the former red(up)/green(down) scheme,
-    // which failed red-green color vision and was semantically inverted.
-    static let trendUp = ChartColors.metric["heart_rate"] ?? Color(red: 213 / 255, green: 94 / 255, blue: 0 / 255)
-    static let trendDown = ChartColors.metric["glucose"] ?? Color(red: 0 / 255, green: 114 / 255, blue: 178 / 255)
-    static let trendFlat = Color.secondary
+    // Colorblind-safe trend colors. TrendDirection is the single resolution
+    // point (it reads the Wong palette from the generated ChartColors tokens);
+    // these aliases exist for callers that want the color without the enum.
+    // They are always paired with a directional arrow wherever they appear —
+    // direction is never conveyed by color alone. Replaces the former
+    // red(up)/green(down) scheme, which failed red-green color vision and was
+    // semantically inverted.
+    static let trendUp = TrendDirection.up.color
+    static let trendDown = TrendDirection.down.color
+    static let trendFlat = TrendDirection.flat.color
 }
 
 extension Color {

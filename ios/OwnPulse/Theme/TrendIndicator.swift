@@ -19,10 +19,21 @@ import SwiftUI
 /// This replaces the previous `OPColor.trendUp`/`trendDown` red/green scheme,
 /// which was a classic red-green colorblind failure and was also semantically
 /// inverted (up was red, down was green).
-enum TrendDirection {
+enum TrendDirection: String, Codable, Sendable {
     case up
     case down
     case flat
+
+    /// Direction of a change from the literal sign of its magnitude. This is
+    /// the DATA direction (did the number go up or down), independent of
+    /// whether that is "good" or "bad" for the metric — callers must not pass
+    /// a good/bad polarity flag here, or the arrow will point the wrong way.
+    /// `epsilon` is the magnitude below which a change reads as flat.
+    static func from(signedChange change: Double, epsilon: Double = 0) -> TrendDirection {
+        if change > epsilon { return .up }
+        if change < -epsilon { return .down }
+        return .flat
+    }
 
     /// SF Symbol whose shape encodes the direction independently of color.
     var systemImage: String {
@@ -33,12 +44,15 @@ enum TrendDirection {
         }
     }
 
-    /// Wong colorblind-safe color for the direction.
+    /// Wong colorblind-safe color for the direction, sourced from the generated
+    /// `ChartColors` tokens (shared with web) so we keep one definition of the
+    /// palette. `heart_rate` is Wong vermillion `#d55e00`; `glucose` is Wong
+    /// blue `#0072B2`. Flat uses a neutral secondary.
     var color: Color {
         switch self {
-        case .up: return ChartColors.metric["heart_rate"] ?? OPColor.trendUp
-        case .down: return ChartColors.metric["glucose"] ?? OPColor.trendDown
-        case .flat: return OPColor.trendFlat
+        case .up: return ChartColors.metric["heart_rate"]!
+        case .down: return ChartColors.metric["glucose"]!
+        case .flat: return .secondary
         }
     }
 

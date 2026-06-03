@@ -90,4 +90,61 @@ struct TrendIndicatorTests {
         #expect(TrendDirection.down.spokenDescription == "trending down")
         #expect(TrendDirection.flat.spokenDescription == "holding steady")
     }
+
+    // The arrow must follow the literal sign of the change, NOT a good/bad
+    // polarity. A resting-HR drop is a negative change → DOWN arrow, even
+    // though lower HR is "good".
+    @Test("from(signedChange:) maps a negative change to down regardless of polarity")
+    func signedChangeNegativeIsDown() {
+        #expect(TrendDirection.from(signedChange: -4) == .down)
+    }
+
+    @Test("from(signedChange:) maps a positive change to up")
+    func signedChangePositiveIsUp() {
+        #expect(TrendDirection.from(signedChange: 3) == .up)
+    }
+
+    @Test("from(signedChange:) maps zero to flat")
+    func signedChangeZeroIsFlat() {
+        #expect(TrendDirection.from(signedChange: 0) == .flat)
+    }
+
+    @Test("from(signedChange:) respects the epsilon dead-band")
+    func signedChangeEpsilon() {
+        #expect(TrendDirection.from(signedChange: 0.3, epsilon: 0.5) == .flat)
+        #expect(TrendDirection.from(signedChange: -0.3, epsilon: 0.5) == .flat)
+        #expect(TrendDirection.from(signedChange: 0.6, epsilon: 0.5) == .up)
+        #expect(TrendDirection.from(signedChange: -0.6, epsilon: 0.5) == .down)
+    }
+
+    @Test("TrendDirection is Codable round-trip (used in WidgetSnapshot)")
+    func codableRoundTrip() throws {
+        for dir in [TrendDirection.up, .down, .flat] {
+            let data = try JSONEncoder().encode(dir)
+            #expect(try JSONDecoder().decode(TrendDirection.self, from: data) == dir)
+        }
+    }
+
+    // The lock-screen widget renders `snapshot.heroTrendDirection.color`. This
+    // pins that render path to the Wong palette, not the old color-only `.red`
+    // — the exact regression code-review caught on the most visible surface.
+    @Test("widget trend color comes from TrendDirection (Wong), never red")
+    func widgetTrendColorIsWongNotRed() {
+        // A resting-HR drop: "good" polarity, but the data direction is down.
+        let snapshot = WidgetSnapshot(
+            checkinFilledToday: true,
+            heroMetricName: "Resting Heart Rate",
+            heroMetricValue: "56",
+            heroMetricUnit: "bpm",
+            heroTrendText: "-4% vs 30d avg",
+            heroTrendIsPositive: true,
+            heroTrendDirection: .down,
+            lastUpdated: Date()
+        )
+        let widgetColor = rgb(snapshot.heroTrendDirection.color)
+        #expect(widgetColor == (0, 114, 178), "widget trend must render Wong blue, was \(widgetColor)")
+        #expect(widgetColor != (255, 0, 0), "widget trend must not be the legacy color-only red")
+        // And the widget shows an arrow whose shape matches the data direction.
+        #expect(snapshot.heroTrendDirection.systemImage == "arrow.down.right")
+    }
 }

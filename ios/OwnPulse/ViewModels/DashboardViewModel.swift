@@ -28,7 +28,13 @@ final class DashboardViewModel {
     var heroMetricUnit: String = ""
     var heroCurrentValue: String = ""
     var heroTrendText: String = ""
+    /// Good/bad polarity for the metric (resting HR: lower is better). Drives
+    /// the lock-screen widget tint only — NOT the arrow direction.
     var heroTrendIsPositive: Bool = true
+    /// The literal DATA direction of the change (up/down/flat), independent of
+    /// polarity. Drives the trend arrow so it always matches the sign of the
+    /// number in `heroTrendText`.
+    var heroTrendDirection: TrendDirection = .flat
     var lastSyncDate: Date?
 
     private let networkClient: NetworkClientProtocol
@@ -92,6 +98,7 @@ final class DashboardViewModel {
             heroMetricUnit: heroMetricUnit.isEmpty ? "bpm" : heroMetricUnit,
             heroTrendText: heroTrendText,
             heroTrendIsPositive: heroTrendIsPositive,
+            heroTrendDirection: heroTrendDirection,
             lastUpdated: Date()
         )
         widgetPublisher.publish(snapshot)
@@ -188,12 +195,14 @@ final class DashboardViewModel {
     private func computeTrend(points: [DataPoint]) {
         guard points.count >= 2 else {
             heroTrendText = ""
+            heroTrendDirection = .flat
             return
         }
         let values = points.map(\.v)
         let avg = values.reduce(0, +) / Double(values.count)
         guard avg > 0, let latest = values.last else {
             heroTrendText = ""
+            heroTrendDirection = .flat
             return
         }
         let pctChange = ((latest - avg) / avg) * 100
@@ -206,6 +215,11 @@ final class DashboardViewModel {
         let rounded = pctChange.rounded() + 0
         let direction = rounded >= 0 ? "+" : ""
         heroTrendText = "\(direction)\(String(format: "%.0f", rounded))% vs 30d avg"
+        // ARROW DIRECTION = literal sign of the change, so the grayscale arrow
+        // always matches the number shown. This is the DATA direction, kept
+        // separate from the good/bad polarity below — they can legitimately
+        // disagree (e.g. resting HR dropping is a DOWN arrow but "good").
+        heroTrendDirection = .from(signedChange: rounded)
         // POLARITY IS RESTING-HR-ONLY. The hero metric is currently hardcoded
         // to resting heart rate (see loadHeroMetric), where *lower* is the
         // healthy direction — so a non-positive change is "good" (sage tint).

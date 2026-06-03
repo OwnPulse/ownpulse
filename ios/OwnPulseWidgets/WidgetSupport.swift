@@ -8,7 +8,6 @@ import SwiftUI
 /// small family.
 enum WidgetTheme {
     static let terracotta = Color(red: 194 / 255, green: 101 / 255, blue: 74 / 255)
-    static let sage = Color(red: 90 / 255, green: 138 / 255, blue: 90 / 255)
 }
 
 extension View {

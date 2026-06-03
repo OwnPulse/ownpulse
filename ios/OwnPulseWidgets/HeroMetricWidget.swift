@@ -23,6 +23,10 @@ struct HeroMetricWidgetView: View {
     private var isStale: Bool { snapshot.isStale(asOf: entry.date) }
     private var displayValue: String { isStale ? "—" : snapshot.heroMetricValue }
     private var displayTrend: String { isStale ? "" : snapshot.heroTrendText }
+    // MARK: C9 trend
+    /// Literal data direction for the arrow + Wong color. Flat when stale (the
+    /// trend is hidden then anyway).
+    private var displayDirection: TrendDirection { isStale ? .flat : snapshot.heroTrendDirection }
 
     var body: some View {
         switch family {
@@ -56,10 +60,19 @@ struct HeroMetricWidgetView: View {
                     .foregroundStyle(.secondary)
             }
             if !displayTrend.isEmpty {
-                Text(displayTrend)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                // MARK: C9 trend
+                // The lock-screen rectangular accessory is system-tinted
+                // (monochrome), so the arrow glyph — not color — carries the
+                // direction here.
+                Label {
+                    Text(displayTrend)
+                } icon: {
+                    Image(systemName: displayDirection.systemImage)
+                }
+                .labelStyle(.titleAndIcon)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
             }
         }
         .widgetAccessibilityLabel(accessibilityValue)
@@ -84,10 +97,20 @@ struct HeroMetricWidgetView: View {
                     .foregroundStyle(.secondary)
             }
             if !displayTrend.isEmpty {
-                Text(displayTrend)
-                    .font(.caption2)
-                    .foregroundStyle(snapshot.heroTrendIsPositive ? WidgetTheme.sage : .red)
-                    .lineLimit(1)
+                // MARK: C9 trend
+                // Arrow (shape) + Wong colorblind-safe color, both keyed off the
+                // literal data direction. Replaces the old color-only sage/.red,
+                // which was the exact red-green failure on the most visible
+                // surface (the lock screen).
+                Label {
+                    Text(displayTrend)
+                } icon: {
+                    Image(systemName: displayDirection.systemImage)
+                }
+                .labelStyle(.titleAndIcon)
+                .font(.caption2)
+                .foregroundStyle(displayDirection.color)
+                .lineLimit(1)
             } else if isStale {
                 Text("Open to refresh")
                     .font(.caption2)
