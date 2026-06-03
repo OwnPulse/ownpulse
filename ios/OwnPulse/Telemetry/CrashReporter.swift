@@ -24,20 +24,20 @@ final class CrashReporter: NSObject, MXMetricManagerSubscriber {
         for payload in payloads {
             if let crashes = payload.crashDiagnostics {
                 for crash in crashes {
-                    var crashPayload: [String: String] = [:]
+                    var crashPayload: [String: TelemetryValue] = [:]
 
                     if let signal = crash.signal {
-                        crashPayload["signal"] = "\(signal)"
+                        crashPayload["signal"] = .string("\(signal)")
                     }
                     if let exceptionType = crash.exceptionType {
-                        crashPayload["exception_type"] = "\(exceptionType)"
+                        crashPayload["exception_type"] = .string("\(exceptionType)")
                     }
                     if let reason = crash.terminationReason {
-                        crashPayload["termination_reason"] = reason
+                        crashPayload["termination_reason"] = .string(reason)
                     }
                     let stackData = crash.callStackTree.jsonRepresentation()
                     if let stackStr = String(data: stackData, encoding: .utf8) {
-                        crashPayload["call_stack_tree"] = stackStr
+                        crashPayload["call_stack_tree"] = .string(stackStr)
                     }
 
                     events.append(TelemetryEvent(
