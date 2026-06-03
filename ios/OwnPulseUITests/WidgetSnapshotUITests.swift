@@ -3,6 +3,8 @@
 
 import XCTest
 
+// Verified green via the iOS CI test job (unit suites + these XCUITests).
+
 /// Drives the DEBUG-only `WidgetSnapshotHarness` (launched via the
 /// `-WidgetSnapshotHarness` argument) and asserts that each widget view
 /// renders for every supported family:
