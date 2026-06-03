@@ -106,8 +106,9 @@ struct CreateInviteSheet: View {
             Spacer()
 
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 60))
+                .font(.system(size: 60, relativeTo: .largeTitle))
                 .foregroundStyle(.green)
+                .accessibilityHidden(true)
 
             Text("Invite Created")
                 .font(.title2)

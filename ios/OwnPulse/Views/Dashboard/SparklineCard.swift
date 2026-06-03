@@ -34,6 +34,16 @@ struct SparklineCard: View {
         return ("arrow.forward", OPColor.trendFlat)
     }
 
+    /// Spoken trend description so VoiceOver users get the direction that the
+    /// arrow icon and its colour convey visually.
+    private var trendDescription: String {
+        switch trendArrow.symbol {
+        case "arrow.up.right": return "trending up"
+        case "arrow.down.right": return "trending down"
+        default: return "holding steady"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(displayName)
@@ -48,6 +58,7 @@ struct SparklineCard: View {
                 Image(systemName: trendArrow.symbol)
                     .font(.caption)
                     .foregroundStyle(trendArrow.color)
+                    .accessibilityHidden(true)
             }
 
             if !series.points.isEmpty {
@@ -65,9 +76,13 @@ struct SparklineCard: View {
                 .chartXAxis(.hidden)
                 .chartYAxis(.hidden)
                 .frame(height: 40)
+                .accessibilityHidden(true)
             }
         }
         .frame(width: 130)
         .opCard()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(displayName)
+        .accessibilityValue("\(latestValue), \(trendDescription)")
     }
 }

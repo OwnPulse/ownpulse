@@ -13,9 +13,10 @@ struct HealthKitPromptSheet: View {
             Spacer()
 
             Image(systemName: "heart.text.square.fill")
-                .font(.system(size: 64))
+                .font(.system(size: 64, relativeTo: .largeTitle))
                 .foregroundStyle(OPColor.terracotta)
                 .accessibilityIdentifier("healthKitPromptIcon")
+                .accessibilityHidden(true)
 
             Text("Connect Apple Health")
                 .font(.title2)

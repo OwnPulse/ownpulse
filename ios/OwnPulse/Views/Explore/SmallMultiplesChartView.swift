@@ -62,6 +62,7 @@ struct SmallMultiplesChartView: View {
                 Circle()
                     .fill(metric.color)
                     .frame(width: 8, height: 8)
+                    .accessibilityHidden(true)
                 Text(metric.label)
                     .font(.caption)
                     .fontWeight(.medium)
@@ -76,7 +77,33 @@ struct SmallMultiplesChartView: View {
             chartContent(metric: metric)
                 .frame(height: panelHeight)
                 .accessibilityIdentifier("smallMultiple-\(metric.field)")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(metric.label) chart")
+                .accessibilityValue(Self.panelAccessibilityValue(for: metric))
         }
+    }
+
+    /// Spoken summary of the panel's value range so VoiceOver users get the
+    /// trend the line conveys visually. `nonisolated` pure function so it can
+    /// be unit-tested without a SwiftUI runtime.
+    nonisolated static func panelAccessibilityValue(
+        for metric: ChartMetric,
+        prefs: WeightUnitPreference = UserPreferences.weightUnit
+    ) -> String {
+        let unit = unitLabel(for: metric, prefs: prefs)
+        guard let first = metric.points.first?.value,
+              let last = metric.points.last?.value else {
+            return "No data"
+        }
+        // body_mass values arrive in kg — convert to the user's unit so the
+        // spoken value matches the unit label and the visible axis.
+        let fmt: (Double) -> String = { value in
+            if metric.field == "body_mass" {
+                return WeightFormatter.formatValueOnly(kg: value, prefs: prefs)
+            }
+            return String(format: "%.1f", value)
+        }
+        return "From \(fmt(first)) to \(fmt(last)) \(unit)"
     }
 
     @ViewBuilder

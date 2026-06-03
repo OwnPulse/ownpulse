@@ -9,8 +9,9 @@ struct ExploreWebView: View {
             Spacer()
 
             Image(systemName: "chart.xyaxis.line")
-                .font(.system(size: 64))
+                .font(.system(size: 64, relativeTo: .largeTitle))
                 .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
 
             Text("Charts Coming Soon")
                 .font(.title2)
