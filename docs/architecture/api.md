@@ -317,6 +317,28 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 |--------|------|-------------|-------|
 | GET | `/source-preferences` | List source preferences | 1 |
 | POST | `/source-preferences` | Set source preferences | 1 |
+| GET | `/sources/overlap-scan` | Scan the last 30 days for metrics recorded by more than one source | 1 |
+
+The overlap scan drives the source-preference wizard. It returns, per metric
+that has records from more than one source over the window, the competing
+sources ordered by descending record count:
+
+```json
+{
+  "metrics": [
+    {
+      "metric_type": "heart_rate",
+      "sources": [
+        { "source": "garmin", "record_count": 120 },
+        { "source": "oura", "record_count": 95 }
+      ]
+    }
+  ]
+}
+```
+
+Metrics with only one source are omitted. The user resolves each conflict by
+writing a preference via `POST /source-preferences`.
 
 ### Integrations
 

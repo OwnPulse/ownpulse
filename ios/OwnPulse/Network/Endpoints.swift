@@ -21,4 +21,8 @@ enum Endpoints {
     static let notificationsRegister = "/api/v1/notifications/register"
     static let notificationPreferences = "/api/v1/notifications/preferences"
     static let savedMedicines = "/api/v1/saved-medicines"
+    // --- C4: source-preference wizard ---
+    static let sourcesOverlapScan = "/api/v1/sources/overlap-scan"
+    static let sourcePreferences = "/api/v1/source-preferences"
+    // --- end C4 ---
 }

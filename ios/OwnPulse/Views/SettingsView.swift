@@ -149,6 +149,9 @@ struct SettingsView: View {
     @State private var telemetryEnabled = TelemetrySettings.isEnabled
     @State private var weightUnit: WeightUnitPreference = UserPreferences.weightUnit
     @State private var viewModel: SettingsViewModel?
+    // --- C4: source-preference wizard ---
+    @State private var showSourceWizard = false
+    // --- end C4 ---
 
     private var isAdmin: Bool {
         guard let tokenData = try? dependencies.keychainService.load(
@@ -259,6 +262,21 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
+            // --- C4: source-preference wizard ---
+            Section("Data Sources") {
+                Button {
+                    showSourceWizard = true
+                } label: {
+                    Label("Resolve Source Conflicts", systemImage: "arrow.triangle.merge")
+                }
+                .accessibilityIdentifier("resolveSourceConflictsButton")
+
+                Text("When more than one device records the same metric, choose which source OwnPulse should trust.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            // --- end C4 ---
+
             if let vm = viewModel {
                 notificationsSection(vm: vm)
                 linkedAccountsSection(vm: vm)
@@ -359,6 +377,11 @@ struct SettingsView: View {
                 }
             }
         }
+        // --- C4: source-preference wizard ---
+        .sheet(isPresented: $showSourceWizard) {
+            SourcePreferenceWizard(networkClient: dependencies.networkClient)
+        }
+        // --- end C4 ---
     }
 
     @ViewBuilder
