@@ -181,6 +181,39 @@ export function enumeratePairings(tokens) {
     })),
   );
 
+  // Foreground tokens placed ON the tinted "*-light" fills. These are not
+  // surfaces in the layout sense but are used as small chip/badge/hover fills
+  // with token-colored text on top, e.g. color.primary.light backs the .op-pill
+  // chip, the .op-btn-secondary:hover fill, and TodaysDoses .pendingBadge, all
+  // of which render primary-family text. Such text must clear 4.5:1.
+  pairings.push({
+    name: 'primary.hover text on primary.light fill',
+    fg: c.primary.hover.value,
+    bg: c.primary.light.value,
+    threshold: THRESHOLD_NORMAL_TEXT,
+    kind: 'normal-text',
+  });
+
+  // Solid brand/feedback fills with white text (filled buttons): .op-btn-primary
+  // (#fff on primary) and .op-btn-danger (#fff on error). Enumerated so a future
+  // lightening of either fill can't regress button legibility silently.
+  pairings.push(
+    {
+      name: 'white text on primary.default fill',
+      fg: '#ffffff',
+      bg: c.primary.default.value,
+      threshold: THRESHOLD_NORMAL_TEXT,
+      kind: 'normal-text',
+    },
+    {
+      name: 'white text on feedback.error fill',
+      fg: '#ffffff',
+      bg: c.feedback.error.value,
+      threshold: THRESHOLD_NORMAL_TEXT,
+      kind: 'normal-text',
+    },
+  );
+
   // NOTE: the resting border tokens (color.border.default / .strong) are
   // deliberately NOT asserted. They draw decorative card outlines, dividers,
   // and the resting edge of inputs that are themselves identified by fill,
@@ -192,16 +225,65 @@ export function enumeratePairings(tokens) {
   return pairings;
 }
 
+// Composite a semi-transparent sRGB color over an opaque base (straight alpha):
+//   out = fg * a + base * (1 - a), per channel.
+export function compositeOver({ r, g, b, a }, baseHex) {
+  const base = parseHex(baseHex);
+  const ch = (f, bg) => Math.round(f * a + bg * (1 - a));
+  const toHex = (n) => n.toString(16).padStart(2, '0');
+  return `#${toHex(ch(r, base.r))}${toHex(ch(g, base.g))}${toHex(ch(b, base.b))}`;
+}
+
+// Curated pairings for components whose backgrounds are hand-written rgba TINTS
+// in the web CSS rather than tokens (the token checker can't see those values),
+// composited over the page surfaces they sit on. The foreground IS a token, so
+// these guard the token values against the real component backdrop. Kept
+// separate from enumeratePairings (which is purely token-derived) and folded
+// into checkContrast so the assertion runs in CI all the same.
+//   .op-badge-success: color: feedback.success on rgba(90,138,90,0.15)
+//   .op-badge-error:   color: feedback.error   on rgba(181,74,74,0.15)
+export function componentPairings(tokens) {
+  const c = tokens.color;
+  // Composite over the most common page surfaces; assert against the worst.
+  const bases = [c.surface.bg.value, c.surface['bg-warm'].value, c.surface.elevated.value];
+  const tints = [
+    {
+      name: 'feedback.success text on .op-badge-success tint',
+      fg: c.feedback.success.value,
+      rgba: { r: 90, g: 138, b: 90, a: 0.15 },
+    },
+    {
+      name: 'feedback.error text on .op-badge-error tint',
+      fg: c.feedback.error.value,
+      rgba: { r: 181, g: 74, b: 74, a: 0.15 },
+    },
+  ];
+  const pairings = [];
+  for (const t of tints) {
+    for (const base of bases) {
+      pairings.push({
+        name: `${t.name} (over ${base})`,
+        fg: t.fg,
+        bg: compositeOver(t.rgba, base),
+        threshold: THRESHOLD_NORMAL_TEXT,
+        kind: 'normal-text',
+      });
+    }
+  }
+  return pairings;
+}
+
 // --- runner ----------------------------------------------------------------
 
 function loadTokens() {
   return JSON.parse(readFileSync(tokensPath, 'utf8'));
 }
 
-// Evaluate every pairing. Returns { results, failures } where each result is
-// { ...pairing, ratio, pass }.
+// Evaluate every pairing (token-derived + curated component pairings). Returns
+// { results, failures } where each result is { ...pairing, ratio, pass }.
 export function checkContrast(tokens = loadTokens()) {
-  const results = enumeratePairings(tokens).map((p) => {
+  const all = [...enumeratePairings(tokens), ...componentPairings(tokens)];
+  const results = all.map((p) => {
     const ratio = contrastRatio(p.fg, p.bg);
     return { ...p, ratio, pass: ratio >= p.threshold };
   });

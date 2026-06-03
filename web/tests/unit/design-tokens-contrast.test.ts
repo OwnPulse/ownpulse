@@ -15,6 +15,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   checkContrast,
+  componentPairings,
+  compositeOver,
   contrastRatio,
   enumeratePairings,
   relativeLuminance,
@@ -61,11 +63,16 @@ describe("relativeLuminance (WCAG 2.1 endpoints)", () => {
   });
 });
 
-describe("enumeratePairings", () => {
-  // A tiny synthetic token set with one failing and one passing text pairing.
-  const tokens = {
+// A tiny synthetic palette: all-black foregrounds on white surfaces (so every
+// token-derived pairing passes), except text.muted which fails 4.5:1 on white.
+function syntheticTokens() {
+  return {
     color: {
-      primary: { default: { value: "#000000" }, hover: { value: "#000000" } },
+      primary: {
+        default: { value: "#000000" },
+        hover: { value: "#000000" },
+        light: { value: "#ffffff" },
+      },
       accent: { default: { value: "#000000" }, dark: { value: "#000000" } },
       surface: {
         bg: { value: "#ffffff" },
@@ -88,6 +95,10 @@ describe("enumeratePairings", () => {
       },
     },
   };
+}
+
+describe("enumeratePairings", () => {
+  const tokens = syntheticTokens();
 
   it("includes a 4.5:1 normal-text assertion for muted text on each surface", () => {
     const mutedPairings = enumeratePairings(tokens).filter((p) =>
@@ -104,35 +115,47 @@ describe("enumeratePairings", () => {
     const borderPairings = enumeratePairings(tokens).filter((p) => p.name.includes("border."));
     expect(borderPairings).toHaveLength(0);
   });
+
+  it("asserts fg-on-tint, white-on-fill, and focus-boundary pairings", () => {
+    const names = enumeratePairings(tokens).map((p) => p.name);
+    expect(names).toContain("primary.hover text on primary.light fill");
+    expect(names).toContain("white text on primary.default fill");
+    expect(names).toContain("white text on feedback.error fill");
+    expect(names.some((n) => n.includes("focus boundary"))).toBe(true);
+  });
+});
+
+describe("compositeOver (straight-alpha sRGB compositing)", () => {
+  it("a fully opaque color is unchanged", () => {
+    expect(compositeOver({ r: 18, g: 52, b: 86, a: 1 }, "#ffffff")).toBe("#123456");
+  });
+
+  it("a fully transparent color yields the base", () => {
+    expect(compositeOver({ r: 255, g: 0, b: 0, a: 0 }, "#abcdef")).toBe("#abcdef");
+  });
+
+  it("50% black over white is mid-gray", () => {
+    expect(compositeOver({ r: 0, g: 0, b: 0, a: 0.5 }, "#ffffff")).toBe("#808080");
+  });
+});
+
+describe("componentPairings (rgba badge tints)", () => {
+  it("composites the badge tint over each base surface and asserts 4.5:1", () => {
+    const pairings = componentPairings(syntheticTokens());
+    // 2 badge tints x 3 base surfaces.
+    expect(pairings).toHaveLength(6);
+    for (const p of pairings) {
+      expect(p.threshold).toBe(4.5);
+      expect(p.kind).toBe("normal-text");
+    }
+    expect(pairings.some((p) => p.name.includes(".op-badge-success"))).toBe(true);
+    expect(pairings.some((p) => p.name.includes(".op-badge-error"))).toBe(true);
+  });
 });
 
 describe("checkContrast on a synthetic palette", () => {
   it("flags a failing pairing and reports its ratio", () => {
-    const tokens = {
-      color: {
-        primary: { default: { value: "#000000" }, hover: { value: "#000000" } },
-        accent: { default: { value: "#000000" }, dark: { value: "#000000" } },
-        surface: {
-          bg: { value: "#ffffff" },
-          "bg-warm": { value: "#ffffff" },
-          default: { value: "#ffffff" },
-          elevated: { value: "#ffffff" },
-        },
-        text: {
-          default: { value: "#000000" },
-          secondary: { value: "#000000" },
-          muted: { value: "#aaaaaa" }, // fails on white
-        },
-        border: { default: { value: "#eeeeee" }, strong: { value: "#cccccc" } },
-        feedback: {
-          success: { value: "#000000" },
-          warning: { value: "#000000" },
-          error: { value: "#000000" },
-          "error-light": { value: "#ffffff" },
-        },
-      },
-    };
-    const { failures } = checkContrast(tokens);
+    const { failures } = checkContrast(syntheticTokens());
     expect(failures.length).toBeGreaterThan(0);
     expect(failures.every((f) => f.name.startsWith("text.muted"))).toBe(true);
     expect(failures[0].ratio).toBeLessThan(4.5);
