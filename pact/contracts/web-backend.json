@@ -1332,6 +1332,56 @@
       "response": {
         "status": 204
       }
+    },
+    {
+      "description": "a request to report web telemetry events",
+      "providerState": "the user is authenticated",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/telemetry/report",
+        "headers": {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer some-jwt-token"
+        },
+        "body": {
+          "events": [
+            {
+              "type": "screen",
+              "device_id": "web-anon-device-id-0001",
+              "payload": { "screen": "/dashboard" },
+              "app_version": "abc1234",
+              "platform": "web"
+            },
+            {
+              "type": "flow",
+              "device_id": "web-anon-device-id-0001",
+              "payload": { "flow": "settings/save", "outcome": "completed" },
+              "app_version": "abc1234",
+              "platform": "web"
+            },
+            {
+              "type": "api_call",
+              "device_id": null,
+              "payload": {
+                "endpoint": "/api/v1/protocols/:id/runs",
+                "method": "GET",
+                "status": 200,
+                "latency_ms": 42,
+                "retry_count": 0
+              },
+              "app_version": "abc1234",
+              "platform": "web"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": { "accepted": 3, "rejected": 0 }
+      }
     }
   ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }
