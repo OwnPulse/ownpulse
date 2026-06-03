@@ -27,3 +27,32 @@ pub async fn insert_event(
     .await?;
     Ok(())
 }
+
+/// Aggregate health stats for the telemetry-ingest pipeline.
+///
+/// Contains only non-identifying aggregates: the number of `app_events`
+/// received in the last 5 minutes and the timestamp of the most recent event
+/// (across all time). No `device_id`, `payload`, `user_id`, or per-user data is
+/// read or returned — this surfaces pipeline liveness only.
+#[derive(Debug, Clone, Copy)]
+pub struct PipelineStats {
+    pub events_last_5m: i64,
+    pub last_event_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Query the telemetry-ingest pipeline health aggregates.
+pub async fn pipeline_stats(pool: &PgPool) -> Result<PipelineStats, sqlx::Error> {
+    let row: (i64, Option<chrono::DateTime<chrono::Utc>>) = sqlx::query_as(
+        "SELECT
+             COUNT(*) FILTER (WHERE created_at >= now() - interval '5 minutes') AS events_last_5m,
+             MAX(created_at) AS last_event_at
+         FROM app_events",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    Ok(PipelineStats {
+        events_last_5m: row.0,
+        last_event_at: row.1,
+    })
+}

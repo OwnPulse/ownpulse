@@ -10,6 +10,11 @@ on:
     paths:
       - "web/**"
       - ".github/workflows/web.yml"
+      # The web vitest suite exercises the design-tokens generator and asserts
+      # the committed outputs are reproducible, so changes to the tool or its
+      # token source must run this job.
+      - "tools/design-tokens/**"
+      - "docs/design/tokens.json"
   pull_request:
     branches: [main]
 
@@ -33,6 +38,8 @@ jobs:
             web:
               - 'web/**'
               - '.github/workflows/web.yml'
+              - 'tools/design-tokens/**'
+              - 'docs/design/tokens.json'
 
   test:
     needs: changes
@@ -49,6 +56,13 @@ jobs:
           node-version: 22
 
       - run: npm ci
+
+      # The design-tokens generator test imports style-dictionary, which lives
+      # in tools/design-tokens/node_modules (resolved relative to build.js), not
+      # web/node_modules. Install it so the generator + idempotency tests run.
+      - name: Install design-tokens generator deps
+        working-directory: tools/design-tokens
+        run: npm ci
 
       - run: npx tsc --noEmit
 

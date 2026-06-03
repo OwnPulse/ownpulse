@@ -18,6 +18,14 @@ Access Grafana:
   Then open http://localhost:{{ .Values.grafana.service.port }}
 {{- end }}
 
+Provisioned dashboards (loaded via the file provider on startup):
+  - API Health         (uid: ownpulse-api-health)
+  - User Flow Funnel   (uid: ownpulse-user-flow-funnel)
+  - Crashes & Version  (uid: ownpulse-crash-and-version)
+Each panel queries a Prometheus-compatible datasource chosen by the dashboard's
+"Datasource" variable. Provision that datasource (the metrics backend that
+scrapes the API's /metrics endpoint) for the panels to populate.
+
   Retrieve credentials:
     kubectl get secret {{ include "observability.componentName" (dict "component" "grafana" "context" $) }} -n {{ .Release.Namespace }} -o jsonpath='{.data.admin-password}' | base64 -d
   (Override via --set grafana.admin.password=<your-password> — use SOPS for production.)

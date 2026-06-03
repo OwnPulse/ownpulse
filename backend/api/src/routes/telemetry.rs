@@ -4,15 +4,69 @@
 use axum::Json;
 use axum::extract::State;
 use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use tracing::warn;
 
 use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::telemetry as db_telemetry;
 use crate::models::telemetry::{
-    TelemetryEvent, TelemetryReport, TelemetryResponse, contains_health_data, is_valid_event_type,
-    sanitize_device_id, scrub_api_call_payload, version_label,
+    TelemetryEvent, TelemetryHealth, TelemetryReport, TelemetryResponse, contains_health_data,
+    is_valid_event_type, sanitize_device_id, scrub_api_call_payload, version_label,
 };
+
+/// Prometheus gauge name for how stale the telemetry pipeline is. The
+/// `TelemetryStalled` alert (defined in ownpulse-infra) fires when this exceeds
+/// 1800s (30m), i.e. no `app_events` have been received for half an hour. When
+/// no events have ever been recorded the gauge is left unset rather than
+/// reported as 0, so a fresh instance does not trip the alert.
+const TELEMETRY_LAST_EVENT_AGE_SECONDS: &str = "ownpulse_telemetry_last_event_age_seconds";
+
+/// GET /health/telemetry — telemetry-ingest pipeline liveness.
+///
+/// Unauthenticated ops/monitoring surface (sibling of `/readyz`). Returns
+/// aggregate-only counts and timestamps so an operator can see whether the
+/// telemetry pipeline is still receiving events. Emits the
+/// `ownpulse_telemetry_last_event_age_seconds` gauge so a `TelemetryStalled`
+/// alert can fire when no events arrive for 30 minutes.
+///
+/// The response contains **no** user identity, device id, payload, or health
+/// data — only counts and timestamps. On a database error it returns 503 (a
+/// degraded health surface), never a raw 500.
+pub async fn health(State(state): State<AppState>) -> impl IntoResponse {
+    let stats = match db_telemetry::pipeline_stats(&state.pool).await {
+        Ok(stats) => stats,
+        Err(e) => {
+            warn!(error = %e, "failed to read telemetry pipeline stats");
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({
+                    "status": "unavailable",
+                    "reason": "telemetry stats query failed"
+                })),
+            )
+                .into_response();
+        }
+    };
+
+    let last_event_age_seconds = stats
+        .last_event_at
+        .map(|ts| (chrono::Utc::now() - ts).num_seconds().max(0));
+
+    // Emit the staleness gauge only when at least one event exists. Leaving it
+    // unset on an empty table avoids a brand-new instance immediately tripping
+    // the alert before any client has ever reported.
+    if let Some(age) = last_event_age_seconds {
+        metrics::gauge!(TELEMETRY_LAST_EVENT_AGE_SECONDS).set(age as f64);
+    }
+
+    Json(TelemetryHealth {
+        events_last_5m: stats.events_last_5m,
+        last_event_at: stats.last_event_at,
+        last_event_age_seconds,
+    })
+    .into_response()
+}
 
 /// Resolve the platform for an event, defaulting to `"ios"` for backward
 /// compatibility and ignoring any unrecognized value.

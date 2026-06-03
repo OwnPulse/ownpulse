@@ -1,0 +1,14 @@
+{
+  "name": "@ownpulse/design-tokens",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Style Dictionary pipeline that generates CSS, Swift, and Markdown outputs from docs/design/tokens.json.",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "build:tokens": "node build.js"
+  },
+  "dependencies": {
+    "style-dictionary": "^4.3.0"
+  }
+}

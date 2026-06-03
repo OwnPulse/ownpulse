@@ -1,5 +1,15 @@
 replicaCount: 2
 
+# Horizontal Pod Autoscaler. Disabled by default so self-hosters get a fixed
+# replica count (replicaCount above) with no metrics-server dependency.
+# Enabled in production via values-production.yaml. When enabled, the HPA owns
+# the replica count and the Deployment omits its `replicas` field.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
 image:
   repository: ghcr.io/ownpulse/ownpulse-api
   tag: latest

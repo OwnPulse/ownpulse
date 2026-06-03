@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import { trackApiCall } from "../lib/telemetry";
 import { useAuthStore } from "../store/auth";
 
-class ApiError extends Error {
+export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
@@ -28,10 +29,37 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(path, {
-    ...options,
-    headers,
-    credentials: "include",
+  const method = (options.method ?? "GET").toUpperCase();
+  const startedAt = performance.now();
+
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...options,
+      headers,
+      credentials: "include",
+    });
+  } catch (err) {
+    // Network-level failure (no HTTP status). Report as status 0 so the call is
+    // still counted, then rethrow. Only endpoint/method/status/latency are sent
+    // — never the error message or any request/response body.
+    trackApiCall({
+      endpoint: path,
+      method,
+      status: 0,
+      latency_ms: performance.now() - startedAt,
+    });
+    throw err;
+  }
+
+  // Emit first-party `api_call` telemetry with non-identifying metadata only.
+  // The endpoint is scrubbed of id-shaped segments inside trackApiCall; bodies
+  // are never included. Gated by the user's opt-in inside trackApiCall.
+  trackApiCall({
+    endpoint: path,
+    method,
+    status: response.status,
+    latency_ms: performance.now() - startedAt,
   });
 
   if (response.status === 401) {
