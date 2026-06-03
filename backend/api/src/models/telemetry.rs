@@ -94,6 +94,23 @@ pub struct TelemetryResponse {
     pub rejected: usize,
 }
 
+/// Telemetry-ingest pipeline health surface.
+///
+/// Aggregate-only liveness signal for monitoring the telemetry pipeline. It
+/// reports how many `app_events` arrived in the last 5 minutes and how stale the
+/// most recent event is. It deliberately exposes **no** user identity, device
+/// id, payload, or any health data — only counts and timestamps.
+#[derive(Debug, Serialize)]
+pub struct TelemetryHealth {
+    /// Count of `app_events` rows received in the last 5 minutes.
+    pub events_last_5m: i64,
+    /// Timestamp of the most recent `app_events` row, or `null` if none exist.
+    pub last_event_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Age in seconds of the most recent event, or `null` if no events exist.
+    /// Drives the `TelemetryStalled` alert (fires when no events for 30m).
+    pub last_event_age_seconds: Option<i64>,
+}
+
 /// Reject payloads that contain health-related data.
 /// Telemetry must never include health information.
 const HEALTH_KEYWORDS: &[&str] = &[
