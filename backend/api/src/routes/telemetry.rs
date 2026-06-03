@@ -11,20 +11,16 @@ use crate::auth::extractor::AuthUser;
 use crate::db::telemetry as db_telemetry;
 use crate::models::telemetry::{
     TelemetryEvent, TelemetryReport, TelemetryResponse, contains_health_data, is_valid_event_type,
-    is_valid_platform, sanitize_device_id, scrub_api_call_payload, version_label,
+    sanitize_device_id, scrub_api_call_payload, version_label,
 };
 
 /// Resolve the platform for an event, defaulting to `"ios"` for backward
 /// compatibility and ignoring any unrecognized value.
 fn resolved_platform(event: &TelemetryEvent) -> &'static str {
     match event.platform.as_deref() {
-        Some(p) if is_valid_platform(p) => {
-            if p == "web" {
-                "web"
-            } else {
-                "ios"
-            }
-        }
+        Some("web") => "web",
+        // Any other recognized platform, or an unrecognized/absent one,
+        // defaults to "ios" for backward compatibility.
         _ => "ios",
     }
 }
