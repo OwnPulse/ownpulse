@@ -65,12 +65,15 @@ async fn api_call_event_stored_with_platform() {
     let rows = wait_for_events(&app.pool, "api_call", 1).await;
     assert_eq!(rows[0].0, "web");
 
-    // The stored payload must contain only allowlisted fields.
-    let stored: (Value,) =
-        sqlx::query_as("SELECT payload FROM app_events WHERE event_type = 'api_call' LIMIT 1")
-            .fetch_one(&app.pool)
-            .await
-            .unwrap();
+    // The stored payload must contain only allowlisted fields, and the row must
+    // NOT carry a device_id (data minimization — no per-device trace).
+    let stored: (Value, Option<String>) = sqlx::query_as(
+        "SELECT payload, device_id FROM app_events WHERE event_type = 'api_call' LIMIT 1",
+    )
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(stored.1, None, "api_call rows must not store device_id");
     let obj = stored.0.as_object().unwrap();
     // Endpoint must be normalized — the `42` path-segment ID is stripped.
     assert_eq!(
@@ -165,6 +168,99 @@ async fn api_call_disallowed_fields_are_scrubbed() {
         obj.get("endpoint").and_then(|v| v.as_str()),
         Some("/account")
     );
+}
+
+#[tokio::test]
+async fn api_call_pii_path_segments_collapsed_in_storage() {
+    let app = setup().await;
+    let (_uid, token) = create_test_user(&app).await;
+
+    // Email, username, and a dashless hex UUID in path segments must all be
+    // collapsed to :id before storage — none of them are route words.
+    let body = json!({
+        "events": [{
+            "type": "api_call",
+            "platform": "web",
+            "payload": {
+                "endpoint": "/users/alice@example.com/records/550e8400e29b41d4a716446655440000",
+                "method": "GET",
+                "status": 200
+            }
+        }]
+    });
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(auth_request(
+            "POST",
+            "/api/v1/telemetry/report",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let json: Value = body_json(resp).await;
+    assert_eq!(json["accepted"], 1);
+
+    wait_for_events(&app.pool, "api_call", 1).await;
+    let stored: (Value,) =
+        sqlx::query_as("SELECT payload FROM app_events WHERE event_type = 'api_call' LIMIT 1")
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    let endpoint = stored.0.get("endpoint").and_then(|v| v.as_str()).unwrap();
+    assert_eq!(endpoint, "/users/:id/records/:id");
+    // The raw email and UUID must not appear anywhere in the stored payload.
+    let serialized = stored.0.to_string();
+    assert!(!serialized.contains("alice@example.com"));
+    assert!(!serialized.contains("550e8400"));
+}
+
+#[tokio::test]
+async fn api_call_non_scalar_on_allowlisted_key_is_dropped() {
+    let app = setup().await;
+    let (_uid, token) = create_test_user(&app).await;
+
+    // PII tries to ride in via a nested object on the allowlisted `endpoint` key.
+    let body = json!({
+        "events": [{
+            "type": "api_call",
+            "platform": "web",
+            "payload": {
+                "endpoint": {"path": "/users/alice@example.com"},
+                "method": {"smuggle": "bob@example.com"},
+                "status": "200 with extra text"
+            }
+        }]
+    });
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(auth_request(
+            "POST",
+            "/api/v1/telemetry/report",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(body_json(resp).await["accepted"], 1);
+
+    wait_for_events(&app.pool, "api_call", 1).await;
+    let stored: (Value,) =
+        sqlx::query_as("SELECT payload FROM app_events WHERE event_type = 'api_call' LIMIT 1")
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    // All three wrong-typed values dropped → empty stored payload.
+    assert!(stored.0.as_object().unwrap().is_empty());
+    let serialized = stored.0.to_string();
+    assert!(!serialized.contains("alice@example.com"));
+    assert!(!serialized.contains("bob@example.com"));
 }
 
 #[tokio::test]

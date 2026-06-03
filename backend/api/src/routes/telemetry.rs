@@ -11,7 +11,7 @@ use crate::auth::extractor::AuthUser;
 use crate::db::telemetry as db_telemetry;
 use crate::models::telemetry::{
     TelemetryEvent, TelemetryReport, TelemetryResponse, contains_health_data, is_valid_event_type,
-    is_valid_platform, scrub_api_call_payload,
+    is_valid_platform, sanitize_device_id, scrub_api_call_payload, version_label,
 };
 
 /// Resolve the platform for an event, defaulting to `"ios"` for backward
@@ -36,7 +36,8 @@ const MAX_BATCH_SIZE: usize = 50;
 /// Requires JWT authentication (to prevent abuse) but deliberately discards the
 /// user identity before storage. Crash and `api_call` events are persisted;
 /// screen/flow events only increment Prometheus counters. `api_call` payloads
-/// are stripped to an allowlist of non-identifying fields before storage.
+/// are stripped to an allowlist of non-identifying fields, each coerced to its
+/// expected scalar type, before storage; `api_call` rows carry no device_id.
 pub async fn report(
     State(state): State<AppState>,
     AuthUser { .. }: AuthUser, // JWT gate only — user_id intentionally ignored
@@ -76,10 +77,11 @@ pub async fn report(
 
         match event.event_type.as_str() {
             "crash" => {
-                // Persist crash events for debugging
+                // Persist crash events for debugging. The device_id is bounded
+                // to an opaque-token shape so it can't smuggle free-text PII.
                 let pool = state.pool.clone();
                 let event_type = event.event_type.clone();
-                let device_id = event.device_id.clone();
+                let device_id = sanitize_device_id(event.device_id.as_deref());
                 let payload = event.payload.clone();
                 let app_version = event.app_version.clone();
                 let platform = resolved_platform(event);
@@ -108,15 +110,19 @@ pub async fn report(
                 increment_flow_counter(event);
             }
             "api_call" => {
-                // Strip the payload down to the allowlisted fields before it
-                // ever touches storage or metrics — no request/response bodies,
-                // no path-segment IDs, no auth material.
+                // Strip the payload down to the allowlisted, type-coerced fields
+                // before it ever touches storage or metrics — no request/response
+                // bodies, no path identifiers, no auth material.
                 let scrubbed = scrub_api_call_payload(&event.payload);
                 let platform = resolved_platform(event);
 
+                // Data minimization: api_call rows are NOT associated with a
+                // device_id. The scrubbed fields are fully captured by the
+                // Prometheus aggregates; persisting device_id per call would let
+                // someone reconstruct a per-device behavioral trace. We store the
+                // row (bounded scalar payload + platform) but never the device.
                 let pool = state.pool.clone();
                 let event_type = event.event_type.clone();
-                let device_id = event.device_id.clone();
                 let payload = scrubbed.clone();
                 let app_version = event.app_version.clone();
 
@@ -124,7 +130,7 @@ pub async fn report(
                     if let Err(e) = db_telemetry::insert_event(
                         &pool,
                         &event_type,
-                        device_id.as_deref(),
+                        None, // device_id intentionally not stored for api_call
                         &payload,
                         app_version.as_deref(),
                         platform,
@@ -212,7 +218,10 @@ fn increment_api_call_counter(
         .and_then(|v| v.as_i64());
     let class = status.map(status_class).unwrap_or("unknown");
 
-    let version = event.app_version.as_deref().unwrap_or("unknown");
+    // Bound the version label: an unbounded client-supplied version is a
+    // cardinality-explosion vector for the metrics registry. Only a strict
+    // release-version shape is echoed; anything else becomes "unknown".
+    let version = version_label(event.app_version.as_deref());
 
     metrics::counter!(
         "ownpulse_app_api_call_total",
