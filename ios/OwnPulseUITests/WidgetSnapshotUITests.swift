@@ -26,8 +26,10 @@ final class WidgetSnapshotUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-WidgetSnapshotHarness"]
         app.launch()
+        // The harness marker is a plain Text, so it surfaces as a staticText.
         XCTAssertTrue(
-            app.otherElements["widgetSnapshotHarness"].waitForExistence(timeout: 10),
+            app.staticTexts["widgetSnapshotHarness"].waitForExistence(timeout: 15)
+                || app.descendants(matching: .any)["widgetSnapshotHarness"].waitForExistence(timeout: 5),
             "Widget snapshot harness should appear under the launch argument"
         )
         return app
