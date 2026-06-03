@@ -397,6 +397,8 @@ All jobs idempotent. No shared runner state. iOS failures do not block deploy �
 | `OURA_CLIENT_SECRET` | yes | |
 | `DEXCOM_CLIENT_ID` | yes | Phase 2 |
 | `DEXCOM_CLIENT_SECRET` | yes | Phase 2 |
+| `MYCHART_CLIENT_ID` | no | SMART-on-FHIR public OAuth client id for MyChart lab import. PKCE — no secret. Unset disables MyChart. |
+| `MYCHART_ALLOW_INSECURE_URLS` | no | Default `false`. Allows non-HTTPS / private-host FHIR URLs (disables the MyChart SSRF guard). Localhost/dev/tests only — the server refuses to start with this `true` outside localhost. |
 | `ENCRYPTION_KEY` | yes | 32-byte hex for AES-GCM |
 | `STORAGE_PATH` | yes | Local path or S3-compatible URL |
 | `APP_USER` | yes | Single username for personal instance |

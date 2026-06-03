@@ -20,6 +20,7 @@ pub struct LabResultRow {
     pub out_of_range: Option<bool>,
     pub source: String,
     pub source_id: Option<String>,
+    pub loinc_code: Option<String>,
     pub uploaded_file_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
@@ -35,6 +36,8 @@ pub struct CreateLabResult {
     pub reference_high: Option<f64>,
     pub source: Option<String>,
     pub source_id: Option<String>,
+    #[serde(default)]
+    pub loinc_code: Option<String>,
 }
 
 #[derive(Deserialize)]

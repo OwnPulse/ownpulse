@@ -207,6 +207,14 @@ impl Config {
                  set a real 32-byte hex key before running in production"
             );
         }
+
+        if !is_localhost && self.mychart_allow_insecure_urls {
+            panic!(
+                "MYCHART_ALLOW_INSECURE_URLS is enabled outside localhost — \
+                 this disables the MyChart SSRF guard (https + private-host \
+                 checks) and must never be set in production"
+            );
+        }
     }
 }
 
@@ -279,6 +287,17 @@ mod tests {
         let mut config = test_config();
         config.web_origin = "https://app.ownpulse.health".to_string();
         config.jwt_secret = "a-real-secret-that-is-not-the-default".to_string();
+        config.validate();
+    }
+
+    #[test]
+    #[should_panic(expected = "MYCHART_ALLOW_INSECURE_URLS")]
+    fn mychart_insecure_urls_panics_in_production() {
+        let mut config = test_config();
+        config.web_origin = "https://app.ownpulse.health".to_string();
+        config.jwt_secret = "a-real-secret-that-is-not-the-default".to_string();
+        config.encryption_key = "a".repeat(64);
+        config.mychart_allow_insecure_urls = true;
         config.validate();
     }
 

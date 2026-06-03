@@ -50,9 +50,12 @@ struct SmartConfiguration: Decodable, Sendable {
     }
 }
 
-/// Result of the in-app authorization step: the captured authorization code.
+/// Result of the in-app authorization step: the captured authorization code
+/// and the `state` the provider echoed back (validated against the sent value
+/// to prevent CSRF / code-injection).
 struct MyChartAuthorization: Sendable {
     let code: String
+    let state: String?
 }
 
 enum MyChartError: LocalizedError {
@@ -60,6 +63,7 @@ enum MyChartError: LocalizedError {
     case discoveryFailed
     case authorizationFailed
     case missingCode
+    case stateMismatch
 
     var errorDescription: String? {
         switch self {
@@ -67,6 +71,7 @@ enum MyChartError: LocalizedError {
         case .discoveryFailed: "Could not read the provider's SMART configuration."
         case .authorizationFailed: "Authorization was cancelled or failed."
         case .missingCode: "The provider did not return an authorization code."
+        case .stateMismatch: "Authorization response failed a security check. Please try again."
         }
     }
 }
@@ -126,17 +131,26 @@ final class MyChartConnectViewModel {
             let config = try await discoverSmartConfiguration(baseURL: baseURL)
             let verifier = PKCEHelper.generateCodeVerifier()
             let challenge = PKCEHelper.codeChallenge(from: verifier)
+            let sentState = UUID().uuidString
 
             guard let authURL = buildAuthorizationURL(
                 authorizationEndpoint: config.authorizationEndpoint,
                 fhirBaseURL: trimmed,
-                challenge: challenge
+                challenge: challenge,
+                state: sentState
             ) else {
                 state = .error(MyChartError.discoveryFailed.localizedDescription)
                 return
             }
 
             let authorization = try await authorize(authURL)
+
+            // CSRF guard: the provider must echo back the exact `state` we sent.
+            guard authorization.state == sentState else {
+                logger.error("MyChart OAuth state mismatch")
+                state = .error(MyChartError.stateMismatch.localizedDescription)
+                return
+            }
 
             let request = MyChartConnectRequest(
                 fhirBaseUrl: trimmed,
@@ -198,7 +212,8 @@ final class MyChartConnectViewModel {
     func buildAuthorizationURL(
         authorizationEndpoint: String,
         fhirBaseURL: String,
-        challenge: String
+        challenge: String,
+        state: String
     ) -> URL? {
         guard var components = URLComponents(string: authorizationEndpoint) else { return nil }
         components.queryItems = [
@@ -206,7 +221,7 @@ final class MyChartConnectViewModel {
             URLQueryItem(name: "client_id", value: Self.clientID),
             URLQueryItem(name: "redirect_uri", value: Self.redirectURI),
             URLQueryItem(name: "scope", value: Self.scope),
-            URLQueryItem(name: "state", value: UUID().uuidString),
+            URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "aud", value: fhirBaseURL),
             URLQueryItem(name: "code_challenge", value: challenge),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
@@ -214,12 +229,12 @@ final class MyChartConnectViewModel {
         return components.url
     }
 
-    /// Extract the `code` query parameter from a redirect URL.
+    /// Extract a named query parameter from a redirect URL.
     /// Exposed (internal) for unit testing.
-    static func extractCode(from url: URL) -> String? {
+    static func queryValue(_ name: String, from url: URL) -> String? {
         URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?
-            .first(where: { $0.name == "code" })?
+            .first(where: { $0.name == name })?
             .value
     }
 
@@ -243,17 +258,19 @@ final class MyChartConnectViewModel {
                     continuation.resume(throwing: MyChartError.authorizationFailed)
                 }
             }
-            session.prefersEphemeralWebBrowserSession = false
+            // Ephemeral session: don't share cookies with Safari for a medical
+            // portal login, and don't persist the portal session on-device.
+            session.prefersEphemeralWebBrowserSession = true
             session.presentationContextProvider = presentationContext
             if !session.start() {
                 continuation.resume(throwing: MyChartError.authorizationFailed)
             }
         }
 
-        guard let code = extractCode(from: callbackURL) else {
+        guard let code = queryValue("code", from: callbackURL) else {
             throw MyChartError.missingCode
         }
-        return MyChartAuthorization(code: code)
+        return MyChartAuthorization(code: code, state: queryValue("state", from: callbackURL))
     }
 }
 

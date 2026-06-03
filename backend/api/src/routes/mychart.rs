@@ -73,17 +73,24 @@ pub async fn connect(
     mychart::validate_provider_url(&req.token_endpoint, allow_insecure)
         .map_err(ApiError::BadRequest)?;
 
+    // Dedicated client: no redirects + resolved-address SSRF filter.
+    let http = mychart::build_client(allow_insecure).map_err(ApiError::Internal)?;
     let client = MyChartClient::new(
         client_id.to_string(),
         req.token_endpoint.clone(),
         req.fhir_base_url.clone(),
-        state.http_client.clone(),
+        http,
     );
 
     let tokens = client
         .exchange_code(&req.code, &req.redirect_uri, &req.code_verifier)
         .await
-        .map_err(|e| ApiError::Internal(format!("MyChart token exchange failed: {e}")))?;
+        // Don't echo raw transport errors (may contain the resolved URL) to the
+        // caller; log details server-side, return a generic message.
+        .map_err(|e| {
+            tracing::warn!(user_id = %auth_user.id, error = %e, "MyChart token exchange failed");
+            ApiError::Internal("MyChart token exchange failed".to_string())
+        })?;
 
     let encryption_key = crypto::parse_encryption_key(&state.config.encryption_key)?;
 
@@ -125,10 +132,14 @@ pub async fn sync(
     State(state): State<AppState>,
     auth_user: AuthUser,
 ) -> Result<Json<SyncResponse>, ApiError> {
-    let outcome =
-        mychart_sync::sync_user_now(&state.pool, &state.config, &state.http_client, auth_user.id)
-            .await
-            .map_err(|e| ApiError::Internal(format!("MyChart sync failed: {e}")))?;
+    let outcome = mychart_sync::sync_user_now(&state.pool, &state.config, auth_user.id)
+        .await
+        // Generic message to the caller; transport details (which may include
+        // the resolved provider URL) are logged server-side only.
+        .map_err(|e| {
+            tracing::warn!(user_id = %auth_user.id, error = %e, "MyChart sync failed");
+            ApiError::Internal("MyChart sync failed".to_string())
+        })?;
 
     if outcome.imported > 0 {
         let _ = state.event_tx.send((

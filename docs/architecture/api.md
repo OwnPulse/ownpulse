@@ -430,11 +430,24 @@ the provider-supplied reference range. Requires `MYCHART_CLIENT_ID` to be set
 on the server.
 
 Because `fhir_base_url` and `token_endpoint` are client-supplied URLs that the
-server connects to directly, they are validated before any outbound request:
-the scheme must be `https` and IP-literal hosts in private / loopback /
-link-local ranges are rejected (SSRF guard). Set `MYCHART_ALLOW_INSECURE_URLS=true`
-only for local development against a non-HTTPS test server; leave it unset
-(false) in production.
+server connects to directly, they pass a layered SSRF guard before any outbound
+request, at both connect time and on every sync (the stored URLs are
+re-validated, never trusted blindly):
+
+- the scheme must be `https`;
+- IP-literal hosts in private / loopback / link-local / CGNAT / multicast
+  ranges are rejected, with IPv4-mapped IPv6 (`::ffff:169.254.169.254`)
+  canonicalised to IPv4 first;
+- obfuscated numeric hosts (decimal, hex, octal, leading-zero octets) are
+  rejected;
+- the outbound HTTP client follows **no redirects** (a valid host cannot bounce
+  the server to an internal address); and
+- a custom DNS resolver rejects any hostname that **resolves** to an internal
+  address, closing DNS-rebinding.
+
+Set `MYCHART_ALLOW_INSECURE_URLS=true` only for local development against a
+non-HTTPS test server; the API refuses to start with it enabled outside
+localhost.
 
 ### Export
 

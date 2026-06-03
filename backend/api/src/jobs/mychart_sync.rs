@@ -1,19 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-//! Background + on-demand sync for MyChart / SMART-on-FHIR lab data.
+//! On-demand sync for MyChart / SMART-on-FHIR lab data.
 //!
-//! Fetches FHIR `Observation` (laboratory) resources for every user with a
-//! connected MyChart integration and imports them into `lab_results`. Imports
-//! are idempotent: each lab row carries the FHIR resource id as `source_id`,
-//! and `lab_results.bulk_insert` skips rows that already exist via the dedup
-//! unique index.
+//! Fetches FHIR `Observation` (laboratory) resources for a connected MyChart
+//! integration and imports them into `lab_results`. Imports are idempotent:
+//! each lab row carries the FHIR resource id as `source_id`, and
+//! `lab_results.bulk_insert` upserts on `(user_id, source, source_id)` so a
+//! re-sync never creates duplicate rows even if the display text changed.
 //!
 //! Lab data is health data — imported verbatim. We never validate, filter, or
 //! judge marker names or values.
 
 use sqlx::PgPool;
-use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::config::Config;
@@ -21,101 +20,24 @@ use crate::crypto;
 use crate::db::{integration_tokens, lab_results};
 use crate::integrations::mychart::{self, MyChartClient};
 
-/// Interval between background sync runs (6 hours — lab results change slowly).
-const SYNC_INTERVAL_SECS: u64 = 6 * 60 * 60;
+/// Maximum FHIR Observation entries imported per sync. Caps work and memory if
+/// a compromised/misbehaving provider returns an enormous bundle.
+const MAX_OBSERVATIONS_PER_SYNC: usize = 5_000;
 
 /// Result of a single user's sync.
 pub struct SyncOutcome {
     pub imported: u32,
     pub skipped: u32,
 }
-
-/// Spawn the MyChart background sync job.
-pub fn spawn(
-    pool: PgPool,
-    config: Config,
-    http_client: reqwest::Client,
-    cancel: CancellationToken,
-    event_tx: tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
-) {
-    tokio::spawn(async move {
-        tracing::info!("MyChart sync job started");
-
-        loop {
-            tokio::select! {
-                _ = cancel.cancelled() => {
-                    tracing::info!("MyChart sync job shutting down");
-                    break;
-                }
-                _ = tokio::time::sleep(std::time::Duration::from_secs(SYNC_INTERVAL_SECS)) => {
-                    if let Err(e) = run_sync(&pool, &config, &http_client, &event_tx).await {
-                        tracing::error!(error = %e, "MyChart sync run failed");
-                    }
-                }
-            }
-        }
-    });
-}
-
-/// Run a single sync cycle for all users with a MyChart connection.
-async fn run_sync(
-    pool: &PgPool,
-    config: &Config,
-    http_client: &reqwest::Client,
-    event_tx: &tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
-) -> Result<(), String> {
-    let encryption_key = crypto::parse_encryption_key(&config.encryption_key)
-        .map_err(|e| format!("bad encryption key: {e}"))?;
-    let prev_key = config
-        .encryption_key_previous
-        .as_ref()
-        .map(|k| crypto::parse_encryption_key(k))
-        .transpose()
-        .map_err(|e| format!("bad previous encryption key: {e}"))?;
-
-    if config.mychart_client_id.is_none() {
-        return Ok(()); // MyChart not configured, skip.
-    }
-
-    let tokens = integration_tokens::list_for_user_by_source(
-        pool,
-        mychart::SOURCE,
-        &encryption_key,
-        prev_key.as_ref(),
-    )
-    .await
-    .map_err(|e| format!("failed to list MyChart tokens: {e}"))?;
-
-    for token_row in tokens {
-        let user_id = token_row.user_id;
-        match sync_token_row(pool, config, http_client, &token_row, &encryption_key).await {
-            Ok(outcome) if outcome.imported > 0 => {
-                let _ = event_tx.send((
-                    user_id,
-                    crate::models::explore::DataChangedEvent {
-                        source: mychart::SOURCE.to_string(),
-                        record_type: Some("lab_result".to_string()),
-                    },
-                ));
-            }
-            Ok(_) => {}
-            Err(e) => {
-                tracing::error!(user_id = %user_id, "MyChart sync failed for user");
-                let _ =
-                    integration_tokens::update_sync_error(pool, user_id, mychart::SOURCE, &e).await;
-            }
-        }
-    }
-
-    Ok(())
-}
-
 /// On-demand sync for a single user — used by the `/integrations/mychart/sync`
 /// endpoint. Returns how many lab rows were imported vs. skipped (duplicates).
+///
+/// MyChart sync is on-demand only (triggered from the app); there is no
+/// periodic background poll. Lab results change slowly and a background job
+/// would add a standing SSRF-capable outbound path with no user in the loop.
 pub async fn sync_user_now(
     pool: &PgPool,
     config: &Config,
-    http_client: &reqwest::Client,
     user_id: Uuid,
 ) -> Result<SyncOutcome, String> {
     let encryption_key = crypto::parse_encryption_key(&config.encryption_key)
@@ -135,7 +57,7 @@ pub async fn sync_user_now(
             .find(|t| t.source == mychart::SOURCE)
             .ok_or_else(|| "MyChart is not connected".to_string())?;
 
-    let outcome = sync_token_row(pool, config, http_client, &token_row, &encryption_key).await;
+    let outcome = sync_token_row(pool, config, &token_row, &encryption_key).await;
     if let Err(ref e) = outcome {
         let _ = integration_tokens::update_sync_error(pool, user_id, mychart::SOURCE, e).await;
     }
@@ -147,7 +69,6 @@ pub async fn sync_user_now(
 async fn sync_token_row(
     pool: &PgPool,
     config: &Config,
-    http_client: &reqwest::Client,
     token_row: &integration_tokens::IntegrationTokenRow,
     encryption_key: &[u8; 32],
 ) -> Result<SyncOutcome, String> {
@@ -173,11 +94,20 @@ async fn sync_token_row(
         .and_then(|v| v.as_str())
         .ok_or("MyChart metadata missing token_endpoint")?;
 
+    // Re-validate the stored URLs before dialing them. The metadata could have
+    // been persisted before the SSRF guard existed, or by a different code
+    // path — the sync job must not trust it blindly.
+    let allow_insecure = config.mychart_allow_insecure_urls;
+    mychart::validate_provider_url(fhir_base_url, allow_insecure)?;
+    mychart::validate_provider_url(token_endpoint, allow_insecure)?;
+
+    // Dedicated client: no redirects + resolved-address SSRF filter.
+    let http = mychart::build_client(allow_insecure)?;
     let client = MyChartClient::new(
         client_id.to_string(),
         token_endpoint.to_string(),
         fhir_base_url.to_string(),
-        http_client.clone(),
+        http,
     );
 
     let mut access_token = token_row.access_token.clone();
@@ -221,7 +151,16 @@ async fn sync_token_row(
         .await
         .map_err(|e| format!("failed to fetch MyChart observations: {e}"))?;
 
-    let labs = mychart::parse_observation_bundle(&bundle);
+    let mut labs = mychart::parse_observation_bundle(&bundle);
+    if labs.len() > MAX_OBSERVATIONS_PER_SYNC {
+        tracing::warn!(
+            user_id = %user_id,
+            count = labs.len(),
+            cap = MAX_OBSERVATIONS_PER_SYNC,
+            "MyChart bundle exceeded per-sync entry cap; truncating"
+        );
+        labs.truncate(MAX_OBSERVATIONS_PER_SYNC);
+    }
     let parsed = labs.len() as u32;
 
     let inserted = lab_results::bulk_insert(pool, user_id, &labs)

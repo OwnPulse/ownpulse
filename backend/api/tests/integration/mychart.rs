@@ -373,6 +373,126 @@ async fn mychart_sync_is_idempotent() {
 }
 
 #[tokio::test]
+async fn mychart_resync_with_changed_display_text_updates_not_duplicates() {
+    // Regression: the FHIR resource id is the identity. If the lab amends the
+    // display text (`code.text`) or value for the SAME resource id, a re-sync
+    // must UPDATE the row in place, never insert a duplicate clinical row.
+    let fhir_mock = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/oauth2/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "mychart-access-123",
+            "refresh_token": "mychart-refresh-456",
+            "expires_in": 3600,
+            "token_type": "bearer"
+        })))
+        .mount(&fhir_mock)
+        .await;
+
+    // First sync: original display text + value.
+    let first_bundle = serde_json::json!({
+        "resourceType": "Bundle",
+        "entry": [{
+            "resource": {
+                "resourceType": "Observation",
+                "id": "obs-amend-1",
+                "status": "final",
+                "code": { "text": "Glucose" },
+                "effectiveDateTime": "2026-03-28",
+                "valueQuantity": { "value": 92.0, "unit": "mg/dL" }
+            }
+        }]
+    });
+    Mock::given(method("GET"))
+        .and(path("/fhir/r4/Observation"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(first_bundle))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&fhir_mock)
+        .await;
+
+    // Second sync: SAME id, amended display text and value.
+    let second_bundle = serde_json::json!({
+        "resourceType": "Bundle",
+        "entry": [{
+            "resource": {
+                "resourceType": "Observation",
+                "id": "obs-amend-1",
+                "status": "final",
+                "code": { "text": "Glucose, fasting" },
+                "effectiveDateTime": "2026-03-28",
+                "valueQuantity": { "value": 95.0, "unit": "mg/dL" }
+            }
+        }]
+    });
+    Mock::given(method("GET"))
+        .and(path("/fhir/r4/Observation"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(second_bundle))
+        .with_priority(2)
+        .mount(&fhir_mock)
+        .await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.mychart_client_id = Some("test-mychart-client".to_string());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let connect_body = serde_json::json!({
+        "fhir_base_url": format!("{}/fhir/r4", fhir_mock.uri()),
+        "token_endpoint": format!("{}/oauth2/token", fhir_mock.uri()),
+        "code": "auth-code-abc",
+        "redirect_uri": "ownpulse://mychart-callback",
+        "code_verifier": "pkce-verifier-xyz"
+    });
+    app.app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/mychart/connect",
+            &token,
+            &connect_body,
+        ))
+        .await
+        .unwrap();
+
+    let sync = |app: axum::Router, token: String| async move {
+        app.oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/integrations/mychart/sync")
+                .header("authorization", format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+    };
+
+    let first = sync(app.app.clone(), token.clone()).await;
+    assert_eq!(body_json(first).await["imported"], 1);
+
+    let second = sync(app.app.clone(), token.clone()).await;
+    let body = body_json(second).await;
+    // Amended row is an update, not a new import.
+    assert_eq!(body["imported"], 0);
+
+    // Exactly one row, with the amended marker and value.
+    let rows = sqlx::query_as::<_, (String, f64)>(
+        "SELECT marker, value FROM lab_results WHERE user_id = $1 AND source = 'mychart'",
+    )
+    .bind(user_id)
+    .fetch_all(&app.pool)
+    .await
+    .unwrap();
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].0, "Glucose, fasting");
+    assert_eq!(rows[0].1, 95.0);
+}
+
+#[tokio::test]
 async fn mychart_sync_without_connection_fails() {
     let app = common::setup_with_config(|cfg| {
         cfg.mychart_client_id = Some("test-mychart-client".to_string());
@@ -428,16 +548,6 @@ async fn mychart_client_fetches_and_parses_observation_bundle() {
             .any(|l| l.marker == "Glucose" && l.value == 92.0)
     );
     assert!(labs.iter().any(|l| l.marker == "Hemoglobin A1c"));
-}
-
-#[tokio::test]
-async fn mychart_diagnostic_report_bundle_yields_no_lab_rows() {
-    // A DiagnosticReport bundle references Observations but carries no lab
-    // values of its own; our importer pulls values from Observations only.
-    let fixture = include_str!("../fixtures/mychart/diagnostic-report.json");
-    let bundle: api::integrations::mychart::FhirBundle = serde_json::from_str(fixture).unwrap();
-    let labs = api::integrations::mychart::parse_observation_bundle(&bundle);
-    assert!(labs.is_empty());
 }
 
 #[tokio::test]

@@ -7,8 +7,12 @@
 //! the SMART-on-FHIR standard: standard OAuth 2.0 authorization-code flow with
 //! PKCE, then a FHIR R4 REST API. This module handles:
 //! - Token exchange and refresh against a per-provider token endpoint
-//! - Fetching FHIR `Observation` (laboratory) and `DiagnosticReport` resources
+//! - Fetching FHIR `Observation` (laboratory) resources
 //! - Parsing those resources into the existing `lab_results` shape
+//!
+//! Scope is laboratory `Observation` resources only. `DiagnosticReport`
+//! (panel grouping) is intentionally out of scope for this iteration — the
+//! referenced `Observation` resources are imported directly.
 //!
 //! Lab data is health data: it is imported verbatim. We never validate,
 //! filter, or judge marker names or values — out-of-range flagging is derived
@@ -28,14 +32,64 @@ use crate::models::lab_result::CreateLabResult;
 /// Source label written to `lab_results.source` for MyChart imports.
 pub const SOURCE: &str = "mychart";
 
+/// Return true if an IPv4 address is in a non-routable / internal range that
+/// must never be reachable from a server-side SSRF.
+fn is_blocked_v4(v4: std::net::Ipv4Addr) -> bool {
+    v4.is_private()        // 10/8, 172.16/12, 192.168/16
+        || v4.is_loopback()    // 127/8
+        || v4.is_link_local()  // 169.254/16 (cloud metadata)
+        || v4.is_unspecified() // 0.0.0.0
+        || v4.is_broadcast()   // 255.255.255.255
+        || v4.is_documentation()
+        || v4.octets()[0] == 0 // 0/8
+        || v4.octets()[0] >= 224 // multicast (224/4) + reserved (240/4)
+        // Carrier-grade NAT 100.64/10 and shared/benchmark ranges.
+        || (v4.octets()[0] == 100 && (64..=127).contains(&v4.octets()[1]))
+}
+
+/// Return true if an IPv6 address is internal. Canonicalises IPv4-mapped
+/// (`::ffff:a.b.c.d`) and IPv4-compatible addresses down to their embedded
+/// IPv4 and re-checks against [`is_blocked_v4`] — otherwise
+/// `https://[::ffff:169.254.169.254]/` would slip through.
+fn is_blocked_v6(v6: std::net::Ipv6Addr) -> bool {
+    // Any IPv6 form that embeds an IPv4 address: re-check the embedded V4.
+    if let Some(mapped) = v6.to_ipv4() {
+        return is_blocked_v4(mapped);
+    }
+    v6.is_loopback()        // ::1
+        || v6.is_unspecified() // ::
+        // unique-local fc00::/7
+        || (v6.segments()[0] & 0xfe00) == 0xfc00
+        // link-local fe80::/10
+        || (v6.segments()[0] & 0xffc0) == 0xfe80
+}
+
+/// True if an IP address (V4 or V6, including IPv4-mapped V6) is internal.
+pub fn is_blocked_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => is_blocked_v4(v4),
+        IpAddr::V6(v6) => is_blocked_v6(v6),
+    }
+}
+
 /// Validate a client-supplied SMART-on-FHIR provider URL before the server
 /// makes any outbound request to it.
 ///
 /// The `token_endpoint` and `fhir_base_url` come from the API client, and the
 /// server connects to them directly — so without validation this is an SSRF
 /// vector (an authenticated user could point the server at internal services
-/// or the cloud metadata endpoint). We require HTTPS and reject hosts that are
-/// IP literals in private / loopback / link-local / unspecified ranges.
+/// or the cloud metadata endpoint). Defenses, in order:
+///
+/// 1. Require `https`.
+/// 2. Reject IP-literal hosts in internal ranges, canonicalising IPv4-mapped
+///    IPv6 (`::ffff:169.254.169.254`) back to IPv4 first.
+/// 3. Reject all-numeric / hex / octal host forms (`0x7f.0.0.1`,
+///    `2130706433`) that resolvers would interpret as internal IPs but that
+///    are not valid `IpAddr` literals.
+///
+/// This is host-string validation. DNS rebinding (a hostname that resolves to
+/// an internal IP) is closed separately by [`build_client`], which validates
+/// the *resolved* socket address at connect time.
 ///
 /// `allow_insecure` relaxes the checks for local development and tests, where
 /// the FHIR server is a WireMock instance on `http://127.0.0.1:<port>`.
@@ -58,33 +112,105 @@ pub fn validate_provider_url(raw: &str, allow_insecure: bool) -> Result<(), Stri
         .and_then(|h| h.strip_suffix(']'))
         .unwrap_or(host);
 
-    // Block IP-literal hosts in non-routable / internal ranges. Hostnames are
-    // allowed (real FHIR issuers use DNS names); DNS-rebinding hardening is a
-    // deeper mitigation tracked separately.
     if let Ok(ip) = host_ip.parse::<IpAddr>() {
-        let blocked = match ip {
-            IpAddr::V4(v4) => {
-                v4.is_private()
-                    || v4.is_loopback()
-                    || v4.is_link_local()
-                    || v4.is_unspecified()
-                    || v4.is_broadcast()
-                    || v4.octets()[0] == 0
-            }
-            IpAddr::V6(v6) => {
-                v6.is_loopback()
-                    || v6.is_unspecified()
-                    // unique-local (fc00::/7) and link-local (fe80::/10)
-                    || (v6.segments()[0] & 0xfe00) == 0xfc00
-                    || (v6.segments()[0] & 0xffc0) == 0xfe80
-            }
-        };
-        if blocked {
+        if is_blocked_ip(ip) {
             return Err("provider URL host is not allowed".to_string());
         }
+        return Ok(());
+    }
+
+    // Not a valid IP literal. Reject host forms that look like obfuscated IPs
+    // (decimal `2130706433`, hex `0x7f000001`, octal `0177.0.0.1`,
+    // leading-zero octets). A legitimate FHIR hostname has at least one
+    // non-numeric, non-`0x` label.
+    if looks_like_numeric_host(host_ip) {
+        return Err("provider URL host is not allowed".to_string());
     }
 
     Ok(())
+}
+
+/// Heuristic: does this host string look like an obfuscated numeric IP rather
+/// than a DNS hostname? Catches all-decimal, hex (`0x..`), octal (leading
+/// zero), and dotted-numeric forms that `IpAddr::parse` rejected but a libc
+/// resolver may still accept as an integer-encoded address.
+fn looks_like_numeric_host(host: &str) -> bool {
+    if host.is_empty() {
+        return false;
+    }
+    // A real hostname always contains at least one alphabetic character in a
+    // label that is not a `0x` hex prefix. If every label is purely numeric or
+    // hex/octal, treat it as a numeric host.
+    host.split('.').all(|label| {
+        let l = label.trim();
+        if l.is_empty() {
+            return false;
+        }
+        let hex = l.strip_prefix("0x").or_else(|| l.strip_prefix("0X"));
+        match hex {
+            Some(rest) => !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_hexdigit()),
+            None => l.bytes().all(|b| b.is_ascii_digit()),
+        }
+    })
+}
+
+/// Build a dedicated reqwest client for talking to a SMART-on-FHIR provider.
+///
+/// Two SSRF defenses beyond [`validate_provider_url`]:
+/// - **No redirects**: SMART token/FHIR endpoints do not need cross-host
+///   redirects, and following them would let a valid host bounce the server to
+///   `169.254.169.254` / loopback after the URL passed validation.
+/// - **Resolved-address filter**: a custom DNS resolver rejects any name that
+///   resolves to an internal range, closing the DNS-rebinding hole where a
+///   hostname passes string validation yet resolves to an internal IP.
+///
+/// `allow_insecure` (dev/tests only) drops the resolver so WireMock on
+/// `127.0.0.1` is reachable; redirects stay disabled regardless.
+pub fn build_client(allow_insecure: bool) -> Result<reqwest::Client, String> {
+    let mut builder = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none());
+    if !allow_insecure {
+        builder = builder.dns_resolver(std::sync::Arc::new(SsrfGuardResolver));
+    }
+    builder
+        .build()
+        .map_err(|e| format!("failed to build MyChart HTTP client: {e}"))
+}
+
+/// A reqwest DNS resolver that resolves names normally but rejects any address
+/// in an internal range — closing the DNS-rebinding hole where a hostname
+/// passes string validation yet resolves to `127.0.0.1` / `169.254.169.254`.
+struct SsrfGuardResolver;
+
+impl reqwest::dns::Resolve for SsrfGuardResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        Box::pin(async move {
+            let host = name.as_str().to_string();
+            // Resolve on a blocking thread via the std resolver.
+            let addrs = tokio::task::spawn_blocking(move || {
+                std::net::ToSocketAddrs::to_socket_addrs(&(host.as_str(), 0u16))
+                    .map(|it| it.collect::<Vec<_>>())
+            })
+            .await;
+
+            let addrs = match addrs {
+                Ok(Ok(addrs)) => addrs,
+                _ => {
+                    return Err(Box::<dyn std::error::Error + Send + Sync>::from(
+                        "dns resolution failed",
+                    ));
+                }
+            };
+
+            if addrs.iter().any(|sa| is_blocked_ip(sa.ip())) {
+                return Err(Box::<dyn std::error::Error + Send + Sync>::from(
+                    "resolved address is not allowed",
+                ));
+            }
+
+            let iter: reqwest::dns::Addrs = Box::new(addrs.into_iter());
+            Ok(iter)
+        })
+    }
 }
 
 // ── OAuth 2.0 types ─────────────────────────────────────────────────────
@@ -141,9 +267,13 @@ pub struct FhirCodeableConcept {
 
 #[derive(Debug, Deserialize)]
 pub struct FhirCoding {
+    pub system: Option<String>,
     pub display: Option<String>,
     pub code: Option<String>,
 }
+
+/// Canonical LOINC code system URI.
+const LOINC_SYSTEM: &str = "http://loinc.org";
 
 #[derive(Debug, Deserialize)]
 pub struct FhirQuantity {
@@ -174,6 +304,19 @@ impl FhirObservation {
                 .or(c.code.as_deref())
                 .map(|s| s.to_string())
         })
+    }
+
+    /// Extract the LOINC code from the observation's codings, if present.
+    /// Preserved so the open-schema export carries the standard code, not just
+    /// the provider's display text.
+    pub fn loinc_code(&self) -> Option<String> {
+        let code = self.code.as_ref()?;
+        code.coding
+            .iter()
+            .find(|c| c.system.as_deref() == Some(LOINC_SYSTEM))
+            .and_then(|c| c.code.as_deref())
+            .filter(|c| !c.trim().is_empty())
+            .map(|c| c.to_string())
     }
 
     /// Parse the effective date (date portion of `effectiveDateTime`, falling
@@ -219,6 +362,7 @@ impl FhirObservation {
             reference_high,
             source: Some(SOURCE.to_string()),
             source_id: Some(source_id),
+            loinc_code: self.loinc_code(),
         })
     }
 }
@@ -347,6 +491,9 @@ impl MyChartClient {
     /// SMART-on-FHIR exposes the patient identity via the access token, so the
     /// standard `Observation?category=laboratory` search returns the patient's
     /// own results. We do not pass a patient id from the client.
+    ///
+    /// The response body is capped at [`MAX_RESPONSE_BYTES`] so a malicious or
+    /// compromised provider cannot exhaust memory with a giant bundle.
     pub async fn get_lab_observations(&self, access_token: &str) -> Result<FhirBundle, String> {
         let url = format!("{}/Observation", self.fhir_base_url.trim_end_matches('/'));
         let response = self
@@ -364,11 +511,32 @@ impl MyChartClient {
             return Err(format!("MyChart Observation fetch returned {status}"));
         }
 
-        response
-            .json::<FhirBundle>()
-            .await
+        let body = read_capped_body(response).await?;
+        serde_json::from_slice::<FhirBundle>(&body)
             .map_err(|e| format!("failed to parse MyChart Observation bundle: {e}"))
     }
+}
+
+/// Maximum FHIR response body the server will buffer (16 MiB). A FHIR lab
+/// bundle for one patient is kilobytes; this only trips on abuse.
+const MAX_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
+
+/// Read a response body into memory, aborting if it exceeds
+/// [`MAX_RESPONSE_BYTES`]. Streams chunk-by-chunk so an oversized body is
+/// rejected without first being fully buffered.
+async fn read_capped_body(mut response: reqwest::Response) -> Result<Vec<u8>, String> {
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("MyChart response read failed: {e}"))?
+    {
+        if buf.len() + chunk.len() > MAX_RESPONSE_BYTES {
+            return Err("MyChart response exceeded maximum allowed size".to_string());
+        }
+        buf.extend_from_slice(&chunk);
+    }
+    Ok(buf)
 }
 
 #[cfg(test)]
@@ -396,6 +564,39 @@ mod tests {
         assert!(validate_provider_url("https://169.254.169.254/latest/meta-data", false).is_err());
         assert!(validate_provider_url("https://[::1]/r4", false).is_err());
         assert!(validate_provider_url("https://[fc00::1]/r4", false).is_err());
+    }
+
+    #[test]
+    fn validate_provider_url_rejects_ipv4_mapped_ipv6() {
+        // IPv4-mapped / -compatible IPv6 must be canonicalised and blocked —
+        // otherwise [::ffff:169.254.169.254] reaches cloud metadata.
+        assert!(validate_provider_url("https://[::ffff:169.254.169.254]/x", false).is_err());
+        assert!(validate_provider_url("https://[::ffff:127.0.0.1]/x", false).is_err());
+        assert!(validate_provider_url("https://[::ffff:10.0.0.1]/x", false).is_err());
+    }
+
+    #[test]
+    fn validate_provider_url_rejects_alternate_ip_encodings() {
+        // Decimal, hex, octal, and leading-zero host forms that a libc resolver
+        // would treat as internal IPs but that are not valid IpAddr literals.
+        assert!(validate_provider_url("https://2130706433/x", false).is_err()); // 127.0.0.1
+        assert!(validate_provider_url("https://0x7f000001/x", false).is_err());
+        assert!(validate_provider_url("https://0177.0.0.1/x", false).is_err());
+        assert!(validate_provider_url("https://0x7f.0.0.1/x", false).is_err());
+    }
+
+    #[test]
+    fn validate_provider_url_rejects_extra_internal_ranges() {
+        assert!(validate_provider_url("https://100.64.0.1/x", false).is_err()); // CGNAT
+        assert!(validate_provider_url("https://224.0.0.1/x", false).is_err()); // multicast
+    }
+
+    #[test]
+    fn validate_provider_url_allows_legitimate_public_host() {
+        assert!(
+            validate_provider_url("https://fhir.epic.com/interconnect/api/FHIR/R4", false).is_ok()
+        );
+        assert!(validate_provider_url("https://8.8.8.8/r4", false).is_ok());
     }
 
     #[test]
@@ -429,6 +630,7 @@ mod tests {
             code: Some(FhirCodeableConcept {
                 text: Some("Hemoglobin A1c".into()),
                 coding: vec![FhirCoding {
+                    system: Some("http://loinc.org".into()),
                     display: Some("HbA1c".into()),
                     code: Some("4548-4".into()),
                 }],
@@ -451,7 +653,11 @@ mod tests {
             status: Some("final".into()),
             code: Some(FhirCodeableConcept {
                 text: Some("Glucose".into()),
-                coding: vec![],
+                coding: vec![FhirCoding {
+                    system: Some("http://loinc.org".into()),
+                    display: Some("Glucose".into()),
+                    code: Some("2339-0".into()),
+                }],
             }),
             effective_date_time: Some("2026-03-28T08:30:00Z".into()),
             issued: None,
@@ -479,6 +685,7 @@ mod tests {
         assert_eq!(lab.reference_high, Some(99.0));
         assert_eq!(lab.source.as_deref(), Some("mychart"));
         assert_eq!(lab.source_id.as_deref(), Some("obs-123"));
+        assert_eq!(lab.loinc_code.as_deref(), Some("2339-0"));
     }
 
     #[test]

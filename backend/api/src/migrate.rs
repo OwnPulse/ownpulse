@@ -128,6 +128,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0030_integration_tokens_metadata.sql",
         include_str!("../../../db/migrations/0030_integration_tokens_metadata.sql"),
     ),
+    (
+        "0031_lab_results_source_dedup.sql",
+        include_str!("../../../db/migrations/0031_lab_results_source_dedup.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]

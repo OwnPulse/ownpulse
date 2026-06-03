@@ -103,6 +103,9 @@ Blood panel and laboratory data with reference ranges.
 | `unit` | TEXT | |
 | `reference_low` | DOUBLE nullable | |
 | `reference_high` | DOUBLE nullable | |
+| `source` | TEXT | `manual`, `apple_health_records`, `mychart`, … |
+| `source_id` | TEXT nullable | External record id. For FHIR/MyChart, the `Observation` resource id — the dedup identity for re-sync via the partial unique index `(user_id, source, source_id)`. |
+| `loinc_code` | TEXT nullable | LOINC code preserved from FHIR `Observation.code` codings. |
 | `collected_at` | TIMESTAMPTZ | |
 | `created_at` | TIMESTAMPTZ | |
 

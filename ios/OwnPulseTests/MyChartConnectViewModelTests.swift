@@ -69,7 +69,12 @@ struct MyChartConnectViewModelTests {
         let vm = MyChartConnectViewModel(
             networkClient: network,
             urlSession: SmartConfigStubProtocol.session(),
-            authorize: { _ in MyChartAuthorization(code: "auth-code-123") }
+            authorize: { authURL in
+                // Echo back the state the view model put in the authorize URL,
+                // as a conformant provider does.
+                let state = MyChartConnectViewModel.queryValue("state", from: authURL)
+                return MyChartAuthorization(code: "auth-code-123", state: state)
+            }
         )
         vm.fhirBaseURL = "https://fhir.example.org/r4"
 
@@ -81,13 +86,57 @@ struct MyChartConnectViewModelTests {
         #expect(paths == [Endpoints.myChartConnect, Endpoints.myChartSync])
     }
 
+    @Test("state mismatch in the callback rejects the connection (CSRF guard)")
+    func stateMismatchRejected() async {
+        SmartConfigStubProtocol.statusCode = 200
+        SmartConfigStubProtocol.body = smartConfigBody()
+
+        let network = MockNetworkClient()
+        let vm = MyChartConnectViewModel(
+            networkClient: network,
+            urlSession: SmartConfigStubProtocol.session(),
+            // Return a state that does NOT match what the view model sent.
+            authorize: { _ in MyChartAuthorization(code: "auth-code-123", state: "attacker-state") }
+        )
+        vm.fhirBaseURL = "https://fhir.example.org/r4"
+
+        await vm.connect()
+
+        if case .error = vm.state {} else {
+            Issue.record("expected error state, got \(vm.state)")
+        }
+        // No backend exchange should have happened.
+        #expect(network.requestCalls.isEmpty)
+    }
+
+    @Test("missing state in the callback is rejected")
+    func missingStateRejected() async {
+        SmartConfigStubProtocol.statusCode = 200
+        SmartConfigStubProtocol.body = smartConfigBody()
+
+        let network = MockNetworkClient()
+        let vm = MyChartConnectViewModel(
+            networkClient: network,
+            urlSession: SmartConfigStubProtocol.session(),
+            authorize: { _ in MyChartAuthorization(code: "auth-code-123", state: nil) }
+        )
+        vm.fhirBaseURL = "https://fhir.example.org/r4"
+
+        await vm.connect()
+
+        if case .error = vm.state {} else {
+            Issue.record("expected error state, got \(vm.state)")
+        }
+        #expect(network.requestCalls.isEmpty)
+    }
+
     @Test("empty FHIR URL is rejected before any network call")
     func emptyURLRejected() async {
         let network = MockNetworkClient()
         let vm = MyChartConnectViewModel(
             networkClient: network,
             urlSession: SmartConfigStubProtocol.session(),
-            authorize: { _ in MyChartAuthorization(code: "x") }
+            authorize: { _ in MyChartAuthorization(code: "x", state: nil) }
         )
         vm.fhirBaseURL = "   "
 
@@ -108,7 +157,7 @@ struct MyChartConnectViewModelTests {
         let vm = MyChartConnectViewModel(
             networkClient: network,
             urlSession: SmartConfigStubProtocol.session(),
-            authorize: { _ in MyChartAuthorization(code: "x") }
+            authorize: { _ in MyChartAuthorization(code: "x", state: nil) }
         )
         vm.fhirBaseURL = "https://fhir.example.org/r4"
 
@@ -149,7 +198,8 @@ struct MyChartConnectViewModelTests {
         let url = vm.buildAuthorizationURL(
             authorizationEndpoint: "https://fhir.example.org/oauth2/authorize",
             fhirBaseURL: "https://fhir.example.org/r4",
-            challenge: "challenge-abc"
+            challenge: "challenge-abc",
+            state: "state-xyz"
         )
 
         let items = URLComponents(url: url!, resolvingAgainstBaseURL: false)!.queryItems!
@@ -161,14 +211,16 @@ struct MyChartConnectViewModelTests {
         #expect(value("code_challenge") == "challenge-abc")
         #expect(value("code_challenge_method") == "S256")
         #expect(value("aud") == "https://fhir.example.org/r4")
+        #expect(value("state") == "state-xyz")
     }
 
-    @Test("extractCode reads the code query parameter from the redirect")
-    func extractCode() {
+    @Test("queryValue reads code and state from the redirect")
+    func queryValueExtraction() {
         let url = URL(string: "ownpulse://mychart-callback?code=abc123&state=xyz")!
-        #expect(MyChartConnectViewModel.extractCode(from: url) == "abc123")
+        #expect(MyChartConnectViewModel.queryValue("code", from: url) == "abc123")
+        #expect(MyChartConnectViewModel.queryValue("state", from: url) == "xyz")
 
         let noCode = URL(string: "ownpulse://mychart-callback?state=xyz")!
-        #expect(MyChartConnectViewModel.extractCode(from: noCode) == nil)
+        #expect(MyChartConnectViewModel.queryValue("code", from: noCode) == nil)
     }
 }
