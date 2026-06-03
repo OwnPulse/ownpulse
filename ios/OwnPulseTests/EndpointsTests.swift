@@ -8,8 +8,9 @@ import Testing
 
 /// Verifies that every `Endpoints.*` value used by the app resolves to a
 /// well-formed URL path. A missing or malformed endpoint would otherwise only
-/// surface as a runtime crash when a view tries to use it (see the
-/// ProtocolsView crash this guards against).
+/// surface at runtime when a view tries to use it. This guards against the
+/// class of regression where a `ViewModel` references an `Endpoints` member
+/// that no longer exists (or never did).
 struct EndpointsTests {
     /// Every static string endpoint and every computed endpoint (with a sample
     /// id) the app references. Adding a new `Endpoints` member without listing
@@ -65,7 +66,7 @@ struct EndpointsTests {
         }
     }
 
-    // MARK: - Protocols (the crash this unit fixes)
+    // MARK: - Protocols
 
     @Test func protocolDetailEmbedsId() {
         #expect(Endpoints.protocolDetail("abc") == "/api/v1/protocols/abc")

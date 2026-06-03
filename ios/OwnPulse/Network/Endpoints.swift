@@ -21,14 +21,4 @@ enum Endpoints {
     static let notificationsRegister = "/api/v1/notifications/register"
     static let notificationPreferences = "/api/v1/notifications/preferences"
     static let savedMedicines = "/api/v1/saved-medicines"
-
-    // MARK: - Protocols
-    static let protocols = "/api/v1/protocols"
-    static let activeRuns = "/api/v1/protocols/runs/active"
-    static func protocolDetail(_ id: String) -> String { "/api/v1/protocols/\(id)" }
-    static func protocolRuns(_ id: String) -> String { "/api/v1/protocols/\(id)/runs" }
-    static func protocolLogDose(_ id: String) -> String { "/api/v1/protocols/\(id)/doses/log" }
-    static func protocolSkipDose(_ id: String) -> String { "/api/v1/protocols/\(id)/doses/skip" }
-    static func runLogDose(_ runId: String) -> String { "/api/v1/protocols/runs/\(runId)/doses/log" }
-    static func runSkipDose(_ runId: String) -> String { "/api/v1/protocols/runs/\(runId)/doses/skip" }
 }
