@@ -22,7 +22,10 @@ struct WidgetSnapshotHarness: View {
         heroMetricValue: "56",
         heroMetricUnit: "bpm",
         heroTrendText: "-4% vs 30d avg",
+        // Resting HR dropping 4% is "good" (isPositive) but the data went DOWN
+        // — the arrow must follow the data, not the polarity.
         heroTrendIsPositive: true,
+        heroTrendDirection: .down,
         lastUpdated: Date(timeIntervalSince1970: 1_700_000_000)
     )
 

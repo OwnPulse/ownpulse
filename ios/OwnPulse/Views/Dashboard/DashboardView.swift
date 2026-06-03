@@ -121,7 +121,7 @@ struct DashboardView: View {
                         currentValue: vm.heroCurrentValue,
                         unit: vm.heroMetricUnit,
                         trendText: vm.heroTrendText,
-                        trendIsPositive: vm.heroTrendIsPositive,
+                        trendDirection: vm.heroTrendDirection,
                         dataPoints: vm.heroSeries,
                         metricFieldKey: vm.heroMetricFieldKey
                     )

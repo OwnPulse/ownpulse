@@ -28,9 +28,12 @@ struct SparklineCard: View {
         return String(format: "%.0f", last.v)
     }
 
-    private var trendArrow: (symbol: String, color: Color) {
+    // MARK: C9 trend
+    // Direction is computed once and rendered as both an arrow (shape) and a
+    // Wong colorblind-safe color via TrendDirection, so it reads in grayscale.
+    private var trendDirection: TrendDirection {
         let points = series.points
-        guard points.count >= 2 else { return ("arrow.forward", OPColor.trendFlat) }
+        guard points.count >= 2 else { return .flat }
 
         let recent = points.suffix(3).map(\.v)
         let avg = recent.reduce(0, +) / Double(recent.count)
@@ -39,21 +42,11 @@ struct SparklineCard: View {
 
         let delta = avg - prevAvg
         if delta > 0.5 {
-            return ("arrow.up.right", OPColor.sage)
+            return .up
         } else if delta < -0.5 {
-            return ("arrow.down.right", OPColor.trendUp)
+            return .down
         }
-        return ("arrow.forward", OPColor.trendFlat)
-    }
-
-    /// Spoken trend description so VoiceOver users get the direction that the
-    /// arrow icon and its colour convey visually.
-    private var trendDescription: String {
-        switch trendArrow.symbol {
-        case "arrow.up.right": return "trending up"
-        case "arrow.down.right": return "trending down"
-        default: return "holding steady"
-        }
+        return .flat
     }
 
     var body: some View {
@@ -67,9 +60,10 @@ struct SparklineCard: View {
                 Text(latestValue)
                     .font(.system(.title2, design: .rounded, weight: .bold))
 
-                Image(systemName: trendArrow.symbol)
+                // MARK: C9 trend
+                Image(systemName: trendDirection.systemImage)
                     .font(.caption)
-                    .foregroundStyle(trendArrow.color)
+                    .foregroundStyle(trendDirection.color)
                     .accessibilityHidden(true)
             }
 
@@ -97,6 +91,6 @@ struct SparklineCard: View {
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("sparkline-\(series.field)")
         .accessibilityLabel(displayName)
-        .accessibilityValue("\(latestValue), \(trendDescription)")
+        .accessibilityValue("\(latestValue), \(trendDirection.spokenDescription)")
     }
 }

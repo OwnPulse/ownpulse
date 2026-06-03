@@ -7,8 +7,9 @@ import SwiftUI
 // generated from docs/design/tokens.json into Tokens.swift. The members below
 // are hand-written: they are either not yet modeled in the token source
 // (darkBg, cardDark), deliberately tuned for WCAG AA contrast in a way the raw
-// palette does not express (mutedText, googleBlue), or semantic system colors
-// (trend indicators).
+// palette does not express (mutedText, googleBlue), or colorblind-safe trend
+// indicators sourced from the generated ChartColors Wong palette (always
+// paired with a directional arrow — see TrendDirection).
 extension OPColor {
     static let darkBg = Color(red: 26 / 255, green: 26 / 255, blue: 26 / 255)
     static let cardDark = Color(red: 34 / 255, green: 34 / 255, blue: 34 / 255)
@@ -35,9 +36,16 @@ extension OPColor {
     /// white text, clearing AA.
     static let googleBlue = Color(red: 26 / 255, green: 95 / 255, blue: 180 / 255)
 
-    static let trendUp = Color.red
-    static let trendDown = Color.green
-    static let trendFlat = Color.secondary
+    // Colorblind-safe trend colors. TrendDirection is the single resolution
+    // point (it reads the Wong palette from the generated ChartColors tokens);
+    // these aliases exist for callers that want the color without the enum.
+    // They are always paired with a directional arrow wherever they appear —
+    // direction is never conveyed by color alone. Replaces the former
+    // red(up)/green(down) scheme, which failed red-green color vision and was
+    // semantically inverted.
+    static let trendUp = TrendDirection.up.color
+    static let trendDown = TrendDirection.down.color
+    static let trendFlat = TrendDirection.flat.color
 }
 
 extension Color {

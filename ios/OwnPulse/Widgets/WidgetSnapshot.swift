@@ -38,6 +38,11 @@ struct WidgetSnapshot: Codable, Sendable, Equatable {
     /// `true` when the trend is in the "good" direction (drives tint).
     var heroTrendIsPositive: Bool
 
+    /// Literal DATA direction of the change (up/down/flat), independent of the
+    /// good/bad polarity above. Drives the trend arrow on the widget so the
+    /// grayscale signal matches the number in `heroTrendText`.
+    var heroTrendDirection: TrendDirection
+
     /// When the snapshot was last written by the app.
     var lastUpdated: Date
 
@@ -61,8 +66,47 @@ struct WidgetSnapshot: Codable, Sendable, Equatable {
         heroMetricUnit: "bpm",
         heroTrendText: "",
         heroTrendIsPositive: true,
+        heroTrendDirection: .flat,
         lastUpdated: Date(timeIntervalSince1970: 0)
     )
+
+    // Memberwise init is retained because the custom decoder below is a
+    // separate initializer.
+    init(
+        checkinFilledToday: Bool,
+        heroMetricName: String,
+        heroMetricValue: String,
+        heroMetricUnit: String,
+        heroTrendText: String,
+        heroTrendIsPositive: Bool,
+        heroTrendDirection: TrendDirection,
+        lastUpdated: Date
+    ) {
+        self.checkinFilledToday = checkinFilledToday
+        self.heroMetricName = heroMetricName
+        self.heroMetricValue = heroMetricValue
+        self.heroMetricUnit = heroMetricUnit
+        self.heroTrendText = heroTrendText
+        self.heroTrendIsPositive = heroTrendIsPositive
+        self.heroTrendDirection = heroTrendDirection
+        self.lastUpdated = lastUpdated
+    }
+
+    /// Custom decode so a snapshot written by an older app build (before
+    /// `heroTrendDirection` existed) still decodes — the missing key falls back
+    /// to `.flat` rather than failing the whole read and dropping the widget to
+    /// its placeholder.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        checkinFilledToday = try c.decode(Bool.self, forKey: .checkinFilledToday)
+        heroMetricName = try c.decode(String.self, forKey: .heroMetricName)
+        heroMetricValue = try c.decode(String.self, forKey: .heroMetricValue)
+        heroMetricUnit = try c.decode(String.self, forKey: .heroMetricUnit)
+        heroTrendText = try c.decode(String.self, forKey: .heroTrendText)
+        heroTrendIsPositive = try c.decode(Bool.self, forKey: .heroTrendIsPositive)
+        heroTrendDirection = try c.decodeIfPresent(TrendDirection.self, forKey: .heroTrendDirection) ?? .flat
+        lastUpdated = try c.decode(Date.self, forKey: .lastUpdated)
+    }
 }
 
 /// Shared constants for the app-group data channel. Used by both the main app

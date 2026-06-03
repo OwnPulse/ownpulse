@@ -59,6 +59,7 @@
 		38F928EB384E35BA3B8A8E2D /* WidgetSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4808BC2057536798BC37927 /* WidgetSupport.swift */; };
 		3932874A8CEE6C9B476E42E3 /* NotificationDelegateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933E701E2FE265BEAD6899EA /* NotificationDelegateTests.swift */; };
 		396AFE6D23CC8FD9D93087F1 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2455C9A6A8D8B0C1934A934 /* Tokens.swift */; };
+		C9DEC0DE000000000000B011 /* TrendIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DEC0DE000000000000F011 /* TrendIndicator.swift */; };
 		3AE8FE51A51E3C242110ABEE /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC3BA93997299C82E7D9272 /* NotificationManager.swift */; };
 		3B0FD461A49B85D216380765 /* ProtocolModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D4A97A4F90CDBCA4EFF22B /* ProtocolModels.swift */; };
 		3B7C75B5EF4DD69E050F0435 /* LogViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBEEEB77231155980E6056B /* LogViewModelTests.swift */; };
@@ -80,6 +81,8 @@
 		5D1937A413A4500CC8DB42DA /* HeroMetricWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D35E0B6E771C3ABD14DFD0F /* HeroMetricWidget.swift */; };
 		5D57B4860737DF7E4D154FF0 /* WidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C058BF1B86E0DCCDFFD367 /* WidgetProvider.swift */; };
 		5E196344660A9B31B277334B /* WidgetSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4808BC2057536798BC37927 /* WidgetSupport.swift */; };
+		C9DEC0DE000000000000B021 /* TrendIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DEC0DE000000000000F011 /* TrendIndicator.swift */; };
+		C9DEC0DE000000000000B022 /* ChartColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC4C86C55F701F5A96A1FF3 /* ChartColors.swift */; };
 		63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FF64D436027417304D659C /* MockNetworkClient.swift */; };
 		64D12DC15E48D8140ADCFF91 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 510AACF348448F516940B31C /* MainTabView.swift */; };
 		659D72FBB90513799DCB7F97 /* DateRangeSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B854DF581C080F7DF1307D72 /* DateRangeSegment.swift */; };
@@ -147,6 +150,7 @@
 		C805D951246089BDF85F5366 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519080A85FF5A2E05C6EA8DF /* WidgetSnapshot.swift */; };
 		C8800B69528885EE9AF3C8C4 /* ExploreViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEFA24761B447BB3CCFA15A /* ExploreViewModel.swift */; };
 		C925FE45BFF24569D5EA49CD /* ChartColorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */; };
+		C9DEC0DE000000000000B012 /* TrendIndicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DEC0DE000000000000F012 /* TrendIndicatorTests.swift */; };
 		CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA76F6599478222F387A59 /* Migrations.swift */; };
 		CB7113819FE643F657F85BA4 /* WeightFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B884B5CFC88D057CB131E9E /* WeightFormatter.swift */; };
 		CE8F11EADF231BD14AE6AE70 /* ManualHealthRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB52960E04C11D854448908C /* ManualHealthRecordTests.swift */; };
@@ -287,6 +291,7 @@
 		620BF33A40A0FCF7E3F2DE69 /* WeightEntryForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightEntryForm.swift; sourceTree = "<group>"; };
 		63B9EF0C056066E4BAE8A768 /* SyncSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSchedulerTests.swift; sourceTree = "<group>"; };
 		644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartColorsTests.swift; sourceTree = "<group>"; };
+		C9DEC0DE000000000000F012 /* TrendIndicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendIndicatorTests.swift; sourceTree = "<group>"; };
 		6451E992A37FCC6A0004D6F4 /* OwnPulseUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OwnPulseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		649703259D6C4F6BFE3BB74D /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		66E0BF01696C616018AEA71C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -368,6 +373,7 @@
 		D0B294575765E4C92C7F8290 /* MockNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNotificationManager.swift; sourceTree = "<group>"; };
 		D1ED110E1D7CCFA9CD8958BB /* WidgetDataPublisherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataPublisherTests.swift; sourceTree = "<group>"; };
 		D2455C9A6A8D8B0C1934A934 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
+		C9DEC0DE000000000000F011 /* TrendIndicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendIndicator.swift; sourceTree = "<group>"; };
 		D2EFCC3ABFED4F18B7F5DF8B /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
 		D4A331F016221490E34041F5 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		D5ECF4C4691493011E79B690 /* MockFeatureFlagService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFeatureFlagService.swift; sourceTree = "<group>"; };
@@ -516,6 +522,7 @@
 				5868F7EE0B35D3986890B880 /* ChartAxisConfigTests.swift */,
 				644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */,
 				C7AA000000000000000000B2 /* DashboardChartDataTests.swift */,
+				C9DEC0DE000000000000F012 /* TrendIndicatorTests.swift */,
 				B9629C523AD97D953D48E396 /* ColorSchemePreferenceTests.swift */,
 				3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */,
 				A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */,
@@ -601,6 +608,7 @@
 				BDC4C86C55F701F5A96A1FF3 /* ChartColors.swift */,
 				66E0BF01696C616018AEA71C /* Theme.swift */,
 				D2455C9A6A8D8B0C1934A934 /* Tokens.swift */,
+				C9DEC0DE000000000000F011 /* TrendIndicator.swift */,
 			);
 			path = Theme;
 			sourceTree = "<group>";
@@ -963,6 +971,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				47891D28A065683F9509E508 /* HeroMetricWidget.swift in Sources */,
+				C9DEC0DE000000000000B021 /* TrendIndicator.swift in Sources */,
+				C9DEC0DE000000000000B022 /* ChartColors.swift in Sources */,
 				077F57685BC914378DF23363 /* OwnPulseWidgetBundle.swift in Sources */,
 				C3FC862F5C29CF5CC0BA5F08 /* QuickLogWidget.swift in Sources */,
 				6C1A4F9CC0D430ED7877026B /* TodayCheckinWidget.swift in Sources */,
@@ -1073,6 +1083,7 @@
 				203A3757FF6723983649D7E2 /* Theme.swift in Sources */,
 				07755AC9590BCB838244D73D /* TodayCheckinWidget.swift in Sources */,
 				396AFE6D23CC8FD9D93087F1 /* Tokens.swift in Sources */,
+				C9DEC0DE000000000000B011 /* TrendIndicator.swift in Sources */,
 				A7D44223A58409CF7E476CE4 /* UserPreferences.swift in Sources */,
 				BD32558E97047E465F0AD65B /* WeeklySummaryCard.swift in Sources */,
 				9EF48B042C0061A819AB1642 /* WeightChartView.swift in Sources */,
@@ -1102,6 +1113,7 @@
 				6664FDB133640BD2F9912611 /* ChartAxisConfigTests.swift in Sources */,
 				C925FE45BFF24569D5EA49CD /* ChartColorsTests.swift in Sources */,
 				C7AA000000000000000000B1 /* DashboardChartDataTests.swift in Sources */,
+				C9DEC0DE000000000000B012 /* TrendIndicatorTests.swift in Sources */,
 				BD4AB5943D849BA74B6039A6 /* ColorSchemePreferenceTests.swift in Sources */,
 				9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */,
 				77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */,
