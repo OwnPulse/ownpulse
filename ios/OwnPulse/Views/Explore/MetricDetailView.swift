@@ -137,15 +137,44 @@ struct MetricDetailView: View {
             )
         }
 
-        OverlayChartView(
-            metrics: chartMetrics,
-            interventions: vm.interventions,
-            hiddenSubstances: [],
-            height: UIScreen.main.bounds.height * 0.4,
-            showMovingAverage: vm.showMovingAverage
-        )
+        VStack(spacing: 8) {
+            OverlayChartView(
+                metrics: chartMetrics,
+                interventions: vm.interventions,
+                hiddenSubstances: [],
+                height: UIScreen.main.bounds.height * 0.4,
+                showMovingAverage: vm.showMovingAverage
+            )
+            .accessibilityIdentifier("metricDetailChart")
+
+            // Legend — never rely on line colour alone to identify a series.
+            chartLegend(metrics: chartMetrics)
+        }
         .padding(.horizontal, 16)
-        .accessibilityIdentifier("metricDetailChart")
+    }
+
+    @ViewBuilder
+    private func chartLegend(metrics: [ChartMetric]) -> some View {
+        if !metrics.isEmpty {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(metrics) { metric in
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(metric.color)
+                                .frame(width: 10, height: 10)
+                                .accessibilityHidden(true)
+                            Text(metric.label)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel("\(metric.label) series")
+                    }
+                }
+            }
+            .accessibilityIdentifier("metricDetailLegend")
+        }
     }
 
     @ViewBuilder

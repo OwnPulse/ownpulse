@@ -62,6 +62,20 @@ struct OverlayChartView: View {
         }
         .frame(height: height)
         .accessibilityIdentifier("overlayChart")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Metric comparison chart")
+        .accessibilityValue(accessibilityValue)
+    }
+
+    /// Spoken summary so VoiceOver users know which series the chart plots —
+    /// the visual chart distinguishes them by colour, which is not perceivable
+    /// without the legend rendered alongside this view.
+    private var accessibilityValue: String {
+        let series = metrics.map(\.label).joined(separator: ", ")
+        if visibleInterventions.isEmpty {
+            return series.isEmpty ? "No data" : "Plots \(series)"
+        }
+        return "Plots \(series) with \(visibleInterventions.count) intervention markers"
     }
 
     @ViewBuilder
@@ -106,7 +120,7 @@ struct OverlayChartView: View {
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
                     .annotation(position: .top, alignment: .center) {
                         Text(marker.substance)
-                            .font(.system(size: 9, weight: .medium))
+                            .font(.system(.caption2, design: .default, weight: .medium))
                             .foregroundStyle(OPColor.gold)
                             .lineLimit(1)
                             .padding(.horizontal, 4)

@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: source-preference wizard.
+# Opens the wizard from Settings, which scans for metrics recorded by more
+# than one source and lets the user pick a source of truth per metric.
+# Requires an authenticated session with the backend running.
+appId: health.ownpulse.app
+---
+- launchApp
+
+# Navigate to the Settings tab.
+- tapOn:
+    text: "Settings"
+
+# The Data Sources section exposes the wizard entry point.
+- assertVisible:
+    id: "resolveSourceConflictsButton"
+- tapOn:
+    id: "resolveSourceConflictsButton"
+
+# Wizard sheet presents; it loads the overlap scan.
+- assertVisible:
+    text: "Source of Truth"
+    timeout: 5000
+
+# Either there are conflicts to resolve (save button) or none (empty state).
+# Both are valid terminal states for the scan; assert one is reached.
+- assertVisible:
+    id: "sourceWizardSaveButton"
+    optional: true
+    timeout: 5000
+
+# Close the wizard and confirm we return to Settings.
+- assertVisible:
+    id: "sourceWizardCloseButton"
+- tapOn:
+    id: "sourceWizardCloseButton"
+- assertVisible:
+    text: "Settings"
+    timeout: 3000

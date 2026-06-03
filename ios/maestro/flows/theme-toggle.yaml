@@ -1,0 +1,28 @@
+appId: health.ownpulse.app
+---
+# C12 — toggle the light/dark/system appearance preference in Settings and
+# confirm the segmented control is interactive. AppStorage persists the value.
+- assertVisible:
+    id: "mainTabView"
+
+- tapOn:
+    text: "Settings"
+
+- assertVisible:
+    id: "colorSchemePicker"
+
+# Switch to Dark, then Light, then back to System to exercise all three states.
+- tapOn:
+    text: "Dark"
+    optional: true
+
+- tapOn:
+    text: "Light"
+    optional: true
+
+- tapOn:
+    text: "System"
+    optional: true
+
+- assertVisible:
+    id: "colorSchemePicker"

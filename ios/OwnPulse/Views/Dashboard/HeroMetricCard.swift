@@ -19,7 +19,7 @@ struct HeroMetricCard: View {
             // Value and trend
             HStack(alignment: .firstTextBaseline) {
                 Text(currentValue)
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .font(.system(.largeTitle, design: .rounded, weight: .bold))
                     .foregroundStyle(OPColor.terracotta)
 
                 Text(unit)
@@ -93,6 +93,9 @@ struct HeroMetricCard: View {
             }
             .frame(height: 160)
             .accessibilityIdentifier("heroChart")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(metricName) 30-day trend")
+            .accessibilityValue("Currently \(currentValue) \(unit)\(trendText.isEmpty ? "" : ", \(trendText)")")
         }
         .opCard()
         .onAppear {

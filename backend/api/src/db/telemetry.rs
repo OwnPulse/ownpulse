@@ -3,7 +3,9 @@
 
 use sqlx::PgPool;
 
-/// Insert a crash event into app_events. Fire-and-forget — caller spawns this.
+/// Insert a telemetry event into app_events. Fire-and-forget — caller spawns
+/// this. `platform` is persisted as supplied by the caller (validated upstream
+/// to be a known platform such as `"ios"` or `"web"`).
 pub async fn insert_event(
     pool: &PgPool,
     event_type: &str,

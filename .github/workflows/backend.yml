@@ -37,6 +37,7 @@ jobs:
               - 'backend/**'
               - 'db/**'
               - 'schema/**'
+              - 'pact/**'
               - '.github/workflows/backend.yml'
 
   fmt:
@@ -150,6 +151,13 @@ jobs:
         run: sqlx migrate run --source ../db/migrations
 
       - run: cargo sqlx prepare --workspace --check
+
+      # Pact provider-verification gate: fails if the backend drifts from a
+      # committed consumer contract. testcontainers spins up its own Postgres,
+      # same as the integration tests. Run explicitly (not just folded into the
+      # coverage run below) so contract drift is a named, fail-fast CI step.
+      - name: Verify Pact contracts
+        run: cargo test --test contract
 
       - name: Run tests with coverage
         run: |

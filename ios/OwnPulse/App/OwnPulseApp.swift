@@ -10,11 +10,18 @@ struct OwnPulseApp: App {
     @State private var dependencies = AppDependencies()
     @Environment(\.scenePhase) private var scenePhase
     @UIApplicationDelegateAdaptor private var notificationDelegate: NotificationDelegate
+    // Explicit light/dark/system appearance preference (mirrors the web
+    // tri-state). @AppStorage persists it across relaunches.
+    @AppStorage(ColorSchemePreference.storageKey) private var colorSchemeRaw =
+        ColorSchemePreference.system.rawValue
 
     var body: some Scene {
         WindowGroup {
             rootView
                 .environment(dependencies)
+                .preferredColorScheme(
+                    ColorSchemePreference.from(rawValue: colorSchemeRaw).colorScheme
+                )
                 .onOpenURL { url in
                     // Widget/deep-link routing first; fall through to the
                     // auth callback handler only for non-deep-link URLs.

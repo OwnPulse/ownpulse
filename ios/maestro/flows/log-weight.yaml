@@ -1,0 +1,32 @@
+appId: health.ownpulse.app
+---
+# Log a manual weight entry via the Log tab
+- assertVisible:
+    id: "mainTabView"
+
+# Navigate to Log tab
+- tapOn:
+    text: "Log"
+- assertVisible:
+    id: "logTabPicker"
+
+# Switch to the Weight entry tab
+- tapOn:
+    id: "logTab-Weight"
+- assertVisible:
+    id: "weightField"
+- assertVisible:
+    id: "saveWeightButton"
+
+# Fill in the form
+- tapOn:
+    id: "weightField"
+- inputText: "82.5"
+
+# Submit
+- tapOn:
+    id: "saveWeightButton"
+- extendedWaitUntil:
+    visible:
+      id: "submitSuccess"
+    timeout: 10000
