@@ -7,6 +7,7 @@ import HealthRecordForm from "../components/forms/HealthRecordForm";
 import InterventionForm from "../components/forms/InterventionForm";
 import LabResultForm from "../components/forms/LabResultForm";
 import ObservationForm from "../components/forms/ObservationForm";
+import { Page } from "../components/ui/Page";
 import styles from "./DataEntry.module.css";
 
 const TABS = ["Check-in", "Intervention", "Health Record", "Observation", "Lab Result"] as const;
@@ -17,8 +18,7 @@ export default function DataEntry() {
   const [activeTab, setActiveTab] = useState<Tab>("Check-in");
 
   return (
-    <main className="op-page">
-      <h1>Data Entry</h1>
+    <Page title="Data Entry">
       <div className="op-tab-bar">
         {TABS.map((tab) => (
           <button
@@ -38,6 +38,6 @@ export default function DataEntry() {
         {activeTab === "Observation" && <ObservationForm />}
         {activeTab === "Lab Result" && <LabResultForm />}
       </div>
-    </main>
+    </Page>
   );
 }

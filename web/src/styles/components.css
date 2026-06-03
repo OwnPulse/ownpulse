@@ -14,8 +14,21 @@
 .op-page-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 1rem;
   margin-bottom: 1.5rem;
+}
+
+.op-page-header h1 {
+  margin: 0;
+}
+
+.op-page-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 /* --- Cards --- */
@@ -356,6 +369,11 @@
   margin-top: 2rem;
 }
 
+.op-section-title {
+  margin: 0 0 0.75rem;
+  font-size: var(--text-xl);
+}
+
 /* --- Empty state --- */
 
 .op-empty {
@@ -374,4 +392,45 @@
 .op-error-msg {
   color: var(--color-error);
   font-size: var(--text-sm);
+}
+
+/* --- State blocks --- */
+
+.op-state {
+  display: flex;
+  min-height: 10rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  background: var(--color-surface-elevated);
+}
+
+.op-state h2 {
+  margin: 0 0 0.5rem;
+  font-size: var(--text-lg);
+}
+
+.op-state-error {
+  border-color: var(--color-error);
+  color: var(--color-error);
+  background: var(--color-error-light);
+}
+
+@media (max-width: 640px) {
+  .op-page {
+    padding: 1rem;
+  }
+
+  .op-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .op-page-actions {
+    justify-content: flex-start;
+  }
 }

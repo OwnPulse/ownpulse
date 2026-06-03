@@ -13,6 +13,7 @@ import { MetricPicker } from "../components/explore/MetricPicker";
 import { ResolutionToggle } from "../components/explore/ResolutionToggle";
 import { SaveChartDialog } from "../components/explore/SaveChartDialog";
 import { SavedChartCard } from "../components/explore/SavedChartCard";
+import { Page } from "../components/ui/Page";
 import { dateRangeToParams, useExploreStore } from "../stores/exploreStore";
 import styles from "./Explore.module.css";
 
@@ -88,10 +89,10 @@ export default function Explore() {
   const interventionsData = interventionsQuery.data ?? [];
 
   return (
-    <main className="op-page">
-      <div className="op-page-header">
-        <h1>Explore</h1>
-        <div>
+    <Page
+      title="Explore"
+      actions={
+        <>
           <button
             type="button"
             className="op-btn op-btn-secondary"
@@ -99,7 +100,6 @@ export default function Explore() {
               loadPreset("health-overview");
               navigate("/explore?preset=health-overview");
             }}
-            style={{ marginRight: "0.5rem" }}
           >
             Health Overview
           </button>
@@ -115,7 +115,6 @@ export default function Explore() {
                 });
                 navigate(`/analyze?${params.toString()}`);
               }}
-              style={{ marginRight: "0.5rem" }}
             >
               Correlate
             </button>
@@ -129,9 +128,9 @@ export default function Explore() {
               Save Chart
             </button>
           )}
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <div className={styles.controls}>
         <DateRangeBar />
         <ResolutionToggle />
@@ -178,6 +177,6 @@ export default function Explore() {
       <SaveChartDialog open={saveOpen} onClose={() => setSaveOpen(false)} />
 
       {savedChartQuery.isLoading && chartId && <p>Loading saved chart...</p>}
-    </main>
+    </Page>
   );
 }
