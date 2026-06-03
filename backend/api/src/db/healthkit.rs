@@ -42,14 +42,30 @@ pub async fn confirm(pool: &PgPool, user_id: Uuid, ids: &[Uuid]) -> Result<u64, 
 }
 
 /// Enqueue a new HealthKit write-back entry.
+///
+/// **Cycle guard (ADR-0008, unconditional):** records whose originating
+/// `source` is `"healthkit"` are *never* enqueued for write-back. Writing a
+/// HealthKit-sourced record back to HealthKit would create a read→write→read
+/// cycle that duplicates data indefinitely. This guard lives here — the single
+/// chokepoint through which every write-queue insertion flows — rather than in
+/// any route handler, so it cannot be bypassed by a new caller or by any API
+/// parameter. It is not configurable. Callers pass the record's `source`; when
+/// it is `"healthkit"` this function returns `Ok(())` without inserting a row.
 pub async fn enqueue_write(
     pool: &PgPool,
     user_id: Uuid,
+    source: &str,
     hk_type: &str,
     value: &serde_json::Value,
     source_record_id: Option<Uuid>,
     source_table: Option<&str>,
 ) -> Result<(), sqlx::Error> {
+    // Unconditional cycle guard: never write HealthKit-sourced records back to
+    // HealthKit. See ADR-0008. No-op (not an error) so callers stay simple.
+    if source == "healthkit" {
+        return Ok(());
+    }
+
     sqlx::query(
         "INSERT INTO healthkit_write_queue
             (user_id, hk_type, value, source_record_id, source_table)
