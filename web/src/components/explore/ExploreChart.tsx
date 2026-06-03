@@ -15,7 +15,7 @@ import { useCallback, useMemo } from "react";
 import type { SeriesResponse } from "../../api/explore";
 import type { Intervention } from "../../api/interventions";
 import { metricKey, useExploreStore } from "../../stores/exploreStore";
-import { CHART_COLORS, INTERVENTION_COLOR, LINE_STYLES } from "./chartColors";
+import { colorForMetric, INTERVENTION_COLOR, LINE_STYLES } from "./chartColors";
 
 /** Compute a simple moving average over points with a given window size. */
 export function computeMovingAverage(
@@ -63,6 +63,17 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
     () => interventions.filter((iv) => !hiddenSubstances.includes(iv.substance)),
     [interventions, hiddenSubstances],
   );
+
+  // Fallback-color index keyed by the full (not visible-only) series position,
+  // so an unknown metric's color is stable regardless of which metrics are
+  // hidden — and matches the legend swatch, which indexes the same way.
+  const fallbackIndex = useMemo(() => {
+    const m = new Map<string, number>();
+    series.forEach((s, i) => {
+      m.set(`${s.source}:${s.field}`, i);
+    });
+    return m;
+  }, [series]);
 
   /** Merge all series into a single flat array keyed by timestamp. */
   const { chartData, seriesKeys, maKeys } = useMemo(() => {
@@ -119,13 +130,13 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
         .map((s) => {
           const key = `${s.source}:${s.field}`;
           const val = d[key];
-          const color = CHART_COLORS[seriesKeys.indexOf(key) % CHART_COLORS.length];
+          const color = colorForMetric(s.field, fallbackIndex.get(key) ?? 0);
           return `<div><span style="color:${color}">\u25CF</span> ${s.field} (${s.unit}): ${val != null ? val : "N/A"}</div>`;
         })
         .join("");
       return `<div><strong>${date}</strong>${lines}</div>`;
     },
-    [visibleSeries, seriesKeys],
+    [visibleSeries, fallbackIndex],
   );
 
   const onBrushEnd = useCallback(
@@ -159,7 +170,7 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
         {visibleSeries.map((s) => {
           const key = `${s.source}:${s.field}`;
           const colorIdx = seriesKeys.indexOf(key);
-          const color = CHART_COLORS[colorIdx % CHART_COLORS.length];
+          const color = colorForMetric(s.field, fallbackIndex.get(key) ?? 0);
           const dashArray = toDashArray(LINE_STYLES[colorIdx % LINE_STYLES.length]);
           return (
             <VisLine<ChartDataPoint>
@@ -175,8 +186,8 @@ export function ExploreChart({ series, interventions = [] }: ExploreChartProps) 
         })}
         {maKeys.map((maKey) => {
           const baseKey = maKey.replace(/:ma$/, "");
-          const colorIdx = seriesKeys.indexOf(baseKey);
-          const baseColor = CHART_COLORS[colorIdx % CHART_COLORS.length];
+          const baseField = baseKey.slice(baseKey.indexOf(":") + 1);
+          const baseColor = colorForMetric(baseField, fallbackIndex.get(baseKey) ?? 0);
           // Apply 50% opacity by appending alpha hex to the color
           const maColor = `${baseColor}80`;
           return (

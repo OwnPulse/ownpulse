@@ -4,10 +4,12 @@
 // Design-tokens build pipeline.
 //
 // Reads the canonical token source (docs/design/tokens.json) and generates
-// three reproducible outputs via Style Dictionary:
-//   - web/src/styles/_tokens.css      CSS custom properties
-//   - ios/OwnPulse/Theme/Tokens.swift OPColor.* + type/spacing/radii constants
-//   - docs/design/tokens-generated.md human-readable reference
+// reproducible outputs via Style Dictionary:
+//   - web/src/styles/_tokens.css                            CSS custom properties
+//   - web/src/components/explore/chartMetricColors.generated.ts  per-metric chart colors (web)
+//   - ios/OwnPulse/Theme/Tokens.swift                       OPColor.* + type/spacing/radii constants
+//   - ios/OwnPulse/Theme/ChartColors.swift                  per-metric chart colors (iOS)
+//   - docs/design/tokens-generated.md                       human-readable reference
 //
 // Running `npm run build:tokens` on a clean tree yields no diff.
 
@@ -122,6 +124,64 @@ const SWIFT_COLOR_MAP = {
   'color.surface.elevated': 'cardLight',
 };
 
+// Maps backend `record_type` field strings (as emitted by the explore API —
+// see backend/api/src/models/explore.rs `HealthRecordField::record_type`) to
+// the canonical chart.metric token key. Only synonyms need an entry: a field
+// whose name already equals its token key (e.g. `heart_rate`) is omitted.
+//
+// This table is the single source of truth for the alias layer and is emitted
+// to BOTH the web (chartMetricColors.generated.ts) and iOS (ChartColors.swift)
+// lookups, so the same metric resolves to the same color on both platforms and
+// the alias logic can never drift between them. Every value here MUST be a key
+// in the chart.metric token group (validated in chartMetricColors below).
+export const METRIC_FIELD_ALIASES = {
+  heart_rate_variability: 'hrv',
+  blood_pressure_systolic: 'bp_systolic',
+  blood_pressure_diastolic: 'bp_diastolic',
+  blood_glucose: 'glucose',
+  body_mass: 'weight',
+  sleep_analysis: 'sleep_duration',
+};
+
+// Extracts the per-metric chart-color group from the token dictionary as a
+// plain object: { metrics: { heart_rate: '#d55e00', ... }, fallback: [...],
+// aliases: { body_mass: 'weight', ... } }. This is the single source of truth
+// for both the web keyed lookup (chartColors.ts) and the iOS keyed lookup
+// (ChartColors.swift), so the same metric resolves to the same color on both
+// platforms (B5 parity).
+export function chartMetricColors(dictionary) {
+  const metrics = {};
+  let fallback = null;
+  for (const token of dictionary.allTokens) {
+    const [group, sub, key] = token.path;
+    if (group !== 'chart' || sub !== 'metric') continue;
+    if (key === 'fallback') {
+      fallback = token.original.value;
+    } else {
+      metrics[key] = token.original.value;
+    }
+  }
+  if (!fallback) throw new Error('chart.metric.fallback missing from token source');
+
+  // Deterministic key order so generated output is stable regardless of how
+  // Style Dictionary orders the dictionary.
+  const ordered = {};
+  for (const k of Object.keys(metrics).sort()) ordered[k] = metrics[k];
+
+  // Every alias target must be a real token key, otherwise the alias is dead.
+  for (const [field, key] of Object.entries(METRIC_FIELD_ALIASES)) {
+    if (!(key in ordered)) {
+      throw new Error(`alias ${field} -> ${key} targets a missing chart.metric key`);
+    }
+  }
+  const aliases = {};
+  for (const k of Object.keys(METRIC_FIELD_ALIASES).sort()) {
+    aliases[k] = METRIC_FIELD_ALIASES[k];
+  }
+
+  return { metrics: ordered, fallback, aliases };
+}
+
 // --- custom CSS format -----------------------------------------------------
 
 StyleDictionary.registerFormat({
@@ -199,6 +259,97 @@ ${typeLines}
   },
 });
 
+// --- custom chart-metric TS format (web) -----------------------------------
+
+StyleDictionary.registerFormat({
+  name: 'ownpulse/chart-metric-ts',
+  format: ({ dictionary }) => {
+    const { metrics, fallback, aliases } = chartMetricColors(dictionary);
+    // Emit object keys unquoted when they are valid JS identifiers, matching
+    // the project's Biome formatter (which strips unnecessary quotes).
+    const tsKey = (k) => (/^[A-Za-z_$][\w$]*$/.test(k) ? k : JSON.stringify(k));
+    const metricLines = Object.entries(metrics)
+      .map(([k, v]) => `  ${tsKey(k)}: ${JSON.stringify(v)},`)
+      .join('\n');
+    const fallbackLines = fallback.map((v) => `  ${JSON.stringify(v)},`).join('\n');
+    const aliasLines = Object.entries(aliases)
+      .map(([k, v]) => `  ${tsKey(k)}: ${JSON.stringify(v)},`)
+      .join('\n');
+    return `// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) OwnPulse Contributors
+//
+// GENERATED FILE — DO NOT EDIT BY HAND.
+// Source: docs/design/tokens.json. Regenerate with \`npm run build:tokens\` in tools/design-tokens.
+
+/** Per-metric chart colors, keyed by canonical metric name. */
+export const METRIC_COLORS: Record<string, string> = {
+${metricLines}
+};
+
+/** Deterministic fallback cycle for metrics without a dedicated color. */
+export const FALLBACK_COLORS: readonly string[] = [
+${fallbackLines}
+];
+
+/** Backend \`record_type\` field names that are synonyms for a canonical metric key. */
+export const METRIC_ALIASES: Record<string, string> = {
+${aliasLines}
+};
+`;
+  },
+});
+
+// --- custom chart-metric Swift format (iOS) --------------------------------
+
+StyleDictionary.registerFormat({
+  name: 'ownpulse/chart-metric-swift',
+  format: ({ dictionary }) => {
+    const { metrics, fallback, aliases } = chartMetricColors(dictionary);
+    const metricLines = Object.entries(metrics)
+      .map(([k, v]) => `        ${JSON.stringify(k)}: ${swiftColor(v)},`)
+      .join('\n');
+    const fallbackLines = fallback.map((v) => `        ${swiftColor(v)},`).join('\n');
+    const aliasLines = Object.entries(aliases)
+      .map(([k, v]) => `        ${JSON.stringify(k)}: ${JSON.stringify(v)},`)
+      .join('\n');
+    return `${HEADER_SWIFT}
+
+import SwiftUI
+
+/// Per-metric chart colors, generated from the canonical token source.
+/// Shares its source of truth with the web \`chartColors.ts\` map (including the
+/// field-name alias layer), so the same metric resolves to the same color on
+/// both platforms.
+enum ChartColors {
+    /// Colors keyed by canonical metric name.
+    static let metric: [String: Color] = [
+${metricLines}
+    ]
+
+    /// Deterministic fallback cycle for metrics without a dedicated color.
+    static let fallback: [Color] = [
+${fallbackLines}
+    ]
+
+    /// Backend \`record_type\` field names that are synonyms for a canonical key.
+    static let aliases: [String: String] = [
+${aliasLines}
+    ]
+
+    /// Resolves a metric to its color: the keyed color when the field (or one
+    /// of its aliases) has one, otherwise the fallback cycle indexed by \`index\`.
+    static func color(for metric: String, index: Int) -> Color {
+        let key = aliases[metric] ?? metric
+        if let mapped = self.metric[key] {
+            return mapped
+        }
+        return fallback[((index % fallback.count) + fallback.count) % fallback.count]
+    }
+}
+`;
+  },
+});
+
 // --- custom Markdown format ------------------------------------------------
 
 StyleDictionary.registerFormat({
@@ -240,10 +391,18 @@ export async function buildTokens() {
         buildPath: resolve(repoRoot, 'web/src/styles') + '/',
         files: [{ destination: '_tokens.css', format: 'ownpulse/css-tokens' }],
       },
+      chartTs: {
+        transformGroup: 'js',
+        buildPath: resolve(repoRoot, 'web/src/components/explore') + '/',
+        files: [{ destination: 'chartMetricColors.generated.ts', format: 'ownpulse/chart-metric-ts' }],
+      },
       swift: {
         transformGroup: 'js',
         buildPath: resolve(repoRoot, 'ios/OwnPulse/Theme') + '/',
-        files: [{ destination: 'Tokens.swift', format: 'ownpulse/swift-tokens' }],
+        files: [
+          { destination: 'Tokens.swift', format: 'ownpulse/swift-tokens' },
+          { destination: 'ChartColors.swift', format: 'ownpulse/chart-metric-swift' },
+        ],
       },
       docs: {
         transformGroup: 'js',
