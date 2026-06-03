@@ -75,6 +75,25 @@ jobs:
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Validate production overlays
+        if: steps.detect.outputs.has_changes == 'true'
+        run: |
+          # Production deploys layer values-production.yaml on top of values.yaml.
+          # The staging preview above renders with default/staging values, so any
+          # template branch that only activates under a production override (e.g.
+          # the api HorizontalPodAutoscaler) would otherwise first render in prod.
+          # Lint and template each changed chart's production overlay here to
+          # exercise those branches on the PR.
+          status=0
+          while IFS= read -r chart; do
+            overlay="head/helm/${chart}/values-production.yaml"
+            [ -f "$overlay" ] || continue
+            echo "=== helm/${chart} (values-production.yaml) ==="
+            helm lint "head/helm/${chart}" -f "$overlay" || status=1
+            helm template "head/helm/${chart}" -f "$overlay" > /dev/null || status=1
+          done < /tmp/changed-charts.txt
+          exit "$status"
+
       - name: Render and diff
         if: steps.detect.outputs.has_changes == 'true'
         run: |

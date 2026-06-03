@@ -1154,6 +1154,45 @@
       }
     },
     {
+      "description": "a request to report anonymous api_call telemetry",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/telemetry/report",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "events": [
+            {
+              "type": "api_call",
+              "device_id": null,
+              "app_version": "1.0.0",
+              "platform": "ios",
+              "payload": {
+                "endpoint": "/api/:id/protocols/:id/runs",
+                "method": "GET",
+                "status_code": 200,
+                "latency_ms": 42,
+                "retry_count": 0
+              }
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "accepted": 1,
+          "rejected": 0
+        }
+      }
+    },
+    {
       "description": "a request to connect MyChart via SMART-on-FHIR",
       "providerState": "an authenticated user exists",
       "request": {

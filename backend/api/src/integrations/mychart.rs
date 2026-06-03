@@ -47,21 +47,59 @@ fn is_blocked_v4(v4: std::net::Ipv4Addr) -> bool {
         || (v4.octets()[0] == 100 && (64..=127).contains(&v4.octets()[1]))
 }
 
-/// Return true if an IPv6 address is internal. Canonicalises IPv4-mapped
-/// (`::ffff:a.b.c.d`) and IPv4-compatible addresses down to their embedded
-/// IPv4 and re-checks against [`is_blocked_v4`] — otherwise
-/// `https://[::ffff:169.254.169.254]/` would slip through.
+/// Return true if an IPv6 address is internal. Canonicalises every IPv6 form
+/// that can embed or route to an IPv4 address down to that IPv4 and re-checks
+/// it against [`is_blocked_v4`] — otherwise `[::ffff:169.254.169.254]`,
+/// `[64:ff9b::169.254.169.254]` (NAT64), or `[2002:a9fe:a9fe::]` (6to4) would
+/// slip through.
 fn is_blocked_v6(v6: std::net::Ipv6Addr) -> bool {
-    // Any IPv6 form that embeds an IPv4 address: re-check the embedded V4.
+    let seg = v6.segments();
+
+    // IPv4-mapped (`::ffff:a.b.c.d`) / IPv4-compatible: re-check embedded V4.
     if let Some(mapped) = v6.to_ipv4() {
         return is_blocked_v4(mapped);
     }
+
+    // NAT64 well-known prefix 64:ff9b::/96 embeds the IPv4 in the low 32 bits.
+    if seg[0] == 0x0064
+        && seg[1] == 0xff9b
+        && seg[2] == 0
+        && seg[3] == 0
+        && seg[4] == 0
+        && seg[5] == 0
+    {
+        let embedded = std::net::Ipv4Addr::new(
+            (seg[6] >> 8) as u8,
+            (seg[6] & 0xff) as u8,
+            (seg[7] >> 8) as u8,
+            (seg[7] & 0xff) as u8,
+        );
+        return is_blocked_v4(embedded);
+    }
+
+    // 6to4 (2002::/16) embeds the IPv4 in the next 32 bits.
+    if seg[0] == 0x2002 {
+        let embedded = std::net::Ipv4Addr::new(
+            (seg[1] >> 8) as u8,
+            (seg[1] & 0xff) as u8,
+            (seg[2] >> 8) as u8,
+            (seg[2] & 0xff) as u8,
+        );
+        // 6to4 always routes via an IPv4 underlay; if that underlay is internal,
+        // block it. Public 6to4 underlays remain reachable.
+        return is_blocked_v4(embedded);
+    }
+
     v6.is_loopback()        // ::1
         || v6.is_unspecified() // ::
         // unique-local fc00::/7
-        || (v6.segments()[0] & 0xfe00) == 0xfc00
+        || (seg[0] & 0xfe00) == 0xfc00
         // link-local fe80::/10
-        || (v6.segments()[0] & 0xffc0) == 0xfe80
+        || (seg[0] & 0xffc0) == 0xfe80
+        // Teredo 2001::/32 (tunnels over IPv4 — treat as untrusted underlay)
+        || (seg[0] == 0x2001 && seg[1] == 0x0000)
+        // IPv6 documentation 2001:db8::/32
+        || (seg[0] == 0x2001 && seg[1] == 0x0db8)
 }
 
 /// True if an IP address (V4 or V6, including IPv4-mapped V6) is internal.
@@ -573,6 +611,18 @@ mod tests {
         assert!(validate_provider_url("https://[::ffff:169.254.169.254]/x", false).is_err());
         assert!(validate_provider_url("https://[::ffff:127.0.0.1]/x", false).is_err());
         assert!(validate_provider_url("https://[::ffff:10.0.0.1]/x", false).is_err());
+    }
+
+    #[test]
+    fn validate_provider_url_rejects_ipv6_embedded_and_tunnel_prefixes() {
+        // NAT64 well-known prefix embedding cloud metadata / loopback.
+        assert!(validate_provider_url("https://[64:ff9b::169.254.169.254]/x", false).is_err());
+        assert!(validate_provider_url("https://[64:ff9b::127.0.0.1]/x", false).is_err());
+        // 6to4 embedding a link-local IPv4 underlay (2002:a9fe:a9fe:: = 169.254.169.254).
+        assert!(validate_provider_url("https://[2002:a9fe:a9fe::]/x", false).is_err());
+        // Teredo and IPv6 documentation prefixes.
+        assert!(validate_provider_url("https://[2001:0:abcd::1]/x", false).is_err());
+        assert!(validate_provider_url("https://[2001:db8::1]/x", false).is_err());
     }
 
     #[test]

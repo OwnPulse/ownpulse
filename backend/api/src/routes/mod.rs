@@ -358,6 +358,9 @@ fn base_routes() -> Router<AppState> {
         .route("/sources/overlap-scan", get(sources::overlap_scan))
         // Telemetry (JWT-gated but anonymous storage)
         .route("/telemetry/report", post(telemetry::report))
+        // --- E8: telemetry ingest health surface (unauthenticated ops probe) ---
+        .route("/health/telemetry", get(telemetry::health))
+        // --- end E8 ---
         // Account
         .route("/account", get(account::get_account))
         .route("/account", delete(account::delete_account))

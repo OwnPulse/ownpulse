@@ -86,16 +86,42 @@ final class NetworkClient: NetworkClientProtocol, @unchecked Sendable {
             request.httpBody = try encoder.encode(body)
         }
 
-        let (data, response) = try await session.data(for: request)
+        // retryCount == 1 once we've already done a 401 refresh+retry of this call.
+        let retryCount = isRetry ? 1 : 0
+        let start = DispatchTime.now()
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            // Transport failure: no HTTP status. Record status_code 0.
+            recordAPICall(path: path, method: method, statusCode: 0, start: start, retryCount: retryCount)
+            throw error
+        }
 
         guard let httpResponse = response as? HTTPURLResponse else {
+            recordAPICall(path: path, method: method, statusCode: 0, start: start, retryCount: retryCount)
             throw NetworkError.noData
         }
 
         if httpResponse.statusCode == 401 && !isRetry {
+            // Record the initial 401 (retry_count 0) before attempting refresh,
+            // so a refresh that throws still emits exactly one api_call event for
+            // this request — the auth-failure case we most want telemetry on. On
+            // success the follow-up retry records its own event with retry_count 1.
+            recordAPICall(path: path, method: method, statusCode: 401, start: start, retryCount: 0)
             try await refreshToken()
             return try await performRequest(method: method, path: path, body: body, isRetry: true)
         }
+
+        recordAPICall(
+            path: path,
+            method: method,
+            statusCode: httpResponse.statusCode,
+            start: start,
+            retryCount: retryCount
+        )
 
         guard (200...299).contains(httpResponse.statusCode) else {
             let bodyString = String(data: data, encoding: .utf8) ?? ""
@@ -103,6 +129,30 @@ final class NetworkClient: NetworkClientProtocol, @unchecked Sendable {
         }
 
         return data
+    }
+
+    /// Emit one opt-in `api_call` telemetry event. The HTTP body is never passed;
+    /// only the path (normalized inside `FlowTracker` so no identifiers leave the
+    /// device), method, status code, latency, and retry count are recorded.
+    /// `FlowTracker.trackAPICall` is itself gated on `TelemetrySettings.isEnabled`
+    /// and skips the telemetry report endpoint, so this is safe to call always.
+    private func recordAPICall(
+        path: String,
+        method: String,
+        statusCode: Int,
+        start: DispatchTime,
+        retryCount: Int
+    ) {
+        let latencyMs = Int((DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000)
+        Task {
+            await FlowTracker.shared.trackAPICall(
+                endpoint: path,
+                method: method,
+                statusCode: statusCode,
+                latencyMs: latencyMs,
+                retryCount: retryCount
+            )
+        }
     }
 
     private func refreshToken() async throws {

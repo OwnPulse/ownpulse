@@ -28,6 +28,7 @@
 		1A9B346935950F2DFB80F1DC /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B29467EE524D8D2ACAB344 /* CrashReporter.swift */; };
 		1B2C6DA8394E5EADFA452C47 /* ProtocolsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9E6D37084D7640B257E988 /* ProtocolsListView.swift */; };
 		1B3357AD563092CE9344AF2C /* EndpointsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F341CA09A9C2A550F6200F96 /* EndpointsTests.swift */; };
+		95509D2FF6781F5C1CF7FB12 /* FlowTrackerAPICallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040003C6A0A04A319778EC34 /* FlowTrackerAPICallTests.swift */; };
 		1BDF125537F8406EB5DABA91 /* GlucoseEntryForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72147343B153B21A0D60F7A0 /* GlucoseEntryForm.swift */; };
 		1C357160FD84CF0D94D18518 /* ChartAxisConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD867DA5B7FFBCACB33B9B12 /* ChartAxisConfig.swift */; };
 		1CED965B857E811559A0291A /* KeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC06BE2CB6B1BFF56DE851A2 /* KeychainService.swift */; };
@@ -52,6 +53,7 @@
 		35697B748FDE579D25320ACC /* SmallMultiplesChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7067D9CDB9403AE923297E82 /* SmallMultiplesChartView.swift */; };
 		38F928EB384E35BA3B8A8E2D /* WidgetSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4808BC2057536798BC37927 /* WidgetSupport.swift */; };
 		3932874A8CEE6C9B476E42E3 /* NotificationDelegateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933E701E2FE265BEAD6899EA /* NotificationDelegateTests.swift */; };
+		396AFE6D23CC8FD9D93087F1 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2455C9A6A8D8B0C1934A934 /* Tokens.swift */; };
 		3AE8FE51A51E3C242110ABEE /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC3BA93997299C82E7D9272 /* NotificationManager.swift */; };
 		3B0FD461A49B85D216380765 /* ProtocolModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D4A97A4F90CDBCA4EFF22B /* ProtocolModels.swift */; };
 		3B7C75B5EF4DD69E050F0435 /* LogViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBEEEB77231155980E6056B /* LogViewModelTests.swift */; };
@@ -351,6 +353,7 @@
 		CF7F419A2EFD4A51FD23A3C4 /* WeeklySummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklySummaryCard.swift; sourceTree = "<group>"; };
 		D0B294575765E4C92C7F8290 /* MockNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNotificationManager.swift; sourceTree = "<group>"; };
 		D1ED110E1D7CCFA9CD8958BB /* WidgetDataPublisherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataPublisherTests.swift; sourceTree = "<group>"; };
+		D2455C9A6A8D8B0C1934A934 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
 		D2EFCC3ABFED4F18B7F5DF8B /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
 		D4A331F016221490E34041F5 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		D5ECF4C4691493011E79B690 /* MockFeatureFlagService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFeatureFlagService.swift; sourceTree = "<group>"; };
@@ -372,6 +375,7 @@
 		EF301ED8B52A7A3EE01AA67F /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
 		F17B51D542E7FFB01F34E90E /* MedicationSyncProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSyncProvider.swift; sourceTree = "<group>"; };
 		F341CA09A9C2A550F6200F96 /* EndpointsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointsTests.swift; sourceTree = "<group>"; };
+		040003C6A0A04A319778EC34 /* FlowTrackerAPICallTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowTrackerAPICallTests.swift; sourceTree = "<group>"; };
 		F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitProvider.swift; sourceTree = "<group>"; };
 		F3CA96BBEAAE9C820918EA50 /* SourcePreferenceWizardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourcePreferenceWizardTests.swift; sourceTree = "<group>"; };
 		F4808BC2057536798BC37927 /* WidgetSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSupport.swift; sourceTree = "<group>"; };
@@ -500,6 +504,7 @@
 				3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */,
 				A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */,
 				F341CA09A9C2A550F6200F96 /* EndpointsTests.swift */,
+				040003C6A0A04A319778EC34 /* FlowTrackerAPICallTests.swift */,
 				A077B02C456D93D3B29D233E /* ExploreViewModelTests.swift */,
 				7CEB7C232DCDE33E216A94C6 /* FeatureFlagServiceTests.swift */,
 				394B8B12B67A3604ECD3CF1A /* HealthKitProviderTests.swift */,
@@ -575,6 +580,7 @@
 			isa = PBXGroup;
 			children = (
 				66E0BF01696C616018AEA71C /* Theme.swift */,
+				D2455C9A6A8D8B0C1934A934 /* Tokens.swift */,
 			);
 			path = Theme;
 			sourceTree = "<group>";
@@ -1041,6 +1047,7 @@
 				208E9ABF9B99B54C494A3C3D /* TelemetrySettings.swift in Sources */,
 				203A3757FF6723983649D7E2 /* Theme.swift in Sources */,
 				07755AC9590BCB838244D73D /* TodayCheckinWidget.swift in Sources */,
+				396AFE6D23CC8FD9D93087F1 /* Tokens.swift in Sources */,
 				A7D44223A58409CF7E476CE4 /* UserPreferences.swift in Sources */,
 				BD32558E97047E465F0AD65B /* WeeklySummaryCard.swift in Sources */,
 				9EF48B042C0061A819AB1642 /* WeightChartView.swift in Sources */,
@@ -1072,6 +1079,7 @@
 				9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */,
 				77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */,
 				1B3357AD563092CE9344AF2C /* EndpointsTests.swift in Sources */,
+				95509D2FF6781F5C1CF7FB12 /* FlowTrackerAPICallTests.swift in Sources */,
 				6713CB352021864506D8D810 /* ExploreViewModelTests.swift in Sources */,
 				EA1EBA297D65489C2D211415 /* FeatureFlagServiceTests.swift in Sources */,
 				4DA1BF49C8E6350FD193333E /* HealthKitProviderTests.swift in Sources */,

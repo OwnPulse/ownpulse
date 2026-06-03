@@ -371,3 +371,108 @@ async fn telemetry_requires_authentication() {
     let resp = app.app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 }
+
+// --- E8: telemetry ingest health surface ------------------------------------
+
+/// Issue an unauthenticated GET to the telemetry health surface.
+async fn get_telemetry_health(app: &crate::common::TestApp) -> axum::response::Response {
+    let req = http::Request::builder()
+        .method("GET")
+        .uri("/api/v1/health/telemetry")
+        .body(axum::body::Body::empty())
+        .unwrap();
+    app.app.clone().oneshot(req).await.unwrap()
+}
+
+#[tokio::test]
+async fn telemetry_health_reports_zero_when_no_events() {
+    let app = setup().await;
+
+    let resp = get_telemetry_health(&app).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json: Value = body_json(resp).await;
+    assert_eq!(json["events_last_5m"], 0);
+    assert!(
+        json["last_event_at"].is_null(),
+        "last_event_at must be null with no events: {json}"
+    );
+    assert!(
+        json["last_event_age_seconds"].is_null(),
+        "last_event_age_seconds must be null with no events: {json}"
+    );
+}
+
+#[tokio::test]
+async fn telemetry_health_reports_recent_activity() {
+    let app = setup().await;
+
+    // Insert one fresh event and one old (10 minutes ago) event directly, so the
+    // 5-minute window and most-recent timestamp are deterministic.
+    sqlx::query(
+        "INSERT INTO app_events (event_type, payload, platform, created_at)
+         VALUES ('flow', '{}'::jsonb, 'web', now() - interval '10 minutes')",
+    )
+    .execute(&app.pool)
+    .await
+    .expect("insert old event");
+    sqlx::query(
+        "INSERT INTO app_events (event_type, payload, platform)
+         VALUES ('flow', '{}'::jsonb, 'web')",
+    )
+    .execute(&app.pool)
+    .await
+    .expect("insert recent event");
+
+    let resp = get_telemetry_health(&app).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let json: Value = body_json(resp).await;
+    // Only the fresh event falls inside the 5-minute window.
+    assert_eq!(json["events_last_5m"], 1);
+    assert!(
+        !json["last_event_at"].is_null(),
+        "last_event_at must be set when events exist: {json}"
+    );
+    let age = json["last_event_age_seconds"]
+        .as_i64()
+        .expect("age must be an integer when events exist");
+    assert!(
+        (0..60).contains(&age),
+        "most recent event should be seconds old, got {age}s"
+    );
+}
+
+#[tokio::test]
+async fn telemetry_health_leaks_no_identifiers() {
+    let app = setup().await;
+
+    // Insert an event carrying a device_id and a payload, to confirm neither is
+    // ever surfaced by the aggregate health response.
+    sqlx::query(
+        "INSERT INTO app_events (event_type, device_id, payload, platform)
+         VALUES ('crash', 'device-secret-token-123', '{\"signal\": \"SIGABRT\"}'::jsonb, 'ios')",
+    )
+    .execute(&app.pool)
+    .await
+    .expect("insert crash event");
+
+    let resp = get_telemetry_health(&app).await;
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = crate::common::body_string(resp).await;
+    assert!(
+        !body.contains("device-secret-token-123"),
+        "device_id leaked into telemetry health response: {body}"
+    );
+    assert!(
+        !body.contains("SIGABRT"),
+        "payload leaked into telemetry health response: {body}"
+    );
+    assert!(
+        !body.contains("user_id") && !body.contains("device_id"),
+        "telemetry health response must not reference identifiers: {body}"
+    );
+}
+
+// --- end E8 -----------------------------------------------------------------

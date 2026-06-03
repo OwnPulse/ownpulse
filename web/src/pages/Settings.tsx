@@ -9,6 +9,7 @@ import { getAuthMethods, logout, unlinkAuth } from "../api/auth";
 import { exportCsv, exportJson } from "../api/export";
 import { sourcePreferencesApi } from "../api/source-preferences";
 import NotificationSettings from "../components/settings/NotificationSettings";
+import TelemetrySettings from "../components/settings/TelemetrySettings";
 import { useTheme } from "../hooks/useTheme";
 import styles from "./Settings.module.css";
 
@@ -255,6 +256,8 @@ export default function Settings() {
       <LinkedAccounts />
 
       <NotificationSettings />
+
+      <TelemetrySettings />
 
       <div className={styles.dangerZone}>
         <h2 className={styles.dangerTitle}>Danger Zone</h2>

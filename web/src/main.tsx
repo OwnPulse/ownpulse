@@ -13,6 +13,7 @@ import "./styles/components.css";
 import AdminRoute from "./components/AdminRoute";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { usePageViewTelemetry } from "./lib/usePageViewTelemetry";
 import Admin from "./pages/Admin";
 import Analyze from "./pages/Analyze";
 import Dashboard from "./pages/Dashboard";
@@ -39,12 +40,19 @@ import Welcome from "./pages/Welcome";
 
 const queryClient = new QueryClient();
 
+/** Reports first-party `page_view` telemetry on navigation (opt-in, gated). */
+function PageViewTracker() {
+  usePageViewTelemetry();
+  return null;
+}
+
 const rootEl = document.getElementById("root");
 if (!rootEl) throw new Error("Root element not found");
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <PageViewTracker />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />

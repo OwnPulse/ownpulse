@@ -46,7 +46,41 @@ by additive changes within it.
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
 | GET | `/health` | Health check (public) | 1 |
+| GET | `/health/telemetry` | Telemetry-ingest pipeline liveness (public ops probe) | 1 |
 | POST | `/waitlist` | Waitlist signup (public) | 1 |
+
+#### `GET /api/v1/health/telemetry`
+
+Aggregate-only liveness signal for the telemetry-ingest pipeline. Lets an operator
+confirm the backend is still receiving `app_events`. Unauthenticated — it is an
+ops/monitoring surface (a sibling of `/readyz`), and it exposes **no** user
+identity, device id, payload, or any health data. Counts and timestamps only.
+
+**Response:** `200 OK`
+
+```json
+{
+  "events_last_5m": 12,
+  "last_event_at": "2026-06-03T10:15:00Z",
+  "last_event_age_seconds": 42
+}
+```
+
+When no events have ever been recorded, `last_event_at` and
+`last_event_age_seconds` are `null` and `events_last_5m` is `0`.
+
+**Errors:**
+
+| Status | Reason |
+|--------|--------|
+| 503 | Telemetry stats query failed (database unavailable) — degraded, never a raw 500 |
+
+**Metrics / alerting:** the handler emits the Prometheus gauge
+`ownpulse_telemetry_last_event_age_seconds` (seconds since the most recent
+`app_events` row). The intended `TelemetryStalled` alert (defined in
+ownpulse-infra) fires when this gauge exceeds `1800` (30 minutes). The gauge is
+left unset while the table is empty, so a fresh instance does not trip the alert
+before any client has ever reported.
 
 ### Auth (Public)
 

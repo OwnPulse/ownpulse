@@ -1,0 +1,26 @@
+{{- /*
+Dashboard JSON shipped with the chart. Each file in dashboards/ is provisioned
+into Grafana via the file provider (see grafana-dashboards-provider.yaml) which
+is mounted at /etc/grafana/provisioning/dashboards.
+
+The `grafana_dashboard: "1"` label is also set so that a label-based Grafana
+dashboard sidecar (if one is ever added to the deployment) will discover these
+ConfigMaps automatically — matching the standard kube-prometheus-stack
+convention.
+
+Dashboards query a Prometheus-compatible datasource selected by the
+`${datasource}` dashboard variable; that datasource is provisioned separately
+(metrics backend), keeping this chart's concern limited to the dashboards.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-dashboards
+  labels:
+    {{- include "observability.labels" (dict "component" "grafana" "context" $) | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+  {{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+  {{ base $path }}: |-
+    {{- $.Files.Get $path | nindent 4 }}
+  {{- end }}
