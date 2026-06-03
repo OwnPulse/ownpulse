@@ -151,7 +151,7 @@ struct LoginView: View {
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 50)
-                .background(.blue)
+                .background(OPColor.googleBlue)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }

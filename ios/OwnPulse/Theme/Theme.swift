@@ -27,6 +27,14 @@ enum OPColor {
         dark: Color(red: 194 / 255, green: 194 / 255, blue: 185 / 255)
     )
 
+    /// Blue for the "Sign in with Google" button background.
+    ///
+    /// The system `.blue` against white label text composites to ~4.0:1, below
+    /// WCAG AA (4.5:1) — the accessibility audit flags it "Contrast nearly
+    /// passed". This darker blue (#1a5fb4) reads the same but gives ~6.3:1 with
+    /// white text, clearing AA.
+    static let googleBlue = Color(red: 26 / 255, green: 95 / 255, blue: 180 / 255)
+
     static let trendUp = Color.red
     static let trendDown = Color.green
     static let trendFlat = Color.secondary

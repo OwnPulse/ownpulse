@@ -57,4 +57,11 @@ struct ThemeColorTests {
         let dark = resolved(OPColor.mutedText, style: .dark)
         #expect(light != dark, "mutedText should adapt between light and dark mode")
     }
+
+    @Test("googleBlue clears WCAG AA (>= 4.5:1) against white button text")
+    func googleBlueButtonPassesContrast() {
+        let bg = resolved(OPColor.googleBlue, style: .light)
+        let ratio = contrastRatio(.white, bg)
+        #expect(ratio >= 4.5, "white on googleBlue was \(ratio):1, below WCAG AA 4.5:1")
+    }
 }
