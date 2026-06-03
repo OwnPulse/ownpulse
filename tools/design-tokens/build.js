@@ -134,8 +134,13 @@ const SWIFT_COLOR_MAP = {
 // lookups, so the same metric resolves to the same color on both platforms and
 // the alias logic can never drift between them. Every value here MUST be a key
 // in the chart.metric token group (validated in chartMetricColors below).
+// The check-in subjective scores (energy/mood/focus/recovery/libido) are
+// deliberately NOT keyed here: they have no dedicated token color, so they
+// fall through to the fallback cycle and are distinguished by their position
+// index instead (see SparklineCard / DashboardView.sparklineSection).
 export const METRIC_FIELD_ALIASES = {
   heart_rate_variability: 'hrv',
+  resting_heart_rate: 'heart_rate',
   blood_pressure_systolic: 'bp_systolic',
   blood_pressure_diastolic: 'bp_diastolic',
   blood_glucose: 'glucose',

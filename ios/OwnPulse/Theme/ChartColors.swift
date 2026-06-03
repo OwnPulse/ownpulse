@@ -45,6 +45,7 @@ enum ChartColors {
         "blood_pressure_systolic": "bp_systolic",
         "body_mass": "weight",
         "heart_rate_variability": "hrv",
+        "resting_heart_rate": "heart_rate",
         "sleep_analysis": "sleep_duration",
     ]
 

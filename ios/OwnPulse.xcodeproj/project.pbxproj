@@ -23,6 +23,8 @@
 		0D2EF7FC073BFA5DD499FE8F /* AppDependenciesDeepLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D3936FD47876674E77BE8FA /* AppDependenciesDeepLinkTests.swift */; };
 		0EC8A8DD21490EDD21236B2C /* AdminService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849D69462AA613F566E82BFF /* AdminService.swift */; };
 		14E81CAFFCED3283B3286208 /* MovingAverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB1EFA3E8BBFD123070BABA /* MovingAverage.swift */; };
+		C7AA000000000000000000A1 /* DashboardChartData.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AA000000000000000000A2 /* DashboardChartData.swift */; };
+		C7AA000000000000000000B1 /* DashboardChartDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7AA000000000000000000B2 /* DashboardChartDataTests.swift */; };
 		17F2AB27BAA8C0CF0ABE6AF4 /* WidgetConfigurations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B639EC881C5187247E656376 /* WidgetConfigurations.swift */; };
 		18958506A603AA8D7F7A1A26 /* AnchorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE2B17DFA620BA4FBD5C8FF /* AnchorStore.swift */; };
 		1A9B346935950F2DFB80F1DC /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B29467EE524D8D2ACAB344 /* CrashReporter.swift */; };
@@ -317,6 +319,8 @@
 		87090253FB6883C047CC11E3 /* OwnPulse-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "OwnPulse-Bridging-Header.h"; sourceTree = "<group>"; };
 		87B29467EE524D8D2ACAB344 /* CrashReporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrashReporter.swift; sourceTree = "<group>"; };
 		8BB1EFA3E8BBFD123070BABA /* MovingAverage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovingAverage.swift; sourceTree = "<group>"; };
+		C7AA000000000000000000A2 /* DashboardChartData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardChartData.swift; sourceTree = "<group>"; };
+		C7AA000000000000000000B2 /* DashboardChartDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardChartDataTests.swift; sourceTree = "<group>"; };
 		8CEFA24761B447BB3CCFA15A /* ExploreViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreViewModel.swift; sourceTree = "<group>"; };
 		8E1C11A35F69FB32F8E59F6A /* MockHealthKitProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockHealthKitProviderTests.swift; sourceTree = "<group>"; };
 		8ECA76F6599478222F387A59 /* Migrations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Migrations.swift; sourceTree = "<group>"; };
@@ -517,6 +521,7 @@
 				E1E681F4CCF28BDCBE6DC5CD /* BrowseCardPresenterTests.swift */,
 				5868F7EE0B35D3986890B880 /* ChartAxisConfigTests.swift */,
 				644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */,
+				C7AA000000000000000000B2 /* DashboardChartDataTests.swift */,
 				C9DEC0DE000000000000F012 /* TrendIndicatorTests.swift */,
 				B9629C523AD97D953D48E396 /* ColorSchemePreferenceTests.swift */,
 				3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */,
@@ -636,6 +641,7 @@
 			children = (
 				8628082C8E9832B73461D0A0 /* BrowseCardPresenter.swift */,
 				AD867DA5B7FFBCACB33B9B12 /* ChartAxisConfig.swift */,
+				C7AA000000000000000000A2 /* DashboardChartData.swift */,
 				A5BD57BDC67D2B9798A89338 /* HealthOverviewPresenter.swift */,
 				8BB1EFA3E8BBFD123070BABA /* MovingAverage.swift */,
 				4B884B5CFC88D057CB131E9E /* WeightFormatter.swift */,
@@ -1040,6 +1046,7 @@
 				CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */,
 				14E81CAFFCED3283B3286208 /* MovingAverage.swift in Sources */,
 				0096FB3EA767286ED3FF2FDF /* MyChartConnect.swift in Sources */,
+				C7AA000000000000000000A1 /* DashboardChartData.swift in Sources */,
 				EFCC871589CB4A92769DE49F /* NetworkClient.swift in Sources */,
 				9B399468C9D87B6A9EF64EBE /* NotificationDelegate.swift in Sources */,
 				3AE8FE51A51E3C242110ABEE /* NotificationManager.swift in Sources */,
@@ -1105,6 +1112,7 @@
 				0C9DEF013A3BE08CA8FFC631 /* BrowseCardPresenterTests.swift in Sources */,
 				6664FDB133640BD2F9912611 /* ChartAxisConfigTests.swift in Sources */,
 				C925FE45BFF24569D5EA49CD /* ChartColorsTests.swift in Sources */,
+				C7AA000000000000000000B1 /* DashboardChartDataTests.swift in Sources */,
 				C9DEC0DE000000000000B012 /* TrendIndicatorTests.swift in Sources */,
 				BD4AB5943D849BA74B6039A6 /* ColorSchemePreferenceTests.swift in Sources */,
 				9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */,

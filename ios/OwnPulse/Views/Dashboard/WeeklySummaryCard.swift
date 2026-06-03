@@ -1,25 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import Charts
 import SwiftUI
 
 struct WeeklySummaryCard: View {
     let summary: DashboardSummary
 
-    private struct StatItem {
-        let label: String
-        let value: Int
-        let icon: String
-        let color: Color
+    // MARK: C7 chart
+    /// Weekly activity bars, shaped by the testable transform and colored from
+    /// B5's shared token source so each category matches its web color.
+    private var bars: [DashboardChartData.WeeklyBar] {
+        DashboardChartData.weeklyBars(from: summary)
     }
 
-    private var stats: [StatItem] {
-        [
-            StatItem(label: "Check-ins", value: summary.checkinCount7d, icon: "checklist", color: OPColor.terracotta),
-            StatItem(label: "Health Records", value: summary.healthRecordCount7d, icon: "heart.fill", color: OPColor.teal),
-            StatItem(label: "Interventions", value: summary.interventionCount7d, icon: "pills.fill", color: OPColor.gold),
-            StatItem(label: "Observations", value: summary.observationCount7d, icon: "eye.fill", color: OPColor.sage),
-        ]
+    private func color(for bar: DashboardChartData.WeeklyBar) -> Color {
+        ChartColors.color(for: bar.colorMetric, index: bar.colorIndex)
     }
 
     var body: some View {
@@ -28,37 +24,38 @@ struct WeeklySummaryCard: View {
                 .font(.headline)
                 .foregroundStyle(.primary)
 
-            LazyVGrid(columns: [
-                GridItem(.flexible()),
-                GridItem(.flexible()),
-            ], spacing: 12) {
-                ForEach(stats, id: \.label) { stat in
-                    statCell(stat)
+            // MARK: C7 chart — weekly activity bar chart
+            Chart(bars) { bar in
+                BarMark(
+                    x: .value("Category", bar.label),
+                    y: .value("Count", bar.value)
+                )
+                .foregroundStyle(color(for: bar))
+                .cornerRadius(4)
+                .annotation(position: .top, alignment: .center) {
+                    Text("\(bar.value)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
             }
+            .chartYAxis(.hidden)
+            .chartXAxis {
+                AxisMarks { value in
+                    AxisValueLabel {
+                        if let label = value.as(String.self) {
+                            Text(label)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .frame(height: 140)
+            .accessibilityIdentifier("weeklySummaryChart")
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("This week's activity counts")
+            .accessibilityValue(DashboardChartData.weeklyAccessibilitySummary(from: summary))
         }
         .opCard()
-    }
-
-    @ViewBuilder
-    private func statCell(_ stat: StatItem) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: stat.icon)
-                .font(.title3)
-                .foregroundStyle(stat.color)
-                .frame(width: 28)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(stat.value)")
-                    .font(.system(.title3, design: .rounded, weight: .bold))
-
-                Text(stat.label)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityIdentifier("weeklyStat-\(stat.label.lowercased().replacingOccurrences(of: " ", with: "-"))")
     }
 }

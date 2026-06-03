@@ -14,8 +14,19 @@ struct HeroMetricCard: View {
     /// matches the number shown in `trendText`.
     let trendDirection: TrendDirection
     let dataPoints: [DataPoint]
+    /// Backend field key (e.g. `resting_heart_rate`) used to resolve the chart
+    /// color from the shared token source so it matches the web chart. Defaults
+    /// to the canonical hero field, pinned in one place in `DashboardChartData`.
+    var metricFieldKey: String = DashboardChartData.defaultHeroField
 
     @State private var animateChart = false
+
+    // MARK: C7 chart
+    /// Per-metric line/area color, sourced from B5's `ChartColors` so the hero
+    /// metric matches its color in the web dashboard. Never hardcoded.
+    private var chartColor: Color {
+        ChartColors.color(for: DashboardChartData.colorKey(forField: metricFieldKey), index: 0)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -55,7 +66,7 @@ struct HeroMetricCard: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
 
-            // 30-day chart
+            // MARK: C7 chart — 30-day hero line + area, colored from ChartColors
             Chart {
                 ForEach(Array(dataPoints.enumerated()), id: \.offset) { index, point in
                     LineMark(
@@ -64,7 +75,7 @@ struct HeroMetricCard: View {
                     )
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [OPColor.terracotta, OPColor.terracotta.opacity(0.7)],
+                            colors: [chartColor, chartColor.opacity(0.7)],
                             startPoint: .leading,
                             endPoint: .trailing
                         )
@@ -79,8 +90,8 @@ struct HeroMetricCard: View {
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
-                                OPColor.terracotta.opacity(0.3),
-                                OPColor.terracotta.opacity(0.05),
+                                chartColor.opacity(0.3),
+                                chartColor.opacity(0.05),
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -91,7 +102,7 @@ struct HeroMetricCard: View {
             }
             .chartXAxis(.hidden)
             .chartYAxis {
-                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
                         .foregroundStyle(.secondary.opacity(0.3))
                     AxisValueLabel()

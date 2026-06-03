@@ -122,7 +122,8 @@ struct DashboardView: View {
                         unit: vm.heroMetricUnit,
                         trendText: vm.heroTrendText,
                         trendDirection: vm.heroTrendDirection,
-                        dataPoints: vm.heroSeries
+                        dataPoints: vm.heroSeries,
+                        metricFieldKey: vm.heroMetricFieldKey
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .accessibilityIdentifier("heroMetricCard")
@@ -178,8 +179,11 @@ struct DashboardView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(vm.sparklines) { series in
-                        SparklineCard(series: series)
+                    // Thread each card's position so unkeyed series (the
+                    // check-in scores) cycle through distinct fallback colors
+                    // instead of all rendering fallback[0].
+                    ForEach(Array(vm.sparklines.enumerated()), id: \.element.id) { offset, series in
+                        SparklineCard(series: series, index: offset)
                     }
                 }
             }
