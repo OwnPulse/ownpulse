@@ -41,16 +41,18 @@ function hexToRgbComponents(hex) {
 
 // Swift Color initializer from a hex string, matching the hand-written style
 // previously used in Theme.swift (red:/green:/blue: as n/255 fractions).
-function swiftColor(hex) {
+export function swiftColor(hex) {
   const { r, g, b } = hexToRgbComponents(hex);
   return `Color(red: ${r} / 255, green: ${g} / 255, blue: ${b} / 255)`;
 }
 
-// Maps the flat token path (dot-joined) to a kebab-case CSS variable name that
-// matches the existing hand-written variables.css naming. Returns null for
-// tokens that are not surfaced as CSS variables (chart.metric is consumed by
-// the chart-color unit, not the palette).
-function cssVarName(path) {
+// Maps the flat token path (array of segments) to a kebab-case CSS variable
+// name that matches the existing hand-written variables.css naming. Returns
+// null for tokens that are not surfaced as CSS variables — notably the entire
+// `chart.metric.*` group, which is consumed by the per-metric chart-color unit
+// (B5), not the palette, so it deliberately falls through to the `default`
+// case and is omitted from _tokens.css.
+export function cssVarName(path) {
   const [group, ...rest] = path;
   switch (group) {
     case 'color': {
@@ -132,7 +134,10 @@ StyleDictionary.registerFormat({
       lines.push({ name, value: token.original.value, path: token.path });
     }
 
-    // Stable, grouped ordering driven by the source token order.
+    // Order follows Style Dictionary's `dictionary.allTokens`, which sorts
+    // numeric-like keys ascending (so neutrals render 50 -> 900 even though the
+    // source lists them 900 -> 50). It is deterministic, not source-order;
+    // either way CSS custom-property order is irrelevant to resolution.
     const body = lines.map((l) => `  ${l.name}: ${l.value};`).join('\n');
     return `${HEADER_CSS}\n\n:root {\n${body}\n}\n`;
   },
@@ -223,27 +228,37 @@ ${rows.join('\n')}
 
 // --- run -------------------------------------------------------------------
 
-const sd = new StyleDictionary({
-  source: [tokensPath],
-  platforms: {
-    css: {
-      transformGroup: 'css',
-      buildPath: resolve(repoRoot, 'web/src/styles') + '/',
-      files: [{ destination: '_tokens.css', format: 'ownpulse/css-tokens' }],
+// Builds all three platforms and writes the generated files to their committed
+// locations. Exported so tests (and a future drift gate) can invoke the exact
+// same pipeline the `build:tokens` script runs.
+export async function buildTokens() {
+  const sd = new StyleDictionary({
+    source: [tokensPath],
+    platforms: {
+      css: {
+        transformGroup: 'css',
+        buildPath: resolve(repoRoot, 'web/src/styles') + '/',
+        files: [{ destination: '_tokens.css', format: 'ownpulse/css-tokens' }],
+      },
+      swift: {
+        transformGroup: 'js',
+        buildPath: resolve(repoRoot, 'ios/OwnPulse/Theme') + '/',
+        files: [{ destination: 'Tokens.swift', format: 'ownpulse/swift-tokens' }],
+      },
+      docs: {
+        transformGroup: 'js',
+        buildPath: resolve(repoRoot, 'docs/design') + '/',
+        files: [{ destination: 'tokens-generated.md', format: 'ownpulse/markdown-tokens' }],
+      },
     },
-    swift: {
-      transformGroup: 'js',
-      buildPath: resolve(repoRoot, 'ios/OwnPulse/Theme') + '/',
-      files: [{ destination: 'Tokens.swift', format: 'ownpulse/swift-tokens' }],
-    },
-    docs: {
-      transformGroup: 'js',
-      buildPath: resolve(repoRoot, 'docs/design') + '/',
-      files: [{ destination: 'tokens-generated.md', format: 'ownpulse/markdown-tokens' }],
-    },
-  },
-});
+  });
 
-await sd.hasInitialized;
-await sd.buildAllPlatforms();
-console.log('Design tokens built.');
+  await sd.hasInitialized;
+  await sd.buildAllPlatforms();
+}
+
+// Run only when executed directly (`node build.js`), not when imported by a test.
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  await buildTokens();
+  console.log('Design tokens built.');
+}
