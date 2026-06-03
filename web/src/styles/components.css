@@ -75,6 +75,9 @@
 
 .op-btn-secondary:hover:not(:disabled) {
   background: var(--color-primary-light);
+  /* Darken text on the tinted hover fill to keep WCAG AA (>=4.5:1);
+     --color-primary on --color-primary-light is only ~4.3:1. */
+  color: var(--color-primary-hover);
 }
 
 .op-btn-danger {
@@ -154,7 +157,8 @@
   padding: 0.125rem 0.5rem;
   border-radius: 9999px;
   background: var(--color-primary-light);
-  color: var(--color-primary);
+  /* primary-hover (not primary) on the light tint for WCAG AA at this xs size. */
+  color: var(--color-primary-hover);
   font-size: var(--text-xs);
   font-weight: 500;
   margin-right: 0.375rem;

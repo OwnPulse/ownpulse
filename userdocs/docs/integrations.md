@@ -16,6 +16,8 @@ Each connected source also shows the timestamp of its last successful sync.
 
 To connect an integration, tap the **Connect** button next to the source name. You will be redirected to the third-party service to authorize OwnPulse. After granting access, you are returned to OwnPulse and the initial data sync begins automatically.
 
+In the iOS app, open **Settings > Wearables** to connect Garmin or Oura. The authorization page opens in a secure in-app browser; once you finish, the app shows the source as **Connected**. The first time you connect a wearable, OwnPulse offers to resolve any metrics that overlap with Apple Health so you can pick a source of truth.
+
 !!! note "OAuth tokens"
     OwnPulse stores integration tokens encrypted with AES-256-GCM. Tokens are only used to fetch your data and are never shared or transmitted to any other service.
 

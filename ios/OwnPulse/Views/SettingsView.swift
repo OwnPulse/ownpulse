@@ -294,6 +294,12 @@ struct SettingsView: View {
             }
             // END C12
 
+            // --- C6: Garmin/Oura connect ---
+            Section("Wearables") {
+                WearableConnectionsView(onFirstConnect: { showSourceWizard = true })
+            }
+            // --- end C6 ---
+
             // --- C4: source-preference wizard ---
             Section("Data Sources") {
                 Button {
