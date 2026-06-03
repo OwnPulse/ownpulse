@@ -199,6 +199,12 @@ struct SettingsView: View {
                 }
                 .accessibilityIdentifier("syncStatusLink")
 
+                // C5: HealthKit write-back queue UI — review pending write-backs.
+                NavigationLink("Write-Back Queue") {
+                    WriteBackQueueView()
+                }
+                .accessibilityIdentifier("writeBackQueueLink")
+
                 Text("Syncs \(HealthKitTypeMap.mappings.count) data types including heart rate, sleep, activity, nutrition, and more.")
                     .font(.caption)
                     .foregroundStyle(.secondary)

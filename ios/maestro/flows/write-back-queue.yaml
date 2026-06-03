@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: HealthKit write-back queue UI.
+# Requires an authenticated session with the backend running.
+appId: health.ownpulse.app
+---
+- launchApp
+
+# Navigate to Settings tab
+- tapOn:
+    text: "Settings"
+
+# The Apple Health section exposes the Write-Back Queue entry point
+- assertVisible:
+    id: "writeBackQueueLink"
+- tapOn:
+    id: "writeBackQueueLink"
+
+# Write-Back Queue screen appears
+- assertVisible:
+    text: "Write-Back Queue"
+    timeout: 5000
+
+# The list resolves to either an empty-state message or pending rows.
+# Assert the empty state, which is deterministic against a fresh account
+# (data flows to Apple Health automatically, so the queue is normally empty).
+#
+# NOTE: the populated path — the per-row Confirm/Deny buttons
+# (confirmWriteBack-*, denyWriteBack-*) — is NOT driven here. We cannot seed a
+# write-queue item deterministically from the client (the backend creates
+# them), so that path is covered by unit tests only
+# (WriteBackQueueViewModelTests: confirm/deny success, failure, non-writable).
+# This gap is intentional and visible.
+- assertVisible:
+    id: "writeBackEmpty"
+    timeout: 5000
+
+# Pull to refresh re-fetches the queue and lands back on the empty state.
+- swipe:
+    direction: DOWN
+
+- assertVisible:
+    text: "Write-Back Queue"
+    timeout: 5000
+
+- assertVisible:
+    id: "writeBackEmpty"
+    timeout: 5000

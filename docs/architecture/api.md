@@ -4,6 +4,39 @@
 
 All endpoints require JWT authentication unless marked as public. Tokens are issued via the auth endpoints and passed as `Authorization: Bearer <token>`.
 
+## API versioning policy
+
+The API is versioned in the URL path: `/api/v1`, `/api/v2`, and so on. A version
+namespace groups a stable contract — clients pin to a version and are not broken
+by additive changes within it.
+
+- **Additive, backward-compatible changes** (new endpoints, new optional request
+  fields, new response fields) are made in place within the current version. They
+  do **not** require a new version.
+- **Breaking changes** (removing or renaming a field, changing a field's type,
+  changing status-code semantics, removing an endpoint) get a **parallel endpoint
+  under the next version**. The `v1` equivalent stays live and gains a
+  `Deprecation` response header pointing clients at the `v2` replacement.
+- **Version support and removal.** The backend supports the current and the
+  immediately-previous API version. An old version is removed only in a server
+  release whose notes explicitly document the removal — never solely because a
+  calendar period has elapsed. This matters for self-hosting: an operator may
+  upgrade across several releases at once and never run the intermediate ones, so
+  a wall-clock deprecation window would silently strip a version out from under a
+  pinned client with no notice the operator ever saw. The `Deprecation` header
+  remains an advisory hint for clients, not the removal trigger.
+- `/api/v2` is currently a mounted but empty namespace (see
+  `backend/api/src/routes/v2/mod.rs`). Requests under it return a clean `404`
+  until the first `v2` endpoint ships. It exists so a breaking change can be
+  introduced without restructuring the router.
+- Consumer contracts in `pact/contracts/` continue to pin `v1`
+  (`pact/contracts/ios-backend.json`, `pact/contracts/web-backend.json`). A
+  contract is repointed to `v2` only when its consumer actually migrates to a
+  `v2` endpoint — adding the `v2` namespace alone does not change any contract.
+  Any `v2` endpoint called by web or iOS must have matching Pact coverage for the
+  version that consumer calls, added before the consumer is switched to it.
+  Backend-only or unconsumed `v2` endpoints need no contract.
+
 ## Implemented
 
 ### Public
