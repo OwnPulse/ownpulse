@@ -20,6 +20,7 @@ mod insights;
 mod integrations;
 mod interventions;
 mod labs;
+mod metrics;
 mod observations;
 mod observer_polls;
 mod password_reset;
