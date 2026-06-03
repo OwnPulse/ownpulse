@@ -33,5 +33,6 @@ mod security_fixes;
 mod sleep;
 mod sources;
 mod stats;
+mod telemetry;
 mod versioning;
 mod waitlist;

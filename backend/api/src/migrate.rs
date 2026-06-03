@@ -120,6 +120,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0028_app_events.sql",
         include_str!("../../../db/migrations/0028_app_events.sql"),
     ),
+    (
+        "0029_app_events_platform.sql",
+        include_str!("../../../db/migrations/0029_app_events_platform.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
