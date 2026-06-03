@@ -57,6 +57,12 @@ spec:
             - name: datasources
               mountPath: /etc/grafana/provisioning/datasources
               readOnly: true
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+              readOnly: true
+            - name: dashboards
+              mountPath: /var/lib/grafana/dashboards/ownpulse
+              readOnly: true
             {{- if .Values.grafana.persistence.enabled }}
             - name: grafana-data
               mountPath: /var/lib/grafana
@@ -76,6 +82,12 @@ spec:
         - name: datasources
           configMap:
             name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-datasources
+        - name: dashboards-provider
+          configMap:
+            name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-dashboards-provider
+        - name: dashboards
+          configMap:
+            name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-dashboards
         {{- if .Values.grafana.persistence.enabled }}
         - name: grafana-data
           persistentVolumeClaim:
