@@ -177,13 +177,16 @@ Pending HealthKit write-backs. Records with `source = 'healthkit'` are never add
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `record_id` | UUID FK | References the source record |
-| `record_table` | TEXT | Which table the record came from |
-| `healthkit_type` | TEXT | HealthKit type identifier |
-| `status` | TEXT | `pending`, `written`, `failed` |
-| `confirmed_at` | TIMESTAMPTZ nullable | |
+| `hk_type` | TEXT | HealthKit type identifier |
+| `value` | JSONB | Payload to write back to HealthKit |
+| `scheduled_at` | TIMESTAMPTZ | When the entry was queued; defaults to `now()` |
+| `confirmed_at` | TIMESTAMPTZ nullable | Set when the iOS client confirms the write |
+| `failed_at` | TIMESTAMPTZ nullable | Set when a write attempt failed |
 | `error` | TEXT nullable | |
-| `created_at` | TIMESTAMPTZ | |
+| `source_record_id` | UUID nullable | References the source record |
+| `source_table` | TEXT nullable | Which table the record came from |
+
+Status is derived from the timestamps rather than stored: an entry is pending while both `confirmed_at` and `failed_at` are `NULL`, confirmed once `confirmed_at` is set, and failed once `failed_at` is set.
 
 ### `integration_tokens`
 
@@ -304,7 +307,7 @@ Daily ratings submitted by observers.
 
 - All tables reference `users.id` via `user_id`.
 - `health_records.duplicate_of` self-references `health_records.id`.
-- `healthkit_write_queue.record_id` references the source record (polymorphic via `record_table`).
+- `healthkit_write_queue.source_record_id` references the source record (polymorphic via `source_table`).
 - `sharing_consents` is checked before any cooperative aggregate query.
 - `explore_charts.user_id` references `users.id`.
 - `observer_polls.user_id` references `users.id`.

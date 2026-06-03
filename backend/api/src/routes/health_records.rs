@@ -50,24 +50,26 @@ pub async fn create(
         Some(&body.record_type),
     );
 
-    // If source is not healthkit, enqueue for HealthKit write-back (non-fatal)
-    if body.source != "healthkit" {
-        db_healthkit::enqueue_write(
-            &state.pool,
-            user_id,
-            &row.record_type,
-            &serde_json::json!({
-                "value": row.value,
-                "unit": row.unit,
-                "start_time": row.start_time,
-                "end_time": row.end_time,
-            }),
-            Some(row.id),
-            Some("health_records"),
-        )
-        .await
-        .ok();
-    }
+    // Enqueue for HealthKit write-back (non-fatal). The cycle guard —
+    // healthkit-sourced records are never written back — lives unconditionally
+    // inside `enqueue_write` (the service-layer chokepoint), not here, so it
+    // cannot be bypassed by any caller or API parameter. See ADR-0008.
+    db_healthkit::enqueue_write(
+        &state.pool,
+        user_id,
+        &row.source,
+        &row.record_type,
+        &serde_json::json!({
+            "value": row.value,
+            "unit": row.unit,
+            "start_time": row.start_time,
+            "end_time": row.end_time,
+        }),
+        Some(row.id),
+        Some("health_records"),
+    )
+    .await
+    .ok();
 
     Ok((StatusCode::CREATED, Json(row)))
 }

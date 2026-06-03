@@ -1,0 +1,37 @@
+appId: health.ownpulse.app
+---
+# Log a manual sleep entry via the Log tab
+- assertVisible:
+    id: "mainTabView"
+
+# Navigate to Log tab
+- tapOn:
+    text: "Log"
+- assertVisible:
+    id: "logTabPicker"
+
+# Switch to the Sleep entry tab
+- tapOn:
+    id: "logTab-Sleep"
+- assertVisible:
+    id: "sleepHoursField"
+- assertVisible:
+    id: "sleepMinutesField"
+- assertVisible:
+    id: "saveSleepButton"
+
+# Fill in the form
+- tapOn:
+    id: "sleepHoursField"
+- inputText: "7"
+- tapOn:
+    id: "sleepMinutesField"
+- inputText: "30"
+
+# Submit
+- tapOn:
+    id: "saveSleepButton"
+- extendedWaitUntil:
+    visible:
+      id: "submitSuccess"
+    timeout: 10000

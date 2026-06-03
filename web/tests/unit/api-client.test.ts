@@ -31,6 +31,25 @@ describe("api client", () => {
     vi.unstubAllGlobals();
   });
 
+  it("attaches X-App-Version header on every request", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ data: "ok" }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const { api } = await import("../../src/api/client");
+    await api.get("/api/v1/test");
+
+    const [, options] = mockFetch.mock.calls[0];
+    expect(options.headers["X-App-Version"]).toBe(__APP_VERSION__);
+    expect(typeof options.headers["X-App-Version"]).toBe("string");
+    expect(options.headers["X-App-Version"].length).toBeGreaterThan(0);
+
+    vi.unstubAllGlobals();
+  });
+
   it("calls logout on 401", async () => {
     useAuthStore.getState().login("expired-token");
 

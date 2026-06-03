@@ -23,7 +23,17 @@ Log substances, medications, and supplements. Each entry includes a name, dosage
 
 ## Health records
 
-Enter manual health metrics such as heart rate, blood pressure, body temperature, weight, or blood oxygen. This is useful when you do not have a wearable or want to record a reading from a medical device that does not sync automatically.
+Enter manual health metrics when you do not have a wearable or want to record a reading from a medical device that does not sync automatically. The Log screen includes dedicated quick-entry tabs for the most common metrics:
+
+- **Weight** -- a body-mass reading in kilograms.
+- **Sleep** -- a sleep duration entered as hours and minutes.
+- **Exercise** -- a workout duration in minutes.
+- **Glucose** -- a blood-glucose reading in mg/dL.
+- **Blood pressure** -- systolic and diastolic readings in mmHg, recorded together as a pair.
+
+Units are fixed to the canonical unit Apple Health expects for each metric, so values round-trip to Apple Health without conversion errors. Blood pressure is two readings sent as a pair; if the diastolic save fails after the systolic succeeds, the app tells you and a retry completes the pair without duplicating the systolic record.
+
+Each manually entered record is tagged with the `manual` source. Because it does not originate from HealthKit, it is eligible for write-back to Apple Health where a mapping exists, keeping your devices in sync. Every form accepts a custom date and time for backfilling past readings.
 
 ## Observations
 

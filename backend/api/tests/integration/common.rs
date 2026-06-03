@@ -299,35 +299,16 @@ pub async fn setup_with_rate_limiting() -> TestApp {
         event_tx,
     };
 
-    // Build with rate limiting but without Prometheus metrics.
+    // Build with rate limiting but without Prometheus metrics. Reuse the
+    // production trace/CORS layers so this harness can't drift from prod wiring.
     let app = Router::new()
         .route(
             "/api/v1/health",
             axum::routing::get(|| async { axum::Json(serde_json::json!({"status": "ok"})) }),
         )
         .nest("/api/v1", api::routes::api_routes())
-        .layer(tower_http::trace::TraceLayer::new_for_http())
-        .layer(
-            tower_http::cors::CorsLayer::new()
-                .allow_origin(
-                    web_origin
-                        .parse::<axum::http::HeaderValue>()
-                        .expect("invalid WEB_ORIGIN"),
-                )
-                .allow_methods(tower_http::cors::AllowMethods::list([
-                    axum::http::Method::GET,
-                    axum::http::Method::POST,
-                    axum::http::Method::PUT,
-                    axum::http::Method::DELETE,
-                    axum::http::Method::PATCH,
-                    axum::http::Method::OPTIONS,
-                ]))
-                .allow_headers(tower_http::cors::AllowHeaders::list([
-                    axum::http::header::AUTHORIZATION,
-                    axum::http::header::CONTENT_TYPE,
-                ]))
-                .allow_credentials(true),
-        )
+        .layer(api::http_trace_layer())
+        .layer(api::cors_layer(&web_origin))
         .with_state(state);
 
     TestApp {

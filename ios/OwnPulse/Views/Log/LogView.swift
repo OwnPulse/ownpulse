@@ -11,13 +11,17 @@ struct LogView: View {
         ScrollView {
             if let vm = viewModel {
                 VStack(spacing: 20) {
-                    // Segmented control
-                    Picker("Log Type", selection: Bindable(vm).selectedTab) {
-                        ForEach(LogTab.allCases, id: \.self) { tab in
-                            Text(tab.rawValue).tag(tab)
+                    // Tab selector — scrollable chip row (too many tabs for a
+                    // segmented control to remain tappable).
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(LogTab.allCases, id: \.self) { tab in
+                                tabChip(tab, isSelected: vm.selectedTab == tab) {
+                                    vm.selectedTab = tab
+                                }
+                            }
                         }
                     }
-                    .pickerStyle(.segmented)
                     .accessibilityIdentifier("logTabPicker")
 
                     // Form content
@@ -28,6 +32,16 @@ struct LogView: View {
                         InterventionForm(viewModel: vm)
                     case .observation:
                         ObservationForm(viewModel: vm)
+                    case .weight:
+                        WeightEntryForm(viewModel: vm)
+                    case .sleep:
+                        SleepEntryForm(viewModel: vm)
+                    case .exercise:
+                        ExerciseEntryForm(viewModel: vm)
+                    case .glucose:
+                        GlucoseEntryForm(viewModel: vm)
+                    case .bloodPressure:
+                        BloodPressureEntryForm(viewModel: vm)
                     }
 
                     // Status message
@@ -43,6 +57,23 @@ struct LogView: View {
                 viewModel = LogViewModel(networkClient: dependencies.networkClient)
             }
         }
+    }
+
+    private func tabChip(_ tab: LogTab, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(tab.rawValue)
+                .font(.subheadline)
+                .fontWeight(isSelected ? .semibold : .regular)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? OPColor.teal : Color(.secondarySystemBackground))
+                )
+                .foregroundStyle(isSelected ? .white : .primary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("logTab-\(tab.rawValue)")
     }
 
     @ViewBuilder
