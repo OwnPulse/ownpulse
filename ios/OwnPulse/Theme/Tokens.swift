@@ -8,8 +8,8 @@ import SwiftUI
 
 /// Brand color palette, generated from the canonical token source.
 enum OPColor {
-    static let terracotta = Color(red: 194 / 255, green: 101 / 255, blue: 74 / 255)
-    static let teal = Color(red: 61 / 255, green: 139 / 255, blue: 139 / 255)
+    static let terracotta = Color(red: 178 / 255, green: 87 / 255, blue: 60 / 255)
+    static let teal = Color(red: 55 / 255, green: 124 / 255, blue: 124 / 255)
     static let gold = Color(red: 196 / 255, green: 154 / 255, blue: 60 / 255)
     static let sage = Color(red: 90 / 255, green: 138 / 255, blue: 90 / 255)
     static let warmBg = Color(red: 250 / 255, green: 246 / 255, blue: 241 / 255)

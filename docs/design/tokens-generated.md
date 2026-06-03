@@ -8,10 +8,10 @@ Regenerate with `npm run build:tokens` in `tools/design-tokens`.
 
 | Token | Value |
 | ----- | ----- |
-| `color.primary.default` | `#c2654a` |
+| `color.primary.default` | `#b2573c` |
 | `color.primary.hover` | `#9e4f38` |
-| `color.primary.light` | `#d4856e` |
-| `color.accent.default` | `#3d8b8b` |
+| `color.primary.light` | `#f7eeec` |
+| `color.accent.default` | `#377c7c` |
 | `color.accent.light` | `#5aadad` |
 | `color.accent.dark` | `#2d6b6b` |
 | `color.dimension.gold` | `#c49a3c` |
@@ -33,12 +33,12 @@ Regenerate with `npm run build:tokens` in `tools/design-tokens`.
 | `color.surface.elevated` | `#ffffff` |
 | `color.text.default` | `#1e1e1c` |
 | `color.text.secondary` | `#5e5e57` |
-| `color.text.muted` | `#7a7a72` |
+| `color.text.muted` | `#72726b` |
 | `color.border.default` | `#deded6` |
 | `color.border.strong` | `#c2c2b9` |
-| `color.feedback.success` | `#009e73` |
-| `color.feedback.warning` | `#e69f00` |
-| `color.feedback.error` | `#d55e00` |
+| `color.feedback.success` | `#007555` |
+| `color.feedback.warning` | `#976900` |
+| `color.feedback.error` | `#a44900` |
 | `color.feedback.error-light` | `#f5dede` |
 | `typography.font-family.display` | `"Source Serif 4", Georgia, "Times New Roman", serif` |
 | `typography.font-family.body` | `"IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif` |

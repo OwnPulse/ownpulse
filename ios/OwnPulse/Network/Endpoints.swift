@@ -25,4 +25,9 @@ enum Endpoints {
     static let sourcesOverlapScan = "/api/v1/sources/overlap-scan"
     static let sourcePreferences = "/api/v1/source-preferences"
     // --- end C4 ---
+    // --- C6: Garmin/Oura connect ---
+    static let integrations = "/api/v1/integrations"
+    static let authGarminLogin = "/api/v1/auth/garmin/login"
+    static let authOuraLogin = "/api/v1/auth/oura/login"
+    // --- end C6 ---
 }
