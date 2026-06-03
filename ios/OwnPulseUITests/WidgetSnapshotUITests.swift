@@ -11,67 +11,67 @@ import XCTest
 ///   - QuickLogWidget:      accessoryCircular
 ///
 /// XCUITest can't place real Lock Screen widgets, so we render the identical
-/// SwiftUI views inside the host app via `WidgetPreviewContext` and assert on
-/// their accessibility identifiers — the closest deterministic, CI-runnable
-/// stand-in for a widget snapshot.
+/// SwiftUI views inside the host app and assert on their accessibility
+/// identifiers — the closest deterministic, CI-runnable stand-in for a widget
+/// snapshot.
+///
+/// `XCUIApplication` and its query/element APIs are `@MainActor`-isolated.
+/// `XCTestCase.setUpWithError()` is `nonisolated`, so an override of it cannot
+/// touch the app; instead each `@MainActor` test launches the harness via the
+/// shared `launchHarness()` helper.
+@MainActor
 final class WidgetSnapshotUITests: XCTestCase {
-    private var app: XCUIApplication!
-
-    override func setUpWithError() throws {
+    private func launchHarness() -> XCUIApplication {
         continueAfterFailure = false
-        app = XCUIApplication()
+        let app = XCUIApplication()
         app.launchArguments = ["-WidgetSnapshotHarness"]
         app.launch()
-    }
-
-    func testHarnessIsPresented() throws {
         XCTAssertTrue(
             app.otherElements["widgetSnapshotHarness"].waitForExistence(timeout: 10),
             "Widget snapshot harness should appear under the launch argument"
         )
+        return app
     }
 
-    func testTodayCheckinWidgetRendersBothFamilies() throws {
+    func testHarnessIsPresented() {
+        _ = launchHarness()
+    }
+
+    func testTodayCheckinWidgetRendersBothFamilies() {
+        let app = launchHarness()
         XCTAssertTrue(
-            app.otherElements["widgetSnapshotHarness"].waitForExistence(timeout: 10)
-        )
-        XCTAssertTrue(
-            elementExists("todayCheckinCircular"),
+            elementExists("todayCheckinCircular", in: app),
             "TodayCheckinWidget accessoryCircular should render"
         )
         XCTAssertTrue(
-            elementExists("todayCheckinRectangular"),
+            elementExists("todayCheckinRectangular", in: app),
             "TodayCheckinWidget accessoryRectangular should render"
         )
     }
 
-    func testHeroMetricWidgetRendersBothFamilies() throws {
+    func testHeroMetricWidgetRendersBothFamilies() {
+        let app = launchHarness()
         XCTAssertTrue(
-            app.otherElements["widgetSnapshotHarness"].waitForExistence(timeout: 10)
-        )
-        XCTAssertTrue(
-            elementExists("heroMetricRectangular"),
+            elementExists("heroMetricRectangular", in: app),
             "HeroMetricWidget accessoryRectangular should render"
         )
         XCTAssertTrue(
-            elementExists("heroMetricSmall"),
+            elementExists("heroMetricSmall", in: app),
             "HeroMetricWidget systemSmall should render"
         )
     }
 
-    func testQuickLogWidgetRendersCircular() throws {
+    func testQuickLogWidgetRendersCircular() {
+        let app = launchHarness()
         XCTAssertTrue(
-            app.otherElements["widgetSnapshotHarness"].waitForExistence(timeout: 10)
-        )
-        XCTAssertTrue(
-            elementExists("quickLogCircular"),
+            elementExists("quickLogCircular", in: app),
             "QuickLogWidget accessoryCircular should render"
         )
     }
 
     /// An identifier may resolve to any element type depending on how SwiftUI
     /// lays it out, so check across the common query roots.
-    private func elementExists(_ identifier: String) -> Bool {
+    private func elementExists(_ identifier: String, in app: XCUIApplication) -> Bool {
         let candidates: [XCUIElementQuery] = [
             app.otherElements,
             app.images,
