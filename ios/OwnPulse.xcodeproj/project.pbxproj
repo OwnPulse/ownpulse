@@ -21,6 +21,7 @@
 		0D2EF7FC073BFA5DD499FE8F /* AppDependenciesDeepLinkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D3936FD47876674E77BE8FA /* AppDependenciesDeepLinkTests.swift */; };
 		0EC8A8DD21490EDD21236B2C /* AdminService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849D69462AA613F566E82BFF /* AdminService.swift */; };
 		14E81CAFFCED3283B3286208 /* MovingAverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB1EFA3E8BBFD123070BABA /* MovingAverage.swift */; };
+		17F2AB27BAA8C0CF0ABE6AF4 /* WidgetConfigurations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B639EC881C5187247E656376 /* WidgetConfigurations.swift */; };
 		18958506A603AA8D7F7A1A26 /* AnchorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE2B17DFA620BA4FBD5C8FF /* AnchorStore.swift */; };
 		1A9B346935950F2DFB80F1DC /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B29467EE524D8D2ACAB344 /* CrashReporter.swift */; };
 		1B2C6DA8394E5EADFA452C47 /* ProtocolsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9E6D37084D7640B257E988 /* ProtocolsListView.swift */; };
@@ -305,6 +306,7 @@
 		B16BC9B54A679ED5EAB8D32C /* LogViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogViewModel.swift; sourceTree = "<group>"; };
 		B2D4A97A4F90CDBCA4EFF22B /* ProtocolModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolModels.swift; sourceTree = "<group>"; };
 		B516C3CA42E3AFBDE677B93C /* SyncEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEngine.swift; sourceTree = "<group>"; };
+		B639EC881C5187247E656376 /* WidgetConfigurations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetConfigurations.swift; sourceTree = "<group>"; };
 		B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelsTests.swift; sourceTree = "<group>"; };
 		B854DF581C080F7DF1307D72 /* DateRangeSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateRangeSegment.swift; sourceTree = "<group>"; };
 		C061B329BCCD5829A91ED84A /* ProtocolsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolsViewModel.swift; sourceTree = "<group>"; };
@@ -703,6 +705,7 @@
 				5109B9129D77C2C9C4FCC576 /* OwnPulseWidgets.entitlements */,
 				81E43244BC594036F564DE03 /* QuickLogWidget.swift */,
 				91FEC8C17C538219E7B5389F /* TodayCheckinWidget.swift */,
+				B639EC881C5187247E656376 /* WidgetConfigurations.swift */,
 				4424A0CF54086B3DD35D62E9 /* WidgetEntry.swift */,
 				95C058BF1B86E0DCCDFFD367 /* WidgetProvider.swift */,
 				F4808BC2057536798BC37927 /* WidgetSupport.swift */,
@@ -877,6 +880,7 @@
 				077F57685BC914378DF23363 /* OwnPulseWidgetBundle.swift in Sources */,
 				C3FC862F5C29CF5CC0BA5F08 /* QuickLogWidget.swift in Sources */,
 				6C1A4F9CC0D430ED7877026B /* TodayCheckinWidget.swift in Sources */,
+				17F2AB27BAA8C0CF0ABE6AF4 /* WidgetConfigurations.swift in Sources */,
 				55F78E0C752751D75CF8FDD6 /* WidgetDataPublisher.swift in Sources */,
 				859FD9132A9A5C2E2F27A36A /* WidgetEntry.swift in Sources */,
 				5D57B4860737DF7E4D154FF0 /* WidgetProvider.swift in Sources */,

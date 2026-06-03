@@ -4,24 +4,20 @@
 import SwiftUI
 import WidgetKit
 
-/// Lock-screen widget showing whether today's subjective check-in is filled.
-/// Tapping deep-links into the check-in form.
-struct TodayCheckinWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: WidgetSharedConstants.todayCheckinKind, provider: OwnPulseProvider()) { entry in
-            TodayCheckinWidgetView(entry: entry)
-                .widgetURL(URL(string: "ownpulse://log?form=checkin"))
-        }
-        .configurationDisplayName("Today's Check-in")
-        .description("See at a glance whether you've logged today's check-in.")
-        .supportedFamilies([.accessoryCircular, .accessoryRectangular])
-    }
-}
-
+/// Lock-screen widget view showing whether today's subjective check-in is
+/// filled. The `Widget` configuration that wires this up to the timeline
+/// provider lives in `WidgetConfigurations.swift` (extension-only); this view
+/// is shared with the app target so the DEBUG snapshot harness can render it.
 struct TodayCheckinWidgetView: View {
-    @Environment(\.widgetFamily) private var family
+    // `\.widgetFamily` is a read-only environment key (WidgetKit sets it), so
+    // it can't be injected via `.environment(...)`. For the DEBUG snapshot
+    // harness we accept an explicit override; in production it stays nil and
+    // we read the real family WidgetKit provides.
+    @Environment(\.widgetFamily) private var environmentFamily
     let entry: OwnPulseEntry
+    var familyOverride: WidgetFamily?
 
+    private var family: WidgetFamily { familyOverride ?? environmentFamily }
     private var filled: Bool { entry.snapshot.checkinFilledToday }
 
     var body: some View {

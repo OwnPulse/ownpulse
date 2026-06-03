@@ -17,7 +17,10 @@ protocol WidgetDefaultsStore: AnyObject, Sendable {
     func set(_ data: Data?, forKey key: String)
 }
 
-extension UserDefaults: @unchecked Sendable {}
+// `WidgetDefaultsStore` requires `Sendable`. `UserDefaults` is thread-safe but
+// not declared `Sendable` in the SDK, so we add an explicit retroactive
+// `@unchecked Sendable` conformance (required for Swift 6 language mode).
+extension UserDefaults: @retroactive @unchecked Sendable {}
 
 extension UserDefaults: WidgetDefaultsStore {
     func set(_ data: Data?, forKey key: String) {

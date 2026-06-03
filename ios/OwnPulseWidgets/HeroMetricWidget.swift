@@ -5,23 +5,17 @@ import SwiftUI
 import WidgetKit
 
 /// Shows the latest hero metric (resting HR / HRV / sleep duration). Supports
-/// a lock-screen rectangular family and a home-screen small family.
-struct HeroMetricWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: WidgetSharedConstants.heroMetricKind, provider: OwnPulseProvider()) { entry in
-            HeroMetricWidgetView(entry: entry)
-                .widgetURL(URL(string: "ownpulse://log?form=checkin"))
-        }
-        .configurationDisplayName("Hero Metric")
-        .description("Your latest headline health metric at a glance.")
-        .supportedFamilies([.accessoryRectangular, .systemSmall])
-    }
-}
-
+/// a lock-screen rectangular family and a home-screen small family. The
+/// `Widget` configuration lives in `WidgetConfigurations.swift`; this view is
+/// shared with the app target for the DEBUG snapshot harness.
 struct HeroMetricWidgetView: View {
-    @Environment(\.widgetFamily) private var family
+    // See TodayCheckinWidgetView: `\.widgetFamily` is read-only, so the DEBUG
+    // harness passes an explicit override; production reads the real family.
+    @Environment(\.widgetFamily) private var environmentFamily
     let entry: OwnPulseEntry
+    var familyOverride: WidgetFamily?
 
+    private var family: WidgetFamily { familyOverride ?? environmentFamily }
     private var snapshot: WidgetSnapshot { entry.snapshot }
 
     var body: some View {

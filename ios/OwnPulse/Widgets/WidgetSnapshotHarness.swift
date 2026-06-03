@@ -34,25 +34,20 @@ struct WidgetSnapshotHarness: View {
         ScrollView {
             VStack(spacing: 24) {
                 section("Today Check-in — Circular", id: "harnessCheckinCircular") {
-                    TodayCheckinWidgetView(entry: entry)
-                        .environment(\.widgetFamily, .accessoryCircular)
+                    TodayCheckinWidgetView(entry: entry, familyOverride: .accessoryCircular)
                 }
                 section("Today Check-in — Rectangular", id: "harnessCheckinRectangular") {
-                    TodayCheckinWidgetView(entry: entry)
-                        .environment(\.widgetFamily, .accessoryRectangular)
+                    TodayCheckinWidgetView(entry: entry, familyOverride: .accessoryRectangular)
                 }
                 section("Hero Metric — Rectangular", id: "harnessHeroRectangular") {
-                    HeroMetricWidgetView(entry: entry)
-                        .environment(\.widgetFamily, .accessoryRectangular)
+                    HeroMetricWidgetView(entry: entry, familyOverride: .accessoryRectangular)
                 }
                 section("Hero Metric — Small", id: "harnessHeroSmall") {
-                    HeroMetricWidgetView(entry: entry)
-                        .environment(\.widgetFamily, .systemSmall)
+                    HeroMetricWidgetView(entry: entry, familyOverride: .systemSmall)
                         .frame(width: 158, height: 158)
                 }
                 section("Quick Log — Circular", id: "harnessQuickLogCircular") {
                     QuickLogWidgetView(entry: entry)
-                        .environment(\.widgetFamily, .accessoryCircular)
                 }
             }
             .padding()

@@ -6,18 +6,8 @@ import WidgetKit
 
 /// A one-tap lock-screen shortcut that deep-links into the Log screen with the
 /// intervention form pre-selected — the most common "log something now" path.
-struct QuickLogWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: WidgetSharedConstants.quickLogKind, provider: OwnPulseProvider()) { entry in
-            QuickLogWidgetView(entry: entry)
-                .widgetURL(URL(string: "ownpulse://log?form=intervention"))
-        }
-        .configurationDisplayName("Quick Log")
-        .description("Jump straight to logging an intervention.")
-        .supportedFamilies([.accessoryCircular])
-    }
-}
-
+/// The `Widget` configuration lives in `WidgetConfigurations.swift`; this view
+/// is shared with the app target for the DEBUG snapshot harness.
 struct QuickLogWidgetView: View {
     let entry: OwnPulseEntry
 

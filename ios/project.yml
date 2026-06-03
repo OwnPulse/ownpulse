@@ -19,8 +19,10 @@ targets:
       - OwnPulse
       # Widget VIEW + entry types are compiled into the app too, behind a
       # DEBUG-only harness (WidgetSnapshotHarness), so XCUITest can render and
-      # assert all three widget families without a real Home Screen. The
-      # WidgetBundle `@main` and the TimelineProvider stay extension-only.
+      # assert all three widget families without a real Home Screen.
+      # The `Widget` configurations (WidgetConfigurations.swift), the
+      # TimelineProvider (WidgetProvider.swift), and the WidgetBundle `@main`
+      # reference the extension-only OwnPulseProvider and stay extension-only.
       - path: OwnPulseWidgets/TodayCheckinWidget.swift
       - path: OwnPulseWidgets/HeroMetricWidget.swift
       - path: OwnPulseWidgets/QuickLogWidget.swift
