@@ -18,7 +18,9 @@ on:
       - "docs/design/tokens.json"
       - "tools/design-tokens/**"
       - "web/src/styles/_tokens.css"
+      - "web/src/components/explore/chartMetricColors.generated.ts"
       - "ios/OwnPulse/Theme/Tokens.swift"
+      - "ios/OwnPulse/Theme/ChartColors.swift"
       - "docs/design/tokens-generated.md"
       - ".github/workflows/design-tokens.yml"
   pull_request:
@@ -27,7 +29,9 @@ on:
       - "docs/design/tokens.json"
       - "tools/design-tokens/**"
       - "web/src/styles/_tokens.css"
+      - "web/src/components/explore/chartMetricColors.generated.ts"
       - "ios/OwnPulse/Theme/Tokens.swift"
+      - "ios/OwnPulse/Theme/ChartColors.swift"
       - "docs/design/tokens-generated.md"
       - ".github/workflows/design-tokens.yml"
 
@@ -57,7 +61,9 @@ jobs:
         run: |
           if ! git diff --exit-code -- \
             web/src/styles/_tokens.css \
+            web/src/components/explore/chartMetricColors.generated.ts \
             ios/OwnPulse/Theme/Tokens.swift \
+            ios/OwnPulse/Theme/ChartColors.swift \
             docs/design/tokens-generated.md; then
             echo "::error::Generated design-token files are out of sync with docs/design/tokens.json."
             echo "Run 'npm ci && npm run build:tokens' in tools/design-tokens and commit the result."

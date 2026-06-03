@@ -23,6 +23,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", ".
 const cssPath = resolve(repoRoot, "web/src/styles/_tokens.css");
 const swiftPath = resolve(repoRoot, "ios/OwnPulse/Theme/Tokens.swift");
 const mdPath = resolve(repoRoot, "docs/design/tokens-generated.md");
+const chartTsPath = resolve(repoRoot, "web/src/components/explore/chartMetricColors.generated.ts");
+const chartSwiftPath = resolve(repoRoot, "ios/OwnPulse/Theme/ChartColors.swift");
 
 const read = (p: string) => readFileSync(p, "utf8");
 
@@ -84,12 +86,40 @@ describe("value parity (CSS <-> Swift)", () => {
   });
 });
 
+describe("chart.metric parity (web TS <-> iOS Swift)", () => {
+  it("emits the same heart_rate color to both platforms", () => {
+    // #d55e00 -> web keyed map entry and iOS keyed map entry (213/94/0).
+    expect(read(chartTsPath)).toContain('heart_rate: "#d55e00"');
+    expect(read(chartSwiftPath)).toContain(
+      '"heart_rate": Color(red: 213 / 255, green: 94 / 255, blue: 0 / 255)',
+    );
+  });
+
+  it("emits the same hrv color to both platforms", () => {
+    expect(read(chartTsPath)).toContain('hrv: "#009e73"');
+    expect(read(chartSwiftPath)).toContain(
+      '"hrv": Color(red: 0 / 255, green: 158 / 255, blue: 115 / 255)',
+    );
+  });
+
+  it("emits the same field-name alias map to both platforms", () => {
+    // The alias layer (single source of truth in build.js) must be generated
+    // identically to web and iOS so the lookups cannot drift.
+    expect(read(chartTsPath)).toContain('blood_glucose: "glucose"');
+    expect(read(chartTsPath)).toContain('body_mass: "weight"');
+    expect(read(chartSwiftPath)).toContain('"blood_glucose": "glucose"');
+    expect(read(chartSwiftPath)).toContain('"body_mass": "weight"');
+  });
+});
+
 describe("idempotency", () => {
   it("a fresh build reproduces the committed files byte-for-byte", async () => {
     const before = {
       css: read(cssPath),
       swift: read(swiftPath),
       md: read(mdPath),
+      chartTs: read(chartTsPath),
+      chartSwift: read(chartSwiftPath),
     };
 
     await buildTokens();
@@ -97,5 +127,7 @@ describe("idempotency", () => {
     expect(read(cssPath)).toBe(before.css);
     expect(read(swiftPath)).toBe(before.swift);
     expect(read(mdPath)).toBe(before.md);
+    expect(read(chartTsPath)).toBe(before.chartTs);
+    expect(read(chartSwiftPath)).toBe(before.chartSwift);
   });
 });

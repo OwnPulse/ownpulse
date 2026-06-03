@@ -11,6 +11,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SavedChart } from "../../src/api/explore";
 import { ChartLegend } from "../../src/components/explore/ChartLegend";
+import { colorForMetric } from "../../src/components/explore/chartColors";
 import { DateRangeBar } from "../../src/components/explore/DateRangeBar";
 import { ExploreChart } from "../../src/components/explore/ExploreChart";
 import { MetricPicker } from "../../src/components/explore/MetricPicker";
@@ -44,7 +45,7 @@ const metricsResponse = {
     {
       source: "health_records",
       label: "Health Records",
-      metrics: [{ field: "weight", label: "Weight", unit: "kg" }],
+      metrics: [{ field: "body_mass", label: "Weight", unit: "kg" }],
     },
   ],
 };
@@ -413,6 +414,52 @@ describe("ChartLegend", () => {
 
     await user.click(screen.getByLabelText("Toggle moving average for energy"));
     expect(useExploreStore.getState().movingAverageMetrics.has("checkins:energy")).toBe(false);
+  });
+
+  it("legend swatch and chart line agree on a fallback metric's color even when an earlier metric is hidden", () => {
+    // Regression for the legend/chart fallback-color mismatch: both must index
+    // the fallback cycle by the full-array position, so hiding a preceding
+    // metric must not shift a later metric's fallback color — and the legend
+    // swatch must match the chart line.
+    const series = [
+      {
+        source: "checkins",
+        field: "energy",
+        unit: "score",
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+      },
+      {
+        source: "checkins",
+        field: "mood",
+        unit: "score",
+        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }],
+      },
+    ];
+    // "mood" at full-array index 1 has no dedicated token color, so it resolves
+    // to FALLBACK_COLORS[1] regardless of which metrics are hidden.
+    const expectedHex = colorForMetric("mood", 1);
+
+    // Hide the first metric so the chart's visible-only list would have shifted
+    // "mood" to index 0 under the old buggy logic.
+    useExploreStore.setState({ hiddenMetrics: new Set(["checkins:energy"]) });
+
+    // Chart line color (mock keeps the raw hex via data-color).
+    const chart = render(<ExploreChart series={series} />, { wrapper: createWrapper() });
+    const lineColors = Array.from(chart.container.querySelectorAll("[data-testid='vis-line']")).map(
+      (el) => el.getAttribute("data-color"),
+    );
+    expect(lineColors).toContain(expectedHex);
+    chart.unmount();
+
+    // Legend swatch color (jsdom normalizes the inline hex to rgb()).
+    const legend = render(<ChartLegend series={series} />, { wrapper: createWrapper() });
+    const swatch = screen
+      .getByLabelText("Toggle mood visibility")
+      .querySelector("span[style]") as HTMLElement;
+    const tmp = document.createElement("span");
+    tmp.style.backgroundColor = expectedHex;
+    expect(swatch.style.backgroundColor).toBe(tmp.style.backgroundColor);
+    legend.unmount();
   });
 });
 

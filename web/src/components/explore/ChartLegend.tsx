@@ -5,7 +5,7 @@ import type { SeriesResponse } from "../../api/explore";
 import type { Intervention } from "../../api/interventions";
 import { metricKey, useExploreStore } from "../../stores/exploreStore";
 import styles from "./ChartLegend.module.css";
-import { CHART_COLORS, INTERVENTION_COLOR } from "./chartColors";
+import { colorForMetric, INTERVENTION_COLOR } from "./chartColors";
 
 interface ChartLegendProps {
   series: SeriesResponse[];
@@ -33,7 +33,7 @@ export function ChartLegend({ series, interventions = [] }: ChartLegendProps) {
       {series.map((s, i) => {
         const key = metricKey({ source: s.source, field: s.field });
         const hidden = hiddenMetrics.has(key);
-        const color = CHART_COLORS[i % CHART_COLORS.length];
+        const color = colorForMetric(s.field, i);
         const hasData = s.points.length > 0;
         const maActive = movingAverageMetrics.has(key);
         return (

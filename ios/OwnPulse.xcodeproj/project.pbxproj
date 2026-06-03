@@ -83,6 +83,7 @@
 		669E3589FB26EF4E8DE81475 /* HealthKitProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F355BBD4A5F0D8A776C13271 /* HealthKitProvider.swift */; };
 		6713CB352021864506D8D810 /* ExploreViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A077B02C456D93D3B29D233E /* ExploreViewModelTests.swift */; };
 		67D782B53C24AB42C3BF0688 /* ObjCExceptionCatcher.m in Sources */ = {isa = PBXBuildFile; fileRef = EF301ED8B52A7A3EE01AA67F /* ObjCExceptionCatcher.m */; };
+		6877F3EFE69C2D0166CE128C /* ChartColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC4C86C55F701F5A96A1FF3 /* ChartColors.swift */; };
 		6921675809267BBE75644A64 /* NotificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 568D8D1C5B681A29E905A0FF /* NotificationManagerTests.swift */; };
 		6BC1D9A839BA460B9371B98F /* CreateInviteSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDBC022C75CBDEC3C059973B /* CreateInviteSheet.swift */; };
 		6C1A4F9CC0D430ED7877026B /* TodayCheckinWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91FEC8C17C538219E7B5389F /* TodayCheckinWidget.swift */; };
@@ -141,6 +142,7 @@
 		C747FC63938C3826E2870EFB /* FlowTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A864E7B479E2596E8BB649 /* FlowTracker.swift */; };
 		C805D951246089BDF85F5366 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519080A85FF5A2E05C6EA8DF /* WidgetSnapshot.swift */; };
 		C8800B69528885EE9AF3C8C4 /* ExploreViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEFA24761B447BB3CCFA15A /* ExploreViewModel.swift */; };
+		C925FE45BFF24569D5EA49CD /* ChartColorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */; };
 		CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA76F6599478222F387A59 /* Migrations.swift */; };
 		CB7113819FE643F657F85BA4 /* WeightFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B884B5CFC88D057CB131E9E /* WeightFormatter.swift */; };
 		CE8F11EADF231BD14AE6AE70 /* ManualHealthRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB52960E04C11D854448908C /* ManualHealthRecordTests.swift */; };
@@ -279,6 +281,7 @@
 		5E8BD0E40B4F15F05CC46075 /* TelemetrySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySettings.swift; sourceTree = "<group>"; };
 		620BF33A40A0FCF7E3F2DE69 /* WeightEntryForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightEntryForm.swift; sourceTree = "<group>"; };
 		63B9EF0C056066E4BAE8A768 /* SyncSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSchedulerTests.swift; sourceTree = "<group>"; };
+		644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartColorsTests.swift; sourceTree = "<group>"; };
 		6451E992A37FCC6A0004D6F4 /* OwnPulseUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OwnPulseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		649703259D6C4F6BFE3BB74D /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		66E0BF01696C616018AEA71C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -342,6 +345,7 @@
 		B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModelsTests.swift; sourceTree = "<group>"; };
 		B854DF581C080F7DF1307D72 /* DateRangeSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateRangeSegment.swift; sourceTree = "<group>"; };
 		B9629C523AD97D953D48E396 /* ColorSchemePreferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSchemePreferenceTests.swift; sourceTree = "<group>"; };
+		BDC4C86C55F701F5A96A1FF3 /* ChartColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartColors.swift; sourceTree = "<group>"; };
 		C061B329BCCD5829A91ED84A /* ProtocolsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolsViewModel.swift; sourceTree = "<group>"; };
 		C3140A26FC1E3242A80B7C45 /* SyncProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncProgress.swift; sourceTree = "<group>"; };
 		C4245A1A03B84BDF2DF58525 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
@@ -501,6 +505,7 @@
 				C7928246CBD1BDB2F72B47DB /* AuthServiceTests.swift */,
 				E1E681F4CCF28BDCBE6DC5CD /* BrowseCardPresenterTests.swift */,
 				5868F7EE0B35D3986890B880 /* ChartAxisConfigTests.swift */,
+				644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */,
 				B9629C523AD97D953D48E396 /* ColorSchemePreferenceTests.swift */,
 				3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */,
 				A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */,
@@ -582,6 +587,7 @@
 		7430C3BC6F17B72D3AD3F52E /* Theme */ = {
 			isa = PBXGroup;
 			children = (
+				BDC4C86C55F701F5A96A1FF3 /* ChartColors.swift */,
 				66E0BF01696C616018AEA71C /* Theme.swift */,
 				D2455C9A6A8D8B0C1934A934 /* Tokens.swift */,
 			);
@@ -967,6 +973,7 @@
 				F8FD2B7DA91864D423026C01 /* BloodPressureEntryForm.swift in Sources */,
 				C4F699C5F3823273C5AEC97E /* BrowseCardPresenter.swift in Sources */,
 				1C357160FD84CF0D94D18518 /* ChartAxisConfig.swift in Sources */,
+				6877F3EFE69C2D0166CE128C /* ChartColors.swift in Sources */,
 				452B66444DF333AB9E302CBF /* CheckinForm.swift in Sources */,
 				1EE49369F16778667619D284 /* CheckinSummaryCard.swift in Sources */,
 				5A6F54C3577640EA7A61B537 /* ClinicalRecordProvider.swift in Sources */,
@@ -1071,6 +1078,7 @@
 				0C3C7A807E0BA9C70B684B65 /* AuthServiceTests.swift in Sources */,
 				0C9DEF013A3BE08CA8FFC631 /* BrowseCardPresenterTests.swift in Sources */,
 				6664FDB133640BD2F9912611 /* ChartAxisConfigTests.swift in Sources */,
+				C925FE45BFF24569D5EA49CD /* ChartColorsTests.swift in Sources */,
 				BD4AB5943D849BA74B6039A6 /* ColorSchemePreferenceTests.swift in Sources */,
 				9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */,
 				77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */,
