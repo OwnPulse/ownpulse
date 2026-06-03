@@ -40,6 +40,38 @@ final class AppDependencies {
     /// switch tabs (e.g. "Log Today's Check-in" jumps to the Log tab).
     var selectedTab: Int = 0
 
+    /// Index of the Log tab in `MainTabView`. Centralized so the deep-link
+    /// router and the Dashboard cards agree on it.
+    static let logTabIndex = 2
+
+    /// Set by a `ownpulse://log?form=...` deep link (e.g. from the QuickLog
+    /// lock-screen widget). `LogView` observes this and pre-selects the
+    /// matching form, then clears it so re-navigation works.
+    var pendingLogForm: LogTab?
+
+    /// Route an incoming URL. Returns `true` if it was an OwnPulse deep link
+    /// that we handled (so the caller can stop), `false` to fall through to
+    /// the auth callback handler. Extracted as a pure-ish method so it is
+    /// unit-testable without a live Scene.
+    ///
+    /// Supported: `ownpulse://log?form=checkin|intervention|observation`
+    @discardableResult
+    func handleDeepLink(_ url: URL) -> Bool {
+        guard url.scheme == "ownpulse", url.host == "log" else { return false }
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let formValue = components?.queryItems?.first(where: { $0.name == "form" })?.value
+        // Map the deep-link form token to a LogTab. Default to check-in.
+        let form: LogTab
+        switch formValue {
+        case "intervention": form = .intervention
+        case "observation": form = .observation
+        default: form = .checkin
+        }
+        pendingLogForm = form
+        selectedTab = Self.logTabIndex
+        return true
+    }
+
     init(
         keychainService: KeychainServiceProtocol? = nil,
         networkClient: NetworkClientProtocol? = nil,

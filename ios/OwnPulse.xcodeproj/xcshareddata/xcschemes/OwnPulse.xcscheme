@@ -49,6 +49,20 @@
                ReferencedContainer = "container:OwnPulse.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "65B73B50C49A0727FE48218E"
+               BuildableName = "OwnPulseWidgetsExtension.appex"
+               BlueprintName = "OwnPulseWidgetsExtension"
+               ReferencedContainer = "container:OwnPulse.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
