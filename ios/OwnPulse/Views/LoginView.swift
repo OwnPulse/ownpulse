@@ -76,7 +76,7 @@ struct LoginView: View {
 
                     Text("Your health data, your control.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(OPColor.mutedText)
                         .multilineTextAlignment(.center)
                 }
 
@@ -128,8 +128,9 @@ struct LoginView: View {
                     }
                     Text("Sign in with Apple")
                 }
+                .padding(.vertical, 8)
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
+                .frame(minHeight: 50)
                 .background(.black)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -147,8 +148,9 @@ struct LoginView: View {
                     }
                     Text("Sign in with Google")
                 }
+                .padding(.vertical, 8)
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
+                .frame(minHeight: 50)
                 .background(.blue)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -184,8 +186,9 @@ struct LoginView: View {
                         Text("Sign In")
                     }
                 }
+                .padding(.vertical, 8)
                 .frame(maxWidth: .infinity)
-                .frame(height: 50)
+                .frame(minHeight: 50)
                 .background(.primary)
                 .foregroundStyle(.background)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -203,7 +206,7 @@ struct LoginView: View {
                 .foregroundStyle(.quaternary)
             Text("or")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(OPColor.mutedText)
                 .padding(.horizontal, 8)
             Rectangle()
                 .frame(height: 1)

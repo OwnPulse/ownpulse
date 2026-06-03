@@ -88,6 +88,7 @@
 		A2DFFDF78F1019AE623CF7C0 /* FeatureFlagService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ECD3EF4637C840BF4A9A98A /* FeatureFlagService.swift */; };
 		A31F7A11910B3207F65931DC /* SyncStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B3BD27FEC29DA8F177AD1A /* SyncStatusView.swift */; };
 		A67BDB45434152D64A52429A /* AppleAuthHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D6A8FE94F8EE834971CFD60 /* AppleAuthHelper.swift */; };
+		A6948478F4AAD910FE288BA5 /* ThemeColorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7BC1BCAD1F01E138358B163 /* ThemeColorTests.swift */; };
 		A7D44223A58409CF7E476CE4 /* UserPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6127AD4FA6915AB570D2A98 /* UserPreferences.swift */; };
 		ACC332E7F45ED8A7D9C05D79 /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7EE472EEBD42E355D92E53 /* LogView.swift */; };
 		AD908556FEE7A7146DD6F315 /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 649703259D6C4F6BFE3BB74D /* AuthService.swift */; };
@@ -280,6 +281,7 @@
 		E6049367D20366FC7493CBC2 /* OfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueue.swift; sourceTree = "<group>"; };
 		E64390E3C00D21BD3C2B16BB /* ProtocolModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolModelsTests.swift; sourceTree = "<group>"; };
 		E75554390D361CB2DC5B1694 /* OfflineQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueTests.swift; sourceTree = "<group>"; };
+		E7BC1BCAD1F01E138358B163 /* ThemeColorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeColorTests.swift; sourceTree = "<group>"; };
 		EDBC022C75CBDEC3C059973B /* CreateInviteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateInviteSheet.swift; sourceTree = "<group>"; };
 		EF301ED8B52A7A3EE01AA67F /* ObjCExceptionCatcher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ObjCExceptionCatcher.m; sourceTree = "<group>"; };
 		F17B51D542E7FFB01F34E90E /* MedicationSyncProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSyncProvider.swift; sourceTree = "<group>"; };
@@ -427,6 +429,7 @@
 				979710ACA6FAE8436CB11C82 /* SyncEngineTests.swift */,
 				120E4F8AEF92EE78175D7E58 /* SyncProgressTests.swift */,
 				63B9EF0C056066E4BAE8A768 /* SyncSchedulerTests.swift */,
+				E7BC1BCAD1F01E138358B163 /* ThemeColorTests.swift */,
 				44DAC2D411F7B322237A118A /* UserPreferencesTests.swift */,
 				4B87B1D8D0ED5457EF0C48E3 /* WeightFormatterTests.swift */,
 			);
@@ -893,6 +896,7 @@
 				B474734FE98AABC46A894425 /* SyncEngineTests.swift in Sources */,
 				81CDDB2092AB4AE5FA4D936E /* SyncProgressTests.swift in Sources */,
 				963D0B4BAB0197BC20FC27D9 /* SyncSchedulerTests.swift in Sources */,
+				A6948478F4AAD910FE288BA5 /* ThemeColorTests.swift in Sources */,
 				40F94409F620F1FFF5BABE24 /* UserPreferencesTests.swift in Sources */,
 				7E6D3941885FF39E7197B6C8 /* WeightFormatterTests.swift in Sources */,
 			);
