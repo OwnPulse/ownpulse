@@ -49,13 +49,17 @@ test.describe("Settings — theme toggle", () => {
     await mockSettingsApis(page);
   });
 
+  // The radio <input>s are visually hidden (opacity:0, 0×0) — the clickable
+  // target is the wrapping <label>. Click the label by its text; assert on the
+  // radio's checked property (works on hidden inputs), the data-theme attribute,
+  // and localStorage, so the test is deterministic and backend-independent.
   test("selecting Dark applies the dark theme and persists it", async ({ page }) => {
     await page.goto("/settings");
 
     const appearance = page.getByRole("group", { name: "Theme" });
     await expect(appearance).toBeVisible();
 
-    await page.getByRole("radio", { name: "Dark" }).check();
+    await page.getByText("Dark", { exact: true }).click();
 
     await expect(page.getByRole("radio", { name: "Dark" })).toBeChecked();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
@@ -72,7 +76,7 @@ test.describe("Settings — theme toggle", () => {
   test("selecting Light applies the light theme", async ({ page }) => {
     await page.goto("/settings");
 
-    await page.getByRole("radio", { name: "Light" }).check();
+    await page.getByText("Light", { exact: true }).click();
 
     await expect(page.getByRole("radio", { name: "Light" })).toBeChecked();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
@@ -81,10 +85,10 @@ test.describe("Settings — theme toggle", () => {
   test("switching back to System clears the stored override", async ({ page }) => {
     await page.goto("/settings");
 
-    await page.getByRole("radio", { name: "Dark" }).check();
+    await page.getByText("Dark", { exact: true }).click();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
-    await page.getByRole("radio", { name: "System" }).check();
+    await page.getByText("System", { exact: true }).click();
 
     await expect(page.getByRole("radio", { name: "System" })).toBeChecked();
     await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.*/);
