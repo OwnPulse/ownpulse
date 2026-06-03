@@ -30,4 +30,5 @@ mod saved_medicines;
 mod security_fixes;
 mod sleep;
 mod stats;
+mod versioning;
 mod waitlist;
