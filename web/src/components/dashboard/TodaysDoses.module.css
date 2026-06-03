@@ -19,8 +19,10 @@
 .pendingBadge {
   font-size: var(--text-xs);
   font-weight: 600;
-  /* primary-hover on the light tint for WCAG AA at this xs size. */
-  color: var(--color-primary-hover);
+  /* Theme-aware foreground accent on the light tint, for WCAG AA at this xs
+     size in both themes (light = primary-hover; dark = the lighter accent,
+     since primary-hover on the dark tint is only ~2.2:1). */
+  color: var(--color-link-hover);
   background: var(--color-primary-light);
   padding: 0.125rem 0.5rem;
   border-radius: 999px;
@@ -33,8 +35,9 @@
 }
 
 .greenCheck {
-  /* success token (AA against the surface); old #22c55e was ~2.3:1 */
-  color: var(--color-success);
+  /* Foreground success token — AA on both surfaces. old #22c55e was ~2.3:1;
+     the solid --color-success is too dark for AA on the dark surface. */
+  color: var(--color-success-fg);
   font-weight: 700;
 }
 
@@ -87,8 +90,9 @@
 }
 
 .statusCompleted {
-  /* success token (AA against the surface); old #22c55e was ~2.3:1 */
-  color: var(--color-success);
+  /* Foreground success token — AA on both surfaces. old #22c55e was ~2.3:1;
+     the solid --color-success is too dark for AA on the dark surface. */
+  color: var(--color-success-fg);
 }
 
 .statusSkipped {

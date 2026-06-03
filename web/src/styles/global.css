@@ -38,12 +38,13 @@ h3 {
 }
 
 a {
-  color: var(--color-primary);
+  /* Foreground accent — theme-aware so links clear AA on the dark surface. */
+  color: var(--color-link);
   transition: color 0.15s ease;
 }
 
 a:hover {
-  color: var(--color-primary-hover);
+  color: var(--color-link-hover);
 }
 
 code,
