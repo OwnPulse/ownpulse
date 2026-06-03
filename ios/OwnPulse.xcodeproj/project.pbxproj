@@ -51,6 +51,7 @@
 		35697B748FDE579D25320ACC /* SmallMultiplesChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7067D9CDB9403AE923297E82 /* SmallMultiplesChartView.swift */; };
 		38F928EB384E35BA3B8A8E2D /* WidgetSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4808BC2057536798BC37927 /* WidgetSupport.swift */; };
 		3932874A8CEE6C9B476E42E3 /* NotificationDelegateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 933E701E2FE265BEAD6899EA /* NotificationDelegateTests.swift */; };
+		396AFE6D23CC8FD9D93087F1 /* Tokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2455C9A6A8D8B0C1934A934 /* Tokens.swift */; };
 		3AE8FE51A51E3C242110ABEE /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EC3BA93997299C82E7D9272 /* NotificationManager.swift */; };
 		3B0FD461A49B85D216380765 /* ProtocolModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2D4A97A4F90CDBCA4EFF22B /* ProtocolModels.swift */; };
 		3B7C75B5EF4DD69E050F0435 /* LogViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BBEEEB77231155980E6056B /* LogViewModelTests.swift */; };
@@ -347,6 +348,7 @@
 		CF7F419A2EFD4A51FD23A3C4 /* WeeklySummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklySummaryCard.swift; sourceTree = "<group>"; };
 		D0B294575765E4C92C7F8290 /* MockNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNotificationManager.swift; sourceTree = "<group>"; };
 		D1ED110E1D7CCFA9CD8958BB /* WidgetDataPublisherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataPublisherTests.swift; sourceTree = "<group>"; };
+		D2455C9A6A8D8B0C1934A934 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
 		D2EFCC3ABFED4F18B7F5DF8B /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
 		D4A331F016221490E34041F5 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		D5ECF4C4691493011E79B690 /* MockFeatureFlagService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFeatureFlagService.swift; sourceTree = "<group>"; };
@@ -569,6 +571,7 @@
 			isa = PBXGroup;
 			children = (
 				66E0BF01696C616018AEA71C /* Theme.swift */,
+				D2455C9A6A8D8B0C1934A934 /* Tokens.swift */,
 			);
 			path = Theme;
 			sourceTree = "<group>";
@@ -1026,6 +1029,7 @@
 				208E9ABF9B99B54C494A3C3D /* TelemetrySettings.swift in Sources */,
 				203A3757FF6723983649D7E2 /* Theme.swift in Sources */,
 				07755AC9590BCB838244D73D /* TodayCheckinWidget.swift in Sources */,
+				396AFE6D23CC8FD9D93087F1 /* Tokens.swift in Sources */,
 				A7D44223A58409CF7E476CE4 /* UserPreferences.swift in Sources */,
 				BD32558E97047E465F0AD65B /* WeeklySummaryCard.swift in Sources */,
 				9EF48B042C0061A819AB1642 /* WeightChartView.swift in Sources */,
