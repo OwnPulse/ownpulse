@@ -35,6 +35,20 @@
                ReferencedContainer = "container:OwnPulse.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "694B7250F27FA80F4BACF1B5"
+               BuildableName = "OwnPulseUITests.xctest"
+               BlueprintName = "OwnPulseUITests"
+               ReferencedContainer = "container:OwnPulse.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -61,6 +75,17 @@
                BlueprintIdentifier = "E024C7F3BFFB7DBFB14E5DA2"
                BuildableName = "OwnPulseTests.xctest"
                BlueprintName = "OwnPulseTests"
+               ReferencedContainer = "container:OwnPulse.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "694B7250F27FA80F4BACF1B5"
+               BuildableName = "OwnPulseUITests.xctest"
+               BlueprintName = "OwnPulseUITests"
                ReferencedContainer = "container:OwnPulse.xcodeproj">
             </BuildableReference>
          </TestableReference>

@@ -80,6 +80,7 @@
 		9B17F5A174D36BC556E7E007 /* ProtocolDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF6D8B6C509F8643B88BCD4 /* ProtocolDetailView.swift */; };
 		9B399468C9D87B6A9EF64EBE /* NotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10C04165D859EBD886EDA054 /* NotificationDelegate.swift */; };
 		9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */; };
+		9C6D97593B68906F3B2348EC /* AccessibilityAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A76C321ED13544ABCE9B286D /* AccessibilityAuditTests.swift */; };
 		9E72E02192CCDF3E34F8599E /* MetricDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2024FFBD0E30AB4B5C5C38 /* MetricDetailView.swift */; };
 		9EF48B042C0061A819AB1642 /* WeightChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E3F70DEB75DC508144AF95 /* WeightChartView.swift */; };
 		9FA3B9180E813D0EEA3BD43D /* HealthKitPromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D9D39CD864279A19075499 /* HealthKitPromptSheet.swift */; };
@@ -144,6 +145,13 @@
 			remoteGlobalIDString = 1FBD18CB47E558509C312764;
 			remoteInfo = OwnPulse;
 		};
+		70F11C3649ED72E110DEC63B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6E13D4BFB568BD6D17E16EBD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1FBD18CB47E558509C312764;
+			remoteInfo = OwnPulse;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
@@ -193,6 +201,7 @@
 		5E6426632C9A60D4B0EAE38F /* MockKeychainService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockKeychainService.swift; sourceTree = "<group>"; };
 		5E8BD0E40B4F15F05CC46075 /* TelemetrySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySettings.swift; sourceTree = "<group>"; };
 		63B9EF0C056066E4BAE8A768 /* SyncSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSchedulerTests.swift; sourceTree = "<group>"; };
+		6451E992A37FCC6A0004D6F4 /* OwnPulseUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OwnPulseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		649703259D6C4F6BFE3BB74D /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		66E0BF01696C616018AEA71C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		67D23FC791398F05350DBFB4 /* ExploreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreModels.swift; sourceTree = "<group>"; };
@@ -232,6 +241,7 @@
 		A2DEC6D8A316102C9721BE28 /* OwnPulseTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OwnPulseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A3CF51E74D2A5D23EB666510 /* HealthKitTypeMapTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTypeMapTests.swift; sourceTree = "<group>"; };
 		A5BD57BDC67D2B9798A89338 /* HealthOverviewPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthOverviewPresenter.swift; sourceTree = "<group>"; };
+		A76C321ED13544ABCE9B286D /* AccessibilityAuditTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityAuditTests.swift; sourceTree = "<group>"; };
 		A91D1368DE03587373E1AE7E /* ScoreSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreSlider.swift; sourceTree = "<group>"; };
 		AD867DA5B7FFBCACB33B9B12 /* ChartAxisConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartAxisConfig.swift; sourceTree = "<group>"; };
 		AD9E6D37084D7640B257E988 /* ProtocolsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProtocolsListView.swift; sourceTree = "<group>"; };
@@ -428,6 +438,7 @@
 			children = (
 				11968815857BFCFD78991B25 /* OwnPulse */,
 				23C103EA1E51E44EFEE9A7C3 /* OwnPulseTests */,
+				DE9B62D17F4D2C1C40B765DB /* OwnPulseUITests */,
 				C04D1876A8D527EAB1B3E663 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -557,6 +568,7 @@
 			children = (
 				C8A4570E84623882F7ED22DF /* OwnPulse.app */,
 				A2DEC6D8A316102C9721BE28 /* OwnPulseTests.xctest */,
+				6451E992A37FCC6A0004D6F4 /* OwnPulseUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -601,6 +613,14 @@
 				C061B329BCCD5829A91ED84A /* ProtocolsViewModel.swift */,
 			);
 			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		DE9B62D17F4D2C1C40B765DB /* OwnPulseUITests */ = {
+			isa = PBXGroup;
+			children = (
+				A76C321ED13544ABCE9B286D /* AccessibilityAuditTests.swift */,
+			);
+			path = OwnPulseUITests;
 			sourceTree = "<group>";
 		};
 		EB2C5A605F7E508C88F4AD95 /* Dashboard */ = {
@@ -650,6 +670,24 @@
 			productReference = C8A4570E84623882F7ED22DF /* OwnPulse.app */;
 			productType = "com.apple.product-type.application";
 		};
+		694B7250F27FA80F4BACF1B5 /* OwnPulseUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A926C7C53832848DD2A66A49 /* Build configuration list for PBXNativeTarget "OwnPulseUITests" */;
+			buildPhases = (
+				F6CE0788ED50D00D474376D1 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				17B0FE0BFE764414526FF53C /* PBXTargetDependency */,
+			);
+			name = OwnPulseUITests;
+			packageProductDependencies = (
+			);
+			productName = OwnPulseUITests;
+			productReference = 6451E992A37FCC6A0004D6F4 /* OwnPulseUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		E024C7F3BFFB7DBFB14E5DA2 /* OwnPulseTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8F9570B0A80A61CC60618DA1 /* Build configuration list for PBXNativeTarget "OwnPulseTests" */;
@@ -680,6 +718,9 @@
 					1FBD18CB47E558509C312764 = {
 						DevelopmentTeam = "$(DEVELOPMENT_TEAM)";
 					};
+					694B7250F27FA80F4BACF1B5 = {
+						TestTargetID = 1FBD18CB47E558509C312764;
+					};
 				};
 			};
 			buildConfigurationList = D5854736E4AA13E198AA6EB4 /* Build configuration list for PBXProject "OwnPulse" */;
@@ -701,6 +742,7 @@
 			targets = (
 				1FBD18CB47E558509C312764 /* OwnPulse */,
 				E024C7F3BFFB7DBFB14E5DA2 /* OwnPulseTests */,
+				694B7250F27FA80F4BACF1B5 /* OwnPulseUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -856,9 +898,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F6CE0788ED50D00D474376D1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9C6D97593B68906F3B2348EC /* AccessibilityAuditTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		17B0FE0BFE764414526FF53C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1FBD18CB47E558509C312764 /* OwnPulse */;
+			targetProxy = 70F11C3649ED72E110DEC63B /* PBXContainerItemProxy */;
+		};
 		7934EB1AA3989624F5D779AE /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 1FBD18CB47E558509C312764 /* OwnPulse */;
@@ -867,6 +922,25 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		3D6CBB2760156945276DADBE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = health.ownpulse.OwnPulseUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = OwnPulse;
+			};
+			name = Release;
+		};
 		3DDC1E9F66893AB9548A02D6 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -957,6 +1031,25 @@
 				SWIFT_OBJC_BRIDGING_HEADER = "OwnPulse/OwnPulse-Bridging-Header.h";
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		655DA6847B0D2057B3256036 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = health.ownpulse.OwnPulseUITests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = OwnPulse;
 			};
 			name = Debug;
 		};
@@ -1102,6 +1195,15 @@
 			buildConfigurations = (
 				7C63A4684F55D333443A5C1B /* Debug */,
 				F7397560318F19BBBD37A174 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A926C7C53832848DD2A66A49 /* Build configuration list for PBXNativeTarget "OwnPulseUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				655DA6847B0D2057B3256036 /* Debug */,
+				3D6CBB2760156945276DADBE /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
