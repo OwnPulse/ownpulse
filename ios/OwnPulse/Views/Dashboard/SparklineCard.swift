@@ -11,6 +11,15 @@ struct SparklineCard: View {
         series.field.replacingOccurrences(of: "_", with: " ").capitalized
     }
 
+    // MARK: C7 chart
+    /// Sparkline line color from B5's shared token source, keyed by the series
+    /// field so the metric matches its color on the web dashboard. The card's
+    /// position in the horizontal scroller is unknown here, so we pass index 0
+    /// and let keyed metrics win; unkeyed fields fall back deterministically.
+    private var chartColor: Color {
+        ChartColors.color(for: series.field, index: 0)
+    }
+
     private var latestValue: String {
         guard let last = series.points.last else { return "--" }
         return String(format: "%.0f", last.v)
@@ -62,13 +71,14 @@ struct SparklineCard: View {
             }
 
             if !series.points.isEmpty {
+                // MARK: C7 chart — sparkline rendered with the metric's token color
                 Chart {
                     ForEach(Array(series.points.enumerated()), id: \.offset) { index, point in
                         LineMark(
                             x: .value("Day", index),
                             y: .value("Value", point.v)
                         )
-                        .foregroundStyle(OPColor.teal)
+                        .foregroundStyle(chartColor)
                         .interpolationMethod(.catmullRom)
                         .lineStyle(StrokeStyle(lineWidth: 2))
                     }

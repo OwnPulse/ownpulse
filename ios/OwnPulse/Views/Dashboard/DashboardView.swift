@@ -122,7 +122,8 @@ struct DashboardView: View {
                         unit: vm.heroMetricUnit,
                         trendText: vm.heroTrendText,
                         trendIsPositive: vm.heroTrendIsPositive,
-                        dataPoints: vm.heroSeries
+                        dataPoints: vm.heroSeries,
+                        metricFieldKey: vm.heroMetricFieldKey
                     )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .accessibilityIdentifier("heroMetricCard")

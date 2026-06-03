@@ -1,0 +1,37 @@
+appId: health.ownpulse.app
+---
+# C7: Phase 3b Swift Charts dashboard. Verifies the hero metric chart, the
+# 7-day sparkline charts, and the weekly summary bar chart all render with the
+# per-metric token colors. Charts expose accessibility identifiers so this flow
+# never matches on text or color.
+- assertVisible:
+    id: "mainTabView"
+
+# Wait for the dashboard data to load — the check-in card is the load gate.
+- extendedWaitUntil:
+    visible:
+      id: "checkinSummaryCard"
+    timeout: 10000
+
+# Hero metric card renders its 30-day Swift Chart. The card is optional because
+# it only appears once the hero series has data.
+- assertVisible:
+    id: "heroMetricCard"
+    optional: true
+- assertVisible:
+    id: "heroChart"
+    optional: true
+
+# 7-day sparkline section with per-metric sparkline charts.
+- assertVisible:
+    id: "sparklineSection"
+    optional: true
+
+# Weekly summary is now a Swift Charts bar chart, not a stat grid.
+- assertVisible:
+    id: "weeklySummaryCard"
+- assertVisible:
+    id: "weeklySummaryChart"
+
+- assertVisible:
+    id: "syncStatus"

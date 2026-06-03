@@ -25,6 +25,9 @@ final class DashboardViewModel {
     var insights: [Insight] = []
     var heroSeries: [DataPoint] = []
     var heroMetricName: String = ""
+    // C7: backend field key for the hero metric, used by HeroMetricCard to
+    // resolve its chart color from the shared token source (ChartColors).
+    var heroMetricFieldKey: String = "resting_heart_rate"
     var heroMetricUnit: String = ""
     var heroCurrentValue: String = ""
     var heroTrendText: String = ""
@@ -174,6 +177,7 @@ final class DashboardViewModel {
             if let series = response.series.first, !series.points.isEmpty {
                 heroSeries = series.points
                 heroMetricName = "Resting Heart Rate"
+                heroMetricFieldKey = series.field
                 heroMetricUnit = series.unit.isEmpty ? "bpm" : series.unit
                 if let last = series.points.last {
                     heroCurrentValue = String(format: "%.0f", last.v)
