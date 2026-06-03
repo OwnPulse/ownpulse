@@ -31,6 +31,7 @@ pub mod protocols;
 pub mod saved_medicines;
 pub mod sleep;
 pub mod source_preferences;
+pub mod sources;
 pub mod stats;
 pub mod telemetry;
 pub mod v2;
@@ -352,6 +353,8 @@ fn base_routes() -> Router<AppState> {
         // Source preferences
         .route("/source-preferences", get(source_preferences::list))
         .route("/source-preferences", post(source_preferences::upsert))
+        // Source overlap discovery (drives the source-preference wizard)
+        .route("/sources/overlap-scan", get(sources::overlap_scan))
         // Telemetry (JWT-gated but anonymous storage)
         .route("/telemetry/report", post(telemetry::report))
         // Account

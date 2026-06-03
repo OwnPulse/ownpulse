@@ -30,6 +30,7 @@ mod protocols;
 mod saved_medicines;
 mod security_fixes;
 mod sleep;
+mod sources;
 mod stats;
 mod versioning;
 mod waitlist;
