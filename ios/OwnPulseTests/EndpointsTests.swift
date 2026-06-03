@@ -37,6 +37,9 @@ struct EndpointsTests {
         Endpoints.notificationsRegister,
         Endpoints.notificationPreferences,
         Endpoints.savedMedicines,
+        // C8: MyChart / SMART-on-FHIR
+        Endpoints.myChartConnect,
+        Endpoints.myChartSync,
         // Protocols
         Endpoints.protocols,
         Endpoints.activeRuns,

@@ -63,6 +63,19 @@ pub struct Config {
     #[serde(default)]
     pub dexcom_client_secret: Option<String>,
 
+    /// MyChart / SMART-on-FHIR public OAuth client id. SMART public clients use
+    /// PKCE rather than a client secret, so no secret is configured. The FHIR
+    /// base URL and token endpoint are per-provider and supplied by the client
+    /// at connect time, not via env.
+    #[serde(default)]
+    pub mychart_client_id: Option<String>,
+    /// Allow non-HTTPS / private-host MyChart provider URLs. Defaults to false.
+    /// Only enabled for local development and tests (WireMock on 127.0.0.1).
+    /// In production this stays false so the SSRF guard in
+    /// `integrations::mychart::validate_provider_url` is enforced.
+    #[serde(default)]
+    pub mychart_allow_insecure_urls: bool,
+
     #[serde(default = "default_encryption_key")]
     pub encryption_key: String,
     /// Previous encryption key, used as fallback when decrypting legacy
@@ -194,6 +207,14 @@ impl Config {
                  set a real 32-byte hex key before running in production"
             );
         }
+
+        if !is_localhost && self.mychart_allow_insecure_urls {
+            panic!(
+                "MYCHART_ALLOW_INSECURE_URLS is enabled outside localhost — \
+                 this disables the MyChart SSRF guard (https + private-host \
+                 checks) and must never be set in production"
+            );
+        }
     }
 }
 
@@ -221,6 +242,8 @@ mod tests {
             oura_auth_base_url: None,
             dexcom_client_id: None,
             dexcom_client_secret: None,
+            mychart_client_id: None,
+            mychart_allow_insecure_urls: true,
             encryption_key: default_encryption_key(),
             encryption_key_previous: None,
             google_token_url: default_google_token_url(),
@@ -264,6 +287,17 @@ mod tests {
         let mut config = test_config();
         config.web_origin = "https://app.ownpulse.health".to_string();
         config.jwt_secret = "a-real-secret-that-is-not-the-default".to_string();
+        config.validate();
+    }
+
+    #[test]
+    #[should_panic(expected = "MYCHART_ALLOW_INSECURE_URLS")]
+    fn mychart_insecure_urls_panics_in_production() {
+        let mut config = test_config();
+        config.web_origin = "https://app.ownpulse.health".to_string();
+        config.jwt_secret = "a-real-secret-that-is-not-the-default".to_string();
+        config.encryption_key = "a".repeat(64);
+        config.mychart_allow_insecure_urls = true;
         config.validate();
     }
 

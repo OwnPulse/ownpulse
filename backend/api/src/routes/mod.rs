@@ -24,6 +24,7 @@ pub mod insights;
 pub mod integrations;
 pub mod interventions;
 pub mod labs;
+pub mod mychart; // C8: MyChart / SMART-on-FHIR lab import
 pub mod observations;
 pub mod observer_polls;
 pub mod oura;
@@ -374,6 +375,10 @@ fn base_routes() -> Router<AppState> {
         .route("/sleep/:id", delete(sleep::delete))
         // Integrations
         .route("/integrations", get(integrations::list))
+        // C8: MyChart / SMART-on-FHIR — register before the :source matcher
+        // so these fixed paths are not swallowed by `/integrations/:source`.
+        .route("/integrations/mychart/connect", post(mychart::connect))
+        .route("/integrations/mychart/sync", post(mychart::sync))
         .route("/integrations/:source", delete(integrations::disconnect))
         // Genetics
         .route("/genetics/upload", post(genetics::upload))

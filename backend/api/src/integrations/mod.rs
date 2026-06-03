@@ -10,4 +10,5 @@ pub mod apple;
 pub mod garmin;
 pub mod google;
 pub mod google_calendar;
+pub mod mychart;
 pub mod oura;

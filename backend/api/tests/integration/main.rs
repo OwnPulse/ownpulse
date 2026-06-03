@@ -22,6 +22,7 @@ mod integrations;
 mod interventions;
 mod labs;
 mod metrics;
+mod mychart;
 mod observations;
 mod observer_polls;
 mod password_reset;

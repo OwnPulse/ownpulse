@@ -41,6 +41,74 @@ async fn test_create_lab_result() {
 }
 
 #[tokio::test]
+async fn test_bulk_insert_dedups_by_source_id() {
+    // Clinical-records bulk sync (Apple Health Records / MyChart) is keyed on
+    // (user_id, source, source_id). Re-sending the same source_id with amended
+    // attributes must update in place, never create a duplicate row.
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let first = json!({
+        "records": [{
+            "panel_date": "2026-03-15",
+            "marker": "Glucose",
+            "value": 92.0,
+            "unit": "mg/dL",
+            "source": "apple_health_records",
+            "source_id": "ahr-obs-1"
+        }]
+    });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/labs/bulk",
+            &token,
+            Some(&first),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201);
+
+    // Same source_id, amended marker + value.
+    let second = json!({
+        "records": [{
+            "panel_date": "2026-03-15",
+            "marker": "Glucose, fasting",
+            "value": 95.0,
+            "unit": "mg/dL",
+            "source": "apple_health_records",
+            "source_id": "ahr-obs-1"
+        }]
+    });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/labs/bulk",
+            &token,
+            Some(&second),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201);
+
+    let rows = sqlx::query_as::<_, (String, f64)>(
+        "SELECT marker, value FROM lab_results WHERE user_id = $1 AND source = 'apple_health_records'",
+    )
+    .bind(user_id)
+    .fetch_all(&app.pool)
+    .await
+    .unwrap();
+
+    assert_eq!(rows.len(), 1, "re-sync must not create a duplicate row");
+    assert_eq!(rows[0].0, "Glucose, fasting");
+    assert_eq!(rows[0].1, 95.0);
+}
+
+#[tokio::test]
 async fn test_list_lab_results() {
     let app = common::setup().await;
     let (_user_id, token) = common::create_test_user(&app).await;

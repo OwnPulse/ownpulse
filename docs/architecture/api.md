@@ -415,6 +415,73 @@ writing a preference via `POST /source-preferences`.
 |--------|------|-------------|-------|
 | GET | `/integrations` | List connected integrations | 1 |
 | DELETE | `/integrations/:source` | Disconnect an integration | 1 |
+| POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
+| POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
+
+#### MyChart / SMART-on-FHIR lab import
+
+MyChart (Epic) and compatible patient portals expose lab data over the
+[SMART-on-FHIR](https://hl7.org/fhir/smart-app-launch/) standard: an OAuth 2.0
+authorization-code flow with PKCE, followed by a FHIR R4 REST API. Because the
+authorization endpoint and FHIR base URL differ per healthcare provider, the
+client performs the SMART launch and in-app authorization redirect, captures
+the authorization `code`, then posts it to the backend together with the
+discovered endpoints. The backend exchanges the code (PKCE, no client secret),
+stores the tokens encrypted, and persists the non-secret FHIR connection
+metadata for later syncs.
+
+`POST /integrations/mychart/connect`
+
+```json
+{
+  "fhir_base_url": "https://fhir.example.org/r4",
+  "token_endpoint": "https://fhir.example.org/oauth2/token",
+  "code": "auth-code-abc",
+  "redirect_uri": "ownpulse://mychart-callback",
+  "code_verifier": "pkce-verifier-xyz"
+}
+```
+
+Response `200`:
+
+```json
+{ "source": "mychart", "connected": true }
+```
+
+`POST /integrations/mychart/sync` (empty body) imports laboratory `Observation`
+resources into `lab_results`. Imports are idempotent — each row carries the
+FHIR resource id as `source_id` and is deduplicated on re-sync.
+
+Response `200`:
+
+```json
+{ "source": "mychart", "imported": 2, "skipped": 0 }
+```
+
+Lab data is health data: it is imported verbatim. Marker names and values are
+never validated, filtered, or judged; out-of-range flags are derived only from
+the provider-supplied reference range. Requires `MYCHART_CLIENT_ID` to be set
+on the server.
+
+Because `fhir_base_url` and `token_endpoint` are client-supplied URLs that the
+server connects to directly, they pass a layered SSRF guard before any outbound
+request, at both connect time and on every sync (the stored URLs are
+re-validated, never trusted blindly):
+
+- the scheme must be `https`;
+- IP-literal hosts in private / loopback / link-local / CGNAT / multicast
+  ranges are rejected, with IPv4-mapped IPv6 (`::ffff:169.254.169.254`)
+  canonicalised to IPv4 first;
+- obfuscated numeric hosts (decimal, hex, octal, leading-zero octets) are
+  rejected;
+- the outbound HTTP client follows **no redirects** (a valid host cannot bounce
+  the server to an internal address); and
+- a custom DNS resolver rejects any hostname that **resolves** to an internal
+  address, closing DNS-rebinding.
+
+Set `MYCHART_ALLOW_INSECURE_URLS=true` only for local development against a
+non-HTTPS test server; the API refuses to start with it enabled outside
+localhost.
 
 ### Export
 

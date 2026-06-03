@@ -103,6 +103,9 @@ Blood panel and laboratory data with reference ranges.
 | `unit` | TEXT | |
 | `reference_low` | DOUBLE nullable | |
 | `reference_high` | DOUBLE nullable | |
+| `source` | TEXT | `manual`, `apple_health_records`, `mychart`, … |
+| `source_id` | TEXT nullable | External record id. For FHIR/MyChart, the `Observation` resource id — the dedup identity for re-sync via the partial unique index `(user_id, source, source_id)`. |
+| `loinc_code` | TEXT nullable | LOINC code preserved from FHIR `Observation.code` codings. |
 | `collected_at` | TIMESTAMPTZ | |
 | `created_at` | TIMESTAMPTZ | |
 
@@ -196,10 +199,11 @@ OAuth tokens for all third-party integrations. Encrypted with AES-256-GCM.
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `provider` | TEXT | e.g. `garmin`, `oura`, `dexcom`, `google` |
+| `provider` | TEXT | e.g. `garmin`, `oura`, `dexcom`, `google`, `mychart` |
 | `access_token_encrypted` | BYTEA | AES-256-GCM encrypted |
 | `refresh_token_encrypted` | BYTEA | AES-256-GCM encrypted |
 | `expires_at` | TIMESTAMPTZ nullable | |
+| `metadata` | JSONB nullable | Non-secret per-connection parameters. First used by MyChart (SMART-on-FHIR) to store the discovered FHIR base URL and token endpoint. Never store secrets here. |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 

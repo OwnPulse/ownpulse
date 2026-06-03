@@ -124,6 +124,14 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0029_app_events_platform.sql",
         include_str!("../../../db/migrations/0029_app_events_platform.sql"),
     ),
+    (
+        "0030_integration_tokens_metadata.sql",
+        include_str!("../../../db/migrations/0030_integration_tokens_metadata.sql"),
+    ),
+    (
+        "0031_lab_results_source_dedup.sql",
+        include_str!("../../../db/migrations/0031_lab_results_source_dedup.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]

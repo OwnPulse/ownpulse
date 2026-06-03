@@ -8,6 +8,7 @@
 
 pub mod garmin_sync;
 pub mod insight_generator;
+pub mod mychart_sync;
 pub mod oura_sync;
 
 use sqlx::PgPool;

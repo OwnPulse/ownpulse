@@ -30,4 +30,8 @@ enum Endpoints {
     static let authGarminLogin = "/api/v1/auth/garmin/login"
     static let authOuraLogin = "/api/v1/auth/oura/login"
     // --- end C6 ---
+    // --- C8: MyChart / SMART-on-FHIR lab import ---
+    static let myChartConnect = "/api/v1/integrations/mychart/connect"
+    static let myChartSync = "/api/v1/integrations/mychart/sync"
+    // --- end C8 ---
 }

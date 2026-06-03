@@ -17,11 +17,11 @@ pub async fn insert(
     sqlx::query_as::<_, LabResultRow>(
         "INSERT INTO lab_results
             (user_id, panel_date, lab_name, marker, value, unit,
-             reference_low, reference_high, source, source_id, uploaded_file_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             reference_low, reference_high, source, source_id, loinc_code, uploaded_file_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          RETURNING id, user_id, panel_date, lab_name, marker, value, unit,
                    reference_low, reference_high, out_of_range, source,
-                   source_id, uploaded_file_id, created_at",
+                   source_id, loinc_code, uploaded_file_id, created_at",
     )
     .bind(user_id)
     .bind(lab.panel_date)
@@ -33,6 +33,7 @@ pub async fn insert(
     .bind(lab.reference_high)
     .bind(&lab.source)
     .bind(&lab.source_id)
+    .bind(&lab.loinc_code)
     .bind(None::<Uuid>) // uploaded_file_id — not on CreateLabResult, nullable in DB
     .fetch_one(pool)
     .await
@@ -48,7 +49,7 @@ pub async fn list(
     sqlx::query_as::<_, LabResultRow>(
         "SELECT id, user_id, panel_date, lab_name, marker, value, unit,
                 reference_low, reference_high, out_of_range, source,
-                source_id, uploaded_file_id, created_at
+                source_id, loinc_code, uploaded_file_id, created_at
          FROM lab_results
          WHERE user_id = $1
            AND ($2::date IS NULL OR panel_date >= $2)
@@ -72,7 +73,7 @@ pub async fn get_by_id(
     sqlx::query_as::<_, LabResultRow>(
         "SELECT id, user_id, panel_date, lab_name, marker, value, unit,
                 reference_low, reference_high, out_of_range, source,
-                source_id, uploaded_file_id, created_at
+                source_id, loinc_code, uploaded_file_id, created_at
          FROM lab_results
          WHERE id = $1 AND user_id = $2",
     )
@@ -82,8 +83,19 @@ pub async fn get_by_id(
     .await
 }
 
-/// Bulk insert lab results, skipping duplicates by source_id.
-/// Used by clinical records sync from Apple Health Records.
+/// Bulk upsert externally-sourced lab results, keyed on the stable
+/// `(user_id, source, source_id)` identity. Used by clinical-records sync
+/// (Apple Health Records, MyChart / SMART-on-FHIR).
+///
+/// For source-id-bearing rows the FHIR resource id is the identity: the lab can
+/// amend the display text (`marker`), value, unit, or reference range without
+/// changing the resource id. We therefore `ON CONFLICT … DO UPDATE` the mutable
+/// attributes rather than keying dedup on `marker` (which would insert a
+/// duplicate clinical row whenever the display string changed).
+///
+/// Returns only the rows that were newly inserted (not the ones updated in
+/// place), so callers can report an accurate "imported" count and a re-sync of
+/// unchanged data reports zero new rows.
 pub async fn bulk_insert(
     pool: &PgPool,
     user_id: Uuid,
@@ -91,18 +103,25 @@ pub async fn bulk_insert(
 ) -> Result<Vec<LabResultRow>, sqlx::Error> {
     let mut results = Vec::with_capacity(labs.len());
     for lab in labs {
-        // Use ON CONFLICT DO NOTHING for idempotent sync
-        let row = sqlx::query_as::<_, LabResultRow>(
+        let row = sqlx::query_as::<_, UpsertedLabRow>(
             "INSERT INTO lab_results
                 (user_id, panel_date, lab_name, marker, value, unit,
-                 reference_low, reference_high, source, source_id, uploaded_file_id)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-             ON CONFLICT (user_id, source, marker, panel_date, source_id)
-                WHERE source_id IS NOT NULL
-             DO NOTHING
+                 reference_low, reference_high, source, source_id, loinc_code, uploaded_file_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+             ON CONFLICT (user_id, source, source_id) WHERE source_id IS NOT NULL
+             DO UPDATE SET
+                panel_date    = EXCLUDED.panel_date,
+                lab_name      = EXCLUDED.lab_name,
+                marker        = EXCLUDED.marker,
+                value         = EXCLUDED.value,
+                unit          = EXCLUDED.unit,
+                reference_low = EXCLUDED.reference_low,
+                reference_high = EXCLUDED.reference_high,
+                loinc_code    = EXCLUDED.loinc_code
              RETURNING id, user_id, panel_date, lab_name, marker, value, unit,
                        reference_low, reference_high, out_of_range, source,
-                       source_id, uploaded_file_id, created_at",
+                       source_id, loinc_code, uploaded_file_id, created_at,
+                       (xmax = 0) AS inserted",
         )
         .bind(user_id)
         .bind(lab.panel_date)
@@ -114,15 +133,63 @@ pub async fn bulk_insert(
         .bind(lab.reference_high)
         .bind(&lab.source)
         .bind(&lab.source_id)
+        .bind(&lab.loinc_code)
         .bind(None::<Uuid>)
         .fetch_optional(pool)
         .await?;
 
-        if let Some(row) = row {
-            results.push(row);
+        // Only count rows that were newly inserted (not updated in place).
+        if let Some(row) = row
+            && row.inserted
+        {
+            results.push(row.into_row());
         }
     }
     Ok(results)
+}
+
+/// A `lab_results` row plus the `(xmax = 0)` flag from an upsert: `true` for a
+/// freshly INSERTed row, `false` for one UPDATEd in place.
+#[derive(sqlx::FromRow)]
+struct UpsertedLabRow {
+    id: Uuid,
+    user_id: Uuid,
+    panel_date: NaiveDate,
+    lab_name: Option<String>,
+    marker: String,
+    value: f64,
+    unit: String,
+    reference_low: Option<f64>,
+    reference_high: Option<f64>,
+    out_of_range: Option<bool>,
+    source: String,
+    source_id: Option<String>,
+    loinc_code: Option<String>,
+    uploaded_file_id: Option<Uuid>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    inserted: bool,
+}
+
+impl UpsertedLabRow {
+    fn into_row(self) -> LabResultRow {
+        LabResultRow {
+            id: self.id,
+            user_id: self.user_id,
+            panel_date: self.panel_date,
+            lab_name: self.lab_name,
+            marker: self.marker,
+            value: self.value,
+            unit: self.unit,
+            reference_low: self.reference_low,
+            reference_high: self.reference_high,
+            out_of_range: self.out_of_range,
+            source: self.source,
+            source_id: self.source_id,
+            loinc_code: self.loinc_code,
+            uploaded_file_id: self.uploaded_file_id,
+            created_at: self.created_at,
+        }
+    }
 }
 
 /// Delete a lab result. Returns true if a row was actually deleted.

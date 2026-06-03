@@ -52,7 +52,7 @@ pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sq
     let lab_results = sqlx::query_as::<_, LabResultRow>(
         "SELECT id, user_id, panel_date, lab_name, marker, value, unit, \
          reference_low, reference_high, out_of_range, source, \
-         uploaded_file_id, created_at \
+         source_id, loinc_code, uploaded_file_id, created_at \
          FROM lab_results WHERE user_id = $1 ORDER BY panel_date",
     )
     .bind(user_id)

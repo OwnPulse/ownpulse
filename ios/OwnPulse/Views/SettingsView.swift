@@ -315,6 +315,17 @@ struct SettingsView: View {
             }
             // --- end C4 ---
 
+            // --- C8: MyChart / SMART-on-FHIR lab import ---
+            Section("Lab Results") {
+                NavigationLink {
+                    MyChartConnectView(networkClient: dependencies.networkClient)
+                } label: {
+                    Label("Connect MyChart", systemImage: "cross.case")
+                }
+                .accessibilityIdentifier("connectMyChartLink")
+            }
+            // --- end C8 ---
+
             if let vm = viewModel {
                 notificationsSection(vm: vm)
                 linkedAccountsSection(vm: vm)
