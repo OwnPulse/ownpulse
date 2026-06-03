@@ -125,6 +125,42 @@ struct OAuthWebView: UIViewRepresentable {
             return connected == provider
         }
 
+        /// The policy decision for a navigation, factored out of the
+        /// `WKNavigationDelegate` callback so it can be unit-tested without
+        /// constructing a live `WKNavigationAction`.
+        enum NavigationDecision: Equatable {
+            /// Allow the navigation as-is.
+            case allow
+            /// The terminal success redirect — report `.connected`.
+            case finishConnected
+            /// Cancel and re-issue the same-origin API request with the Bearer
+            /// header attached.
+            case reissueWithAuth
+            /// Cancel and re-issue the cross-origin request with the
+            /// Authorization header stripped, so the JWT never leaves our API.
+            case reissueStrippingAuth
+        }
+
+        /// Pure decision logic. `hasAuthHeader` is whether the candidate
+        /// request already carries an `Authorization` header.
+        func decision(forURL url: URL, hasAuthHeader: Bool) -> NavigationDecision {
+            if isSuccessRedirect(url) {
+                return .finishConnected
+            }
+            if isSameOrigin(url) {
+                if bearerToken != nil, !hasAuthHeader {
+                    return .reissueWithAuth
+                }
+                return .allow
+            }
+            // Cross-origin. WKWebView preserves custom headers across server
+            // redirects and exposes no hook to strip them, so the backend's 302
+            // from `/auth/<provider>/login` to the provider would otherwise
+            // leak the full-access JWT to Garmin/Oura. Strip it — the provider
+            // hops never need our header.
+            return hasAuthHeader ? .reissueStrippingAuth : .allow
+        }
+
         // MARK: WKNavigationDelegate
 
         func webView(
@@ -137,27 +173,32 @@ struct OAuthWebView: UIViewRepresentable {
                 return
             }
 
-            // Terminal success: backend finished and bounced us to settings.
-            if isSuccessRedirect(url) {
+            let hasAuthHeader = navigationAction.request
+                .value(forHTTPHeaderField: "Authorization") != nil
+
+            switch decision(forURL: url, hasAuthHeader: hasAuthHeader) {
+            case .allow:
+                decisionHandler(.allow)
+            case .finishConnected:
                 decisionHandler(.cancel)
                 finish(.connected(provider: provider))
-                return
-            }
-
-            // Same-origin API request that is missing the Bearer header
-            // (e.g. the callback navigation triggered by the provider's
-            // redirect). Re-issue it with the header attached.
-            if isSameOrigin(url),
-               bearerToken != nil,
-               navigationAction.request.value(forHTTPHeaderField: "Authorization") == nil {
+            case .reissueWithAuth:
                 decisionHandler(.cancel)
                 var authed = navigationAction.request
                 applyAuthHeaderIfSameOrigin(to: &authed)
                 webView.load(authed)
-                return
+            case .reissueStrippingAuth:
+                decisionHandler(.cancel)
+                webView.load(strippingAuthHeader(from: navigationAction.request))
             }
+        }
 
-            decisionHandler(.allow)
+        /// Returns a copy of `request` with any `Authorization` header removed.
+        /// Used to guarantee the JWT never rides a cross-origin navigation.
+        func strippingAuthHeader(from request: URLRequest) -> URLRequest {
+            var clean = request
+            clean.setValue(nil, forHTTPHeaderField: "Authorization")
+            return clean
         }
 
         func webView(

@@ -127,12 +127,15 @@ final class WearableConnectionsViewModel {
         activeProvider = nil
         switch result {
         case .connected(let connectedProvider):
+            // The success redirect alone is not authoritative — re-fetch the
+            // real connection status before showing "Connected" or launching
+            // the wizard, so a spoofed/early redirect can't fake a connection.
             let wasConnectedBefore = connectedSources.contains(connectedProvider)
-            connectedSources.insert(connectedProvider)
             await loadStatus()
-            // First connect for this provider → offer the source-of-truth
-            // wizard so the user can resolve overlaps with Apple Health.
-            if !wasConnectedBefore {
+            // Only treat this as a first connect (and offer the source-of-truth
+            // wizard) when the server confirms the provider is now connected
+            // and it wasn't before.
+            if !wasConnectedBefore, connectedSources.contains(connectedProvider) {
                 shouldShowSourceWizard = true
             }
         case .cancelled:
