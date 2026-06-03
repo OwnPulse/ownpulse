@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: connect an Oura account from Settings.
+# Opens the Wearables section, starts the in-app OAuth flow, and verifies the
+# OAuth web view is presented. The flow then cancels — completing a real OAuth
+# handshake requires live Oura credentials and is covered by backend
+# integration tests. Requires an authenticated session with the backend running.
+appId: health.ownpulse.app
+---
+- launchApp
+
+# Navigate to the Settings tab.
+- tapOn:
+    text: "Settings"
+
+# Scroll to the Wearables section.
+- scrollUntilVisible:
+    element:
+      id: "wearableStatus-oura"
+    direction: DOWN
+    timeout: 8000
+
+# The connect button is shown when Oura is not yet connected.
+- assertVisible:
+    id: "connect-oura"
+    optional: true
+
+# Start the in-app OAuth flow.
+- tapOn:
+    id: "connect-oura"
+    optional: true
+
+# The OAuth web view (or a sign-in prompt) should present in a sheet.
+- assertVisible:
+    id: "oauthCancelButton-oura"
+    timeout: 8000
+
+# Cancel out of the flow and confirm we return to Settings.
+- tapOn:
+    id: "oauthCancelButton-oura"
+- assertVisible:
+    text: "Settings"
+    timeout: 3000

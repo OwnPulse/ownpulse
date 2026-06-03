@@ -1191,6 +1191,43 @@
           "rejected": 0
         }
       }
+    },
+    {
+      "description": "a request to list integration connection status",
+      "providerState": "the user has a connected garmin integration",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "source": "garmin",
+            "connected": true
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to disconnect an integration",
+      "providerState": "the user has a connected garmin integration",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/integrations/garmin",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 204
+      }
     }
   ],
   "metadata": {
