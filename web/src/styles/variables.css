@@ -11,8 +11,29 @@
 
 @import "./_tokens.css";
 
+/* Foreground-accent tokens.
+   --color-primary / --color-success double as solid backgrounds (white text
+   sits on them), so their values must stay dark enough for that. But the same
+   hues are also used as *foreground* text/links on a surface, where dark mode
+   needs a LIGHTER value to clear WCAG AA against the dark surface (~#1a1a18).
+   These -fg tokens give foreground uses a theme-aware color without disturbing
+   the solid-background tokens. In light mode they equal the base token, so the
+   palette is visually unchanged. */
+:root {
+  --color-link: var(--color-primary);
+  --color-link-hover: var(--color-primary-hover);
+  --color-success-fg: var(--color-success);
+}
+
 /* Explicit dark mode */
 [data-theme="dark"] {
+  /* Lighter foreground accents — AA (>= 4.5:1) on the dark surfaces below.
+     base primary #b2573c is 3.16:1 on #252523; #d98a6e is 5.71:1.
+     base success #007555 is 2.69:1 on #252523; #3cb88a is 6.15:1. */
+  --color-link: #d98a6e;
+  --color-link-hover: #e0a18a;
+  --color-success-fg: #3cb88a;
+
   --color-bg: #1a1a18;
   --color-bg-warm: #1a1a1e;
   --color-surface: #1a1a18;
@@ -37,6 +58,11 @@
 /* System preference auto-detection (when no explicit theme set) */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
+    /* Mirror the dark-mode foreground accents above. */
+    --color-link: #d98a6e;
+    --color-link-hover: #e0a18a;
+    --color-success-fg: #3cb88a;
+
     --color-bg: #1a1a18;
     --color-bg-warm: #1a1a1e;
     --color-surface: #1a1a18;
