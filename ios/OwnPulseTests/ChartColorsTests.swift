@@ -18,6 +18,7 @@ struct ChartColorsTests {
     /// the token keys — are what `color(for:index:)` receives in production.
     static let fieldToTokenKey: [(field: String, tokenKey: String)] = [
         ("heart_rate", "heart_rate"),
+        ("resting_heart_rate", "heart_rate"),
         ("heart_rate_variability", "hrv"),
         ("blood_pressure_systolic", "bp_systolic"),
         ("blood_pressure_diastolic", "bp_diastolic"),

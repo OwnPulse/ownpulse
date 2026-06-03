@@ -6,6 +6,10 @@ import SwiftUI
 
 struct SparklineCard: View {
     let series: SeriesData
+    /// Position of this card in the sparkline row. Keyed metrics ignore it, but
+    /// unkeyed series (e.g. the check-in scores) use it to pick a distinct color
+    /// from the fallback cycle so they don't all render the same hue.
+    var index: Int = 0
 
     private var displayName: String {
         series.field.replacingOccurrences(of: "_", with: " ").capitalized
@@ -13,11 +17,10 @@ struct SparklineCard: View {
 
     // MARK: C7 chart
     /// Sparkline line color from B5's shared token source, keyed by the series
-    /// field so the metric matches its color on the web dashboard. The card's
-    /// position in the horizontal scroller is unknown here, so we pass index 0
-    /// and let keyed metrics win; unkeyed fields fall back deterministically.
+    /// field so the metric matches its color on the web dashboard. Unkeyed
+    /// fields fall back to the deterministic cycle indexed by `index`.
     private var chartColor: Color {
-        ChartColors.color(for: series.field, index: 0)
+        ChartColors.color(for: series.field, index: index)
     }
 
     private var latestValue: String {

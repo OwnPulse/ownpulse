@@ -27,7 +27,9 @@ final class DashboardViewModel {
     var heroMetricName: String = ""
     // C7: backend field key for the hero metric, used by HeroMetricCard to
     // resolve its chart color from the shared token source (ChartColors).
-    var heroMetricFieldKey: String = "resting_heart_rate"
+    // Defaults to the canonical hero field (pinned in DashboardChartData) and
+    // is overwritten with the loaded series' real field in loadHeroMetric().
+    var heroMetricFieldKey: String = DashboardChartData.defaultHeroField
     var heroMetricUnit: String = ""
     var heroCurrentValue: String = ""
     var heroTrendText: String = ""

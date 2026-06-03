@@ -283,6 +283,56 @@ struct DashboardViewModelTests {
         #expect(vm.heroCurrentValue == "")
     }
 
+    @Test("loadHeroMetric populates heroMetricFieldKey from the loaded series field")
+    func loadHeroMetricSetsFieldKey() async {
+        // C7: the card colors its chart from this field. It must reflect the
+        // real series field the backend returns, not a hardcoded value.
+        let mock = MockNetworkClient()
+        let heroResponse = BatchSeriesResponse(series: [
+            SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
+                DataPoint(t: "2026-03-01", v: 60, n: 1),
+                DataPoint(t: "2026-03-28", v: 56, n: 1),
+            ]),
+        ])
+        mock.requestHandler = { _, _, _ in heroResponse }
+
+        let vm = DashboardViewModel(networkClient: mock)
+        await vm.loadHeroMetric()
+
+        #expect(vm.heroMetricFieldKey == "resting_heart_rate")
+        // And that field resolves to the dedicated heart_rate token color.
+        #expect(
+            ChartColors.color(for: vm.heroMetricFieldKey, index: 0) == ChartColors.metric["heart_rate"]
+        )
+    }
+
+    @Test("heroMetricFieldKey keeps the canonical default when no series loads")
+    func heroMetricFieldKeyDefaultOnEmpty() async {
+        let mock = MockNetworkClient()
+        // Empty series list — loadHeroMetric must not overwrite the default.
+        mock.requestHandler = { _, _, _ in BatchSeriesResponse(series: []) }
+
+        let vm = DashboardViewModel(networkClient: mock)
+        #expect(vm.heroMetricFieldKey == DashboardChartData.defaultHeroField)
+
+        await vm.loadHeroMetric()
+
+        #expect(vm.heroMetricFieldKey == DashboardChartData.defaultHeroField)
+    }
+
+    @Test("heroMetricFieldKey keeps the canonical default on error")
+    func heroMetricFieldKeyDefaultOnError() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 500, body: "error")
+        }
+
+        let vm = DashboardViewModel(networkClient: mock)
+        await vm.loadHeroMetric()
+
+        #expect(vm.heroMetricFieldKey == DashboardChartData.defaultHeroField)
+    }
+
     // MARK: - Widget Snapshot Publishing
 
     /// In-memory store so the publisher can be observed without a real

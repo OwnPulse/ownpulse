@@ -12,8 +12,9 @@ struct HeroMetricCard: View {
     let trendIsPositive: Bool
     let dataPoints: [DataPoint]
     /// Backend field key (e.g. `resting_heart_rate`) used to resolve the chart
-    /// color from the shared token source so it matches the web chart.
-    var metricFieldKey: String = "heart_rate"
+    /// color from the shared token source so it matches the web chart. Defaults
+    /// to the canonical hero field, pinned in one place in `DashboardChartData`.
+    var metricFieldKey: String = DashboardChartData.defaultHeroField
 
     @State private var animateChart = false
 
@@ -93,7 +94,7 @@ struct HeroMetricCard: View {
             }
             .chartXAxis(.hidden)
             .chartYAxis {
-                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { value in
+                AxisMarks(position: .leading, values: .automatic(desiredCount: 3)) { _ in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [4]))
                         .foregroundStyle(.secondary.opacity(0.3))
                     AxisValueLabel()

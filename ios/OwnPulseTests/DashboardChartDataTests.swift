@@ -93,22 +93,35 @@ struct DashboardChartDataTests {
 
     // MARK: - colorKey
 
-    @Test("colorKey passes a non-empty field through for ChartColors resolution")
+    @Test("colorKey passes a non-empty field through, and resting_heart_rate resolves to the heart_rate token color")
     func colorKeyPassthrough() {
+        // The hero metric's real backend field is resting_heart_rate; it must
+        // pass through unchanged and resolve (via the ChartColors alias layer)
+        // to the dedicated heart_rate token color — NOT the fallback.
         #expect(DashboardChartData.colorKey(forField: "resting_heart_rate") == "resting_heart_rate")
-        // resting_heart_rate is not a keyed metric, so it falls back — but the
-        // canonical heart_rate field resolves to its dedicated token color.
+        let heroColor = ChartColors.color(
+            for: DashboardChartData.colorKey(forField: "resting_heart_rate"), index: 0
+        )
+        #expect(heroColor == ChartColors.metric["heart_rate"])
+        #expect(heroColor != ChartColors.fallback[0])
+    }
+
+    @Test("colorKey defaults an empty field to the canonical hero field, which is colored")
+    func colorKeyEmptyDefault() {
+        #expect(DashboardChartData.colorKey(forField: "") == DashboardChartData.defaultHeroField)
+        // The canonical default resolves to the heart_rate token color, so an
+        // unpopulated hero card never renders a fallback color.
         #expect(
-            ChartColors.color(for: DashboardChartData.colorKey(forField: "heart_rate"), index: 0)
+            ChartColors.color(for: DashboardChartData.colorKey(forField: ""), index: 0)
                 == ChartColors.metric["heart_rate"]
         )
     }
 
-    @Test("colorKey defaults an empty field to heart_rate so the hero card always has a color")
-    func colorKeyEmptyDefault() {
-        #expect(DashboardChartData.colorKey(forField: "") == "heart_rate")
+    @Test("the canonical hero field aliases to the heart_rate token color")
+    func defaultHeroFieldIsKeyed() {
+        #expect(DashboardChartData.defaultHeroField == "resting_heart_rate")
         #expect(
-            ChartColors.color(for: DashboardChartData.colorKey(forField: ""), index: 0)
+            ChartColors.color(for: DashboardChartData.defaultHeroField, index: 0)
                 == ChartColors.metric["heart_rate"]
         )
     }

@@ -24,6 +24,7 @@ import {
 // them. If the backend renames a field, these must move in lockstep.
 const FIELD_TO_TOKEN_KEY: Record<string, string> = {
   heart_rate: "heart_rate",
+  resting_heart_rate: "heart_rate",
   heart_rate_variability: "hrv",
   blood_pressure_systolic: "bp_systolic",
   blood_pressure_diastolic: "bp_diastolic",

@@ -179,8 +179,11 @@ struct DashboardView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(vm.sparklines) { series in
-                        SparklineCard(series: series)
+                    // Thread each card's position so unkeyed series (the
+                    // check-in scores) cycle through distinct fallback colors
+                    // instead of all rendering fallback[0].
+                    ForEach(Array(vm.sparklines.enumerated()), id: \.element.id) { offset, series in
+                        SparklineCard(series: series, index: offset)
                     }
                 }
             }
