@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import Foundation
+import SwiftUI
 import Testing
 @testable import OwnPulse
 
@@ -176,6 +177,29 @@ struct WriteBackQueueViewModelTests {
         #expect(vm.actionError != nil)
     }
 
+    @Test("confirm with category / non-writable type does not write or acknowledge")
+    func confirmNonWritableType() async {
+        // sleep_analysis maps to an HKCategoryType with writable: false.
+        // HealthKitProvider.writeSample would no-op silently for it, so the VM
+        // must reject it up front rather than acknowledge a write that never
+        // reached HealthKit.
+        let mock = MockNetworkClient()
+        let hk = MockHealthKitProvider()
+        let item = makeItem(id: "sleep-1", hkType: "sleep_analysis", value: 8)
+        mock.requestHandler = { _, _, _ in [item] }
+        var confirmCalled = false
+        mock.requestNoContentHandler = { _, _, _ in confirmCalled = true }
+
+        let vm = makeVM(network: mock, healthKit: hk)
+        await vm.load()
+        await vm.confirm(item)
+
+        #expect(hk.writtenSamples.isEmpty)     // nothing written to HealthKit
+        #expect(confirmCalled == false)        // server never told it succeeded
+        #expect(vm.items.count == 1)           // row stays
+        #expect(vm.actionError != nil)         // user sees feedback
+    }
+
     // MARK: - deny
 
     @Test("deny acknowledges without writing and removes item")
@@ -225,5 +249,24 @@ struct WriteBackQueueViewModelTests {
         let vm = makeVM(network: mock)
         let item = makeItem(hkType: "resting_heart_rate")
         #expect(vm.displayName(for: item) == "Resting Heart Rate")
+    }
+
+    // MARK: - View content mapping
+
+    @Test("content identifier reflects each state")
+    func contentIdentifierPerState() {
+        #expect(WriteBackQueueView.contentIdentifier(state: .idle, isEmpty: true) == "writeBackLoading")
+        #expect(WriteBackQueueView.contentIdentifier(state: .loading, isEmpty: true) == "writeBackLoading")
+        #expect(WriteBackQueueView.contentIdentifier(state: .error("boom"), isEmpty: true) == "writeBackError")
+        #expect(WriteBackQueueView.contentIdentifier(state: .loaded, isEmpty: true) == "writeBackEmpty")
+        #expect(WriteBackQueueView.contentIdentifier(state: .loaded, isEmpty: false) == "writeBackList")
+    }
+
+    @Test("formattedValue renders integers without decimals and fractions with two places")
+    func formattedValueRendering() {
+        #expect(WriteBackQueueView.formattedValue(72) == "72")
+        #expect(WriteBackQueueView.formattedValue(72.0) == "72")
+        #expect(WriteBackQueueView.formattedValue(72.5) == "72.50")
+        #expect(WriteBackQueueView.formattedValue(0) == "0")
     }
 }

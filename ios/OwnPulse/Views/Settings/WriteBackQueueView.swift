@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import HealthKit
 import SwiftUI
 import os
 
@@ -61,7 +62,13 @@ final class WriteBackQueueViewModel {
     /// Write the sample into Apple Health, then acknowledge it to the server.
     func confirm(_ item: HealthKitWriteQueueItem) async {
         guard !inFlightIDs.contains(item.id) else { return }
-        guard let mapping = HealthKitTypeMap.mapping(forRecordType: item.hkType) else {
+        // Only quantity types flagged `writable` can actually round-trip into
+        // Apple Health. Category/read-only mappings (e.g. sleep_analysis) make
+        // `HealthKitProvider.writeSample` no-op silently, so acknowledging
+        // would falsely tell the server the write succeeded. Reject up front.
+        guard let mapping = HealthKitTypeMap.mapping(forRecordType: item.hkType),
+              mapping.writable,
+              mapping.hkType is HKQuantityType else {
             actionError = "Unsupported data type — can't write to Apple Health."
             return
         }
@@ -145,6 +152,28 @@ struct WriteBackQueueView: View {
         }
     }
 
+    /// Accessibility identifier the `content(vm:)` switch renders for a given
+    /// state. Extracted as a pure function so the state → identifier mapping is
+    /// unit-testable without a simulator (the codebase has no ViewInspector).
+    static func contentIdentifier(state: WriteBackQueueState, isEmpty: Bool) -> String {
+        switch state {
+        case .idle, .loading:
+            return "writeBackLoading"
+        case .error:
+            return "writeBackError"
+        case .loaded:
+            return isEmpty ? "writeBackEmpty" : "writeBackList"
+        }
+    }
+
+    /// Format a write-back value: integers render without a decimal ("72"),
+    /// fractional values to two places ("72.50"). Pure + testable.
+    static func formattedValue(_ value: Double) -> String {
+        value == value.rounded()
+            ? String(format: "%.0f", value)
+            : String(format: "%.2f", value)
+    }
+
     @ViewBuilder
     private func content(vm: WriteBackQueueViewModel) -> some View {
         switch vm.state {
@@ -173,6 +202,7 @@ struct WriteBackQueueView: View {
                 } footer: {
                     Text("Confirm to write the value into Apple Health, or deny to skip it. Either way the item is cleared from the queue; your data on the server is untouched.")
                 }
+                .accessibilityIdentifier("writeBackList")
 
                 if let error = vm.actionError {
                     Text(error)
@@ -191,7 +221,7 @@ struct WriteBackQueueView: View {
             Text(vm.displayName(for: item))
                 .font(.body)
             HStack(spacing: 8) {
-                Text(formattedValue(item.value))
+                Text(Self.formattedValue(item.value))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Text(item.scheduledAt, style: .date)
@@ -224,11 +254,5 @@ struct WriteBackQueueView: View {
             }
         }
         .padding(.vertical, 4)
-    }
-
-    private func formattedValue(_ value: Double) -> String {
-        value == value.rounded()
-            ? String(format: "%.0f", value)
-            : String(format: "%.2f", value)
     }
 }
