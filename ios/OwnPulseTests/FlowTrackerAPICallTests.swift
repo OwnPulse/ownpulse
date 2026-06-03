@@ -16,12 +16,18 @@ struct FlowTrackerAPICallTests {
 
     // MARK: - Endpoint normalization / scrubbing
 
+    // NOTE: the version segment `v1` contains a digit, so it is NOT a route word
+    // and collapses to `:id` — `/api/v1/...` normalizes to `/api/:id/...`. This
+    // matches the backend's identical shape-based `is_route_word`, which would
+    // re-normalize `v1` the same way regardless of what the client sends. The
+    // meaningful tail (route words + `:id` for dynamic segments) is preserved.
+
     @Test("UUID path segments collapse to :id")
     func uuidSegmentScrubbed() {
         #expect(
             FlowTracker.normalizeEndpoint(
                 "/api/v1/protocols/550e8400-e29b-41d4-a716-446655440000/runs"
-            ) == "/api/v1/protocols/:id/runs"
+            ) == "/api/:id/protocols/:id/runs"
         )
         // Dashless UUID is still not a route word.
         #expect(
@@ -35,8 +41,10 @@ struct FlowTrackerAPICallTests {
     func numericSegmentScrubbed() {
         #expect(
             FlowTracker.normalizeEndpoint("/api/v1/users/12345/profile")
-                == "/api/v1/users/:id/profile"
+                == "/api/:id/users/:id/profile"
         )
+        // A bare numeric segment on its own collapses too.
+        #expect(FlowTracker.normalizeEndpoint("/protocols/42/runs") == "/protocols/:id/runs")
     }
 
     @Test("Email path segments collapse to :id")
@@ -54,16 +62,21 @@ struct FlowTrackerAPICallTests {
                 == "/records/:id"
         )
         #expect(
-            FlowTracker.normalizeEndpoint("/api/v1/health_records#frag")
-                == "/api/v1/health_records"
+            FlowTracker.normalizeEndpoint("/health_records#frag")
+                == "/health_records"
         )
     }
 
     @Test("Plain lowercase route words survive")
     func routeWordsSurvive() {
         #expect(
+            FlowTracker.normalizeEndpoint("/health_records")
+                == "/health_records"
+        )
+        // The route-word tail of a versioned path survives; only `v1` collapses.
+        #expect(
             FlowTracker.normalizeEndpoint("/api/v1/health_records")
-                == "/api/v1/health_records"
+                == "/api/:id/health_records"
         )
     }
 
@@ -123,7 +136,7 @@ struct FlowTrackerAPICallTests {
         #expect(event.type == "api_call")
         #expect(event.platform == "ios")
         #expect(event.deviceId == nil)
-        #expect(event.payload["endpoint"] == .string("/api/v1/users/:id/profile"))
+        #expect(event.payload["endpoint"] == .string("/api/:id/users/:id/profile"))
         #expect(event.payload["method"] == .string("GET"))
         #expect(event.payload["status_code"] == .int(200))
         #expect(event.payload["latency_ms"] == .int(42))

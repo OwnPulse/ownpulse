@@ -1171,7 +1171,7 @@
               "app_version": "1.0.0",
               "platform": "ios",
               "payload": {
-                "endpoint": "/api/v1/protocols/:id/runs",
+                "endpoint": "/api/:id/protocols/:id/runs",
                 "method": "GET",
                 "status_code": 200,
                 "latency_ms": 42,
