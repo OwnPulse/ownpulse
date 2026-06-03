@@ -5,7 +5,21 @@
 
 OwnPulse is an open source health data platform owned by its users as a cooperative. You track interventions, wearable data, labs, and subjective scores; the platform finds correlations and lets you export everything in open formats. Licensed AGPL-3.0; the open data schema is CC0.
 
-## Quick Start
+The application code is public so users and self-hosters can review how their data is handled. The commercial hosted service is a convenience layer around hosting, storage, backups, and operations; it does not depend on proprietary application features or data lock-in.
+
+## Repository Boundaries
+
+OwnPulse is split across a few repositories with deliberately separate responsibilities:
+
+| Repository | Purpose |
+|------------|---------|
+| `ownpulse` | Open application product: Rust API, React web app, SwiftUI iOS app, schema, docs, and self-hosting Helm charts. |
+| `ownpulse-web` | Public site for product explanation, trust messaging, waitlist, and hosted-service conversion. Not required for self-hosting. |
+| `ownpulse-infra` | Private operating layer for the hosted service: cloud infrastructure, secrets, runners, deploys, backups, and production operations. |
+| `ownpulse-dev` | Internal developer workflow tooling for bootstrapping repos and isolated agent sessions. |
+| `gh-actions` | Shared reusable GitHub Actions used by the OwnPulse repos. |
+
+## Quick Start: Hosted
 
 Sign up at [ownpulse.health](https://ownpulse.health) to get started on the cooperative platform.
 
@@ -55,10 +69,12 @@ Read [CLAUDE.md](CLAUDE.md) for conventions, then [AGENTS.md](AGENTS.md) for wor
 - [Architecture overview](docs/architecture/overview.md)
 - [API reference](docs/architecture/api.md)
 - [Data model](docs/architecture/data-model.md)
+- [Hosted service boundary](docs/architecture/hosted-service-boundary.md)
 - [Architecture Decision Records](docs/decisions/)
 - [Contributing guide](docs/guides/contributing.md)
 - [Agent guide](docs/guides/agent-guide.md)
 - [Testing strategy](docs/guides/testing.md)
+- [V1 launch readiness](docs/guides/v1-launch-readiness.md)
 - [Self-hosting guide](docs/guides/self-hosting.md)
 - [Local development](docs/guides/local-dev.md)
 - [Cooperative governance](docs/cooperative/governance.md)

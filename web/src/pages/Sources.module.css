@@ -1,5 +1,12 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 
+.intro {
+  max-width: 42rem;
+  margin: 0 0 1rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
 .integrationList {
   list-style: none;
   padding: 0;
@@ -35,4 +42,12 @@
 .syncTime {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .integrationItem {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
 }

@@ -3,6 +3,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { integrationsApi } from "../api/integrations";
+import { Page } from "../components/ui/Page";
+import { EmptyState, ErrorState, LoadingState } from "../components/ui/StateBlock";
 import styles from "./Sources.module.css";
 
 export default function Sources() {
@@ -21,13 +23,16 @@ export default function Sources() {
   });
 
   return (
-    <main className="op-page">
-      <h1>Sources</h1>
+    <Page title="Sources">
+      <p className={styles.intro}>
+        Connected sources feed OwnPulse with user-approved data. Apple Health sync is managed from
+        the iOS app; server-side integrations appear here when configured.
+      </p>
 
-      {integrations.isLoading && <p>Loading integrations...</p>}
-      {integrations.isError && <p>Error loading integrations.</p>}
+      {integrations.isLoading && <LoadingState label="Loading integrations..." />}
+      {integrations.isError && <ErrorState message="Error loading integrations." />}
       {integrations.data && integrations.data.length === 0 && (
-        <p className="op-empty">No integrations configured.</p>
+        <EmptyState>No integrations configured.</EmptyState>
       )}
       {integrations.data && (
         <ul className={styles.integrationList}>
@@ -58,6 +63,6 @@ export default function Sources() {
           ))}
         </ul>
       )}
-    </main>
+    </Page>
   );
 }

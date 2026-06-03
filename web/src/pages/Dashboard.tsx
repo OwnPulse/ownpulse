@@ -8,6 +8,8 @@ import { InsightCards } from "../components/dashboard/InsightCards";
 import { ScoreRing } from "../components/dashboard/ScoreRing";
 import { SparklineRow } from "../components/dashboard/SparklineRow";
 import { TodaysDoses } from "../components/dashboard/TodaysDoses";
+import { Page } from "../components/ui/Page";
+import { ErrorState, LoadingState } from "../components/ui/StateBlock";
 import styles from "./Dashboard.module.css";
 
 export default function Dashboard() {
@@ -16,20 +18,31 @@ export default function Dashboard() {
     queryFn: dashboardApi.summary,
   });
 
-  if (isLoading) return <main className="op-page">Loading...</main>;
-  if (isError || !data) return <main className="op-page">Error loading dashboard.</main>;
+  if (isLoading)
+    return (
+      <Page title="Dashboard">
+        <LoadingState label="Loading dashboard..." />
+      </Page>
+    );
+  if (isError || !data) {
+    return (
+      <Page title="Dashboard">
+        <ErrorState message="Error loading dashboard." />
+      </Page>
+    );
+  }
 
   const scores = data.latest_checkin;
 
   return (
-    <main className="op-page">
-      <div className="op-page-header">
-        <h1>Dashboard</h1>
+    <Page
+      title="Dashboard"
+      actions={
         <Link to="/entry" className={`op-btn op-btn-primary ${styles.logBtn}`}>
           + Log Data
         </Link>
-      </div>
-
+      }
+    >
       {/* Today's protocol doses — first actionable item */}
       <TodaysDoses />
 
@@ -87,6 +100,6 @@ export default function Dashboard() {
       )}
       {/* Insights */}
       <InsightCards />
-    </main>
+    </Page>
   );
 }
