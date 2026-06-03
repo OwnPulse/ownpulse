@@ -244,4 +244,65 @@ struct DashboardViewModelTests {
         #expect(vm.heroSeries.isEmpty)
         #expect(vm.heroCurrentValue == "")
     }
+
+    // MARK: - Widget Snapshot Publishing
+
+    /// In-memory store so the publisher can be observed without a real
+    /// app-group container.
+    private final class MemStore: WidgetDefaultsStore, @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage: [String: Data] = [:]
+        func data(forKey key: String) -> Data? {
+            lock.lock(); defer { lock.unlock() }; return storage[key]
+        }
+        func set(_ data: Data?, forKey key: String) {
+            lock.lock(); storage[key] = data; lock.unlock()
+        }
+    }
+
+    @Test("loadDashboard publishes a widget snapshot reflecting today's data")
+    func loadDashboardPublishesWidgetSnapshot() async {
+        let mock = MockNetworkClient()
+        let summary = makeSummary()
+        let heroResponse = BatchSeriesResponse(series: [
+            SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
+                DataPoint(t: "2026-03-01", v: 60, n: 1),
+                DataPoint(t: "2026-03-28", v: 56, n: 1),
+            ]),
+        ])
+        mock.requestHandler = { _, path, _ in
+            if path == Endpoints.dashboardSummary { return summary }
+            if path == Endpoints.insights { return [Insight]() }
+            return heroResponse
+        }
+
+        let store = MemStore()
+        let publisher = WidgetDataPublisher(store: store, reload: {})
+        let vm = DashboardViewModel(networkClient: mock, widgetPublisher: publisher)
+
+        await vm.loadDashboard()
+
+        let snapshot = publisher.load()
+        #expect(snapshot != nil)
+        // makeSummary() stamps the latest check-in with today's date.
+        #expect(snapshot?.checkinFilledToday == true)
+        #expect(snapshot?.heroMetricName == "Resting Heart Rate")
+        #expect(snapshot?.heroMetricValue == "56")
+        #expect(snapshot?.heroMetricUnit == "bpm")
+    }
+
+    @Test("publishWidgetSnapshot falls back to placeholders when no data loaded")
+    func publishWidgetSnapshotFallsBack() {
+        let mock = MockNetworkClient()
+        let store = MemStore()
+        let publisher = WidgetDataPublisher(store: store, reload: {})
+        let vm = DashboardViewModel(networkClient: mock, widgetPublisher: publisher)
+
+        vm.publishWidgetSnapshot()
+
+        let snapshot = publisher.load()
+        #expect(snapshot?.checkinFilledToday == false)
+        #expect(snapshot?.heroMetricValue == "—")
+        #expect(snapshot?.heroMetricName == "Resting Heart Rate")
+    }
 }

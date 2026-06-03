@@ -33,10 +33,16 @@ final class DashboardViewModel {
 
     private let networkClient: NetworkClientProtocol
     private let syncEngine: SyncEngine?
+    private let widgetPublisher: WidgetDataPublisher
 
-    init(networkClient: NetworkClientProtocol, syncEngine: SyncEngine? = nil) {
+    init(
+        networkClient: NetworkClientProtocol,
+        syncEngine: SyncEngine? = nil,
+        widgetPublisher: WidgetDataPublisher = WidgetDataPublisher()
+    ) {
         self.networkClient = networkClient
         self.syncEngine = syncEngine
+        self.widgetPublisher = widgetPublisher
     }
 
     // MARK: - Fetch All Dashboard Data
@@ -68,6 +74,27 @@ final class DashboardViewModel {
         async let insightTask: Void = loadInsights()
         async let heroTask: Void = loadHeroMetric()
         _ = await (sparklineTask, insightTask, heroTask)
+
+        // Snapshot the freshly-loaded values into the shared app group so the
+        // lock-screen widgets reflect today's data. This is the on-device
+        // completion path where both the check-in status and the latest hero
+        // metric are known. Widgets are read-only consumers of this snapshot.
+        publishWidgetSnapshot()
+    }
+
+    /// Build a ``WidgetSnapshot`` from the current view-model state and hand
+    /// it to the publisher. Exposed (internal) for unit testing.
+    func publishWidgetSnapshot() {
+        let snapshot = WidgetSnapshot(
+            checkinFilledToday: summary?.latestCheckin?.isToday ?? false,
+            heroMetricName: heroMetricName.isEmpty ? "Resting Heart Rate" : heroMetricName,
+            heroMetricValue: heroCurrentValue.isEmpty ? "—" : heroCurrentValue,
+            heroMetricUnit: heroMetricUnit.isEmpty ? "bpm" : heroMetricUnit,
+            heroTrendText: heroTrendText,
+            heroTrendIsPositive: heroTrendIsPositive,
+            lastUpdated: Date()
+        )
+        widgetPublisher.publish(snapshot)
     }
 
     // MARK: - Sparklines

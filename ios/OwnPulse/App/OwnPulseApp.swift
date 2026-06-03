@@ -13,10 +13,14 @@ struct OwnPulseApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            rootView
                 .environment(dependencies)
                 .onOpenURL { url in
-                    dependencies.authService.handleCallback(url: url)
+                    // Widget/deep-link routing first; fall through to the
+                    // auth callback handler only for non-deep-link URLs.
+                    if !dependencies.handleDeepLink(url) {
+                        dependencies.authService.handleCallback(url: url)
+                    }
                 }
                 .onAppear {
                     registerBackgroundTasks()
@@ -36,6 +40,21 @@ struct OwnPulseApp: App {
             // unit-testable. See `AppDependenciesScenePhaseTests`.
             dependencies.handleScenePhase(newPhase)
         }
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+        #if DEBUG
+        // XCUITest hook: render the widget views in isolation so the snapshot
+        // UI test can assert all three families. Never reachable in release.
+        if ProcessInfo.processInfo.arguments.contains("-WidgetSnapshotHarness") {
+            WidgetSnapshotHarness()
+        } else {
+            ContentView()
+        }
+        #else
+        ContentView()
+        #endif
     }
 
     private func registerBackgroundTasks() {

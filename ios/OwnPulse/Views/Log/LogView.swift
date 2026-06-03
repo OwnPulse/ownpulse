@@ -42,7 +42,20 @@ struct LogView: View {
             if viewModel == nil {
                 viewModel = LogViewModel(networkClient: dependencies.networkClient)
             }
+            applyPendingLogForm()
         }
+        .onChange(of: dependencies.pendingLogForm) { _, _ in
+            applyPendingLogForm()
+        }
+    }
+
+    /// Honor a deep link (e.g. from the QuickLog lock-screen widget) that asked
+    /// for a specific form to be pre-selected, then clear it so a later
+    /// re-navigation to the same form still fires `onChange`.
+    private func applyPendingLogForm() {
+        guard let form = dependencies.pendingLogForm else { return }
+        viewModel?.selectedTab = form
+        dependencies.pendingLogForm = nil
     }
 
     @ViewBuilder

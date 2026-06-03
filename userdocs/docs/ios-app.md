@@ -64,6 +64,28 @@ Notification times are configured per protocol run when you start it (see [Proto
 !!! warning
     If you previously denied notification permission, you will need to enable it manually in iOS Settings under **Notifications > OwnPulse**.
 
+## Lock Screen & Home Screen widgets
+
+OwnPulse ships three widgets you can add to your Lock Screen or Home Screen.
+They are **read-only** — they display the latest values the app has already
+loaded and never send anything anywhere. Their data lives only on your device,
+shared with the app through a private, on-device app group.
+
+| Widget | Where it fits | Shows |
+|--------|---------------|-------|
+| **Today's Check-in** | Lock Screen circular & rectangular | Whether you've logged today's check-in yet. Tap to open the check-in form. |
+| **Hero Metric** | Lock Screen rectangular & Home Screen small | Your latest headline metric (e.g. resting heart rate) with its 30-day trend. |
+| **Quick Log** | Lock Screen circular | A one-tap shortcut straight into logging an intervention. |
+
+To add one:
+
+1. Touch and hold the Lock Screen (or Home Screen) and tap **Customize** / the
+   **+** button.
+2. Choose **OwnPulse** and pick the widget and size you want.
+
+The widgets refresh after each sync or when you open the Dashboard. If you
+haven't synced yet, they show a neutral placeholder rather than stale data.
+
 ## What's on iOS vs web
 
 | Feature | Web | iOS |
@@ -77,5 +99,6 @@ Notification times are configured per protocol run when you start it (see [Proto
 | Account settings | Yes | No |
 | HealthKit sync | No | Yes |
 | Background sync | No | Yes |
+| Lock Screen widgets | No | Yes |
 
 The web app is the full-featured interface. The iOS app provides HealthKit sync, a native dashboard with check-in score rings and protocol dose tracking, and a native protocol editor.
