@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import { flush as flushTelemetry, resetDeviceId } from "../lib/telemetry";
 import { useAuthStore } from "../store/auth";
 import { api } from "./client";
 
@@ -53,13 +54,19 @@ export async function resetPassword(token: string, password: string): Promise<vo
 export async function logout(): Promise<void> {
   try {
     const token = useAuthStore.getState().token;
+    // Flush any buffered telemetry while we still hold a valid token, then drop
+    // the anonymous device id so the next session can't be correlated.
+    await flushTelemetry();
     await fetch("/api/v1/auth/logout", {
       method: "POST",
       credentials: "include",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   } finally {
+    // Clear auth state first (this may itself emit a final telemetry action),
+    // then drop the anonymous device id last so nothing re-creates it.
     useAuthStore.getState().logout();
+    resetDeviceId();
   }
 }
 

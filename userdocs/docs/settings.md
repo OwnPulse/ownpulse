@@ -42,6 +42,18 @@ Exports include health records, check-ins, interventions, observations, lab resu
 
 OwnPulse logs access to sensitive operations for your records. Logged operations include data exports, account deletion, and bulk operations. The audit log is accessible via the API (`GET /account/audit-log`) and shows the last 100 entries. This log is for your reference only -- no one else has access to it.
 
+## Anonymous usage telemetry
+
+OwnPulse can collect anonymous usage data to help improve the web app. This is **off by default** and never turns on by itself -- you opt in from **Settings > Anonymous Usage Telemetry**.
+
+When enabled, the web app reports three kinds of anonymous events to your own OwnPulse backend (never to any third party):
+
+- **Page views** -- which screens you visit, with any identifiers in the URL (record IDs, tokens) stripped out.
+- **Actions** -- coarse labels for things like saving a setting. No content you typed is ever included.
+- **Request timing** -- the endpoint, method, status code, latency, and retry count for API calls. Request and response bodies are never included, and the endpoint has identifier path segments collapsed to `:id`.
+
+No health data is ever sent. Telemetry uses a random, anonymous device identifier that is not linked to your account and is **reset every time you log out**, so sessions cannot be correlated. Turning the toggle off stops collection immediately and discards anything not yet sent.
+
 ## Linked accounts
 
 You can link multiple sign-in methods to your account. Go to **Settings > Linked Accounts** to see which providers are currently connected.
