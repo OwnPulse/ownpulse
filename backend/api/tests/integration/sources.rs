@@ -42,12 +42,44 @@ async fn test_overlap_scan_reports_metrics_with_multiple_sources() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     // heart_rate has two sources -> should be reported.
-    insert_record(&app, &token, "garmin", "heart_rate", 60.0, "2026-05-20T10:00:00Z").await;
-    insert_record(&app, &token, "garmin", "heart_rate", 61.0, "2026-05-20T10:01:00Z").await;
-    insert_record(&app, &token, "oura", "heart_rate", 62.0, "2026-05-20T10:02:00Z").await;
+    insert_record(
+        &app,
+        &token,
+        "garmin",
+        "heart_rate",
+        60.0,
+        "2026-05-20T10:00:00Z",
+    )
+    .await;
+    insert_record(
+        &app,
+        &token,
+        "garmin",
+        "heart_rate",
+        61.0,
+        "2026-05-20T10:01:00Z",
+    )
+    .await;
+    insert_record(
+        &app,
+        &token,
+        "oura",
+        "heart_rate",
+        62.0,
+        "2026-05-20T10:02:00Z",
+    )
+    .await;
 
     // weight has a single source -> should NOT be reported.
-    insert_record(&app, &token, "manual", "weight", 80.0, "2026-05-20T08:00:00Z").await;
+    insert_record(
+        &app,
+        &token,
+        "manual",
+        "weight",
+        80.0,
+        "2026-05-20T08:00:00Z",
+    )
+    .await;
 
     let resp = app
         .app
@@ -84,7 +116,15 @@ async fn test_overlap_scan_empty_when_no_overlap() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     // Single-source metric only.
-    insert_record(&app, &token, "manual", "weight", 80.0, "2026-05-20T08:00:00Z").await;
+    insert_record(
+        &app,
+        &token,
+        "manual",
+        "weight",
+        80.0,
+        "2026-05-20T08:00:00Z",
+    )
+    .await;
 
     let resp = app
         .app
@@ -127,8 +167,24 @@ async fn test_overlap_scan_is_user_scoped() {
     let (_user_a, token_a) = common::create_test_user(&app).await;
 
     // User A has overlapping heart_rate from two sources.
-    insert_record(&app, &token_a, "garmin", "heart_rate", 60.0, "2026-05-20T10:00:00Z").await;
-    insert_record(&app, &token_a, "oura", "heart_rate", 62.0, "2026-05-20T10:02:00Z").await;
+    insert_record(
+        &app,
+        &token_a,
+        "garmin",
+        "heart_rate",
+        60.0,
+        "2026-05-20T10:00:00Z",
+    )
+    .await;
+    insert_record(
+        &app,
+        &token_a,
+        "oura",
+        "heart_rate",
+        62.0,
+        "2026-05-20T10:02:00Z",
+    )
+    .await;
 
     // A second user with no data must see an empty scan.
     let (_user_b, token_b) = common::create_test_user(&app).await;
