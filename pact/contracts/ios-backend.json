@@ -1152,6 +1152,57 @@
           "end_time": "2026-03-28T08:00:00Z"
         }
       }
+    },
+    {
+      "description": "a request to connect MyChart via SMART-on-FHIR",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/mychart/connect",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "fhir_base_url": "https://fhir.example.org/r4",
+          "token_endpoint": "https://fhir.example.org/oauth2/token",
+          "code": "auth-code-abc",
+          "redirect_uri": "ownpulse://mychart-callback",
+          "code_verifier": "pkce-verifier-xyz"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "mychart",
+          "connected": true
+        }
+      }
+    },
+    {
+      "description": "a request to sync MyChart lab results",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/mychart/sync",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "mychart",
+          "imported": 2,
+          "skipped": 0
+        }
+      }
     }
   ],
   "metadata": {

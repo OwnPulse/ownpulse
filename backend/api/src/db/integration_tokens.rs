@@ -18,6 +18,10 @@ pub struct IntegrationTokenRow {
     pub expires_at: Option<DateTime<Utc>>,
     pub last_synced_at: Option<DateTime<Utc>>,
     pub last_sync_error: Option<String>,
+    /// Non-secret per-connection metadata (e.g. MyChart FHIR base URL and
+    /// token endpoint). Never store secrets here — tokens live in the
+    /// encrypted `access_token` / `refresh_token` columns.
+    pub metadata: Option<serde_json::Value>,
     pub updated_at: DateTime<Utc>,
 }
 
@@ -52,7 +56,7 @@ pub async fn list_for_user(
 ) -> Result<Vec<IntegrationTokenRow>, sqlx::Error> {
     let mut rows = sqlx::query_as::<_, IntegrationTokenRow>(
         "SELECT id, user_id, source, access_token, refresh_token,
-                expires_at, last_synced_at, last_sync_error, updated_at
+                expires_at, last_synced_at, last_sync_error, metadata, updated_at
          FROM integration_tokens
          WHERE user_id = $1
          ORDER BY source",
@@ -108,7 +112,7 @@ pub async fn upsert(
             last_sync_error = NULL,
             updated_at     = now()
          RETURNING id, user_id, source, access_token, refresh_token,
-                   expires_at, last_synced_at, last_sync_error, updated_at",
+                   expires_at, last_synced_at, last_sync_error, metadata, updated_at",
     )
     .bind(user_id)
     .bind(source)
@@ -125,6 +129,65 @@ pub async fn upsert(
     Ok(row)
 }
 
+/// Upsert an integration token along with non-secret connection metadata.
+///
+/// Identical to [`upsert`] but also persists a JSON `metadata` blob (e.g. the
+/// MyChart FHIR base URL and token endpoint needed by the sync job). The
+/// metadata is plaintext and must never contain secrets.
+#[allow(clippy::too_many_arguments)]
+pub async fn upsert_with_metadata(
+    pool: &PgPool,
+    user_id: Uuid,
+    source: &str,
+    access_token: &str,
+    refresh_token: Option<&str>,
+    expires_at: Option<DateTime<Utc>>,
+    metadata: Option<&serde_json::Value>,
+    encryption_key: &[u8; 32],
+) -> Result<IntegrationTokenRow, sqlx::Error> {
+    let encrypted_access = crypto::encrypt(access_token, encryption_key).map_err(|e| {
+        tracing::error!(error = %e, "failed to encrypt access token");
+        sqlx::Error::Protocol(format!("token encryption failed: {e}"))
+    })?;
+
+    let encrypted_refresh = refresh_token
+        .map(|rt| {
+            crypto::encrypt(rt, encryption_key).map_err(|e| {
+                tracing::error!(error = %e, "failed to encrypt refresh token");
+                sqlx::Error::Protocol(format!("token encryption failed: {e}"))
+            })
+        })
+        .transpose()?;
+
+    let mut row = sqlx::query_as::<_, IntegrationTokenRow>(
+        "INSERT INTO integration_tokens
+            (user_id, source, access_token, refresh_token, expires_at, metadata)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (user_id, source) DO UPDATE SET
+            access_token   = EXCLUDED.access_token,
+            refresh_token  = EXCLUDED.refresh_token,
+            expires_at     = EXCLUDED.expires_at,
+            metadata       = EXCLUDED.metadata,
+            last_sync_error = NULL,
+            updated_at     = now()
+         RETURNING id, user_id, source, access_token, refresh_token,
+                   expires_at, last_synced_at, last_sync_error, metadata, updated_at",
+    )
+    .bind(user_id)
+    .bind(source)
+    .bind(&encrypted_access)
+    .bind(encrypted_refresh.as_deref())
+    .bind(expires_at)
+    .bind(metadata)
+    .fetch_one(pool)
+    .await?;
+
+    row.access_token = access_token.to_string();
+    row.refresh_token = refresh_token.map(|s| s.to_string());
+
+    Ok(row)
+}
+
 /// List all integration tokens for a given source across all users, decrypting token fields.
 /// Used by background sync jobs.
 pub async fn list_for_user_by_source(
@@ -135,7 +198,7 @@ pub async fn list_for_user_by_source(
 ) -> Result<Vec<IntegrationTokenRow>, sqlx::Error> {
     let mut rows = sqlx::query_as::<_, IntegrationTokenRow>(
         "SELECT id, user_id, source, access_token, refresh_token,
-                expires_at, last_synced_at, last_sync_error, updated_at
+                expires_at, last_synced_at, last_sync_error, metadata, updated_at
          FROM integration_tokens
          WHERE source = $1
          ORDER BY updated_at",

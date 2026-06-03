@@ -1,0 +1,40 @@
+{
+  "resourceType": "Bundle",
+  "type": "searchset",
+  "total": 1,
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "DiagnosticReport",
+        "id": "report-cmp-1",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/v2-0074",
+                "code": "LAB",
+                "display": "Laboratory"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "text": "Comprehensive metabolic panel",
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "24323-8",
+              "display": "Comprehensive metabolic 2000 panel"
+            }
+          ]
+        },
+        "effectiveDateTime": "2026-03-28T08:30:00Z",
+        "result": [
+          { "reference": "Observation/obs-glucose-1" },
+          { "reference": "Observation/obs-hba1c-1" }
+        ]
+      }
+    }
+  ]
+}

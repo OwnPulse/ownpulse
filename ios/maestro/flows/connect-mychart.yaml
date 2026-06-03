@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: reach the MyChart connect screen from Settings and start
+# the SMART-on-FHIR connect flow.
+#
+# The actual authorization happens in an ASWebAuthenticationSession, which
+# Maestro cannot drive. This flow therefore asserts the app navigates to the
+# MyChart screen, the FHIR address field and Connect button are present, and
+# tapping Connect with a server address launches the web auth session (the
+# system injects a "Cancel" affordance into that sheet).
+appId: health.ownpulse.app
+---
+- launchApp
+
+# Navigate to Settings from the tab bar.
+- tapOn:
+    text: "Settings"
+
+# The Lab Results section exposes the MyChart entry point.
+- assertVisible:
+    id: "connectMyChartLink"
+- tapOn:
+    id: "connectMyChartLink"
+
+# MyChart connect screen.
+- assertVisible:
+    id: "myChartFhirBaseURLField"
+- assertVisible:
+    id: "myChartConnectButton"
+
+# Enter a FHIR server address and start the connect flow.
+- tapOn:
+    id: "myChartFhirBaseURLField"
+- inputText: "https://fhir.example.org/r4"
+- tapOn:
+    id: "myChartConnectButton"
+
+# The system presents the ASWebAuthenticationSession sheet for authorization.
+- assertVisible:
+    text: "Cancel"
+    timeout: 5000

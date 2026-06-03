@@ -196,10 +196,11 @@ OAuth tokens for all third-party integrations. Encrypted with AES-256-GCM.
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `provider` | TEXT | e.g. `garmin`, `oura`, `dexcom`, `google` |
+| `provider` | TEXT | e.g. `garmin`, `oura`, `dexcom`, `google`, `mychart` |
 | `access_token_encrypted` | BYTEA | AES-256-GCM encrypted |
 | `refresh_token_encrypted` | BYTEA | AES-256-GCM encrypted |
 | `expires_at` | TIMESTAMPTZ nullable | |
+| `metadata` | JSONB nullable | Non-secret per-connection parameters. First used by MyChart (SMART-on-FHIR) to store the discovered FHIR base URL and token endpoint. Never store secrets here. |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 

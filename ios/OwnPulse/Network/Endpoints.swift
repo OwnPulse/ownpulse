@@ -25,4 +25,8 @@ enum Endpoints {
     static let sourcesOverlapScan = "/api/v1/sources/overlap-scan"
     static let sourcePreferences = "/api/v1/source-preferences"
     // --- end C4 ---
+    // --- C8: MyChart / SMART-on-FHIR lab import ---
+    static let myChartConnect = "/api/v1/integrations/mychart/connect"
+    static let myChartSync = "/api/v1/integrations/mychart/sync"
+    // --- end C8 ---
 }
