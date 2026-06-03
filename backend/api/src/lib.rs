@@ -21,7 +21,7 @@ use std::sync::atomic::Ordering;
 
 use axum::extract::State;
 use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
-use axum::http::{HeaderValue, Method, StatusCode};
+use axum::http::{HeaderName, HeaderValue, Method, Request, StatusCode};
 use axum::response::IntoResponse;
 use axum::{Json, Router, routing::get};
 use axum_prometheus::PrometheusMetricLayer;
@@ -33,6 +33,38 @@ use sqlx::PgPool;
 use tower_http::cors::{AllowHeaders, AllowMethods, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
+
+// --- A3: client bundle version observability ---------------------------------
+// Web/iOS clients send their build version (git SHA) as `X-App-Version`. We
+// record it as a single span field on every request so Loki can surface which
+// client builds are still calling the API (i.e. detect stale clients). No other
+// header is logged here, and the value is a build identifier — never user data.
+const X_APP_VERSION: HeaderName = HeaderName::from_static("x-app-version");
+
+/// Extract the client build version from request headers, falling back to
+/// `"unknown"` when the header is absent or not valid UTF-8.
+fn app_version_from_headers(headers: &axum::http::HeaderMap) -> &str {
+    headers
+        .get(&X_APP_VERSION)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown")
+}
+
+/// A [`TraceLayer`] that adds the client `X-App-Version` to each request span.
+fn http_trace_layer<B>() -> TraceLayer<
+    tower_http::classify::SharedClassifier<tower_http::classify::ServerErrorsAsFailures>,
+    impl Fn(&Request<B>) -> tracing::Span + Clone,
+> {
+    TraceLayer::new_for_http().make_span_with(|request: &Request<B>| {
+        tracing::info_span!(
+            "request",
+            method = %request.method(),
+            uri = %request.uri(),
+            app_version = %app_version_from_headers(request.headers()),
+        )
+    })
+}
+// --- end A3 -------------------------------------------------------------------
 
 #[derive(Clone)]
 pub struct AppState {
@@ -83,7 +115,11 @@ fn cors_layer(web_origin: &str) -> CorsLayer {
             Method::PATCH,
             Method::OPTIONS,
         ]))
-        .allow_headers(AllowHeaders::list([AUTHORIZATION, CONTENT_TYPE]))
+        .allow_headers(AllowHeaders::list([
+            AUTHORIZATION,
+            CONTENT_TYPE,
+            X_APP_VERSION,
+        ]))
         .allow_credentials(true)
 }
 
@@ -120,7 +156,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes())
-        .layer(TraceLayer::new_for_http())
+        .layer(http_trace_layer())
         .layer(prometheus_layer)
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)
@@ -134,7 +170,37 @@ pub fn build_app_without_metrics(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes_without_rate_limit())
-        .layer(TraceLayer::new_for_http())
+        .layer(http_trace_layer())
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::HeaderMap;
+
+    use super::{X_APP_VERSION, app_version_from_headers};
+
+    #[test]
+    fn reads_x_app_version_header() {
+        let mut headers = HeaderMap::new();
+        headers.insert(X_APP_VERSION, "28c7559".parse().unwrap());
+        assert_eq!(app_version_from_headers(&headers), "28c7559");
+    }
+
+    #[test]
+    fn falls_back_to_unknown_when_header_absent() {
+        let headers = HeaderMap::new();
+        assert_eq!(app_version_from_headers(&headers), "unknown");
+    }
+
+    #[test]
+    fn falls_back_to_unknown_for_non_utf8_value() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            X_APP_VERSION,
+            axum::http::HeaderValue::from_bytes(&[0xff, 0xfe]).unwrap(),
+        );
+        assert_eq!(app_version_from_headers(&headers), "unknown");
+    }
 }
