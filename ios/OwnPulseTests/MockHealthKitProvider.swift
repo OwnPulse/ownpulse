@@ -21,6 +21,10 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     var mockAnchor: Data?
     var writtenSamples: [(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date)] = []
 
+    /// When set, `writeSample` throws this error instead of recording the
+    /// write. Used to exercise write-back failure paths.
+    var writeSampleError: Error?
+
     /// Optional per-type authorization status. Defaults to `.sharingAuthorized`
     /// when nothing is configured, matching the legacy assumption that
     /// `isAuthorizedResult == true` implies all reads are allowed.
@@ -134,6 +138,9 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
         start: Date,
         end: Date
     ) async throws {
+        if let writeSampleError {
+            throw writeSampleError
+        }
         writtenSamples.append((type: type, value: value, unit: unit, start: start, end: end))
     }
 
