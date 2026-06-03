@@ -79,7 +79,7 @@ struct HealthRecordResponse: Codable, Sendable {
     }
 }
 
-struct HealthKitWriteQueueItem: Codable, Sendable {
+struct HealthKitWriteQueueItem: Codable, Sendable, Identifiable {
     let id: String
     let hkType: String
     let value: Double

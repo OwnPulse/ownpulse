@@ -34,6 +34,7 @@ pub mod source_preferences;
 pub mod sources;
 pub mod stats;
 pub mod telemetry;
+pub mod v2;
 pub mod waitlist;
 
 use axum::http;

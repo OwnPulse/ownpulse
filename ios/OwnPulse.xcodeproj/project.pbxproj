@@ -31,6 +31,7 @@
 		29D6DD6A5FFAD5FD2B951CD9 /* APIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */; };
 		2AE644AB92D5704C8E8B7244 /* ProtocolsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90D310A48E0E8683AB879E13 /* ProtocolsViewModelTests.swift */; };
 		2CBC758F6DF27FCAB1722851 /* AdminServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54949C1E6E149322C32F0B1B /* AdminServiceTests.swift */; };
+		D1B663D3B03E47B3C4D67124 /* EndpointsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2843BA5476964726868C7920 /* EndpointsTests.swift */; };
 		2DD65D3B1A369A99B888317D /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4245A1A03B84BDF2DF58525 /* APIModels.swift */; };
 		32E54794834E7B928F64F00D /* SyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39BE160B6890EFD903FD7D4F /* SyncCoordinatorTests.swift */; };
 		34C414888AC43A92C7BE1599 /* ProtocolModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E64390E3C00D21BD3C2B16BB /* ProtocolModelsTests.swift */; };
@@ -88,6 +89,8 @@
 		A14FC677EEF0E3ABB7D8FF54 /* MockHealthKitProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6946B4A3B390ED063952B5 /* MockHealthKitProvider.swift */; };
 		A2DFFDF78F1019AE623CF7C0 /* FeatureFlagService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ECD3EF4637C840BF4A9A98A /* FeatureFlagService.swift */; };
 		A31F7A11910B3207F65931DC /* SyncStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43B3BD27FEC29DA8F177AD1A /* SyncStatusView.swift */; };
+		C5B0000000000000000F0002 /* WriteBackQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B0000000000000000F0001 /* WriteBackQueueView.swift */; };
+		C5B0000000000000000F0004 /* WriteBackQueueViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B0000000000000000F0003 /* WriteBackQueueViewModelTests.swift */; };
 		A67BDB45434152D64A52429A /* AppleAuthHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D6A8FE94F8EE834971CFD60 /* AppleAuthHelper.swift */; };
 		A7D44223A58409CF7E476CE4 /* UserPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6127AD4FA6915AB570D2A98 /* UserPreferences.swift */; };
 		ACC332E7F45ED8A7D9C05D79 /* LogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A7EE472EEBD42E355D92E53 /* LogView.swift */; };
@@ -179,6 +182,8 @@
 		4003A698FBB10A19D2BBB779 /* AppDependenciesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependenciesTests.swift; sourceTree = "<group>"; };
 		42C46A032CA4261AF4DF4588 /* ObjCExceptionCatcherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ObjCExceptionCatcherTests.swift; sourceTree = "<group>"; };
 		43B3BD27FEC29DA8F177AD1A /* SyncStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncStatusView.swift; sourceTree = "<group>"; };
+		C5B0000000000000000F0001 /* WriteBackQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WriteBackQueueView.swift; sourceTree = "<group>"; };
+		C5B0000000000000000F0003 /* WriteBackQueueViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WriteBackQueueViewModelTests.swift; sourceTree = "<group>"; };
 		44DAC2D411F7B322237A118A /* UserPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferencesTests.swift; sourceTree = "<group>"; };
 		49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PKCEHelperTests.swift; sourceTree = "<group>"; };
 		4B87B1D8D0ED5457EF0C48E3 /* WeightFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightFormatterTests.swift; sourceTree = "<group>"; };
@@ -186,6 +191,7 @@
 		4BBEEEB77231155980E6056B /* LogViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogViewModelTests.swift; sourceTree = "<group>"; };
 		510AACF348448F516940B31C /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		54949C1E6E149322C32F0B1B /* AdminServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminServiceTests.swift; sourceTree = "<group>"; };
+		2843BA5476964726868C7920 /* EndpointsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EndpointsTests.swift; sourceTree = "<group>"; };
 		55758FB85386BB707F01C225 /* CheckinSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckinSummaryCard.swift; sourceTree = "<group>"; };
 		568D8D1C5B681A29E905A0FF /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
 		56AE0C1D31FFA50FAE6A7861 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
@@ -382,6 +388,7 @@
 			isa = PBXGroup;
 			children = (
 				54949C1E6E149322C32F0B1B /* AdminServiceTests.swift */,
+				2843BA5476964726868C7920 /* EndpointsTests.swift */,
 				E5DB85C7B75B2B3CCCDFF201 /* AnchorStoreTests.swift */,
 				B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */,
 				FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */,
@@ -391,6 +398,7 @@
 				5868F7EE0B35D3986890B880 /* ChartAxisConfigTests.swift */,
 				3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */,
 				A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */,
+				C5B0000000000000000F0003 /* WriteBackQueueViewModelTests.swift */,
 				A077B02C456D93D3B29D233E /* ExploreViewModelTests.swift */,
 				C4509142000000000000A002 /* SourcePreferenceWizardTests.swift */,
 				7CEB7C232DCDE33E216A94C6 /* FeatureFlagServiceTests.swift */,
@@ -442,6 +450,7 @@
 			children = (
 				43B3BD27FEC29DA8F177AD1A /* SyncStatusView.swift */,
 				C4509142000000000000A001 /* SourcePreferenceWizard.swift */,
+				C5B0000000000000000F0001 /* WriteBackQueueView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -804,6 +813,7 @@
 				D0F99DBBAD7A3204D17D2C4E /* SyncProgress.swift in Sources */,
 				E3A7F1EED0F93C71117DBB1F /* SyncScheduler.swift in Sources */,
 				A31F7A11910B3207F65931DC /* SyncStatusView.swift in Sources */,
+				C5B0000000000000000F0002 /* WriteBackQueueView.swift in Sources */,
 				73D6B27E6F546B8468A3682C /* TelemetryModels.swift in Sources */,
 				208E9ABF9B99B54C494A3C3D /* TelemetrySettings.swift in Sources */,
 				203A3757FF6723983649D7E2 /* Theme.swift in Sources */,
@@ -820,6 +830,7 @@
 			files = (
 				29D6DD6A5FFAD5FD2B951CD9 /* APIModelsTests.swift in Sources */,
 				2CBC758F6DF27FCAB1722851 /* AdminServiceTests.swift in Sources */,
+				D1B663D3B03E47B3C4D67124 /* EndpointsTests.swift in Sources */,
 				FC991521672354702B6079B8 /* AnchorStoreTests.swift in Sources */,
 				C61339D33CC14D51DE65164F /* AppConfigTests.swift in Sources */,
 				D9C2762F33071710E90C749A /* AppDependenciesTests.swift in Sources */,
@@ -828,6 +839,7 @@
 				6664FDB133640BD2F9912611 /* ChartAxisConfigTests.swift in Sources */,
 				9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */,
 				77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */,
+				C5B0000000000000000F0004 /* WriteBackQueueViewModelTests.swift in Sources */,
 				6713CB352021864506D8D810 /* ExploreViewModelTests.swift in Sources */,
 				C4509142000000000000B002 /* SourcePreferenceWizardTests.swift in Sources */,
 				EA1EBA297D65489C2D211415 /* FeatureFlagServiceTests.swift in Sources */,

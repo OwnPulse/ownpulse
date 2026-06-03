@@ -14,6 +14,8 @@ struct CreateInviteSheet: View {
     @State private var createdInvite: InviteCode?
     @State private var errorMessage: String?
 
+    @ScaledMetric(relativeTo: .largeTitle) private var successIconSize: CGFloat = 60
+
     let onCreated: (InviteCode) -> Void
 
     enum ExpiryOption: String, CaseIterable, Identifiable {
@@ -106,8 +108,9 @@ struct CreateInviteSheet: View {
             Spacer()
 
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 60))
+                .font(.system(size: successIconSize))
                 .foregroundStyle(.green)
+                .accessibilityHidden(true)
 
             Text("Invite Created")
                 .font(.title2)
