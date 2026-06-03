@@ -3,15 +3,15 @@
 
 import SwiftUI
 
-enum OPColor {
-    static let terracotta = Color(red: 194 / 255, green: 101 / 255, blue: 74 / 255)
-    static let teal = Color(red: 61 / 255, green: 139 / 255, blue: 139 / 255)
-    static let gold = Color(red: 196 / 255, green: 154 / 255, blue: 60 / 255)
-    static let sage = Color(red: 90 / 255, green: 138 / 255, blue: 90 / 255)
-    static let warmBg = Color(red: 250 / 255, green: 246 / 255, blue: 241 / 255)
+// The brand palette (terracotta, teal, gold, sage, warmBg, cardLight) is
+// generated from docs/design/tokens.json into Tokens.swift. The members below
+// are hand-written: they are either not yet modeled in the token source
+// (darkBg, cardDark), deliberately tuned for WCAG AA contrast in a way the raw
+// palette does not express (mutedText, googleBlue), or semantic system colors
+// (trend indicators).
+extension OPColor {
     static let darkBg = Color(red: 26 / 255, green: 26 / 255, blue: 26 / 255)
     static let cardDark = Color(red: 34 / 255, green: 34 / 255, blue: 34 / 255)
-    static let cardLight = Color.white
 
     /// Muted secondary text that still clears WCAG AA (4.5:1 for normal text).
     ///
