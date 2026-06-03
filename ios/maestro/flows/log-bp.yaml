@@ -1,0 +1,37 @@
+appId: health.ownpulse.app
+---
+# Log a manual blood pressure entry via the Log tab
+- assertVisible:
+    id: "mainTabView"
+
+# Navigate to Log tab
+- tapOn:
+    text: "Log"
+- assertVisible:
+    id: "logTabPicker"
+
+# Switch to the Blood Pressure entry tab
+- tapOn:
+    id: "logTab-BP"
+- assertVisible:
+    id: "systolicField"
+- assertVisible:
+    id: "diastolicField"
+- assertVisible:
+    id: "saveBloodPressureButton"
+
+# Fill in the form
+- tapOn:
+    id: "systolicField"
+- inputText: "120"
+- tapOn:
+    id: "diastolicField"
+- inputText: "80"
+
+# Submit
+- tapOn:
+    id: "saveBloodPressureButton"
+- extendedWaitUntil:
+    visible:
+      id: "submitSuccess"
+    timeout: 10000

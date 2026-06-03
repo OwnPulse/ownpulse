@@ -1,0 +1,32 @@
+appId: health.ownpulse.app
+---
+# Log a manual exercise entry via the Log tab
+- assertVisible:
+    id: "mainTabView"
+
+# Navigate to Log tab
+- tapOn:
+    text: "Log"
+- assertVisible:
+    id: "logTabPicker"
+
+# Switch to the Exercise entry tab
+- tapOn:
+    id: "logTab-Exercise"
+- assertVisible:
+    id: "exerciseMinutesField"
+- assertVisible:
+    id: "saveExerciseButton"
+
+# Fill in the form
+- tapOn:
+    id: "exerciseMinutesField"
+- inputText: "45"
+
+# Submit
+- tapOn:
+    id: "saveExerciseButton"
+- extendedWaitUntil:
+    visible:
+      id: "submitSuccess"
+    timeout: 10000

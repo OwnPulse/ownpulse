@@ -11,6 +11,11 @@ enum LogTab: String, CaseIterable, Sendable {
     case checkin = "Check-in"
     case intervention = "Intervention"
     case observation = "Observation"
+    case weight = "Weight"
+    case sleep = "Sleep"
+    case exercise = "Exercise"
+    case glucose = "Glucose"
+    case bloodPressure = "BP"
 }
 
 enum ObservationType: String, CaseIterable, Sendable {
@@ -88,6 +93,39 @@ final class LogViewModel {
     var environmentalUnit = "celsius"
     var observationNotes = ""
 
+    // MARK: - Manual Health Record State
+
+    /// Source value for every manually-entered health record. The backend uses
+    /// this to keep manual entries out of the HealthKit write-back cycle guard
+    /// (only `source == "healthkit"` is excluded; "manual" is written back).
+    static let manualSource = "manual"
+
+    // Weight
+    var weightValue: String = ""
+    var weightUnit = "kg"
+    var weightDate = Date()
+    static let weightUnits = ["kg", "lb"]
+
+    // Sleep — captured as hours + minutes, submitted as total minutes
+    var sleepHours: String = ""
+    var sleepMinutes: String = ""
+    var sleepDate = Date()
+
+    // Exercise — duration in minutes
+    var exerciseMinutes: String = ""
+    var exerciseDate = Date()
+
+    // Glucose
+    var glucoseValue: String = ""
+    var glucoseUnit = "mg/dL"
+    var glucoseDate = Date()
+    static let glucoseUnits = ["mg/dL", "mmol/L"]
+
+    // Blood pressure — submitted as two records (systolic + diastolic)
+    var systolicValue: String = ""
+    var diastolicValue: String = ""
+    var bloodPressureDate = Date()
+
     private let networkClient: NetworkClientProtocol
 
     init(networkClient: NetworkClientProtocol) {
@@ -112,6 +150,47 @@ final class LogViewModel {
 
     var observationIsValid: Bool {
         !observationName.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    /// Parses a decimal string, returning a strictly-positive value or nil.
+    private static func positiveValue(_ text: String) -> Double? {
+        guard let v = Double(text.trimmingCharacters(in: .whitespaces)), v > 0 else { return nil }
+        return v
+    }
+
+    var weightIsValid: Bool {
+        Self.positiveValue(weightValue) != nil
+    }
+
+    /// Sleep is valid when at least one of hours/minutes is provided and the
+    /// resulting total duration is positive. Minutes must be in 0..<60.
+    var sleepTotalMinutes: Double? {
+        let hoursText = sleepHours.trimmingCharacters(in: .whitespaces)
+        let minutesText = sleepMinutes.trimmingCharacters(in: .whitespaces)
+        let hours = hoursText.isEmpty ? 0 : Double(hoursText)
+        let minutes = minutesText.isEmpty ? 0 : Double(minutesText)
+        guard let h = hours, let m = minutes, h >= 0, m >= 0, m < 60 else { return nil }
+        let total = h * 60 + m
+        return total > 0 ? total : nil
+    }
+
+    var sleepIsValid: Bool {
+        sleepTotalMinutes != nil
+    }
+
+    var exerciseIsValid: Bool {
+        Self.positiveValue(exerciseMinutes) != nil
+    }
+
+    var glucoseIsValid: Bool {
+        Self.positiveValue(glucoseValue) != nil
+    }
+
+    /// Blood pressure requires both readings, positive, with systolic > diastolic.
+    var bloodPressureIsValid: Bool {
+        guard let sys = Self.positiveValue(systolicValue),
+              let dia = Self.positiveValue(diastolicValue) else { return false }
+        return sys > dia
     }
 
     // MARK: - Submit
@@ -242,6 +321,112 @@ final class LogViewModel {
         }
     }
 
+    // MARK: - Submit Manual Health Records
+
+    /// Posts a single manual `health_record`. Returns true on success.
+    /// Date range is a single instant (start == end), matching how the
+    /// HealthKit sync path encodes point-in-time samples.
+    private func postHealthRecord(recordType: String, value: Double, unit: String, at date: Date) async throws {
+        let body = CreateHealthRecord(
+            source: Self.manualSource,
+            recordType: recordType,
+            value: value,
+            unit: unit,
+            startTime: date,
+            endTime: date,
+            metadata: nil,
+            sourceId: nil
+        )
+        let _: HealthRecordResponse = try await networkClient.request(
+            method: "POST",
+            path: Endpoints.healthRecords,
+            body: body
+        )
+    }
+
+    func submitWeight() async {
+        guard let value = Self.positiveValue(weightValue) else {
+            submitState = .error("Enter a valid weight")
+            return
+        }
+        submitState = .submitting
+        do {
+            try await postHealthRecord(recordType: "body_mass", value: value, unit: weightUnit, at: weightDate)
+            submitState = .success("Weight saved")
+            resetWeight()
+        } catch {
+            logger.error("Failed to submit weight: \(error.localizedDescription, privacy: .public)")
+            submitState = .error("Failed to save weight: \(error.localizedDescription)")
+        }
+    }
+
+    func submitSleep() async {
+        guard let totalMinutes = sleepTotalMinutes else {
+            submitState = .error("Enter a valid sleep duration")
+            return
+        }
+        submitState = .submitting
+        do {
+            try await postHealthRecord(recordType: "sleep_analysis", value: totalMinutes, unit: "min", at: sleepDate)
+            submitState = .success("Sleep saved")
+            resetSleep()
+        } catch {
+            logger.error("Failed to submit sleep: \(error.localizedDescription, privacy: .public)")
+            submitState = .error("Failed to save sleep: \(error.localizedDescription)")
+        }
+    }
+
+    func submitExercise() async {
+        guard let minutes = Self.positiveValue(exerciseMinutes) else {
+            submitState = .error("Enter a valid exercise duration")
+            return
+        }
+        submitState = .submitting
+        do {
+            try await postHealthRecord(recordType: "exercise_time", value: minutes, unit: "min", at: exerciseDate)
+            submitState = .success("Exercise saved")
+            resetExercise()
+        } catch {
+            logger.error("Failed to submit exercise: \(error.localizedDescription, privacy: .public)")
+            submitState = .error("Failed to save exercise: \(error.localizedDescription)")
+        }
+    }
+
+    func submitGlucose() async {
+        guard let value = Self.positiveValue(glucoseValue) else {
+            submitState = .error("Enter a valid glucose reading")
+            return
+        }
+        submitState = .submitting
+        do {
+            try await postHealthRecord(recordType: "blood_glucose", value: value, unit: glucoseUnit, at: glucoseDate)
+            submitState = .success("Glucose saved")
+            resetGlucose()
+        } catch {
+            logger.error("Failed to submit glucose: \(error.localizedDescription, privacy: .public)")
+            submitState = .error("Failed to save glucose: \(error.localizedDescription)")
+        }
+    }
+
+    func submitBloodPressure() async {
+        guard bloodPressureIsValid,
+              let sys = Self.positiveValue(systolicValue),
+              let dia = Self.positiveValue(diastolicValue) else {
+            submitState = .error("Systolic must be greater than diastolic")
+            return
+        }
+        submitState = .submitting
+        do {
+            try await postHealthRecord(recordType: "blood_pressure_systolic", value: sys, unit: "mmHg", at: bloodPressureDate)
+            try await postHealthRecord(recordType: "blood_pressure_diastolic", value: dia, unit: "mmHg", at: bloodPressureDate)
+            submitState = .success("Blood pressure saved")
+            resetBloodPressure()
+        } catch {
+            logger.error("Failed to submit blood pressure: \(error.localizedDescription, privacy: .public)")
+            submitState = .error("Failed to save blood pressure: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Saved Medicines
 
     func loadSavedMedicines() async {
@@ -326,5 +511,32 @@ final class LogViewModel {
         environmentalValue = ""
         observationDate = Date()
         observationEndDate = Date()
+    }
+
+    private func resetWeight() {
+        weightValue = ""
+        weightDate = Date()
+    }
+
+    private func resetSleep() {
+        sleepHours = ""
+        sleepMinutes = ""
+        sleepDate = Date()
+    }
+
+    private func resetExercise() {
+        exerciseMinutes = ""
+        exerciseDate = Date()
+    }
+
+    private func resetGlucose() {
+        glucoseValue = ""
+        glucoseDate = Date()
+    }
+
+    private func resetBloodPressure() {
+        systolicValue = ""
+        diastolicValue = ""
+        bloodPressureDate = Date()
     }
 }
