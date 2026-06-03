@@ -1,0 +1,24 @@
+{{- /*
+Grafana dashboard provisioning provider. Tells Grafana to load every dashboard
+JSON found under /etc/grafana/provisioning/dashboards (where the chart's
+dashboard ConfigMap is mounted in the Grafana deployment).
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "observability.componentName" (dict "component" "grafana" "context" $) }}-dashboards-provider
+  labels:
+    {{- include "observability.labels" (dict "component" "grafana" "context" $) | nindent 4 }}
+data:
+  dashboards.yaml: |
+    apiVersion: 1
+    providers:
+      - name: ownpulse
+        orgId: 1
+        type: file
+        disableDeletion: false
+        allowUiUpdates: false
+        updateIntervalSeconds: 30
+        options:
+          path: /var/lib/grafana/dashboards/ownpulse
+          foldersFromFilesStructure: false
