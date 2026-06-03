@@ -7,10 +7,18 @@ import Foundation
 /// the main app via ``WidgetDataPublisher`` into the shared app group's
 /// `UserDefaults`; read (never written) by the `OwnPulseWidgets` extension.
 ///
-/// Kept deliberately tiny: one latest value per surface, no history. The app
-/// group container is on-device only and protected by iOS data protection, so
-/// the latest hero value living here is acceptable — but we still store the
-/// minimum needed to render and nothing resembling a record stream.
+/// PRIVACY — read before adding fields:
+/// This payload is NOT safe for sensitive data. The app-group `UserDefaults`
+/// plist is `NSFileProtectionCompleteUntilFirstUnlock` at best, and a
+/// lock-screen widget deliberately renders its contents on the LOCKED screen
+/// — i.e. visible to anyone holding the device, without unlocking. So whatever
+/// lands here is effectively at-rest-unprotected and shoulder-surfable.
+///
+/// Keep this minimal: a check-in boolean plus exactly ONE coarse vital
+/// (resting HR) is the defensible maximum. Do NOT add symptom severities,
+/// substance/intervention names, observation contents, notes, or any free
+/// text — those are sensitive and must never surface on the lock screen
+/// without a real, explicit per-widget opt-in. When in doubt, leave it out.
 struct WidgetSnapshot: Codable, Sendable, Equatable {
     /// Whether today's subjective check-in has been filled in.
     var checkinFilledToday: Bool
@@ -32,6 +40,18 @@ struct WidgetSnapshot: Codable, Sendable, Equatable {
 
     /// When the snapshot was last written by the app.
     var lastUpdated: Date
+
+    /// Beyond this age the hero value is no longer trustworthy as "current" —
+    /// the widget falls back to a placeholder dash rather than presenting a
+    /// multi-day-old vital (and a stale trend) as if it were live. 24h matches
+    /// the daily cadence of the metrics we surface.
+    static let stalenessThreshold: TimeInterval = 24 * 60 * 60
+
+    /// `true` when `lastUpdated` is older than ``stalenessThreshold`` relative
+    /// to `now`, or when it's the epoch sentinel used by the placeholder.
+    func isStale(asOf now: Date = Date()) -> Bool {
+        now.timeIntervalSince(lastUpdated) > Self.stalenessThreshold
+    }
 
     /// A neutral placeholder used for previews and the "no data yet" state.
     static let placeholder = WidgetSnapshot(

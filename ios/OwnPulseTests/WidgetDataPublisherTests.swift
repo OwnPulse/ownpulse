@@ -51,6 +51,39 @@ struct WidgetSnapshotTests {
         #expect(p.heroMetricValue == "—")
         #expect(p.heroMetricUnit == "bpm")
     }
+
+    @Test("isStale is false for a fresh snapshot")
+    func freshSnapshotNotStale() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        var s = sampleSnapshot()
+        s.lastUpdated = now.addingTimeInterval(-60 * 60) // 1h old
+        #expect(s.isStale(asOf: now) == false)
+    }
+
+    @Test("isStale is true past the 24h threshold")
+    func oldSnapshotIsStale() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        var s = sampleSnapshot()
+        s.lastUpdated = now.addingTimeInterval(-(25 * 60 * 60)) // 25h old
+        #expect(s.isStale(asOf: now) == true)
+    }
+
+    @Test("isStale is true exactly past threshold, false exactly at it")
+    func staleBoundary() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        var atThreshold = sampleSnapshot()
+        atThreshold.lastUpdated = now.addingTimeInterval(-WidgetSnapshot.stalenessThreshold)
+        #expect(atThreshold.isStale(asOf: now) == false)
+
+        var pastThreshold = sampleSnapshot()
+        pastThreshold.lastUpdated = now.addingTimeInterval(-(WidgetSnapshot.stalenessThreshold + 1))
+        #expect(pastThreshold.isStale(asOf: now) == true)
+    }
+
+    @Test("epoch-sentinel placeholder is always stale")
+    func placeholderIsStale() {
+        #expect(WidgetSnapshot.placeholder.isStale(asOf: Date()) == true)
+    }
 }
 
 @Suite("WidgetDataPublisher")
@@ -102,6 +135,29 @@ struct WidgetDataPublisherTests {
         publisher.publish(sampleSnapshot())
         #expect(reloaded.value == false)
         #expect(publisher.load() == nil)
+    }
+}
+
+@Suite("AppGroupDefaultsStore")
+struct AppGroupDefaultsStoreTests {
+    /// Uses a transient, named `UserDefaults` suite (not the real app group,
+    /// which the test process can't access) to exercise the first-party
+    /// wrapper that carries the scoped `@unchecked Sendable` conformance.
+    @Test("wraps UserDefaults read/write round-trip")
+    func roundTrip() throws {
+        let suite = "test.widget.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = AppGroupDefaultsStore(defaults)
+        #expect(store.data(forKey: "k") == nil)
+
+        let payload = Data([0xDE, 0xAD, 0xBE, 0xEF])
+        store.set(payload, forKey: "k")
+        #expect(store.data(forKey: "k") == payload)
+
+        store.set(nil, forKey: "k")
+        #expect(store.data(forKey: "k") == nil)
     }
 }
 

@@ -231,6 +231,44 @@ struct DashboardViewModelTests {
         #expect(!vm.heroTrendText.isEmpty)
     }
 
+    @Test("trend never renders a contradictory -0%")
+    func trendNeverNegativeZero() async {
+        // A latest value fractionally below the average yields a tiny negative
+        // pctChange that rounds to 0 — it must print "+0%", not "-0%".
+        let mock = MockNetworkClient()
+        let heroResponse = BatchSeriesResponse(series: [
+            SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
+                DataPoint(t: "2026-03-01", v: 60.0, n: 1),
+                DataPoint(t: "2026-03-28", v: 59.99, n: 1),
+            ]),
+        ])
+        mock.requestHandler = { _, _, _ in heroResponse }
+
+        let vm = DashboardViewModel(networkClient: mock)
+        await vm.loadHeroMetric()
+
+        #expect(!vm.heroTrendText.contains("-0%"))
+        #expect(vm.heroTrendText.hasPrefix("+0%"))
+    }
+
+    @Test("trend polarity treats lower resting HR as the good direction")
+    func trendPolarityLowerIsGood() async {
+        let mock = MockNetworkClient()
+        // Latest is below the average -> a decrease in resting HR -> good.
+        let heroResponse = BatchSeriesResponse(series: [
+            SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
+                DataPoint(t: "2026-03-01", v: 70, n: 1),
+                DataPoint(t: "2026-03-28", v: 55, n: 1),
+            ]),
+        ])
+        mock.requestHandler = { _, _, _ in heroResponse }
+
+        let vm = DashboardViewModel(networkClient: mock)
+        await vm.loadHeroMetric()
+
+        #expect(vm.heroTrendIsPositive == true) // lower HR is "positive" for the user
+    }
+
     @Test("loadHeroMetric failure leaves hero empty")
     func loadHeroMetricFailure() async {
         let mock = MockNetworkClient()

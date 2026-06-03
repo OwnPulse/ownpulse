@@ -17,14 +17,24 @@ protocol WidgetDefaultsStore: AnyObject, Sendable {
     func set(_ data: Data?, forKey key: String)
 }
 
-// `WidgetDefaultsStore` requires `Sendable`. `UserDefaults` is thread-safe but
-// not declared `Sendable` in the SDK, so we add an explicit retroactive
-// `@unchecked Sendable` conformance (required for Swift 6 language mode).
-extension UserDefaults: @retroactive @unchecked Sendable {}
+/// First-party wrapper around the app-group `UserDefaults`. We declare the
+/// `@unchecked Sendable` conformance on THIS type — not retroactively on
+/// `UserDefaults` itself — so we don't silence Sendable checking on the SDK
+/// type process-wide. `UserDefaults` is internally thread-safe, so wrapping it
+/// is sound; the unchecked annotation is scoped to our own one-property class.
+final class AppGroupDefaultsStore: WidgetDefaultsStore, @unchecked Sendable {
+    private let defaults: UserDefaults
 
-extension UserDefaults: WidgetDefaultsStore {
+    init(_ defaults: UserDefaults) {
+        self.defaults = defaults
+    }
+
+    func data(forKey key: String) -> Data? {
+        defaults.data(forKey: key)
+    }
+
     func set(_ data: Data?, forKey key: String) {
-        set(data as Any?, forKey: key)
+        defaults.set(data as Any?, forKey: key)
     }
 }
 
@@ -45,7 +55,7 @@ final class WidgetDataPublisher: Sendable {
     /// WidgetKit reload. If the app group is misconfigured (no entitlement),
     /// `store` is `nil` and writes become no-ops rather than crashing.
     init(appGroupID: String = WidgetSharedConstants.appGroupID) {
-        self.store = UserDefaults(suiteName: appGroupID)
+        self.store = UserDefaults(suiteName: appGroupID).map(AppGroupDefaultsStore.init)
         self.reload = {
             #if canImport(WidgetKit)
             WidgetCenter.shared.reloadAllTimelines()

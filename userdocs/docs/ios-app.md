@@ -84,7 +84,17 @@ To add one:
 2. Choose **OwnPulse** and pick the widget and size you want.
 
 The widgets refresh after each sync or when you open the Dashboard. If you
-haven't synced yet, they show a neutral placeholder rather than stale data.
+haven't synced recently, the Hero Metric widget falls back to a neutral
+placeholder (a dash) instead of showing a stale reading: it only displays a
+value and trend that are less than a day old.
+
+!!! warning "Lock Screen visibility"
+    The Hero Metric widget shows a real vital — your latest resting heart
+    rate — directly on the **Lock Screen**, where it is readable by anyone
+    holding your device **without unlocking it**. If you'd rather not surface a
+    health number on your lock screen, simply don't add that widget (or add it
+    to the Home Screen only). The Today's Check-in and Quick Log widgets show
+    no health values.
 
 ## What's on iOS vs web
 

@@ -18,6 +18,12 @@ struct HeroMetricWidgetView: View {
     private var family: WidgetFamily { familyOverride ?? environmentFamily }
     private var snapshot: WidgetSnapshot { entry.snapshot }
 
+    /// Once the snapshot is stale we stop presenting the old vital as current:
+    /// the value collapses to a dash and the (now meaningless) trend is hidden.
+    private var isStale: Bool { snapshot.isStale(asOf: entry.date) }
+    private var displayValue: String { isStale ? "—" : snapshot.heroMetricValue }
+    private var displayTrend: String { isStale ? "" : snapshot.heroTrendText }
+
     var body: some View {
         switch family {
         case .systemSmall:
@@ -29,8 +35,11 @@ struct HeroMetricWidgetView: View {
     }
 
     private var accessibilityValue: String {
-        let trend = snapshot.heroTrendText.isEmpty ? "" : ", \(snapshot.heroTrendText)"
-        return "\(snapshot.heroMetricName): \(snapshot.heroMetricValue) \(snapshot.heroMetricUnit)\(trend)"
+        if isStale {
+            return "\(snapshot.heroMetricName): no recent reading. Open OwnPulse to refresh."
+        }
+        let trend = displayTrend.isEmpty ? "" : ", \(displayTrend)"
+        return "\(snapshot.heroMetricName): \(displayValue) \(snapshot.heroMetricUnit)\(trend)"
     }
 
     private var rectangular: some View {
@@ -40,14 +49,14 @@ struct HeroMetricWidgetView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(snapshot.heroMetricValue)
+                Text(displayValue)
                     .font(.title2.weight(.semibold))
                 Text(snapshot.heroMetricUnit)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            if !snapshot.heroTrendText.isEmpty {
-                Text(snapshot.heroTrendText)
+            if !displayTrend.isEmpty {
+                Text(displayTrend)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -65,7 +74,7 @@ struct HeroMetricWidgetView: View {
                 .lineLimit(2)
             Spacer(minLength: 0)
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(snapshot.heroMetricValue)
+                Text(displayValue)
                     .font(.system(size: 40, weight: .bold, design: .rounded))
                     .foregroundStyle(WidgetTheme.terracotta)
                     .minimumScaleFactor(0.5)
@@ -74,10 +83,15 @@ struct HeroMetricWidgetView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            if !snapshot.heroTrendText.isEmpty {
-                Text(snapshot.heroTrendText)
+            if !displayTrend.isEmpty {
+                Text(displayTrend)
                     .font(.caption2)
                     .foregroundStyle(snapshot.heroTrendIsPositive ? WidgetTheme.sage : .red)
+                    .lineLimit(1)
+            } else if isStale {
+                Text("Open to refresh")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
         }

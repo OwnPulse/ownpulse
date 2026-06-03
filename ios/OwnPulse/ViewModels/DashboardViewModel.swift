@@ -197,9 +197,20 @@ final class DashboardViewModel {
             return
         }
         let pctChange = ((latest - avg) / avg) * 100
-        let direction = pctChange >= 0 ? "+" : ""
-        heroTrendText = "\(direction)\(String(format: "%.0f", pctChange))% vs 30d avg"
-        heroTrendIsPositive = pctChange <= 0 // lower resting HR is generally good
+        // Round first, then derive sign/label from the rounded value so we
+        // never render a contradictory "-0%" (a tiny negative that rounds to
+        // zero would otherwise print with a leading minus).
+        let rounded = (pctChange).rounded()
+        let direction = rounded > 0 ? "+" : ""
+        heroTrendText = "\(direction)\(String(format: "%.0f", rounded))% vs 30d avg"
+        // POLARITY IS RESTING-HR-ONLY. The hero metric is currently hardcoded
+        // to resting heart rate (see loadHeroMetric), where *lower* is the
+        // healthy direction — so a non-positive change is "good" (sage tint).
+        // This is WRONG for higher-is-better metrics (HRV, sleep duration). If
+        // the hero metric is ever generalized, tie this polarity to the metric
+        // type rather than assuming lower-is-better, or the lock-screen tint
+        // will mislead.
+        heroTrendIsPositive = rounded <= 0
     }
 
     // MARK: - Sync
