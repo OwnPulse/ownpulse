@@ -100,11 +100,17 @@ final class LogViewModel {
     /// (only `source == "healthkit"` is excluded; "manual" is written back).
     static let manualSource = "manual"
 
+    // Units are fixed to the canonical units declared in `HealthKitTypeMap`
+    // for each record type. The write-back queue carries the stored unit
+    // verbatim, so offering non-canonical units (e.g. "lb", "mmol/L") here
+    // could write a wrong-unit value into Apple Health. If unit conversion is
+    // added later, convert to canonical before POST — do not relax this.
+    static let weightUnit = "kg"
+    static let glucoseUnit = "mg/dL"
+
     // Weight
     var weightValue: String = ""
-    var weightUnit = "kg"
     var weightDate = Date()
-    static let weightUnits = ["kg", "lb"]
 
     // Sleep — captured as hours + minutes, submitted as total minutes
     var sleepHours: String = ""
@@ -117,14 +123,23 @@ final class LogViewModel {
 
     // Glucose
     var glucoseValue: String = ""
-    var glucoseUnit = "mg/dL"
     var glucoseDate = Date()
-    static let glucoseUnits = ["mg/dL", "mmol/L"]
 
-    // Blood pressure — submitted as two records (systolic + diastolic)
-    var systolicValue: String = ""
-    var diastolicValue: String = ""
+    // Blood pressure — submitted as two records (systolic + diastolic).
+    // `bloodPressureSystolicSaved` records that the systolic POST already
+    // succeeded in a prior submit that then failed on the diastolic POST, so
+    // a retry resends only the diastolic and never duplicates the systolic.
+    // Editing either reading after a partial save invalidates the
+    // already-stored systolic record, so the flag is cleared and the next
+    // submit posts a fresh systolic.
+    var systolicValue: String = "" {
+        didSet { if systolicValue != oldValue { bloodPressureSystolicSaved = false } }
+    }
+    var diastolicValue: String = "" {
+        didSet { if diastolicValue != oldValue { bloodPressureSystolicSaved = false } }
+    }
     var bloodPressureDate = Date()
+    private(set) var bloodPressureSystolicSaved = false
 
     private let networkClient: NetworkClientProtocol
 
@@ -176,6 +191,14 @@ final class LogViewModel {
 
     var sleepIsValid: Bool {
         sleepTotalMinutes != nil
+    }
+
+    /// True when the minutes field holds a number outside 0..<60, so the form
+    /// can show inline guidance (use the hours field for 60+).
+    var sleepMinutesOutOfRange: Bool {
+        let text = sleepMinutes.trimmingCharacters(in: .whitespaces)
+        guard !text.isEmpty, let m = Double(text) else { return false }
+        return m < 0 || m >= 60
     }
 
     var exerciseIsValid: Bool {
@@ -351,7 +374,7 @@ final class LogViewModel {
         }
         submitState = .submitting
         do {
-            try await postHealthRecord(recordType: "body_mass", value: value, unit: weightUnit, at: weightDate)
+            try await postHealthRecord(recordType: "body_mass", value: value, unit: Self.weightUnit, at: weightDate)
             submitState = .success("Weight saved")
             resetWeight()
         } catch {
@@ -399,7 +422,7 @@ final class LogViewModel {
         }
         submitState = .submitting
         do {
-            try await postHealthRecord(recordType: "blood_glucose", value: value, unit: glucoseUnit, at: glucoseDate)
+            try await postHealthRecord(recordType: "blood_glucose", value: value, unit: Self.glucoseUnit, at: glucoseDate)
             submitState = .success("Glucose saved")
             resetGlucose()
         } catch {
@@ -416,14 +439,30 @@ final class LogViewModel {
             return
         }
         submitState = .submitting
+
+        // The systolic and diastolic readings are two separate POSTs. If a
+        // prior submit saved systolic but then failed on diastolic, the flag
+        // is set so this retry resends only the diastolic — never a second
+        // systolic record. The flag is cleared once both halves are stored
+        // (in resetBloodPressure) or when the user changes the readings.
         do {
-            try await postHealthRecord(recordType: "blood_pressure_systolic", value: sys, unit: "mmHg", at: bloodPressureDate)
+            if !bloodPressureSystolicSaved {
+                try await postHealthRecord(recordType: "blood_pressure_systolic", value: sys, unit: "mmHg", at: bloodPressureDate)
+                bloodPressureSystolicSaved = true
+            }
             try await postHealthRecord(recordType: "blood_pressure_diastolic", value: dia, unit: "mmHg", at: bloodPressureDate)
             submitState = .success("Blood pressure saved")
             resetBloodPressure()
         } catch {
             logger.error("Failed to submit blood pressure: \(error.localizedDescription, privacy: .public)")
-            submitState = .error("Failed to save blood pressure: \(error.localizedDescription)")
+            if bloodPressureSystolicSaved {
+                // Systolic is persisted server-side; only the diastolic POST
+                // failed. Tell the user so a retry completes the pair without
+                // duplicating the systolic.
+                submitState = .error("Systolic saved — failed to save diastolic. Tap to retry.")
+            } else {
+                submitState = .error("Failed to save blood pressure: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -538,5 +577,6 @@ final class LogViewModel {
         systolicValue = ""
         diastolicValue = ""
         bloodPressureDate = Date()
+        bloodPressureSystolicSaved = false
     }
 }

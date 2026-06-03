@@ -8,20 +8,16 @@ struct GlucoseEntryForm: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            // Glucose + Unit
+            // Glucose (mg/dL — the canonical HealthKit blood-glucose unit)
             HStack(spacing: 12) {
                 TextField("Glucose", text: $viewModel.glucoseValue)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.decimalPad)
                     .accessibilityIdentifier("glucoseField")
 
-                Picker("Unit", selection: $viewModel.glucoseUnit) {
-                    ForEach(LogViewModel.glucoseUnits, id: \.self) { unit in
-                        Text(unit).tag(unit)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("glucoseUnitPicker")
+                Text(LogViewModel.glucoseUnit)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("glucoseUnitLabel")
             }
 
             // Date/Time

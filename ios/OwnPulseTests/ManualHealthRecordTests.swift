@@ -47,7 +47,6 @@ struct ManualHealthRecordTests {
 
         let vm = LogViewModel(networkClient: mock)
         vm.weightValue = "82.5"
-        vm.weightUnit = "kg"
 
         await vm.submitWeight()
 
@@ -69,7 +68,6 @@ struct ManualHealthRecordTests {
 
         let vm = LogViewModel(networkClient: mock)
         vm.weightValue = "75"
-        vm.weightUnit = "kg"
 
         await vm.submitWeight()
 
@@ -136,6 +134,20 @@ struct ManualHealthRecordTests {
         #expect(vm.sleepIsValid == false)
         vm.sleepMinutes = "75"
         #expect(vm.sleepIsValid == false)
+    }
+
+    @Test("sleepMinutesOutOfRange flags 60+ for inline feedback")
+    func sleepMinutesOutOfRange() {
+        let vm = LogViewModel(networkClient: MockNetworkClient())
+        #expect(vm.sleepMinutesOutOfRange == false) // empty
+        vm.sleepMinutes = "30"
+        #expect(vm.sleepMinutesOutOfRange == false)
+        vm.sleepMinutes = "59"
+        #expect(vm.sleepMinutesOutOfRange == false)
+        vm.sleepMinutes = "60"
+        #expect(vm.sleepMinutesOutOfRange == true)
+        vm.sleepMinutes = "abc"
+        #expect(vm.sleepMinutesOutOfRange == false) // non-numeric: no hint
     }
 
     @Test("submitSleep success stores total minutes and resets")
@@ -271,7 +283,6 @@ struct ManualHealthRecordTests {
         }
         let vm = LogViewModel(networkClient: mock)
         vm.glucoseValue = "95"
-        vm.glucoseUnit = "mg/dL"
 
         await vm.submitGlucose()
 
@@ -354,7 +365,7 @@ struct ManualHealthRecordTests {
         #expect(vm.diastolicValue == "")
     }
 
-    @Test("submitBloodPressure network failure transitions to error")
+    @Test("submitBloodPressure failure on systolic (first call) saves nothing")
     func submitBloodPressureFailure() async {
         let mock = MockNetworkClient()
         mock.requestHandler = { _, _, _ in
@@ -371,6 +382,90 @@ struct ManualHealthRecordTests {
         } else {
             Issue.record("Expected error state")
         }
+        // Systolic POST never succeeded, so no half is marked saved and the
+        // values remain for a clean retry.
+        #expect(vm.bloodPressureSystolicSaved == false)
+        #expect(vm.systolicValue == "120")
+        #expect(vm.diastolicValue == "80")
+    }
+
+    @Test("submitBloodPressure failure on diastolic flags systolic as saved")
+    func submitBloodPressureDiastolicFailure() async {
+        let mock = MockNetworkClient()
+        // Call 1 (systolic) succeeds; call 2 (diastolic) throws.
+        mock.requestHandler = { _, _, body in
+            if let r = body as? CreateHealthRecord, r.recordType == "blood_pressure_diastolic" {
+                throw NetworkError.serverError(statusCode: 500, body: "x")
+            }
+            return self.makeRecordResponse()
+        }
+        let vm = LogViewModel(networkClient: mock)
+        vm.systolicValue = "120"
+        vm.diastolicValue = "80"
+
+        await vm.submitBloodPressure()
+
+        // Both POSTs were attempted; systolic is persisted server-side.
+        #expect(mock.requestCalls.count == 2)
+        #expect(vm.bloodPressureSystolicSaved == true)
+        #expect(vm.submitState == .error("Systolic saved — failed to save diastolic. Tap to retry."))
+        // Values are NOT reset — the user retries to complete the pair.
+        #expect(vm.systolicValue == "120")
+        #expect(vm.diastolicValue == "80")
+    }
+
+    @Test("submitBloodPressure retry after diastolic failure resends only diastolic")
+    func submitBloodPressureRetryAfterPartial() async {
+        let mock = MockNetworkClient()
+        var failDiastolic = true
+        mock.requestHandler = { _, _, body in
+            if let r = body as? CreateHealthRecord, r.recordType == "blood_pressure_diastolic", failDiastolic {
+                throw NetworkError.serverError(statusCode: 500, body: "x")
+            }
+            return self.makeRecordResponse()
+        }
+        let vm = LogViewModel(networkClient: mock)
+        vm.systolicValue = "120"
+        vm.diastolicValue = "80"
+
+        // First attempt: systolic saved, diastolic fails.
+        await vm.submitBloodPressure()
+        #expect(vm.bloodPressureSystolicSaved == true)
+        #expect(mock.requestCalls.count == 2)
+
+        // Retry succeeds for diastolic.
+        failDiastolic = false
+        await vm.submitBloodPressure()
+
+        // Only ONE more POST — the diastolic. Systolic was not duplicated.
+        #expect(mock.requestCalls.count == 3)
+        #expect(mock.requestCalls[2].path == Endpoints.healthRecords)
+        #expect(vm.submitState == .success("Blood pressure saved"))
+        // Reset clears the flag and fields.
+        #expect(vm.bloodPressureSystolicSaved == false)
+        #expect(vm.systolicValue == "")
+        #expect(vm.diastolicValue == "")
+    }
+
+    @Test("editing a reading after a partial save clears the systolic-saved flag")
+    func submitBloodPressureEditClearsFlag() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, body in
+            if let r = body as? CreateHealthRecord, r.recordType == "blood_pressure_diastolic" {
+                throw NetworkError.serverError(statusCode: 500, body: "x")
+            }
+            return self.makeRecordResponse()
+        }
+        let vm = LogViewModel(networkClient: mock)
+        vm.systolicValue = "120"
+        vm.diastolicValue = "80"
+
+        await vm.submitBloodPressure()
+        #expect(vm.bloodPressureSystolicSaved == true)
+
+        // Changing the systolic reading invalidates the saved record.
+        vm.systolicValue = "125"
+        #expect(vm.bloodPressureSystolicSaved == false)
     }
 
     @Test("submitBloodPressure invalid input shows validation error")

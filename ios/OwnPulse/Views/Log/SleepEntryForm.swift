@@ -21,6 +21,14 @@ struct SleepEntryForm: View {
                     .accessibilityIdentifier("sleepMinutesField")
             }
 
+            if viewModel.sleepMinutesOutOfRange {
+                Text("Minutes must be 0–59. Use the hours field for 60 or more.")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityIdentifier("sleepMinutesHint")
+            }
+
             // Date/Time
             DatePicker(
                 "Slept on",

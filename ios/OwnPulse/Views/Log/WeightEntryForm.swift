@@ -8,20 +8,16 @@ struct WeightEntryForm: View {
 
     var body: some View {
         VStack(spacing: 16) {
-            // Weight + Unit
+            // Weight (kilograms — the canonical HealthKit body-mass unit)
             HStack(spacing: 12) {
                 TextField("Weight", text: $viewModel.weightValue)
                     .textFieldStyle(.roundedBorder)
                     .keyboardType(.decimalPad)
                     .accessibilityIdentifier("weightField")
 
-                Picker("Unit", selection: $viewModel.weightUnit) {
-                    ForEach(LogViewModel.weightUnits, id: \.self) { unit in
-                        Text(unit).tag(unit)
-                    }
-                }
-                .pickerStyle(.menu)
-                .accessibilityIdentifier("weightUnitPicker")
+                Text(LogViewModel.weightUnit)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("weightUnitLabel")
             }
 
             // Date/Time
