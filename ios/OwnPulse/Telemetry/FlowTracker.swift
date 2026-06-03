@@ -114,6 +114,18 @@ actor FlowTracker {
     /// underscores. UUIDs, emails, numbers, hex/base64 tokens, mixed-case, and
     /// hyphenated segments all become `:id`. Query strings and fragments are
     /// dropped. This errs toward over-collapsing — the privacy-safe failure mode.
+    ///
+    /// LEAK BOUNDARY — read before adding endpoints: this is a *shape* allowlist
+    /// (see `isRouteWord`), not a known-word allowlist. It cannot distinguish a
+    /// static route word from a user-controlled lowercase value, so a path that
+    /// interpolates a username, slug, or substance name as a *bare* lowercase
+    /// segment (e.g. `/saved-medicines/by-name/caffeine`) would transmit it
+    /// verbatim. Today every dynamic path segment the app produces is a UUID or a
+    /// fixed route enum, so nothing user-controlled leaks. If you add an endpoint
+    /// that puts a user value in the path, you MUST keep that value out of the
+    /// path (use a query parameter or request body — neither is recorded); do not
+    /// rely on this normalizer to scrub it. Matches the backend's identical
+    /// shape-based constraint.
     static func normalizeEndpoint(_ endpoint: String) -> String {
         let path = endpoint.split(separator: "?", maxSplits: 1, omittingEmptySubsequences: false)[0]
             .split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)[0]
@@ -128,6 +140,10 @@ actor FlowTracker {
             .joined(separator: "/")
     }
 
+    /// A *shape* test, not a dictionary check: returns true for any short
+    /// all-lowercase-ASCII-letters-or-underscore segment. It therefore lets a
+    /// lowercase user value through unchanged — see the LEAK BOUNDARY note on
+    /// `normalizeEndpoint`. Keep user-controlled values out of URL paths.
     private static func isRouteWord(_ seg: String) -> Bool {
         guard !seg.isEmpty, seg.count <= 24 else { return false }
         return seg.allSatisfy { $0.isASCII && ($0.isLowercase && $0.isLetter || $0 == "_") }

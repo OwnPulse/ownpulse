@@ -106,7 +106,11 @@ final class NetworkClient: NetworkClientProtocol, @unchecked Sendable {
         }
 
         if httpResponse.statusCode == 401 && !isRetry {
-            // The follow-up retry records its own api_call event with retry_count == 1.
+            // Record the initial 401 (retry_count 0) before attempting refresh,
+            // so a refresh that throws still emits exactly one api_call event for
+            // this request — the auth-failure case we most want telemetry on. On
+            // success the follow-up retry records its own event with retry_count 1.
+            recordAPICall(path: path, method: method, statusCode: 401, start: start, retryCount: 0)
             try await refreshToken()
             return try await performRequest(method: method, path: path, body: body, isRetry: true)
         }

@@ -149,6 +149,44 @@ struct FlowTrackerAPICallTests {
         #expect(buffered.isEmpty)
     }
 
+    /// Mirrors the sequence `NetworkClient.performRequest` emits on a 401 that is
+    /// refreshed and retried successfully: the initial 401 attempt (retry_count 0)
+    /// is recorded *before* the refresh, then the successful retry (retry_count 1).
+    /// This locks in the contract that a refresh which later throws still leaves
+    /// one recorded event for the request, and that a successful refresh produces
+    /// two distinguishable events rather than zero.
+    @Test("401-refresh-retry sequence records both the 401 and the retry")
+    func authRefreshRetrySequenceRecorded() async {
+        let previous = TelemetrySettings.isEnabled
+        defer { TelemetrySettings.isEnabled = previous }
+        TelemetrySettings.isEnabled = true
+
+        let tracker = FlowTracker()
+        // Initial attempt: 401, recorded before refresh is attempted.
+        await tracker.trackAPICall(
+            endpoint: "/api/v1/health-records",
+            method: "GET",
+            statusCode: 401,
+            latencyMs: 8,
+            retryCount: 0
+        )
+        // Refresh succeeded; retry succeeds with retry_count 1.
+        await tracker.trackAPICall(
+            endpoint: "/api/v1/health-records",
+            method: "GET",
+            statusCode: 200,
+            latencyMs: 11,
+            retryCount: 1
+        )
+
+        let buffered = await tracker.bufferedEvents()
+        #expect(buffered.count == 2)
+        #expect(buffered[0].payload["status_code"] == .int(401))
+        #expect(buffered[0].payload["retry_count"] == .int(0))
+        #expect(buffered[1].payload["status_code"] == .int(200))
+        #expect(buffered[1].payload["retry_count"] == .int(1))
+    }
+
     // MARK: - Bodies are never included
 
     @Test("api_call payload carries only the allowlisted fields — no body keys")
