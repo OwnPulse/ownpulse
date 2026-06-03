@@ -18,6 +18,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    // Build version (git SHA, injected by Vite) so the backend can log which
+    // client build issued each request and surface stale clients in Loki.
+    "X-App-Version": __APP_VERSION__,
     ...((options.headers as Record<string, string>) ?? {}),
   };
 

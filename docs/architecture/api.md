@@ -4,6 +4,8 @@
 
 All endpoints require JWT authentication unless marked as public. Tokens are issued via the auth endpoints and passed as `Authorization: Bearer <token>`.
 
+Clients (web and iOS) send an optional `X-App-Version` request header carrying their build identifier (git SHA). The server records it as a span field on each request so stale clients are visible in logs; it is never required and never affects request handling.
+
 ## API versioning policy
 
 The API is versioned in the URL path: `/api/v1`, `/api/v2`, and so on. A version
