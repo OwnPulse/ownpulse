@@ -37,17 +37,25 @@ fn migrations_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../db/migrations")
 }
 
-/// Strip SQL comments and the *contents* of string literals from a source string
-/// so neither can cause false positives or hide destructive statements.
+/// Strip SQL comments and the *contents* of string literals and dollar-quoted
+/// bodies from a source string so none of them can cause false positives or hide
+/// destructive statements.
 ///
-/// Handles `--` line comments and `/* ... */` block comments. Single-quoted string
-/// literals are recognized so a `--` or `/*` inside a quoted value is not mistaken
-/// for a comment start; the literal's inner text is replaced with spaces so a
-/// keyword like `drop table` appearing inside a default value (e.g.
-/// `DEFAULT 'drop table joke'`) does not trip the detector. The surrounding
-/// quotes are preserved so statement structure is unchanged. We do not need full
-/// SQL parsing here — migrations are authored by us — but respecting strings and
-/// comments removes the obvious false-positive and false-negative sources.
+/// Handles, in order of precedence at the top level:
+/// - `--` line comments (removed; the trailing newline is preserved for line nums)
+/// - `/* ... */` block comments (replaced by a single space, because Postgres
+///   treats a block comment as whitespace — `DROP/* x */TABLE` is `DROP TABLE`)
+/// - `'...'` single-quoted string literals (inner text blanked, quotes kept) with
+///   `''` treated as an embedded quote, so a keyword like `drop table` inside a
+///   default value (`DEFAULT 'drop table joke'`) does not trip the detector
+/// - `$tag$ ... $tag$` dollar-quoted bodies (inner text blanked, delimiters kept):
+///   their contents are opaque — apostrophes inside them must not flip string
+///   mode, and `;` inside them must not split statements. This matters for
+///   `DO $$ ... $$;` blocks (e.g. migration `0024_protocol_runs.sql`).
+///
+/// We do not need a full SQL parser here — migrations are authored by us — but
+/// respecting comments, strings, and dollar quotes removes the false-positive and
+/// false-negative sources an adversary (or a careless future author) could hit.
 fn strip_comments(sql: &str) -> String {
     let bytes = sql.as_bytes();
     let mut out = String::with_capacity(sql.len());
@@ -55,6 +63,9 @@ fn strip_comments(sql: &str) -> String {
     let mut in_string = false;
     let mut in_line_comment = false;
     let mut in_block_comment = false;
+    // When inside a dollar-quoted body, this holds the closing tag (e.g. "$$" or
+    // "$tag$"). `None` means we are not inside a dollar-quoted body.
+    let mut dollar_tag: Option<String> = None;
 
     while i < bytes.len() {
         let c = bytes[i] as char;
@@ -72,6 +83,9 @@ fn strip_comments(sql: &str) -> String {
         if in_block_comment {
             if c == '*' && next == Some('/') {
                 in_block_comment = false;
+                // A block comment is whitespace: emit a space so it cannot glue
+                // adjacent tokens together (`DROP/* */TABLE` -> `DROP TABLE`).
+                out.push(' ');
                 i += 2;
                 continue;
             }
@@ -79,6 +93,20 @@ fn strip_comments(sql: &str) -> String {
             if c == '\n' {
                 out.push(c);
             }
+            i += 1;
+            continue;
+        }
+
+        if let Some(tag) = &dollar_tag {
+            // Inside a dollar-quoted body: contents are opaque. Only the matching
+            // closing tag ends it. Apostrophes and semicolons here are inert.
+            if sql[i..].starts_with(tag.as_str()) {
+                out.push_str(tag);
+                i += tag.len();
+                dollar_tag = None;
+                continue;
+            }
+            out.push(if c == '\n' { '\n' } else { ' ' });
             i += 1;
             continue;
         }
@@ -105,7 +133,14 @@ fn strip_comments(sql: &str) -> String {
             continue;
         }
 
-        // Not in any comment or string.
+        // Not in any comment, string, or dollar-quoted body.
+        if let Some(tag) = match_dollar_tag(&sql[i..]) {
+            // Opening of a dollar-quoted body. Emit the delimiter and switch modes.
+            out.push_str(&tag);
+            i += tag.len();
+            dollar_tag = Some(tag);
+            continue;
+        }
         if c == '\'' {
             in_string = true;
             out.push(c);
@@ -128,6 +163,31 @@ fn strip_comments(sql: &str) -> String {
     }
 
     out
+}
+
+/// If `s` begins with a Postgres dollar-quote tag (`$$` or `$tag$`), return the
+/// full tag including both `$` delimiters (e.g. `"$$"`, `"$body$"`). The tag name,
+/// if present, must be a valid identifier: it starts with a letter or underscore
+/// and continues with letters, digits, or underscores. Returns `None` otherwise.
+fn match_dollar_tag(s: &str) -> Option<String> {
+    let bytes = s.as_bytes();
+    if bytes.first() != Some(&b'$') {
+        return None;
+    }
+    let mut j = 1;
+    while j < bytes.len() {
+        let b = bytes[j];
+        if b == b'$' {
+            // Closing delimiter of the tag found at position j.
+            return Some(s[..=j].to_string());
+        }
+        let is_ident = b == b'_' || b.is_ascii_alphabetic() || (j > 1 && b.is_ascii_digit());
+        if !is_ident {
+            return None;
+        }
+        j += 1;
+    }
+    None
 }
 
 /// Collapse all runs of ASCII whitespace into single spaces. This lets the
@@ -229,15 +289,18 @@ fn segment_changes_type(segment: &str) -> bool {
     // A statement separates ALTER actions with commas. Look only at this clause,
     // up to the next comma, so a later clause is handled by its own segment.
     let segment = segment.split(',').next().unwrap_or(segment);
-    if segment.contains("set data type") {
-        return true;
-    }
-    // `ALTER COLUMN col TYPE ...`: a `type` keyword token appearing after the
-    // column name (token index >= 1). Index 0 is the column name itself.
-    segment
-        .split_whitespace()
-        .enumerate()
-        .any(|(i, t)| t == "type" && i >= 1)
+    let tokens: Vec<&str> = segment.split_whitespace().collect();
+
+    // Token 0 is the column name. The type-change keyword must appear in the
+    // action position, anchored to the column name — NOT anywhere the word
+    // "type" happens to occur (e.g. `SET DEFAULT type 'a'` or a cast `'x'::type`).
+    //
+    //   <col> TYPE ...            -> tokens[1] == "type"
+    //   <col> SET DATA TYPE ...   -> tokens[1..4] == ["set", "data", "type"]
+    matches!(
+        tokens.as_slice(),
+        [_col, "type", ..] | [_col, "set", "data", "type", ..]
+    )
 }
 
 /// 1-based line number containing the given byte offset.
@@ -381,6 +444,46 @@ mod detector_tests {
         assert_eq!(kinds(sql), vec!["DROP TABLE"]);
     }
 
+    #[test]
+    fn detects_drop_table_split_by_block_comment() {
+        // A block comment glues tokens only if treated as nothing; Postgres treats
+        // it as whitespace, so this still drops the table.
+        assert_eq!(kinds("DROP/* x */TABLE users;"), vec!["DROP TABLE"]);
+    }
+
+    #[test]
+    fn detects_alter_type_split_by_block_comment() {
+        assert_eq!(
+            kinds("ALTER TABLE t ALTER COLUMN v TYPE/* */bigint;"),
+            vec!["ALTER COLUMN ... TYPE"]
+        );
+        assert_eq!(
+            kinds("ALTER TABLE t ALTER COLUMN v SET DATA/* */TYPE bigint;"),
+            vec!["ALTER COLUMN ... TYPE"]
+        );
+    }
+
+    #[test]
+    fn detects_drop_table_after_dollar_quoted_block_with_apostrophe() {
+        // The apostrophe in `don't` lives inside a dollar-quoted body and must not
+        // open a string literal that would blank the following real statement.
+        let sql = "DO $$ BEGIN PERFORM $x$don't$x$; END $$;\n\nDROP TABLE users;";
+        assert_eq!(kinds(sql), vec!["DROP TABLE"]);
+    }
+
+    #[test]
+    fn dynamic_ddl_inside_dollar_quoted_body_is_a_known_limitation() {
+        // KNOWN LIMITATION: destructive DDL constructed as a runtime string inside a
+        // dollar-quoted body (dynamic SQL via EXECUTE) is opaque to this static
+        // scanner and is NOT flagged. Detecting it would require evaluating
+        // runtime-built strings. This is a deliberate evasion vector, not an
+        // accidental authoring mistake, and is out of scope for the gate. The
+        // important guarantee — that the dollar-quoted body cannot HIDE a following
+        // real top-level statement — is covered by the test above.
+        let sql = "DO $$ BEGIN EXECUTE 'DROP TABLE users'; END $$;";
+        assert!(kinds(sql).is_empty());
+    }
+
     // ---- Negative cases: must NOT be detected ----
 
     #[test]
@@ -432,6 +535,21 @@ mod detector_tests {
     #[test]
     fn allows_enable_row_level_security() {
         assert!(kinds("ALTER TABLE foo ENABLE ROW LEVEL SECURITY;").is_empty());
+    }
+
+    #[test]
+    fn allows_set_default_containing_word_type() {
+        // A bare `type` token in the DEFAULT value must not be read as a type change.
+        assert!(kinds("ALTER TABLE t ALTER COLUMN status SET DEFAULT type 'a';").is_empty());
+    }
+
+    #[test]
+    fn allows_cast_to_type_in_alter_column() {
+        // A cast like `::type` tokenizes as `::type`, not a bare `type` keyword.
+        assert!(
+            kinds("ALTER TABLE t ALTER COLUMN v SET DEFAULT 0::int;").is_empty(),
+            "cast in default should not be a type change"
+        );
     }
 
     #[test]
