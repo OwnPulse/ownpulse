@@ -66,6 +66,20 @@ targets:
         IPHONEOS_DEPLOYMENT_TARGET: "18.0"
         GENERATE_INFOPLIST_FILE: YES
 
+  OwnPulseUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - OwnPulseUITests
+    dependencies:
+      - target: OwnPulse
+    settings:
+      base:
+        SWIFT_VERSION: "6.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: OwnPulse
+
 packages:
   GRDB:
     url: https://github.com/groue/GRDB.swift
@@ -77,9 +91,11 @@ schemes:
       targets:
         OwnPulse: all
         OwnPulseTests: [test]
+        OwnPulseUITests: [test]
     test:
       targets:
         - OwnPulseTests
+        - OwnPulseUITests
       commandLineArguments:
         "-com.apple.CoreData.ConcurrencyDebug": "1"
     run:

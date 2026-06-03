@@ -581,6 +581,116 @@ struct SyncEngineTests {
         #expect(anyFailed, "expected at least one type to be marked .failed when the producer throws")
     }
 
+    // MARK: - HealthKit cycle guard (ADR-0008)
+
+    /// Cycle guard, iOS side: the sync path must never round-trip a
+    /// HealthKit-sourced record back into HealthKit write-back.
+    ///
+    /// The iOS write-back path (`processWriteBack`) only writes what the
+    /// backend's `GET /healthkit/write-queue` serves. The backend
+    /// unconditionally refuses to enqueue any record whose `source` is
+    /// `"healthkit"` (see `db::healthkit::enqueue_write`). This test proves the
+    /// iOS contributor to that invariant: every record the engine UPLOADS from
+    /// HealthKit is tagged `source = "healthkit"`. Because the backend rejects
+    /// write-back enqueue for exactly that source, an uploaded HealthKit sample
+    /// can never come back down the write-queue — closing the cycle on the
+    /// client side. We assert the upload tagging here so a future refactor that
+    /// silently changed the uploaded `source` (and thus defeated the backend
+    /// guard) would fail loudly.
+    @MainActor
+    @Test("uploaded HealthKit samples are always tagged source=healthkit so the backend guard can never re-queue them")
+    func testUploadedSamplesTaggedHealthKitSource() async throws {
+        let provider = MockHealthKitProvider()
+        // One page of HealthKit samples for the first mapped type, then "done".
+        provider.queryPages = [
+            AnchoredQueryResult(
+                samples: Self.makeSamples(recordType: "heart_rate", count: 3),
+                newAnchor: Data([0x01]),
+                deletedObjectIDs: []
+            )
+        ]
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        // Capture every record body POSTed to the sync endpoint.
+        let captured = CapturedSources()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        network.requestNoContentHandler = { _, path, body in
+            guard path == Endpoints.healthKitSync,
+                  let insert = body as? HealthKitBulkInsert else { return }
+            captured.record(insert.records.map(\.source))
+        }
+
+        await engine.sync()
+
+        let sources = captured.all()
+        #expect(!sources.isEmpty, "expected at least one uploaded record")
+        #expect(
+            sources.allSatisfy { $0 == "healthkit" },
+            "every uploaded HealthKit sample must carry source=healthkit; got \(Set(sources))"
+        )
+    }
+
+    /// The write-back direction is strictly server → HealthKit: items the
+    /// backend serves on the write-queue get written to HealthKit and
+    /// confirmed, but the engine never turns around and re-uploads them as new
+    /// records. This proves no client-side write→read→write loop exists.
+    @MainActor
+    @Test("write-back writes server-served items to HealthKit and confirms them, never re-uploading")
+    func testWriteBackIsOneWayServerToHealthKit() async throws {
+        let provider = MockHealthKitProvider()
+        // No HealthKit read samples — isolate the write-back direction.
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        // Serve exactly one write-back item (a manual-origin record the
+        // backend mapped to a HealthKit type).
+        let item = HealthKitWriteQueueItem(
+            id: "wq-1",
+            hkType: "heart_rate",
+            value: 64.0,
+            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500)
+        )
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmedIds = CapturedConfirmIds()
+        network.requestNoContentHandler = { _, path, body in
+            // The engine must NEVER POST a write-queue item back as a new
+            // health record on the sync endpoint.
+            #expect(path != Endpoints.healthKitSync,
+                    "write-back item must not be re-uploaded as a new health record")
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmedIds.record(confirm.ids)
+            }
+        }
+
+        await engine.sync()
+
+        // The item was written down into HealthKit exactly once.
+        #expect(provider.writtenSamples.count == 1,
+                "expected the single write-queue item to be written to HealthKit")
+        #expect(provider.writtenSamples.first?.value == 64.0)
+        // And confirmed back to the server so it isn't re-served.
+        #expect(confirmedIds.all() == ["wq-1"],
+                "the written item must be confirmed so the backend stops serving it")
+    }
+
     // MARK: - Helpers
 
     private static func makeSamples(recordType: String, count: Int, startOffset: Int = 0) -> [HealthKitSample] {
@@ -623,6 +733,40 @@ private final class CallCounter: @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }
         count += 1
         return count
+    }
+}
+
+/// Thread-safe collector for the `source` of every uploaded record. The
+/// network mock's no-content handler is a `@Sendable` closure invoked off the
+/// test actor, so we need a real lock rather than actor isolation.
+private final class CapturedSources: @unchecked Sendable {
+    private let lock = NSLock()
+    private var sources: [String] = []
+
+    func record(_ values: [String]) {
+        lock.lock(); defer { lock.unlock() }
+        sources.append(contentsOf: values)
+    }
+
+    func all() -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        return sources
+    }
+}
+
+/// Thread-safe collector for confirmed write-back ids.
+private final class CapturedConfirmIds: @unchecked Sendable {
+    private let lock = NSLock()
+    private var ids: [String] = []
+
+    func record(_ values: [String]) {
+        lock.lock(); defer { lock.unlock() }
+        ids.append(contentsOf: values)
+    }
+
+    func all() -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        return ids
     }
 }
 

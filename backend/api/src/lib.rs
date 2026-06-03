@@ -14,6 +14,7 @@ pub mod jobs;
 pub mod migrate;
 pub mod migration_check;
 pub mod models;
+pub mod observability;
 pub mod routes;
 pub mod stats;
 
@@ -24,7 +25,6 @@ use axum::http::header::{AUTHORIZATION, CONTENT_TYPE};
 use axum::http::{HeaderName, HeaderValue, Method, Request, StatusCode};
 use axum::response::IntoResponse;
 use axum::{Json, Router, routing::get};
-use axum_prometheus::PrometheusMetricLayer;
 use config::Config;
 use migration_check::MigrationsReady;
 use models::explore::DataChangedEvent;
@@ -129,7 +129,7 @@ pub fn cors_layer(web_origin: &str) -> CorsLayer {
 /// are never exposed through the public ingress.  Call [`spawn_metrics_server`]
 /// after building the app to start that listener.
 pub fn build_app(state: AppState) -> Router {
-    let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+    let metric_handle = observability::build_metrics();
 
     // Spawn internal metrics server on port 9090
     tokio::spawn(async move {
@@ -156,8 +156,18 @@ pub fn build_app(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes())
+        // v2 namespace is mounted but currently empty — see routes/v2/mod.rs
+        // and the API versioning policy in docs/architecture/api.md.
+        .nest("/api/v2", routes::v2::router())
         .layer(http_trace_layer())
-        .layer(prometheus_layer)
+        // Request-duration histogram (`http_request_duration_seconds`). Emits
+        // into the same global `metrics` recorder installed by
+        // `observability::build_metrics`, so it is rendered by the `/metrics`
+        // endpoint alongside the existing `ownpulse_app_*` / `healthkit_*`
+        // counters.
+        .layer(axum::middleware::from_fn(
+            observability::record_request_metrics,
+        ))
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)
 }
@@ -170,6 +180,9 @@ pub fn build_app_without_metrics(state: AppState) -> Router {
         .route("/api/v1/health", get(health))
         .route("/readyz", get(readyz))
         .nest("/api/v1", routes::api_routes_without_rate_limit())
+        // v2 namespace is mounted but currently empty — see routes/v2/mod.rs
+        // and the API versioning policy in docs/architecture/api.md.
+        .nest("/api/v2", routes::v2::router())
         .layer(http_trace_layer())
         .layer(cors_layer(&state.config.web_origin))
         .with_state(state)
