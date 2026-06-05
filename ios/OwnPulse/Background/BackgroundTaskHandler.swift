@@ -22,7 +22,16 @@ extension SyncEngine: BackgroundSyncing {}
 /// dispatch queue, so anything reachable from here must be safe off the main
 /// actor. Marking it `@MainActor` would reintroduce the isolation-assert
 /// crash this file exists to prevent.
-protocol BackgroundTaskCompleting: AnyObject, Sendable {
+///
+/// This protocol intentionally does NOT refine `Sendable`. `BGTask` is a
+/// non-`final` imported ObjC class and is not `Sendable`, so a checked
+/// conformance to a `Sendable`-refining protocol is a hard error in Swift 6
+/// ("conformance to 'Sendable' must occur in the same source file"). The one
+/// place a task crosses an isolation boundary — the launch handler in
+/// `OwnPulseApp` — already gates it with `nonisolated(unsafe)`, and the
+/// finish/expiration race is mediated by `CompletionGuard` (`@unchecked
+/// Sendable`), so the task value itself never needs to be `Sendable`.
+protocol BackgroundTaskCompleting: AnyObject {
     /// The closure iOS calls when our execution time is about to expire. It
     /// fires on a background queue.
     var expirationHandler: (() -> Void)? { get set }
