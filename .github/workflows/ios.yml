@@ -59,3 +59,26 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -clonedSourcePackagesDirPath .build \
             | xcbeautify --is-ci
+
+      # The Debug test build above compiles single-file and does NOT run the
+      # whole-module region-isolation analysis. Swift 6 `sending` / actor-
+      # boundary errors therefore pass `test` but fail the Release archive
+      # (`ownpulse-infra` iOS Build & Upload) — i.e. only surface at TestFlight
+      # time. Compile the app under Release (whole-module, like the archive) to
+      # catch that class of error on merge. Build only — no signing, no tests,
+      # no upload — so it adds only the compile to this same runner, and only on
+      # pushes to main (skipped on PRs to save macOS minutes).
+      - name: Release compile (whole-module concurrency check)
+        if: github.event_name == 'push'
+        working-directory: ios
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -scheme OwnPulse \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -clonedSourcePackagesDirPath .build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | xcbeautify --is-ci
