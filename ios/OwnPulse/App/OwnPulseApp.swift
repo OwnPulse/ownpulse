@@ -88,24 +88,25 @@ struct OwnPulseApp: App {
             forTaskWithIdentifier: "health.ownpulse.sync",
             using: nil
         ) { @Sendable [syncEngine] task in
-            // `BGTask` is not `Sendable`. We hand it across the `Task` boundary
-            // explicitly — a legitimate use of `nonisolated(unsafe)` (the system
-            // delivers `task` exactly once), NOT a paper-over of the isolation
-            // bug, which is fixed by the `@Sendable` closure above.
+            // `BGTask` is not `Sendable` and cannot be made so (non-final
+            // imported ObjC class). The system delivers `task` exactly once, so
+            // it is safe to carry into the work `Task` — but the compiler can't
+            // know that. We wrap it in `UncheckedSendableBox` so the work `Task`
+            // captures a `Sendable` value; without it the closure trips both
+            // "sending value of non-Sendable type 'BGTask'" (Release WMO) and
+            // "passing closure as a 'sending' parameter" (Debug). The box is the
+            // explicit, narrow opt-out — `nonisolated(unsafe)` does not cover a
+            // capture by a `sending` `Task` closure.
             //
-            // The `Task` is deliberately non-isolated (no `@MainActor`): keeping
-            // `bgTask` in the non-isolated region means it never crosses an actor
-            // boundary, so it needs neither a `Sendable` conformance (impossible
-            // for `BGTask`) nor a `sending` parameter (which would forbid the
-            // tests from inspecting the task after the call). Under Release
-            // whole-module optimization, sending `bgTask` into a `@MainActor`
-            // `Task` and back out to the non-isolated handler is what the
-            // compiler rejects ("sending value of non-Sendable type 'BGTask'").
-            // The only capture is the `Sendable` `syncEngine`.
-            nonisolated(unsafe) let bgTask = task
+            // The work `Task` is deliberately NON-isolated (no `@MainActor`):
+            // that keeps `BackgroundTaskHandler.handleSync` off the main actor —
+            // it makes no synchronous main-actor access and its expiration
+            // handler fires on a background queue. The only other capture is the
+            // `Sendable` `syncEngine`, resolved above on the main actor.
+            let box = UncheckedSendableBox(task)
             Task {
                 await BackgroundTaskHandler.handleSync(
-                    task: bgTask,
+                    task: box.value,
                     syncEngine: syncEngine
                 )
             }
@@ -139,4 +140,14 @@ struct ContentView: View {
             LoginView()
         }
     }
+}
+
+/// Carries a non-`Sendable` value across a concurrency boundary when the caller
+/// can guarantee single-threaded hand-off the compiler can't see. Used to pass
+/// a `BGTask` (a non-final imported ObjC class that cannot conform to
+/// `Sendable`) into the non-isolated work `Task` of the background-refresh
+/// launch handler, where the system delivers the task exactly once.
+private struct UncheckedSendableBox<Value>: @unchecked Sendable {
+    let value: Value
+    init(_ value: Value) { self.value = value }
 }
