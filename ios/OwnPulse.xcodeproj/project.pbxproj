@@ -84,6 +84,7 @@
 		C9DEC0DE000000000000B021 /* TrendIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9DEC0DE000000000000F011 /* TrendIndicator.swift */; };
 		C9DEC0DE000000000000B022 /* ChartColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC4C86C55F701F5A96A1FF3 /* ChartColors.swift */; };
 		63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69FF64D436027417304D659C /* MockNetworkClient.swift */; };
+		A1B2C3D4E5F60718293A4B5C /* NetworkClientRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718293A4B5D /* NetworkClientRefreshTests.swift */; };
 		64D12DC15E48D8140ADCFF91 /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 510AACF348448F516940B31C /* MainTabView.swift */; };
 		659D72FBB90513799DCB7F97 /* DateRangeSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = B854DF581C080F7DF1307D72 /* DateRangeSegment.swift */; };
 		6664FDB133640BD2F9912611 /* ChartAxisConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5868F7EE0B35D3986890B880 /* ChartAxisConfigTests.swift */; };
@@ -298,6 +299,7 @@
 		67D23FC791398F05350DBFB4 /* ExploreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreModels.swift; sourceTree = "<group>"; };
 		69DD6815D274C9513C8AC117 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		69FF64D436027417304D659C /* MockNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkClient.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718293A4B5D /* NetworkClientRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkClientRefreshTests.swift; sourceTree = "<group>"; };
 		6C498C94BE181EFFF5ABD288 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		7067D9CDB9403AE923297E82 /* SmallMultiplesChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmallMultiplesChartView.swift; sourceTree = "<group>"; };
 		72147343B153B21A0D60F7A0 /* GlucoseEntryForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlucoseEntryForm.swift; sourceTree = "<group>"; };
@@ -543,6 +545,7 @@
 				8E1C11A35F69FB32F8E59F6A /* MockHealthKitProviderTests.swift */,
 				5E6426632C9A60D4B0EAE38F /* MockKeychainService.swift */,
 				69FF64D436027417304D659C /* MockNetworkClient.swift */,
+				A1B2C3D4E5F60718293A4B5D /* NetworkClientRefreshTests.swift */,
 				D0B294575765E4C92C7F8290 /* MockNotificationManager.swift */,
 				9E18928E4B73BBD0F693614A /* MyChartConnectViewModelTests.swift */,
 				933E701E2FE265BEAD6899EA /* NotificationDelegateTests.swift */,
@@ -1134,6 +1137,7 @@
 				B0FB4FB92F2DD8D1998D7862 /* MockHealthKitProviderTests.swift in Sources */,
 				997B651854B45BE01C2D29B8 /* MockKeychainService.swift in Sources */,
 				63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */,
+				A1B2C3D4E5F60718293A4B5C /* NetworkClientRefreshTests.swift in Sources */,
 				27CF1FFD6541FF4B629FE067 /* MockNotificationManager.swift in Sources */,
 				40AF712900C8C2B4CD8DBD39 /* MyChartConnectViewModelTests.swift in Sources */,
 				3932874A8CEE6C9B476E42E3 /* NotificationDelegateTests.swift in Sources */,
