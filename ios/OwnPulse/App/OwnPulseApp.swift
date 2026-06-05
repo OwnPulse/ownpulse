@@ -74,15 +74,20 @@ struct OwnPulseApp: App {
         // fired (`_swift_task_checkIsolatedSwift` / `dispatch_assert_queue`).
         //
         // Marking the closure `@Sendable` forces it non-isolated, so it is safe
-        // to run off the main actor. The whole background operation then runs in
-        // a NON-isolated `Task`: the one main-actor access — reading
-        // `dependencies.syncEngine` — hops via `await`, and `BackgroundTaskHandler`
-        // itself makes no synchronous main-actor access. Nothing in the
-        // synchronous body of the closure asserts main-actor isolation.
+        // to run off the main actor. `BackgroundTaskHandler` makes no synchronous
+        // main-actor access; nothing in the synchronous body of the closure
+        // asserts main-actor isolation.
+        //
+        // We resolve `syncEngine` HERE — `registerBackgroundTasks()` is itself
+        // `@MainActor` (this is a SwiftUI `App`), so reading the `@MainActor`
+        // `dependencies` is a synchronous, in-isolation access. `SyncEngine` is
+        // an `actor` (`Sendable`), so capturing only it into the launch closure
+        // avoids capturing the non-`Sendable`-region `dependencies` graph.
+        let syncEngine = dependencies.syncEngine
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: "health.ownpulse.sync",
             using: nil
-        ) { @Sendable [dependencies] task in
+        ) { @Sendable [syncEngine] task in
             // `BGTask` is not `Sendable`. We hand it across the `Task` boundary
             // explicitly — a legitimate use of `nonisolated(unsafe)` (the system
             // delivers `task` exactly once), NOT a paper-over of the isolation
@@ -96,9 +101,9 @@ struct OwnPulseApp: App {
             // whole-module optimization, sending `bgTask` into a `@MainActor`
             // `Task` and back out to the non-isolated handler is what the
             // compiler rejects ("sending value of non-Sendable type 'BGTask'").
+            // The only capture is the `Sendable` `syncEngine`.
             nonisolated(unsafe) let bgTask = task
             Task {
-                let syncEngine = await dependencies.syncEngine
                 await BackgroundTaskHandler.handleSync(
                     task: bgTask,
                     syncEngine: syncEngine
