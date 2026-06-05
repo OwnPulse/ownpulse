@@ -65,13 +65,29 @@ struct OwnPulseApp: App {
     }
 
     private func registerBackgroundTasks() {
+        // CRITICAL: `BGTaskScheduler` runs this launch handler on a BACKGROUND
+        // dispatch queue, NOT the main actor. The `launchHandler` parameter is
+        // not `@Sendable`, so a closure defined in this `@MainActor` method
+        // that captures `@MainActor` state (`dependencies`) would be inferred
+        // `@MainActor`-isolated, and the Swift 6 runtime would trap with an
+        // executor-isolation assertion the first time a real background refresh
+        // fired (`_swift_task_checkIsolatedSwift` / `dispatch_assert_queue`).
+        //
+        // Marking the closure `@Sendable` forces it non-isolated, so it is safe
+        // to run off the main actor. The ONLY main-actor access — reading
+        // `dependencies.syncEngine` — is deferred into a `Task { @MainActor in }`,
+        // mirroring `notificationDelegate.onDeviceToken` below. Nothing in the
+        // synchronous body of the closure asserts main-actor isolation.
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: "health.ownpulse.sync",
             using: nil
-        ) { task in
-            guard let refreshTask = task as? BGAppRefreshTask else { return }
-            nonisolated(unsafe) let bgTask = refreshTask
-            Task {
+        ) { @Sendable [dependencies] task in
+            // `BGTask` is not `Sendable`. We hand it across the `Task` boundary
+            // explicitly — a legitimate use of `nonisolated(unsafe)` (the system
+            // delivers `task` exactly once), NOT a paper-over of the isolation
+            // bug, which is fixed by the `@Sendable` closure above.
+            nonisolated(unsafe) let bgTask = task
+            Task { @MainActor in
                 await BackgroundTaskHandler.handleSync(
                     task: bgTask,
                     syncEngine: dependencies.syncEngine

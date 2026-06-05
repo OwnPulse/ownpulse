@@ -115,6 +115,7 @@
 		91AF349E43599A1DE816466B /* HealthOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF257A99875E1CC4B2E60656 /* HealthOverviewView.swift */; };
 		9519D180B0C76631460935C6 /* ObservationForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9E217D8B04976F84F4CDA7 /* ObservationForm.swift */; };
 		963D0B4BAB0197BC20FC27D9 /* SyncSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B9EF0C056066E4BAE8A768 /* SyncSchedulerTests.swift */; };
+		BAC0BAC0BAC0BAC0BAC0BAC1 /* BackgroundTaskHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC0BAC0BAC0BAC0BAC0BAC2 /* BackgroundTaskHandlerTests.swift */; };
 		99270E7F933636BB3FC28C4C /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86CE06D7E9EFE8AF5DE5E74A /* LoginView.swift */; };
 		997B651854B45BE01C2D29B8 /* MockKeychainService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6426632C9A60D4B0EAE38F /* MockKeychainService.swift */; };
 		9B17F5A174D36BC556E7E007 /* ProtocolDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FF6D8B6C509F8643B88BCD4 /* ProtocolDetailView.swift */; };
@@ -291,6 +292,7 @@
 		5E8BD0E40B4F15F05CC46075 /* TelemetrySettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TelemetrySettings.swift; sourceTree = "<group>"; };
 		620BF33A40A0FCF7E3F2DE69 /* WeightEntryForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightEntryForm.swift; sourceTree = "<group>"; };
 		63B9EF0C056066E4BAE8A768 /* SyncSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSchedulerTests.swift; sourceTree = "<group>"; };
+		BAC0BAC0BAC0BAC0BAC0BAC2 /* BackgroundTaskHandlerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskHandlerTests.swift; sourceTree = "<group>"; };
 		644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartColorsTests.swift; sourceTree = "<group>"; };
 		C9DEC0DE000000000000F012 /* TrendIndicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendIndicatorTests.swift; sourceTree = "<group>"; };
 		6451E992A37FCC6A0004D6F4 /* OwnPulseUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OwnPulseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -564,6 +566,7 @@
 				979710ACA6FAE8436CB11C82 /* SyncEngineTests.swift */,
 				120E4F8AEF92EE78175D7E58 /* SyncProgressTests.swift */,
 				63B9EF0C056066E4BAE8A768 /* SyncSchedulerTests.swift */,
+				BAC0BAC0BAC0BAC0BAC0BAC2 /* BackgroundTaskHandlerTests.swift */,
 				E7BC1BCAD1F01E138358B163 /* ThemeColorTests.swift */,
 				44DAC2D411F7B322237A118A /* UserPreferencesTests.swift */,
 				C6F1000000000000000000F3 /* WearableConnectionsViewModelTests.swift */,
@@ -1157,6 +1160,7 @@
 				B474734FE98AABC46A894425 /* SyncEngineTests.swift in Sources */,
 				81CDDB2092AB4AE5FA4D936E /* SyncProgressTests.swift in Sources */,
 				963D0B4BAB0197BC20FC27D9 /* SyncSchedulerTests.swift in Sources */,
+				BAC0BAC0BAC0BAC0BAC0BAC1 /* BackgroundTaskHandlerTests.swift in Sources */,
 				A6948478F4AAD910FE288BA5 /* ThemeColorTests.swift in Sources */,
 				40F94409F620F1FFF5BABE24 /* UserPreferencesTests.swift in Sources */,
 				7E6D3941885FF39E7197B6C8 /* WeightFormatterTests.swift in Sources */,
