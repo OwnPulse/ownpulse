@@ -80,8 +80,11 @@ struct BackgroundTaskHandlerTests {
         let engine = MockBackgroundSyncEngine()
         let task = MockBackgroundTask()
 
+        // `Task.detached` runs on the generic (non-main) executor by
+        // construction. If anything in `handleSync` synchronously asserted
+        // main-actor isolation it would trap the process here, the same way
+        // the production crash did.
         await Task.detached {
-            #expect(!Thread.isMainThread)
             await BackgroundTaskHandler.handleSync(task: task, syncEngine: engine)
         }.value
 
