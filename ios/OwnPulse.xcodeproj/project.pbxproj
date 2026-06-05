@@ -25,6 +25,7 @@
 		14E81CAFFCED3283B3286208 /* MovingAverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB1EFA3E8BBFD123070BABA /* MovingAverage.swift */; };
 		17F2AB27BAA8C0CF0ABE6AF4 /* WidgetConfigurations.swift in Sources */ = {isa = PBXBuildFile; fileRef = B639EC881C5187247E656376 /* WidgetConfigurations.swift */; };
 		18958506A603AA8D7F7A1A26 /* AnchorStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE2B17DFA620BA4FBD5C8FF /* AnchorStore.swift */; };
+		19CE3980C0C4CDC65A7FC42C /* ChartColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDC4C86C55F701F5A96A1FF3 /* ChartColors.swift */; };
 		1A9B346935950F2DFB80F1DC /* CrashReporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87B29467EE524D8D2ACAB344 /* CrashReporter.swift */; };
 		1B2C6DA8394E5EADFA452C47 /* ProtocolsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9E6D37084D7640B257E988 /* ProtocolsListView.swift */; };
 		1B3357AD563092CE9344AF2C /* EndpointsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F341CA09A9C2A550F6200F96 /* EndpointsTests.swift */; };
@@ -143,6 +144,7 @@
 		C0BEAECB10367E37B9ECBA54 /* PKCEHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */; };
 		C0C2AE492A4D4D2353B57CD7 /* TrendIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D38174B9D21A2D42A88114 /* TrendIndicator.swift */; };
 		C205246F3758FA34E2D6F916 /* OwnPulseWidgetsExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = AB7E07847B8257CD2C354EA4 /* OwnPulseWidgetsExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C28E00D83C284FDC291732D4 /* TrendIndicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D38174B9D21A2D42A88114 /* TrendIndicator.swift */; };
 		C3FC862F5C29CF5CC0BA5F08 /* QuickLogWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81E43244BC594036F564DE03 /* QuickLogWidget.swift */; };
 		C4F699C5F3823273C5AEC97E /* BrowseCardPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8628082C8E9832B73461D0A0 /* BrowseCardPresenter.swift */; };
 		C61339D33CC14D51DE65164F /* AppConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */; };
@@ -974,10 +976,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				19CE3980C0C4CDC65A7FC42C /* ChartColors.swift in Sources */,
 				47891D28A065683F9509E508 /* HeroMetricWidget.swift in Sources */,
 				077F57685BC914378DF23363 /* OwnPulseWidgetBundle.swift in Sources */,
 				C3FC862F5C29CF5CC0BA5F08 /* QuickLogWidget.swift in Sources */,
 				6C1A4F9CC0D430ED7877026B /* TodayCheckinWidget.swift in Sources */,
+				C28E00D83C284FDC291732D4 /* TrendIndicator.swift in Sources */,
 				17F2AB27BAA8C0CF0ABE6AF4 /* WidgetConfigurations.swift in Sources */,
 				55F78E0C752751D75CF8FDD6 /* WidgetDataPublisher.swift in Sources */,
 				859FD9132A9A5C2E2F27A36A /* WidgetEntry.swift in Sources */,

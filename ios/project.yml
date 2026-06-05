@@ -77,6 +77,15 @@ targets:
       # too so the extension can decode the snapshot the app writes.
       - OwnPulse/Widgets/WidgetSnapshot.swift
       - OwnPulse/Widgets/WidgetDataPublisher.swift
+      # Shared Theme types the widget views + WidgetSnapshot reference.
+      # WidgetSnapshot has a `heroTrendDirection: TrendDirection` field and
+      # HeroMetricWidget renders the trend arrow, so TrendIndicator.swift must
+      # be a widget-target member. TrendIndicator.color reads ChartColors.metric,
+      # so ChartColors.swift is pulled in transitively. These were members of
+      # the widget target in the committed pbxproj; list them here so a clean
+      # `xcodegen generate` keeps the extension compiling.
+      - OwnPulse/Theme/TrendIndicator.swift
+      - OwnPulse/Theme/ChartColors.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: health.ownpulse.app.widgets
