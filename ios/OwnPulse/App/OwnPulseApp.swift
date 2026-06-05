@@ -74,9 +74,10 @@ struct OwnPulseApp: App {
         // fired (`_swift_task_checkIsolatedSwift` / `dispatch_assert_queue`).
         //
         // Marking the closure `@Sendable` forces it non-isolated, so it is safe
-        // to run off the main actor. The ONLY main-actor access — reading
-        // `dependencies.syncEngine` — is deferred into a `Task { @MainActor in }`,
-        // mirroring `notificationDelegate.onDeviceToken` below. Nothing in the
+        // to run off the main actor. The whole background operation then runs in
+        // a NON-isolated `Task`: the one main-actor access — reading
+        // `dependencies.syncEngine` — hops via `await`, and `BackgroundTaskHandler`
+        // itself makes no synchronous main-actor access. Nothing in the
         // synchronous body of the closure asserts main-actor isolation.
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: "health.ownpulse.sync",
@@ -86,11 +87,21 @@ struct OwnPulseApp: App {
             // explicitly — a legitimate use of `nonisolated(unsafe)` (the system
             // delivers `task` exactly once), NOT a paper-over of the isolation
             // bug, which is fixed by the `@Sendable` closure above.
+            //
+            // The `Task` is deliberately non-isolated (no `@MainActor`): keeping
+            // `bgTask` in the non-isolated region means it never crosses an actor
+            // boundary, so it needs neither a `Sendable` conformance (impossible
+            // for `BGTask`) nor a `sending` parameter (which would forbid the
+            // tests from inspecting the task after the call). Under Release
+            // whole-module optimization, sending `bgTask` into a `@MainActor`
+            // `Task` and back out to the non-isolated handler is what the
+            // compiler rejects ("sending value of non-Sendable type 'BGTask'").
             nonisolated(unsafe) let bgTask = task
-            Task { @MainActor in
+            Task {
+                let syncEngine = await dependencies.syncEngine
                 await BackgroundTaskHandler.handleSync(
                     task: bgTask,
-                    syncEngine: dependencies.syncEngine
+                    syncEngine: syncEngine
                 )
             }
         }
