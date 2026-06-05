@@ -24,7 +24,11 @@ final class KeychainService: KeychainServiceProtocol, Sendable {
     /// working while the screen is locked — but excluded from encrypted device
     /// backups and device-to-device migration. This is the strictest class that
     /// does not break background access or require a passcode to be set.
-    static let accessibility: CFString = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+    ///
+    /// Stored as `String` (not `CFString`) so the constant is `Sendable` under
+    /// Swift 6 strict concurrency; `kSecAttrAccessible` accepts the bridged
+    /// string value in the query dictionary.
+    static let accessibility = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String
 
     func save(key: String, data: Data) throws {
         // Delete existing item first. This is also what migrates an already

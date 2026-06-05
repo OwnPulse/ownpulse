@@ -13,10 +13,10 @@ struct KeychainServiceTests {
     /// first unlock so background sync/refresh keeps working when locked.
     @Test("uses AfterFirstUnlockThisDeviceOnly accessibility")
     func usesDeviceBoundAccessibility() {
-        #expect(KeychainService.accessibility == kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly)
+        #expect(KeychainService.accessibility == (kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly as String))
         // Guard against the two classes that would regress this hardening:
-        #expect(KeychainService.accessibility != kSecAttrAccessibleAfterFirstUnlock)
-        #expect(KeychainService.accessibility != kSecAttrAccessibleWhenUnlockedThisDeviceOnly)
+        #expect(KeychainService.accessibility != (kSecAttrAccessibleAfterFirstUnlock as String))
+        #expect(KeychainService.accessibility != (kSecAttrAccessibleWhenUnlockedThisDeviceOnly as String))
     }
 
     @Test("saves, loads, and deletes a token round-trip with device-bound accessibility")
