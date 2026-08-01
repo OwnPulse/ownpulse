@@ -278,6 +278,80 @@ async fn test_delete_does_not_clear_other_users_duplicate_of() {
     );
 }
 
+/// Positive counterpart: deleting a record the caller actually owns still
+/// clears `duplicate_of` links on their own referring records. This is the
+/// regression guard for the cleanup query itself — without the `user_id`
+/// scoping (or with the whole `UPDATE` removed), this still passes, so it's
+/// `test_delete_does_not_clear_other_users_duplicate_of` above that catches
+/// cross-tenant scope regressions and this one that catches the cleanup
+/// being deleted or broken outright.
+#[tokio::test]
+async fn test_delete_clears_own_duplicate_of() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let original = api::db::health_records::insert(
+        &app.pool,
+        user_id,
+        &CreateHealthRecord {
+            source: "garmin".to_string(),
+            record_type: "heart_rate".to_string(),
+            value: Some(70.0),
+            unit: Some("bpm".to_string()),
+            start_time: "2026-03-18T15:00:00Z".parse().unwrap(),
+            end_time: None,
+            metadata: None,
+            source_id: None,
+        },
+        None,
+    )
+    .await
+    .unwrap();
+
+    let duplicate = api::db::health_records::insert(
+        &app.pool,
+        user_id,
+        &CreateHealthRecord {
+            source: "oura".to_string(),
+            record_type: "heart_rate".to_string(),
+            value: Some(70.2),
+            unit: Some("bpm".to_string()),
+            start_time: "2026-03-18T15:00:05Z".parse().unwrap(),
+            end_time: None,
+            metadata: None,
+            source_id: None,
+        },
+        Some(original.id),
+    )
+    .await
+    .unwrap();
+    assert_eq!(duplicate.duplicate_of, Some(original.id));
+
+    let delete_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "DELETE",
+            &format!("/api/v1/health-records/{}", original.id),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(delete_resp.status(), 204);
+
+    let duplicate_of: (Option<uuid::Uuid>,) =
+        sqlx::query_as("SELECT duplicate_of FROM health_records WHERE id = $1")
+            .bind(duplicate.id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        duplicate_of.0, None,
+        "deleting the referenced record must clear the caller's own duplicate_of link"
+    );
+}
+
 /// Cycle guard (ADR-0008): a record with `source = "healthkit"` must NOT
 /// create a `healthkit_write_queue` row. Writing a HealthKit-sourced record
 /// back to HealthKit would create an infinite read→write→read cycle. The guard
