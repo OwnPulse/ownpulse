@@ -35,7 +35,10 @@ class MockEventSource {
   }
 
   addEventListener(type: string, cb: (e: MessageEvent) => void) {
-    (this.listeners[type] ??= []).push(cb);
+    if (!this.listeners[type]) {
+      this.listeners[type] = [];
+    }
+    this.listeners[type].push(cb);
   }
 
   emit(type: string, data: unknown) {
@@ -62,7 +65,7 @@ function invalidatedKeysOf(spy: ReturnType<typeof vi.spyOn>): unknown[] {
 describe("useSSE data_changed invalidation map", () => {
   beforeEach(() => {
     MockEventSource.instances = [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test double for the global EventSource API
+    // biome-ignore lint/suspicious/noExplicitAny: test double for the global EventSource API
     vi.stubGlobal("EventSource", MockEventSource as any);
     useAuthStore.getState().login("test-jwt");
   });
@@ -76,26 +79,25 @@ describe("useSSE data_changed invalidation map", () => {
     expect(Object.keys(SOURCE_QUERY_KEYS).sort()).toEqual(BACKEND_EVENT_SOURCES);
   });
 
-  it.each(Object.entries(SOURCE_QUERY_KEYS) as [BackendEventSource, readonly string[]][])(
-    "maps %s events to %j",
-    (source, expectedKeys) => {
-      const queryClient = new QueryClient();
-      const spy = vi.spyOn(queryClient, "invalidateQueries");
+  it.each(
+    Object.entries(SOURCE_QUERY_KEYS) as [BackendEventSource, readonly string[]][],
+  )("maps %s events to %j", (source, expectedKeys) => {
+    const queryClient = new QueryClient();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
 
-      renderHook(() => useSSE(), { wrapper: wrapper(queryClient) });
-      const es = MockEventSource.instances[0];
-      es.emit("data_changed", { source });
+    renderHook(() => useSSE(), { wrapper: wrapper(queryClient) });
+    const es = MockEventSource.instances[0];
+    es.emit("data_changed", { source });
 
-      const invalidatedKeys = invalidatedKeysOf(spy);
-      for (const key of expectedKeys) {
-        expect(invalidatedKeys).toContain(key);
-      }
-      // Always-invalidated regardless of source.
-      expect(invalidatedKeys).toContain("explore-series");
-      expect(invalidatedKeys).toContain("dashboard-summary");
-      expect(invalidatedKeys).toContain("dashboard-sparklines");
-    },
-  );
+    const invalidatedKeys = invalidatedKeysOf(spy);
+    for (const key of expectedKeys) {
+      expect(invalidatedKeys).toContain(key);
+    }
+    // Always-invalidated regardless of source.
+    expect(invalidatedKeys).toContain("explore-series");
+    expect(invalidatedKeys).toContain("dashboard-summary");
+    expect(invalidatedKeys).toContain("dashboard-sparklines");
+  });
 
   it("falls back to invalidating the raw source for an unknown source, plus the always-keys", () => {
     const queryClient = new QueryClient();
