@@ -232,6 +232,79 @@ describe("ProtocolView with runs", () => {
     expect(capturedBody).toEqual({ status: "paused" });
   });
 
+  it("calls logRunDose with the active run id (not the protocol id) when Log is clicked", async () => {
+    let capturedRunId: string | undefined;
+    let capturedUrl: string | undefined;
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const activeRun = {
+      id: "run-1",
+      protocol_id: "proto-1",
+      user_id: "user-1",
+      start_date: todayStr,
+      status: "active" as const,
+      notify: false,
+      notify_times: [],
+      repeat_reminders: false,
+      repeat_interval_minutes: 30,
+      created_at: `${todayStr}T10:00:00Z`,
+    };
+
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([activeRun])),
+      http.post("/api/v1/protocols/runs/:runId/doses/log", ({ params, request }) => {
+        capturedRunId = params.runId as string;
+        capturedUrl = request.url;
+        return HttpResponse.json({
+          id: "dose-1",
+          protocol_line_id: "line-1",
+          day_number: 0,
+          status: "completed",
+          intervention_id: "iv-1",
+          logged_at: `${todayStr}T12:00:00Z`,
+          created_at: `${todayStr}T12:00:00Z`,
+        });
+      }),
+    );
+
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText("Today’s Doses")).toBeDefined();
+    });
+
+    const logButton = screen.getByRole("button", { name: "Log" });
+    expect(logButton).not.toBeDisabled();
+    await user.click(logButton);
+
+    await waitFor(() => {
+      expect(capturedRunId).toBe("run-1");
+    });
+
+    // Must NOT have posted using the protocol id ("proto-1") as the run id.
+    expect(capturedRunId).not.toBe(protocol.id);
+    expect(capturedUrl).toContain("/api/v1/protocols/runs/run-1/doses/log");
+  });
+
+  it("disables Log/Skip and shows a hint when there is no active run", async () => {
+    // No active run at all — Today's Doses section should not render, since
+    // there is nothing to log against.
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[1]])), // completed only
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText("BPC-157 Stack")).toBeDefined();
+    });
+
+    expect(screen.queryByText("Today’s Doses")).toBeNull();
+  });
+
   it("renders description section", async () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),

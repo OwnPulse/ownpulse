@@ -20,7 +20,6 @@ const todaysDosesList = [
     time_of_day: "08:00",
     day_number: 3,
     status: "pending" as const,
-    dose_id: null,
   },
   {
     protocol_id: "p1",
@@ -34,7 +33,6 @@ const todaysDosesList = [
     time_of_day: "08:00",
     day_number: 3,
     status: "completed" as const,
-    dose_id: "dose-1",
   },
 ];
 

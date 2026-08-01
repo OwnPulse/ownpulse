@@ -44,7 +44,7 @@ function computeTodaysDoses(protocol: Protocol, run: ProtocolRun | null): Todays
         protocol_id: protocol.id,
         protocol_name: protocol.name,
         protocol_line_id: line.id,
-        run_id: protocol.id, // TODO: use actual run_id once ProtocolView is updated for runs
+        run_id: run.id,
         substance: line.substance,
         dose: line.dose,
         unit: line.unit,
@@ -52,7 +52,6 @@ function computeTodaysDoses(protocol: Protocol, run: ProtocolRun | null): Todays
         time_of_day: line.time_of_day,
         day_number: todayDay,
         status: dose?.status ?? "pending",
-        dose_id: dose?.id ?? null,
       };
     });
 }
@@ -90,8 +89,8 @@ export default function ProtocolView() {
 
   const logDose = useMutation({
     mutationFn: (data: { protocolLineId: string; dayNumber: number }) => {
-      if (!id) throw new Error("Missing protocol id");
-      return protocolsApi.logDose(id, {
+      if (!activeRun) throw new Error("No active run");
+      return protocolsApi.logRunDose(activeRun.id, {
         protocol_line_id: data.protocolLineId,
         day_number: data.dayNumber,
       });
@@ -100,13 +99,14 @@ export default function ProtocolView() {
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
       queryClient.invalidateQueries({ queryKey: ["active-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
     },
   });
 
   const skipDose = useMutation({
     mutationFn: (data: { protocolLineId: string; dayNumber: number }) => {
-      if (!id) throw new Error("Missing protocol id");
-      return protocolsApi.skipDose(id, {
+      if (!activeRun) throw new Error("No active run");
+      return protocolsApi.skipRunDose(activeRun.id, {
         protocol_line_id: data.protocolLineId,
         day_number: data.dayNumber,
       });
@@ -115,6 +115,7 @@ export default function ProtocolView() {
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
       queryClient.invalidateQueries({ queryKey: ["active-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
     },
   });
 
@@ -317,7 +318,8 @@ export default function ProtocolView() {
                         dayNumber: td.day_number,
                       })
                     }
-                    disabled={logDose.isPending}
+                    disabled={!activeRun || logDose.isPending}
+                    title={!activeRun ? "Start a run to log doses" : undefined}
                   >
                     Log
                   </button>
@@ -330,7 +332,8 @@ export default function ProtocolView() {
                         dayNumber: td.day_number,
                       })
                     }
-                    disabled={skipDose.isPending}
+                    disabled={!activeRun || skipDose.isPending}
+                    title={!activeRun ? "Start a run to log doses" : undefined}
                   >
                     Skip
                   </button>
