@@ -6,10 +6,10 @@ import Testing
 @testable import OwnPulse
 
 /// Guards the "no zero baseline" invariant used by every Explore chart.
-/// `OverlayChartView`, `SmallMultiplesChartView`, `MetricSparklineChart`,
-/// and `WeightChartView` all consume `ChartAxisConfig.includesZeroInYAxis`
-/// when wiring up `.chartYScale(domain: .automatic(includesZero:))`. Flipping
-/// this to `true` brings back the body-mass 0-150 kg y-axis bug reported on
+/// `OverlayChartView`, `SmallMultiplesChartView`, and `MetricSparklineChart`
+/// all consume `ChartAxisConfig.includesZeroInYAxis` when wiring up
+/// `.chartYScale(domain: .automatic(includesZero:))`. Flipping this to
+/// `true` brings back the body-mass 0-150 kg y-axis bug reported on
 /// TestFlight 1.1.0(4).
 @Suite("ChartAxisConfig")
 struct ChartAxisConfigTests {
