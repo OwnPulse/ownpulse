@@ -58,11 +58,6 @@ pub struct Config {
     #[serde(default)]
     pub oura_auth_base_url: Option<String>,
 
-    #[serde(default)]
-    pub dexcom_client_id: Option<String>,
-    #[serde(default)]
-    pub dexcom_client_secret: Option<String>,
-
     /// MyChart / SMART-on-FHIR public OAuth client id. SMART public clients use
     /// PKCE rather than a client secret, so no secret is configured. The FHIR
     /// base URL and token endpoint are per-provider and supplied by the client
@@ -240,8 +235,6 @@ mod tests {
             oura_client_secret: None,
             oura_api_base_url: None,
             oura_auth_base_url: None,
-            dexcom_client_id: None,
-            dexcom_client_secret: None,
             mychart_client_id: None,
             mychart_allow_insecure_urls: true,
             encryption_key: default_encryption_key(),

@@ -47,4 +47,3 @@ New data sources follow a consistent 12-step process. This ensures each integrat
 | HealthKit | Implemented (bulk sync, write-queue, confirm) | [ADR-0008](../decisions/0008-healthkit-sync.md) |
 | Garmin | Planned (Phase 1 -- OAuth client not yet wired) | -- |
 | Oura | Planned (Phase 1 -- OAuth client not yet wired) | -- |
-| Dexcom | Planned (Phase 2) | -- |

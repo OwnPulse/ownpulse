@@ -11,7 +11,7 @@ Administrative access (SSH, kubectl, monitoring) goes through a Tailscale mesh V
 ## Encryption at Rest
 
 - **DigitalOcean volume encryption** — block storage is encrypted at the infrastructure layer.
-- **Integration tokens** — OAuth tokens for third-party services (Garmin, Oura, Dexcom, Google Calendar) are encrypted with AES-256-GCM before storage. Each token gets a unique random 96-bit nonce. The key is a 32-byte hex value set via `ENCRYPTION_KEY`.
+- **Integration tokens** — OAuth tokens for third-party services (Garmin, Oura, Google Calendar) are encrypted with AES-256-GCM before storage. Each token gets a unique random 96-bit nonce. The key is a 32-byte hex value set via `ENCRYPTION_KEY`.
 - **Passwords** — hashed with bcrypt.
 - **Refresh tokens** — stored as HMAC-SHA256 hashes, not plaintext.
 - **Backups** — encrypted with age (asymmetric, X25519). The age public key is stored on the server; the private key is kept offline.

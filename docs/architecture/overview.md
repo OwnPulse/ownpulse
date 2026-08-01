@@ -23,7 +23,7 @@ HealthKit  <──>  iOS app  ──>  Backend API  <──  Web frontend
 
 - The iOS app reads from and writes to HealthKit (bidirectional sync, see [healthkit-sync.md](healthkit-sync.md)).
 - The backend is the single source of truth for all data.
-- Third-party integrations (Garmin, Oura, Dexcom) sync via background jobs in the backend.
+- Third-party integrations (Garmin, Oura) sync via background jobs in the backend.
 
 ## Deployment
 

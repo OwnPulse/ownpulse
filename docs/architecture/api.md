@@ -1334,7 +1334,6 @@ data: {"source":"health_records","record_type":"heart_rate"}
 |--------|------|-------------|-------|
 | GET | `/auth/garmin/callback` | Garmin OAuth callback | 2+ |
 | GET | `/auth/oura/callback` | Oura OAuth callback | 2+ |
-| GET | `/auth/dexcom/callback` | Dexcom OAuth callback | 2+ |
 
 ### Observations (Phase 2+)
 

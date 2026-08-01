@@ -47,4 +47,3 @@ The following integrations are planned for a future release:
 
 - **Garmin** -- activity, sleep, and HRV data from Garmin wearables
 - **Oura** -- readiness, sleep, and activity data from Oura Ring
-- **Dexcom** -- continuous glucose monitor readings
