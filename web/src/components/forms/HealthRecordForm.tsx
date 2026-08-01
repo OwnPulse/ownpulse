@@ -34,7 +34,12 @@ export default function HealthRecordForm() {
       record_type: recordType,
       value: parseFloat(value),
       unit,
-      start_time: startTime,
+      // The datetime-local input's value has no UTC offset ("2026-03-01T05:05");
+      // the backend's DateTime<Utc> requires one. Converting here makes that
+      // explicit rather than relying on the backend happening to reject (or,
+      // if it's ever loosened to parse naive strings as UTC, silently
+      // misinterpreting) an unqualified local time.
+      start_time: new Date(startTime).toISOString(),
     });
   };
 

@@ -108,7 +108,9 @@ export default function InterventionForm() {
       dose: parseFloat(dose),
       unit,
       route,
-      administered_at: administeredAt,
+      // The datetime-local input's value has no UTC offset; the backend's
+      // DateTime<Utc> requires one.
+      administered_at: new Date(administeredAt).toISOString(),
       fasted,
       notes: notes || undefined,
     });

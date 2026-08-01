@@ -21,7 +21,13 @@ describe("datetime", () => {
 
   afterEach(() => {
     vi.useRealTimers();
-    process.env.TZ = originalTz;
+    // Assigning `undefined` coerces to the string "undefined" (a silent UTC
+    // fallback for every later test in the run) rather than unsetting TZ.
+    if (originalTz === undefined) {
+      delete process.env.TZ;
+    } else {
+      process.env.TZ = originalTz;
+    }
   });
 
   it("localToday returns yesterday's local date when it is just after UTC midnight", async () => {
@@ -71,5 +77,27 @@ describe("datetime", () => {
     vi.setSystemTime(new Date("2026-06-15T12:34:00Z"));
 
     expect(localNow().slice(0, 10)).toBe(localToday());
+  });
+
+  it("localNow reads the clock exactly once, so its date and time halves can never disagree", () => {
+    // If localNow() constructed a second Date internally (e.g. by delegating
+    // its date portion to localToday()), a real midnight straddle between
+    // the two reads could return yesterday's date with today's time. Asserting
+    // exactly one construction is a direct regression test for that, since a
+    // frozen fake-timer instant can't otherwise expose a race between two reads.
+    const RealDate = globalThis.Date;
+    let constructCount = 0;
+    class CountingDate extends RealDate {
+      constructor(...args: ConstructorParameters<typeof Date>) {
+        super(...args);
+        constructCount++;
+      }
+    }
+    vi.stubGlobal("Date", CountingDate);
+
+    localNow();
+
+    expect(constructCount).toBe(1);
+    vi.unstubAllGlobals();
   });
 });

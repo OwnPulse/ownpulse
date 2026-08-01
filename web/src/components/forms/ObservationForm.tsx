@@ -72,8 +72,10 @@ export default function ObservationForm() {
     mutation.mutate({
       type,
       name,
-      start_time: startTime,
-      end_time: endTime || undefined,
+      // The datetime-local inputs' values have no UTC offset; the backend's
+      // DateTime<Utc> requires one.
+      start_time: new Date(startTime).toISOString(),
+      end_time: endTime ? new Date(endTime).toISOString() : undefined,
       value: buildValue(),
     });
   };
