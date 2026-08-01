@@ -4,7 +4,7 @@
 //! Background sync jobs.
 //!
 //! Tokio background tasks — one file per integration sync job.
-//! Jobs: Google Calendar sync, Garmin sync, Oura sync, Dexcom sync (Phase 2).
+//! Jobs: Google Calendar sync, Garmin sync, Oura sync.
 
 pub mod garmin_sync;
 pub mod insight_generator;

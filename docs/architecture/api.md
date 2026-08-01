@@ -41,6 +41,15 @@ by additive changes within it.
 
 ## Implemented
 
+This section is not exhaustive. Several route groups are live in
+`routes/mod.rs` but not yet written up in detail here — including sleep,
+saved medicines, insights, dashboard/summary, telemetry, config, audit
+log, admin (invites/users/feature-flags), and the protocol-runs family.
+Their absence from this document is a documentation gap, not evidence
+they're unimplemented; check `routes/mod.rs` directly for the full current
+route list. The **Planned — not implemented** section below is the
+reliable list of what genuinely doesn't exist yet.
+
 ### Public
 
 | Method | Path | Description | Phase |
@@ -416,9 +425,9 @@ writing a preference via `POST /source-preferences`.
 | GET | `/integrations` | List connected integrations | 1 |
 | DELETE | `/integrations/:source` | Disconnect an integration | 1 |
 | GET | `/auth/garmin/login` | Start the Garmin OAuth 1.0a flow (requires JWT) | 1 |
-| GET | `/auth/garmin/callback` | Garmin OAuth 1.0a callback — exchanges and stores the token | 1 |
+| GET | `/auth/garmin/callback` | Garmin OAuth 1.0a callback — exchanges and stores the token (requires JWT) | 1 |
 | GET | `/auth/oura/login` | Start the Oura OAuth 2.0 flow (requires JWT) | 1 |
-| GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token | 1 |
+| GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 1 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
 | POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
 
@@ -1464,8 +1473,9 @@ disclaimer that this is not medical advice.
 
 All three endpoints share a `MetricRef` shape for identifying a metric:
 `{ "source": "string", "field": "string" }` (same source/field pairs as
-`/explore/series`). `resolution` is one of `daily`, `weekly`, `monthly`.
-`method` (where present) is `pearson` (default) or `spearman`.
+`/explore/series`). `resolution` is **required** on all three requests (one
+of `daily`, `weekly`, `monthly` — there is no default). `method` (where
+present) is `pearson` (default) or `spearman`.
 
 #### `POST /stats/correlate`
 
@@ -1499,8 +1509,10 @@ All three endpoints share a `MetricRef` shape for identifying a metric:
 ```
 
 Series are aligned by matching timestamp bucket; only buckets present in
-both series are included. `r`/`p_value` are `null` (and `scatter` empty)
-when fewer than 3 aligned points exist.
+both series are included. `scatter` always contains every aligned point
+regardless of how many there are — it is not gated on the 3-point minimum.
+`r` and `p_value` are `null` (present in the response, not omitted) when
+fewer than 3 aligned points exist; `significant` is `false` in that case.
 
 **Errors:** `400` if `start >= end` or a metric ref does not resolve to a
 known source/field.
@@ -1508,9 +1520,14 @@ known source/field.
 #### `POST /stats/lag-correlate`
 
 Same request shape as `/stats/correlate` plus `max_lag_days` (integer,
-1-30). Sweeps lag from `-max_lag_days` to `+max_lag_days` (positive lag
-shifts metric B forward in time relative to A) and returns a result per
-lag plus the lag with the strongest `|r|`.
+1-30). Both series are fetched with an extra `max_lag_days` of margin
+before `start` and after `end`, so a shift at the edge of the requested
+range still has data to pair against. Sweeps lag from `-max_lag_days` to
+`+max_lag_days`; for each lag `L`, metric A's value on day `d` is paired
+with metric B's value on day `d + L`. A positive `L` therefore means A on
+day `d` is compared against B `L` days later (A leads B by `L` days); a
+negative `L` means A is compared against B from `L` days earlier (B leads
+A). Returns one result per lag plus the lag with the strongest `|r|`.
 
 **Request body:**
 
@@ -1538,6 +1555,10 @@ lag plus the lag with the strongest `|r|`.
 }
 ```
 
+`best_lag` is omitted from the response entirely (not `null`) when every
+swept lag has fewer than 3 paired points or produces a `NaN` correlation —
+i.e. no lag had a usable `r`.
+
 **Errors:** `400` if `start >= end` or `max_lag_days` is out of range
 (1-30).
 
@@ -1547,9 +1568,16 @@ Finds the first and last logged dose of `intervention_substance`, then
 compares the metric's mean over a `before_days`-day window ending at the
 first dose against an `after_days`-day window starting at the last dose
 (or, if the intervention is still ongoing — last dose within 7 days of
-now — from the first dose through now). Uses Welch's t-test; `p_value` is
-`null` and `significant` is `false` when either window has fewer than 3
-points.
+now — from the first dose through now). Uses Welch's t-test. `first_dose`,
+`last_dose`, `change_pct`, `p_value`, and `warning` are all optional
+fields that are **omitted from the response entirely when absent** (not
+serialized as `null`).
+
+If either window has fewer than 3 points, `p_value` is omitted and
+`significant` is `false`, but `change_pct` is still computed and included
+when both window means exist; `warning` is included with the message
+`"fewer than 3 data points in one or both windows — significance cannot
+be determined"`.
 
 **Request body:**
 
@@ -1576,14 +1604,14 @@ points.
   "change_pct": 19.7,
   "p_value": 0.02,
   "significant": true,
-  "test_used": "welch_t",
-  "warning": null
+  "test_used": "welch_t"
 }
 ```
 
-If no interventions match `intervention_substance`, the response has
-`first_dose`/`last_dose`/`p_value` all `null`, empty `before`/`after`
-windows, and a `warning` explaining no interventions were found.
+If no interventions match `intervention_substance`, `first_dose`,
+`last_dose`, `change_pct`, and `p_value` are all omitted, `before`/`after`
+are both empty windows (`n: 0`), and `warning` is included with the
+message `"no interventions found for this substance"`.
 
 **Errors:** `400` if `intervention_substance` is empty, or `before_days`/
 `after_days` is out of range (1-365).
@@ -1592,12 +1620,6 @@ windows, and a `warning` explaining no interventions were found.
 
 The endpoints below do not exist yet — nothing to code against. They're kept
 here as a record of intent, not a contract.
-
-### Auth (Phase 2+)
-
-| Method | Path | Description | Phase |
-|--------|------|-------------|-------|
-| GET | `/auth/dexcom/callback` | Dexcom OAuth callback | 2+ |
 
 ### Observations (Phase 2+)
 

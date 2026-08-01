@@ -31,9 +31,28 @@ function computeProgress(protocol: Protocol): { completed: number; total: number
   return { completed, total };
 }
 
+// run.start_date is a plain YYYY-MM-DD calendar date — it names a day in the
+// user's local timezone (the day the run's first dose is due), not a UTC
+// instant. Parsing it with `new Date(y, m-1, d)` (local) and diffing against
+// local midnight-of-today keeps day rollover aligned with the user's actual
+// day. Parsing it as UTC (`new Date(dateStr)`) and diffing against
+// `Date.now()` shifts the boundary by the UTC offset instead — a UTC-10 user
+// wouldn't roll into the next day until 2pm local, and a UTC+13 user would
+// see "no doses scheduled" for the first 13h of a run.
+function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function startOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 function computeTodaysDoses(protocol: Protocol, run: ProtocolRun | null): TodaysDose[] {
   if (!run) return [];
-  const todayDay = Math.floor((Date.now() - new Date(run.start_date).getTime()) / 86400000);
+  const runStart = parseLocalDate(run.start_date);
+  const todayDay = Math.round((startOfToday().getTime() - runStart.getTime()) / 86400000);
   if (todayDay < 0 || todayDay >= protocol.duration_days) return [];
 
   return protocol.lines
@@ -44,7 +63,7 @@ function computeTodaysDoses(protocol: Protocol, run: ProtocolRun | null): Todays
         protocol_id: protocol.id,
         protocol_name: protocol.name,
         protocol_line_id: line.id,
-        run_id: protocol.id, // TODO: use actual run_id once ProtocolView is updated for runs
+        run_id: run.id,
         substance: line.substance,
         dose: line.dose,
         unit: line.unit,
@@ -52,7 +71,6 @@ function computeTodaysDoses(protocol: Protocol, run: ProtocolRun | null): Todays
         time_of_day: line.time_of_day,
         day_number: todayDay,
         status: dose?.status ?? "pending",
-        dose_id: dose?.id ?? null,
       };
     });
 }
@@ -90,8 +108,8 @@ export default function ProtocolView() {
 
   const logDose = useMutation({
     mutationFn: (data: { protocolLineId: string; dayNumber: number }) => {
-      if (!id) throw new Error("Missing protocol id");
-      return protocolsApi.logDose(id, {
+      if (!activeRun) throw new Error("No active run");
+      return protocolsApi.logRunDose(activeRun.id, {
         protocol_line_id: data.protocolLineId,
         day_number: data.dayNumber,
       });
@@ -100,13 +118,14 @@ export default function ProtocolView() {
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
       queryClient.invalidateQueries({ queryKey: ["active-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
     },
   });
 
   const skipDose = useMutation({
     mutationFn: (data: { protocolLineId: string; dayNumber: number }) => {
-      if (!id) throw new Error("Missing protocol id");
-      return protocolsApi.skipDose(id, {
+      if (!activeRun) throw new Error("No active run");
+      return protocolsApi.skipRunDose(activeRun.id, {
         protocol_line_id: data.protocolLineId,
         day_number: data.dayNumber,
       });
@@ -115,6 +134,7 @@ export default function ProtocolView() {
       queryClient.invalidateQueries({ queryKey: ["protocols", id] });
       queryClient.invalidateQueries({ queryKey: ["protocols"] });
       queryClient.invalidateQueries({ queryKey: ["active-runs"] });
+      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
     },
   });
 
@@ -287,14 +307,16 @@ export default function ProtocolView() {
         />
       </section>
 
-      {/* Today's doses (only if active run) */}
-      {activeRun && (
-        <section className={styles.dosesSection}>
-          <h2>Today&rsquo;s Doses</h2>
-          {todaysDoses.length === 0 && (
-            <p className={styles.emptyDoses}>No doses scheduled for today.</p>
-          )}
-          {todaysDoses.map((td) => (
+      {/* Today's doses \u2014 always rendered so a paused/no run state has a
+          visible explanation instead of silently disappearing. */}
+      <section className={styles.dosesSection}>
+        <h2>Today&rsquo;s Doses</h2>
+        {!activeRun && <p className={styles.emptyDoses}>Start a run to log doses</p>}
+        {activeRun && todaysDoses.length === 0 && (
+          <p className={styles.emptyDoses}>No doses scheduled for today.</p>
+        )}
+        {activeRun &&
+          todaysDoses.map((td) => (
             <div key={td.protocol_line_id} className={`op-card ${styles.doseItem}`}>
               <div className={styles.doseInfo}>
                 <span className={styles.doseSubstance}>
@@ -344,8 +366,7 @@ export default function ProtocolView() {
               )}
             </div>
           ))}
-        </section>
-      )}
+      </section>
 
       {/* Actions */}
       <div className={styles.actions}>
