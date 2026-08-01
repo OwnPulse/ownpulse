@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CreateObservation, observationsApi } from "../../api/observations";
+import { localNow } from "../../utils/datetime";
 import forms from "./forms.module.css";
 
 const OBSERVATION_TYPES = [
@@ -16,15 +17,11 @@ const OBSERVATION_TYPES = [
   "environmental",
 ] as const;
 
-function nowLocal() {
-  return new Date().toISOString().slice(0, 16);
-}
-
 export default function ObservationForm() {
   const queryClient = useQueryClient();
   const [type, setType] = useState<string>("event_instant");
   const [name, setName] = useState("");
-  const [startTime, setStartTime] = useState(nowLocal);
+  const [startTime, setStartTime] = useState(localNow);
   const [endTime, setEndTime] = useState("");
   const [notesText, setNotesText] = useState("");
   const [numeric, setNumeric] = useState("");
@@ -37,7 +34,7 @@ export default function ObservationForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["observations"] });
       setName("");
-      setStartTime(nowLocal());
+      setStartTime(localNow());
       setEndTime("");
       setNotesText("");
       setNumeric("");

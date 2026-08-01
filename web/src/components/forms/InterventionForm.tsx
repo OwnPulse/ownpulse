@@ -6,12 +6,9 @@ import { useState } from "react";
 import { type CreateIntervention, interventionsApi } from "../../api/interventions";
 import { type ActiveSubstance, protocolsApi } from "../../api/protocols";
 import { type SavedMedicine, savedMedicinesApi } from "../../api/savedMedicines";
+import { localNow } from "../../utils/datetime";
 import forms from "./forms.module.css";
 import styles from "./InterventionForm.module.css";
-
-function nowLocal() {
-  return new Date().toISOString().slice(0, 16);
-}
 
 function chipLabel(s: ActiveSubstance): string {
   return `${s.substance} ${s.dose}${s.unit} ${s.route}`;
@@ -31,7 +28,7 @@ export default function InterventionForm() {
   const [dose, setDose] = useState("");
   const [unit, setUnit] = useState("");
   const [route, setRoute] = useState("");
-  const [administeredAt, setAdministeredAt] = useState(nowLocal);
+  const [administeredAt, setAdministeredAt] = useState(localNow);
   const [fasted, setFasted] = useState(false);
   const [notes, setNotes] = useState("");
 
@@ -55,7 +52,7 @@ export default function InterventionForm() {
       setDose("");
       setUnit("");
       setRoute("");
-      setAdministeredAt(nowLocal());
+      setAdministeredAt(localNow());
       setFasted(false);
       setNotes("");
     },

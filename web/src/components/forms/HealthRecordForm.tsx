@@ -4,11 +4,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CreateHealthRecord, healthRecordsApi } from "../../api/health-records";
+import { localNow } from "../../utils/datetime";
 import forms from "./forms.module.css";
-
-function nowLocal() {
-  return new Date().toISOString().slice(0, 16);
-}
 
 export default function HealthRecordForm() {
   const queryClient = useQueryClient();
@@ -16,7 +13,7 @@ export default function HealthRecordForm() {
   const [recordType, setRecordType] = useState("");
   const [value, setValue] = useState("");
   const [unit, setUnit] = useState("");
-  const [startTime, setStartTime] = useState(nowLocal);
+  const [startTime, setStartTime] = useState(localNow);
 
   const mutation = useMutation({
     mutationFn: (data: CreateHealthRecord) => healthRecordsApi.create(data),
@@ -26,7 +23,7 @@ export default function HealthRecordForm() {
       setRecordType("");
       setValue("");
       setUnit("");
-      setStartTime(nowLocal());
+      setStartTime(localNow());
     },
   });
 
