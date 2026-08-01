@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { protocolsApi } from "../../src/api/protocols";
 import { useAuthStore } from "../../src/store/auth";
+import { refresh401Handler } from "./support/msw-auth-refresh";
 
 const substances = [
   {
@@ -30,6 +31,7 @@ const server = setupServer(
   http.get("/api/v1/protocols/active-substances", () => {
     return HttpResponse.json(substances);
   }),
+  refresh401Handler,
 );
 
 beforeAll(() => server.listen());

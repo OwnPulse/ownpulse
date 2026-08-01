@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { notificationsApi } from "../../src/api/notifications";
 import { useAuthStore } from "../../src/store/auth";
+import { refresh401Handler } from "./support/msw-auth-refresh";
 
 const defaultPrefs = {
   default_notify: true,
@@ -22,6 +23,7 @@ const server = setupServer(
     const body = await request.json();
     return HttpResponse.json(body);
   }),
+  refresh401Handler,
 );
 
 beforeAll(() => server.listen());
