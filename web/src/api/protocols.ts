@@ -36,7 +36,6 @@ export interface Protocol {
   duration_days: number;
   share_token: string | null;
   created_at: string;
-  updated_at: string;
   lines: ProtocolLine[];
 }
 
@@ -203,8 +202,7 @@ export const protocolsApi = {
     api.post<ProtocolDose>(`/api/v1/protocols/${protocolId}/doses/skip`, data),
   share: (id: string) => api.post<ShareResponse>(`/api/v1/protocols/${id}/share`, {}),
   getShared: (token: string) => api.get<Protocol>(`/api/v1/protocols/shared/${token}`),
-  importProtocol: (token: string) =>
-    api.post<Protocol>(`/api/v1/protocols/import/${token}`, {}),
+  importProtocol: (token: string) => api.post<Protocol>(`/api/v1/protocols/import/${token}`, {}),
   exportProtocol: (id: string) => api.get<ProtocolExport>(`/api/v1/protocols/${id}/export`),
   importFromFile: (data: ProtocolExport) => api.post<Protocol>("/api/v1/protocols/import", data),
   activeSubstances: () => api.get<ActiveSubstance[]>("/api/v1/protocols/active-substances"),

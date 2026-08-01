@@ -35,7 +35,6 @@ const importedProtocol = {
   duration_days: 14,
   share_token: null,
   created_at: "2026-03-28T00:00:00Z",
-  updated_at: "2026-03-28T00:00:00Z",
   lines: [],
 };
 
@@ -77,7 +76,10 @@ describe("protocolsApi - import/share", () => {
 
     it("propagates a 401 error", async () => {
       server.use(
-        http.post("/api/v1/protocols/import", () => new HttpResponse("Unauthorized", { status: 401 })),
+        http.post(
+          "/api/v1/protocols/import",
+          () => new HttpResponse("Unauthorized", { status: 401 }),
+        ),
       );
       await expect(protocolsApi.importFromFile(exportPayload)).rejects.toThrow("Unauthorized");
     });
@@ -171,14 +173,20 @@ describe("protocolsApi - import/share", () => {
 
     it("propagates a 401 error", async () => {
       server.use(
-        http.post("/api/v1/protocols/:id/share", () => new HttpResponse("Unauthorized", { status: 401 })),
+        http.post(
+          "/api/v1/protocols/:id/share",
+          () => new HttpResponse("Unauthorized", { status: 401 }),
+        ),
       );
       await expect(protocolsApi.share("proto-1")).rejects.toThrow("Unauthorized");
     });
 
     it("propagates a 403 error", async () => {
       server.use(
-        http.post("/api/v1/protocols/:id/share", () => new HttpResponse("Forbidden", { status: 403 })),
+        http.post(
+          "/api/v1/protocols/:id/share",
+          () => new HttpResponse("Forbidden", { status: 403 }),
+        ),
       );
       await expect(protocolsApi.share("proto-1")).rejects.toThrow("Forbidden");
     });

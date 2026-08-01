@@ -139,7 +139,7 @@ describe("PatternSelector", () => {
 describe("ImportModal", () => {
   it("parses valid JSON file", async () => {
     const validProtocol = JSON.stringify({
-      schema: "ownpulse/protocol/v1",
+      schema: "ownpulse-protocol/v1",
       name: "Test Protocol",
       duration_days: 14,
       tags: [],

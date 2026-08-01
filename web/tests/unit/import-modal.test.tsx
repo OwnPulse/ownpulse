@@ -96,7 +96,7 @@ describe("ImportModal", () => {
     expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
   });
 
-  it("shows an error message for missing required fields", async () => {
+  it("shows an error message when the name is missing", async () => {
     renderModal();
     const user = userEvent.setup();
 
@@ -104,15 +104,82 @@ describe("ImportModal", () => {
     await user.upload(input, makeFile(JSON.stringify({ schema: "ownpulse-protocol/v1" })));
 
     await waitFor(() => {
-      expect(screen.getByText("Invalid protocol file: missing required fields.")).toBeDefined();
+      expect(screen.getByText("Invalid protocol file: missing a name.")).toBeDefined();
+    });
+    expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
+  });
+
+  it("shows an error message for an unsupported schema", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(
+      input,
+      makeFile(JSON.stringify({ ...JSON.parse(exportJson), schema: "some-other-schema/v9" })),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Unsupported protocol file: expected schema "ownpulse-protocol/v1".'),
+      ).toBeDefined();
     });
   });
 
-  it("shows an error message when the import request fails", async () => {
+  it("shows an error message when tags is missing (backend requires the key)", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    const withoutTags = JSON.parse(exportJson);
+    delete withoutTags.tags;
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, makeFile(JSON.stringify(withoutTags)));
+
+    await waitFor(() => {
+      expect(screen.getByText("Invalid protocol file: missing tags.")).toBeDefined();
+    });
+  });
+
+  it("shows an error message when a line is missing its substance", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    const badLine = JSON.parse(exportJson);
+    badLine.lines = [{ dose: 250, unit: "mcg", pattern: "daily" }];
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, makeFile(JSON.stringify(badLine)));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Invalid protocol file: every line needs a substance."),
+      ).toBeDefined();
+    });
+  });
+
+  it("shows an error message when a line is missing its schedule pattern", async () => {
+    renderModal();
+    const user = userEvent.setup();
+
+    const badLine = JSON.parse(exportJson);
+    badLine.lines = [{ substance: "BPC-157", dose: 250, unit: "mcg" }];
+
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    await user.upload(input, makeFile(JSON.stringify(badLine)));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Invalid protocol file: every line needs a schedule pattern."),
+      ).toBeDefined();
+    });
+  });
+
+  it("shows a friendly, non-raw error message when the import request fails", async () => {
     server.use(
       http.post(
         "/api/v1/protocols/import",
-        () => new HttpResponse("Internal Server Error", { status: 500 }),
+        () => new HttpResponse("duplicate key value violates unique constraint", { status: 500 }),
       ),
     );
 
@@ -129,8 +196,10 @@ describe("ImportModal", () => {
     await user.click(screen.getByRole("button", { name: "Import" }));
 
     await waitFor(() => {
-      expect(screen.getByText(/Import failed/)).toBeDefined();
+      expect(screen.getByText("Import failed. Please check the file and try again.")).toBeDefined();
     });
+    // The raw backend error text must never reach the DOM.
+    expect(screen.queryByText(/unique constraint/)).toBeNull();
   });
 
   it("calls onClose when Cancel is clicked", async () => {

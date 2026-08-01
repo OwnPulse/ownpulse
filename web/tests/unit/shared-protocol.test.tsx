@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import SharedProtocol from "../../src/pages/SharedProtocol";
 import { useAuthStore } from "../../src/store/auth";
 
@@ -24,7 +24,6 @@ const sharedProtocol = {
   status: "active",
   duration_days: 14,
   created_at: "2026-03-01T00:00:00Z",
-  updated_at: "2026-03-01T00:00:00Z",
   lines: [
     {
       id: "line-1",
@@ -68,7 +67,10 @@ describe("SharedProtocol", () => {
 
   it("renders error state for an invalid or expired token", async () => {
     server.use(
-      http.get("/api/v1/protocols/shared/:token", () => new HttpResponse("Not found", { status: 404 })),
+      http.get(
+        "/api/v1/protocols/shared/:token",
+        () => new HttpResponse("Not found", { status: 404 }),
+      ),
     );
     renderWithProviders();
 
@@ -79,7 +81,9 @@ describe("SharedProtocol", () => {
   });
 
   it("renders the protocol when the token is valid", async () => {
-    server.use(http.get("/api/v1/protocols/shared/:token", () => HttpResponse.json(sharedProtocol)));
+    server.use(
+      http.get("/api/v1/protocols/shared/:token", () => HttpResponse.json(sharedProtocol)),
+    );
     renderWithProviders();
 
     await waitFor(() => {
@@ -89,7 +93,9 @@ describe("SharedProtocol", () => {
   });
 
   it("prompts login when unauthenticated", async () => {
-    server.use(http.get("/api/v1/protocols/shared/:token", () => HttpResponse.json(sharedProtocol)));
+    server.use(
+      http.get("/api/v1/protocols/shared/:token", () => HttpResponse.json(sharedProtocol)),
+    );
     renderWithProviders("share-tok-1", false);
 
     await waitFor(() => {
