@@ -35,8 +35,16 @@ protocol OfflineQueueProtocol: Sendable {
     func markComplete(id: Int64) throws
     /// Records a failed drain attempt for `id`. After `OfflineQueue.maxAttempts`
     /// failed attempts the entry is marked abandoned so it no longer blocks
-    /// every future sync's offline-queue drain.
-    func recordFailedAttempt(id: Int64) throws
+    /// every future sync's offline-queue drain. Callers must only invoke this
+    /// for deterministic rejections (see `SyncEngine`'s error classification)
+    /// — never for transport/connectivity failures, or a network outage
+    /// would abandon the whole queue.
+    /// - Returns: `true` if this call caused the entry to become abandoned.
+    @discardableResult
+    func recordFailedAttempt(id: Int64) throws -> Bool
+    /// Count of currently-abandoned entries, surfaced to the UI so drops are
+    /// never silent.
+    func abandonedCount() throws -> Int
 }
 
 final class OfflineQueue: OfflineQueueProtocol, Sendable {
@@ -84,14 +92,18 @@ final class OfflineQueue: OfflineQueueProtocol, Sendable {
                     let insert = try decoder.decode(HealthKitBulkInsert.self, from: entry.payload)
                     result.append((id: id, insert: insert))
                 } catch {
-                    // A payload that fails to decode can never succeed on
-                    // retry — it will fail identically forever and block
-                    // every future drain. Delete it rather than skip it
-                    // silently. Log only the id and error type; the
-                    // payload itself may contain health data and must
-                    // never be logged.
-                    try db.execute(sql: "DELETE FROM offline_queue WHERE id = ?", arguments: [id])
-                    offlineQueueLogger.error("offline_queue: deleted corrupt payload id=\(id, privacy: .public) error=\(String(describing: error), privacy: .public)")
+                    // A payload undecodable by the CURRENT app version isn't
+                    // necessarily permanently corrupt — an in-flight app
+                    // upgrade changing the payload shape looks identical.
+                    // Never delete queued health data on a decode failure;
+                    // mark it abandoned (payload preserved) so it stops
+                    // blocking every future drain, and log only the error's
+                    // TYPE + row id — `DecodingError.dataCorrupted` embeds
+                    // the underlying `JSONSerialization` error, whose
+                    // `debugDescription` can quote the offending payload
+                    // (health data), so its string form must never be logged.
+                    try db.execute(sql: "UPDATE offline_queue SET abandoned = 1 WHERE id = ?", arguments: [id])
+                    offlineQueueLogger.error("offline_queue: undecodable payload marked abandoned id=\(id, privacy: .public) errorType=\(String(describing: type(of: error)), privacy: .public)")
                 }
             }
             return result
@@ -107,7 +119,8 @@ final class OfflineQueue: OfflineQueueProtocol, Sendable {
         }
     }
 
-    func recordFailedAttempt(id: Int64) throws {
+    @discardableResult
+    func recordFailedAttempt(id: Int64) throws -> Bool {
         try databaseManager.dbQueue.write { db in
             try db.execute(
                 sql: "UPDATE offline_queue SET attempts = attempts + 1 WHERE id = ?",
@@ -118,12 +131,19 @@ final class OfflineQueue: OfflineQueueProtocol, Sendable {
                 sql: "SELECT attempts FROM offline_queue WHERE id = ?",
                 arguments: [id]
             )
-            guard let attempts, attempts >= Self.maxAttempts else { return }
+            guard let attempts, attempts >= Self.maxAttempts else { return false }
             try db.execute(
                 sql: "UPDATE offline_queue SET abandoned = 1 WHERE id = ?",
                 arguments: [id]
             )
             offlineQueueLogger.warning("offline_queue: abandoning entry id=\(id, privacy: .public) after \(attempts, privacy: .public) failed attempts")
+            return true
+        }
+    }
+
+    func abandonedCount() throws -> Int {
+        try databaseManager.dbQueue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM offline_queue WHERE abandoned = 1") ?? 0
         }
     }
 }

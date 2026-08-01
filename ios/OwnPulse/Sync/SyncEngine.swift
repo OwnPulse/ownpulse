@@ -187,13 +187,43 @@ actor SyncEngine {
                 // Skip and continue — don't let stale queue entries block the entire sync
                 logUploadFailure(error, context: "offline-queue-drain")
                 _lastError = "Offline queue retry failed: \(error.localizedDescription)"
-                // Track the failed attempt so an entry that can never
-                // succeed (e.g. a permanent 4xx) gets abandoned after the
-                // cap instead of being retried — and re-logged — on every
-                // single future sync forever.
-                try? offlineQueue.recordFailedAttempt(id: entry.id)
+                // Only a deterministic rejection counts toward abandonment —
+                // a transport/connectivity blip is expected to resolve on
+                // its own, and the observer debounce can fire this drain
+                // every few seconds. Counting every failure would abandon
+                // an entry (and eventually the whole queue) during a single
+                // brief outage.
+                if Self.isDeterministicRejection(error) {
+                    try? offlineQueue.recordFailedAttempt(id: entry.id)
+                }
             }
         }
+        // Surface the current abandoned count so a drop is never silent —
+        // read after every drain (not just on new abandonment) so the UI
+        // reflects ground truth even if a prior sync abandoned an entry
+        // this one didn't touch.
+        if let abandoned = try? offlineQueue.abandonedCount() {
+            await MainActor.run { self.progress.setAbandonedOfflineEntries(abandoned) }
+            if abandoned > 0 {
+                _lastError = "\(abandoned) offline record batch(es) could not be synced and were dropped after repeated failures"
+            }
+        }
+    }
+
+    /// True for a backend response that will reject the SAME payload
+    /// identically forever — the only case where retrying is pointless and
+    /// counting toward abandonment is safe. Excludes:
+    /// - `.unauthorized` / 401: resolved by the existing token-refresh path.
+    /// - 408 / 429: transient (timeout / rate limit) by definition.
+    /// - anything else (transport errors, 5xx, decode/no-data): expected to
+    ///   resolve on its own and must never count, or an offline window
+    ///   (observer debounce fires every few seconds) would abandon the
+    ///   whole queue well within `OfflineQueue.maxAttempts`.
+    nonisolated private static func isDeterministicRejection(_ error: Error) -> Bool {
+        guard let networkError = error as? NetworkError,
+              case let .serverError(statusCode, _) = networkError else { return false }
+        guard (400..<500).contains(statusCode) else { return false }
+        return statusCode != 401 && statusCode != 408 && statusCode != 429
     }
 
     /// Runs `syncType` over `mappings` with bounded concurrency.
@@ -238,19 +268,22 @@ actor SyncEngine {
         }
     }
 
-    /// One upload-sized chunk of samples, tagged with the anchor that the
-    /// HealthKit query returned for the page this chunk came from. The
-    /// consumer only persists an anchor AFTER the corresponding batch has
-    /// been acknowledged (either uploaded successfully OR enqueued for
-    /// retry in the offline queue). This is what prevents anchor advance
-    /// past unuploaded data on partial-failure paths.
+    /// One upload-sized chunk of samples cut from a single HealthKit page.
+    /// `pageIndex` groups every chunk cut from the same page (a page can
+    /// produce many chunks — `pageSize` / `batchSize` = up to 10 here) so
+    /// the consumer can tell whether ALL of a page's chunks were acked
+    /// before trusting that page's anchor; `pageAnchor` is what gets
+    /// persisted once that's confirmed.
     private struct PagedBatch: Sendable {
         let samples: [HealthKitSample]
-        /// Anchor returned by `querySamples` for the *page* this batch was
-        /// cut from. Identical for every chunk produced from the same page;
-        /// `nil` only if HealthKit didn't give us one (shouldn't happen in
+        /// Anchor returned by `querySamples` for the page this batch was
+        /// cut from. Identical for every chunk from the same page; `nil`
+        /// only if HealthKit didn't give us one (shouldn't happen in
         /// practice but we tolerate it).
         let pageAnchor: Data?
+        /// Monotonically increasing per HealthKit page fetched (not per
+        /// batch) — identical across every chunk cut from the same page.
+        let pageIndex: Int
     }
 
     /// Returns the total number of records synced across all pages.
@@ -263,12 +296,18 @@ actor SyncEngine {
     ///   organically because the producer can only run as fast as
     ///   `querySamples` returns.
     /// - Consumer drains the stream and uploads batches sequentially.
-    /// - Anchor safety: we only persist a page's anchor after EVERY batch
-    ///   cut from that page has been acknowledged. On upload failure, the
-    ///   consumer drains the rest of the stream into the offline queue
-    ///   BEFORE persisting the last known-safe anchor — that way the next
-    ///   sync resumes from exactly the right place even if some batches
-    ///   went to the queue rather than the wire.
+    /// - Anchor safety: a page's anchor is a single resume point covering
+    ///   every sample HealthKit returned for that page — including the
+    ///   ones cut into batches we never got to. So it can only be trusted
+    ///   once EVERY batch cut from that page is acked (uploaded or
+    ///   durably enqueued); the consumer tracks this per page (via
+    ///   `pageIndex`) and only updates the persisted anchor at a page
+    ///   boundary once that holds. If any batch anywhere in the run is
+    ///   acked by NEITHER path (both upload and enqueue failed), the
+    ///   anchor freezes at the last page that fully qualified before that
+    ///   point — never the page the loss happened in, and never any page
+    ///   after it, because the anchor is monotonic and a later "clean"
+    ///   page can't undo an earlier hole.
     @discardableResult
     private func syncType(_ mapping: HealthKitTypeMap.Mapping) async throws -> Int {
         let recordType = mapping.recordType
@@ -306,6 +345,7 @@ actor SyncEngine {
         let producerTask = Task { [healthKitProvider, anchorStore] () -> Void in
             do {
                 var currentAnchor = try anchorStore.anchor(forRecordType: recordType)
+                var pageIndex = 0
                 while !Task.isCancelled {
                     let page = try await healthKitProvider.querySamples(
                         type: hkType,
@@ -319,14 +359,15 @@ actor SyncEngine {
                         await MainActor.run { self.progress.setTotalSamples(recordType, total: pageTotal) }
 
                         // Chunk the page into upload-sized batches, each
-                        // tagged with this page's anchor.
+                        // tagged with this page's anchor and index.
                         let samples = page.samples
                         var idx = 0
                         while idx < samples.count {
                             let end = min(idx + batchSize, samples.count)
                             continuation.yield(PagedBatch(
                                 samples: Array(samples[idx..<end]),
-                                pageAnchor: page.newAnchor
+                                pageAnchor: page.newAnchor,
+                                pageIndex: pageIndex
                             ))
                             idx = end
                         }
@@ -341,6 +382,7 @@ actor SyncEngine {
                     if page.samples.count < pageSize {
                         break
                     }
+                    pageIndex += 1
                 }
                 continuation.finish()
             } catch {
@@ -351,22 +393,45 @@ actor SyncEngine {
             }
         }
 
-        // Consumer: drain the stream, uploading each batch. Tracks the
-        // last anchor whose ENTIRE page has been acknowledged so we can
-        // persist a safe resume point even on partial-failure paths.
+        // Consumer: drain the stream, uploading each batch. Tracks
+        // per-page whether every batch cut from it was acked, and only
+        // commits a page's anchor as the persisted resume point once that
+        // page is fully accounted for (see doc comment above).
         var uploadError: Error?
-        // Anchor of the last batch that was acknowledged (uploaded OR
-        // enqueued). We persist this at the end — never an anchor for a
-        // page whose batches were dropped.
+        // Anchor of the last page that was fully acked. Persisted at the
+        // end — never an anchor for a page any of whose batches were lost.
         var lastAckedAnchor: Data?
-        // Once a batch fails BOTH the network upload AND the offline-queue
-        // enqueue, its samples are gone for good — GRDB threw and `try?`
-        // would otherwise silently swallow that. From that point on we must
-        // stop advancing `lastAckedAnchor`, even for later batches/pages
-        // that DO succeed, because advancing past a lost batch means it can
-        // never be retried (see doc comment above `syncType`).
+        // Once ANY batch anywhere is acked by neither path (upload nor
+        // durable enqueue), its samples are gone for good. From that point
+        // on no further page — including the rest of the one it happened
+        // in — may ever be committed, because the anchor is a single
+        // monotonic resume point and a later page can't undo an earlier
+        // loss.
         var enqueueFailed = false
+        // State for the page currently being accumulated by the consumer.
+        var pendingPageIndex: Int?
+        var pendingPageAnchor: Data?
+        var pendingPageFullyAcked = true
+
+        // Commits `pendingPageAnchor` as the new resume point iff every
+        // batch seen so far from that page was acked AND no permanent loss
+        // has occurred anywhere yet in this run.
+        func commitPendingPage() {
+            guard !enqueueFailed, pendingPageFullyAcked, let anchor = pendingPageAnchor else { return }
+            lastAckedAnchor = anchor
+        }
+
+        func beginPageIfNeeded(_ batch: PagedBatch) {
+            guard pendingPageIndex != batch.pageIndex else { return }
+            commitPendingPage()
+            pendingPageIndex = batch.pageIndex
+            pendingPageAnchor = batch.pageAnchor
+            pendingPageFullyAcked = true
+        }
+
         for await pagedBatch in stream {
+            beginPageIfNeeded(pagedBatch)
+
             let records = pagedBatch.samples.map { sample in
                 CreateHealthRecord(
                     source: "healthkit",
@@ -391,9 +456,7 @@ actor SyncEngine {
                 await MainActor.run {
                     self.progress.updateUploadProgress(recordType, uploaded: running)
                 }
-                if let pageAnchor = pagedBatch.pageAnchor {
-                    lastAckedAnchor = pageAnchor
-                }
+                // Uploaded — this batch is acked; page status unchanged.
             } catch {
                 // The wire upload failed. Two things must happen before we
                 // stop:
@@ -402,19 +465,13 @@ actor SyncEngine {
                 //     too — those samples have already been read out of
                 //     HealthKit and would be skipped on the next run
                 //     because the anchor will have moved past them.
-                // Only after both can we safely persist the anchor. If the
-                // enqueue itself throws (e.g. GRDB write failure), the batch
-                // is lost — do NOT advance the anchor past it, or the next
-                // sync would skip re-fetching data that was never actually
-                // saved anywhere.
                 do {
                     try offlineQueue.enqueue(insert)
-                    if let pageAnchor = pagedBatch.pageAnchor {
-                        lastAckedAnchor = pageAnchor
-                    }
+                    // Durably queued — acked; page status unchanged.
                 } catch {
                     enqueueFailed = true
-                    engineLogger.error("offline queue enqueue failed: type=\(recordType, privacy: .public) error=\(String(describing: error), privacy: .public)")
+                    pendingPageFullyAcked = false
+                    engineLogger.error("offline queue enqueue failed: type=\(recordType, privacy: .public) errorType=\(String(describing: type(of: error)), privacy: .public)")
                 }
                 logUploadFailure(error, context: "type=\(recordType)")
                 uploadError = error
@@ -424,6 +481,8 @@ actor SyncEngine {
                 producerTask.cancel()
 
                 for await leftover in stream {
+                    beginPageIfNeeded(leftover)
+
                     let leftoverRecords = leftover.samples.map { sample in
                         CreateHealthRecord(
                             source: "healthkit",
@@ -439,17 +498,21 @@ actor SyncEngine {
                     let leftoverInsert = HealthKitBulkInsert(records: leftoverRecords)
                     do {
                         try offlineQueue.enqueue(leftoverInsert)
-                        if !enqueueFailed, let pageAnchor = leftover.pageAnchor {
-                            lastAckedAnchor = pageAnchor
-                        }
+                        // Durably queued — acked; page status unchanged.
                     } catch {
                         enqueueFailed = true
-                        engineLogger.error("offline queue enqueue failed: type=\(recordType, privacy: .public) error=\(String(describing: error), privacy: .public)")
+                        pendingPageFullyAcked = false
+                        engineLogger.error("offline queue enqueue failed: type=\(recordType, privacy: .public) errorType=\(String(describing: type(of: error)), privacy: .public)")
                     }
                 }
                 break
             }
         }
+
+        // Finalize whichever page was last being accumulated — reached via
+        // normal stream completion or via `break` after the failure-drain
+        // loop above.
+        commitPendingPage()
 
         // Wait for producer to finish (so we can surface any read error).
         do {
@@ -462,10 +525,9 @@ actor SyncEngine {
             }
         }
 
-        // Persist only the last fully-acknowledged anchor. If nothing was
-        // ack'd (e.g. the very first upload failed AND offline-enqueue
-        // failed) we leave the prior anchor alone so the next sync retries
-        // from the same point.
+        // Persist only the last fully-acknowledged page's anchor. If
+        // nothing was ever fully acked, leave the prior anchor alone so
+        // the next sync retries from the same point.
         if let lastAckedAnchor {
             try? anchorStore.saveAnchor(lastAckedAnchor, forRecordType: recordType)
         }

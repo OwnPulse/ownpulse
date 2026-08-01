@@ -528,6 +528,141 @@ struct SyncEngineTests {
         )
     }
 
+    // MARK: - Adversarial review F1: a page's anchor is only trustworthy once
+    // EVERY batch cut from it is acked — not just the first one.
+
+    @Test("persisted anchor rolls back to the prior page's anchor when a LATER batch in the SAME page is permanently lost, even though an earlier batch in that page was acked")
+    @MainActor
+    func testAnchorRollsBackWithinSamePageOnPermanentLoss() async throws {
+        // pageSize (5000) / batchSize (500) = 10 batches cut from ONE
+        // HealthKit page, all sharing the same page anchor. Batch 1 uploads
+        // successfully; batch 2 fails BOTH the upload and its enqueue
+        // (permanently lost); batches 3-10 are drained into the queue
+        // successfully as "leftovers". Pre-fix, batch 1's success alone
+        // stamped the FULL page's anchor as ack'd — this proves that no
+        // longer happens: the persisted anchor must roll back to whatever
+        // it was before this sync, because batch 2's 500 samples are gone
+        // and the page anchor covers them too.
+        let provider = MockHealthKitProvider()
+        let heartRateHKType = HealthKitTypeMap.mapping(forRecordType: "heart_rate")!.hkType
+        let priorAnchor = Data([0xFE])
+        let pageAnchor = Data([0x01])
+        provider.queryPagesByType[heartRateHKType] = [
+            AnchoredQueryResult(
+                samples: (0..<5000).map { Self.makeSample(idx: $0) },
+                newAnchor: pageAnchor,
+                deletedObjectIDs: []
+            )
+        ]
+
+        let network = MockNetworkClient()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        // Batch 1 (the first 500-record POST) succeeds; every batch after
+        // that fails the upload.
+        let callCount = CallCounter()
+        network.asyncRequestNoContentHandler = { _, path, _ in
+            guard path == Endpoints.healthKitSync else { return }
+            let n = callCount.increment()
+            if n > 1 {
+                throw NetworkError.serverError(statusCode: 500, body: "boom")
+            }
+        }
+
+        let db = DatabaseManager(inMemory: true)
+        let offlineQueue = MockOfflineQueue(databaseManager: db)
+        // Batch 1 uploads fine, so the FIRST enqueue attempt is for batch
+        // 2 — fail exactly that one. Batches 3-10 (drained as "leftovers"
+        // once the failure is detected) enqueue successfully.
+        offlineQueue.enqueueFailAtCall = 1
+        let anchors = AnchorStore(databaseManager: db)
+        try anchors.saveAnchor(priorAnchor, forRecordType: "heart_rate")
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: provider,
+            offlineQueue: offlineQueue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+
+        await engine.sync()
+
+        let persisted = try anchors.anchor(forRecordType: "heart_rate")
+        #expect(
+            persisted == priorAnchor,
+            "persisted anchor must roll back to the prior page's anchor when a later batch in the SAME page is permanently lost — a single acked batch must not vouch for the whole page — got \(persisted?.map { String(format: "%02x", $0) }.joined() ?? "nil")"
+        )
+    }
+
+    // MARK: - Adversarial review F2: only deterministic rejections count
+    // toward offline-queue abandonment
+
+    @Test("drainOfflineQueue counts a deterministic 4xx toward abandonment but NOT a transport/connectivity failure")
+    @MainActor
+    func testDrainOfflineQueueClassifiesFailuresBeforeCountingAttempts() async throws {
+        let db = DatabaseManager(inMemory: true)
+        let offlineQueue = MockOfflineQueue(databaseManager: db)
+        // Seed two queued entries directly via the real queue underneath
+        // the mock (enqueue isn't configured to fail here).
+        try offlineQueue.enqueue(HealthKitBulkInsert(records: []))
+        try offlineQueue.enqueue(HealthKitBulkInsert(records: []))
+
+        let network = MockNetworkClient()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        // First drain call: reject every entry with a transport error
+        // (NSURLErrorDomain-style), which must NOT count toward
+        // abandonment — an offline window firing this drain every few
+        // seconds must not destroy the queue.
+        network.requestNoContentHandler = { _, path, _ in
+            if path == Endpoints.healthKitSync {
+                throw NSError(domain: NSURLErrorDomain, code: -1009, userInfo: nil)
+            }
+        }
+
+        let anchors = AnchorStore(databaseManager: db)
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: MockHealthKitProvider(),
+            offlineQueue: offlineQueue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+
+        await engine.sync()
+        #expect(
+            offlineQueue.recordFailedAttemptCallCount == 0,
+            "a transport/connectivity failure must never count toward offline-queue abandonment"
+        )
+        // Both entries are still pending (not abandoned, not dropped).
+        #expect(try offlineQueue.dequeuePending().count == 2)
+
+        // Second drain call: now reject with a deterministic 4xx (not 401
+        // /408/429) — this SHOULD count.
+        network.requestNoContentHandler = { _, path, _ in
+            if path == Endpoints.healthKitSync {
+                throw NetworkError.serverError(statusCode: 422, body: "unprocessable")
+            }
+        }
+        await engine.sync()
+        #expect(
+            offlineQueue.recordFailedAttemptCallCount == 2,
+            "a deterministic 4xx rejection must count toward abandonment — expected exactly the 2 pending entries to be attempted"
+        )
+    }
+
     // MARK: - Review fix B2: stream must not drop batches under back-pressure
 
     @Test("no batches dropped when upload is slower than producer")

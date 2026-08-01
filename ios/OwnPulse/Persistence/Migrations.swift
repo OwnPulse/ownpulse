@@ -31,6 +31,12 @@ enum Migrations {
                 t.add(column: "attempts", .integer).notNull().defaults(to: 0)
                 t.add(column: "abandoned", .boolean).notNull().defaults(to: false)
             }
+
+            // `markComplete` previously left completed rows in place
+            // (`completed_at` set, never deleted); it now deletes them
+            // outright. Sweep any rows a prior app version left behind so
+            // they don't sit excluded-but-never-removed forever.
+            try db.execute(sql: "DELETE FROM offline_queue WHERE completed_at IS NOT NULL")
         }
 
         try migrator.migrate(db)

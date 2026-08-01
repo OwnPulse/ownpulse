@@ -102,6 +102,16 @@ struct SyncStatusView: View {
                 .tint(OPColor.terracotta)
             }
 
+            if progress.abandonedOfflineEntries > 0 {
+                Label(
+                    "\(progress.abandonedOfflineEntries) batch(es) could not be synced and were dropped",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(.red)
+                .accessibilityIdentifier("abandonedOfflineEntriesWarning")
+            }
+
             if !isSyncing {
                 Button {
                     // Detached from view lifecycle — the user can navigate
