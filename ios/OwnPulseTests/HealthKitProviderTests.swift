@@ -160,3 +160,38 @@ struct HealthKitProviderPagedQueryTests {
         #expect(provider.authorizationStatus(for: HKQuantityType(.bodyMass)) == .sharingAuthorized)
     }
 }
+
+@Suite("HealthKitProvider — ADR-0008 cycle-prevention read predicate")
+struct HealthKitProviderReadPredicateTests {
+    // The unit test host has a real bundle ID, so `HKSource.default()`
+    // resolves fine here — what a unit test can't do is seed real HealthKit
+    // samples "from this app" vs. "from elsewhere" to exercise filtering
+    // end to end. So in addition to shape (NOT-compound wrapping exactly
+    // one subpredicate — guards against someone inverting the logic, e.g.
+    // to plain `predicateForObjects(from:)`, which would silently sync only
+    // OwnPulse's own writes and drop every third-party sample), we assert
+    // that the predicate actually reaches the query HealthKit executes.
+    @Test("makeReadPredicate returns a NOT-compound predicate")
+    func returnsNotCompoundPredicate() {
+        let predicate = HealthKitProvider.makeReadPredicate()
+
+        guard let compound = predicate as? NSCompoundPredicate else {
+            Issue.record("Expected an NSCompoundPredicate, got \(type(of: predicate))")
+            return
+        }
+
+        #expect(compound.compoundPredicateType == .not)
+        #expect(compound.subpredicates.count == 1)
+    }
+
+    @Test("makeAnchoredQuery's predicate matches makeReadPredicate — the filter reaches the actual query")
+    func anchoredQueryCarriesReadPredicate() {
+        let query = HealthKitProvider.makeAnchoredQuery(
+            type: HKQuantityType(.heartRate),
+            anchor: nil,
+            limit: 5_000
+        ) { _, _, _, _, _ in }
+
+        #expect(query.predicate?.predicateFormat == HealthKitProvider.makeReadPredicate().predicateFormat)
+    }
+}

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { TemplateListItem } from "../../api/protocols";
 import { protocolsApi } from "../../api/protocols";
+import { localToday } from "../../utils/datetime";
 import styles from "./TemplateCard.module.css";
 
 interface TemplateCardProps {
@@ -15,7 +16,9 @@ interface TemplateCardProps {
 export function TemplateCard({ template }: TemplateCardProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  // This becomes the copied protocol's run start_date — a UTC-derived
+  // default shifts the entire dose schedule for users west of UTC.
+  const [startDate, setStartDate] = useState(localToday);
   const [showDate, setShowDate] = useState(false);
 
   const copyMutation = useMutation({

@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { insightsApi } from "../../src/api/insights";
 import { useAuthStore } from "../../src/store/auth";
+import { refresh401Handler } from "./support/msw-auth-refresh";
 
 const insightsResponse = [
   {
@@ -36,6 +37,7 @@ const server = setupServer(
   http.post("/api/v1/insights/generate", () => {
     return HttpResponse.json(insightsResponse);
   }),
+  refresh401Handler,
 );
 
 beforeAll(() => server.listen());

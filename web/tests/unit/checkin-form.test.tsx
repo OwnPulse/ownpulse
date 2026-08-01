@@ -91,6 +91,36 @@ describe("CheckinForm", () => {
     expect(submitted.recovery).toBe(5);
     expect(submitted.libido).toBe(5);
   });
+
+  describe("default date at a UTC-offset-sensitive instant", () => {
+    const originalTz = process.env.TZ;
+
+    beforeEach(() => {
+      process.env.TZ = "Pacific/Honolulu"; // UTC-10, no DST
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      if (originalTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTz;
+      }
+    });
+
+    it("defaults the date field from src/utils/datetime's localToday(), not a UTC-derived value", () => {
+      // 2026-03-01T05:30:00Z is 2026-02-28T19:30 in Honolulu. A form that
+      // reverted to `new Date().toISOString().slice(0, 10)` would default to
+      // "2026-03-01" here — this test would still pass if that regression
+      // landed unless it pins the local value explicitly.
+      vi.setSystemTime(new Date("2026-03-01T05:30:00Z"));
+
+      renderWithProviders();
+
+      const dateInput = screen.getByLabelText(/date/i) as HTMLInputElement;
+      expect(dateInput.value).toBe("2026-02-28");
+    });
+  });
 });
 
 /** Helper to change an input value (range inputs don't respond to userEvent.type). */

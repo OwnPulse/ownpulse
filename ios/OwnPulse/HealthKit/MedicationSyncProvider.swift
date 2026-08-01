@@ -128,6 +128,16 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
         medicationCache = cache
     }
 
+    /// No ADR-0008 cycle-prevention predicate here: `requestAuthorization`
+    /// above requests per-object *read* only (never write), so there is no
+    /// path by which this app writes a `HKMedicationDoseEvent` — the cycle
+    /// the predicate guards against cannot occur for this type today. This
+    /// whole file is also gated behind `#if swift(>=6.3)` and the pinned CI
+    /// toolchain is Swift 6.0, so it is never compiled or type-checked
+    /// until a future toolchain bump — if dose-event write-back is ever
+    /// added, apply `HealthKitProvider.makeReadPredicate()` here and verify
+    /// it against a real build first, rather than carrying an unverified
+    /// AND today.
     private func takenDosesPredicate() -> NSPredicate {
         NSPredicate(
             format: "%K == %d",
