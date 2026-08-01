@@ -5,14 +5,29 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useSSE } from "../../src/hooks/useSSE";
+import { type BackendEventSource, SOURCE_QUERY_KEYS, useSSE } from "../../src/hooks/useSSE";
 import { useAuthStore } from "../../src/store/auth";
+
+// The full set of sources the backend's `publish_event` is called with (see
+// `backend/api/src/routes/*.rs`). Kept independent of `useSSE.ts` so the
+// drift-guard test below actually fails if a new backend source is added
+// without a matching map entry.
+const BACKEND_EVENT_SOURCES = [
+  "health_records",
+  "protocols",
+  "interventions",
+  "checkins",
+  "labs",
+  "observations",
+  "genetics",
+].sort();
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
   url: string;
   listeners: Record<string, ((e: MessageEvent) => void)[]> = {};
   onerror: (() => void) | null = null;
+  close = vi.fn();
 
   constructor(url: string) {
     this.url = url;
@@ -24,18 +39,24 @@ class MockEventSource {
   }
 
   emit(type: string, data: unknown) {
-    for (const cb of this.listeners[type] ?? []) {
-      cb({ data: JSON.stringify(data) } as MessageEvent);
-    }
+    this.emitRaw(type, JSON.stringify(data));
   }
 
-  close() {}
+  emitRaw(type: string, raw: string) {
+    for (const cb of this.listeners[type] ?? []) {
+      cb({ data: raw } as MessageEvent);
+    }
+  }
 }
 
 function wrapper(queryClient: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
     return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   };
+}
+
+function invalidatedKeysOf(spy: ReturnType<typeof vi.spyOn>): unknown[] {
+  return spy.mock.calls.map((call) => (call[0] as { queryKey: unknown[] }).queryKey[0]);
 }
 
 describe("useSSE data_changed invalidation map", () => {
@@ -51,37 +72,32 @@ describe("useSSE data_changed invalidation map", () => {
     vi.unstubAllGlobals();
   });
 
-  it("maps health_records events to health-records and dashboard-sparklines query keys", () => {
-    const queryClient = new QueryClient();
-    const spy = vi.spyOn(queryClient, "invalidateQueries");
-
-    renderHook(() => useSSE(), { wrapper: wrapper(queryClient) });
-    const es = MockEventSource.instances[0];
-    es.emit("data_changed", { source: "health_records" });
-
-    const invalidatedKeys = spy.mock.calls.map((call) => (call[0] as { queryKey: unknown[] }).queryKey[0]);
-    expect(invalidatedKeys).toContain("health-records");
-    expect(invalidatedKeys).toContain("dashboard-sparklines");
-    expect(invalidatedKeys).toContain("explore-series");
-    expect(invalidatedKeys).toContain("dashboard-summary");
+  it("has a map entry for exactly the backend's publish_event source set (drift guard)", () => {
+    expect(Object.keys(SOURCE_QUERY_KEYS).sort()).toEqual(BACKEND_EVENT_SOURCES);
   });
 
-  it("maps protocols events to protocols, todays-doses, active-runs, protocol-runs", () => {
-    const queryClient = new QueryClient();
-    const spy = vi.spyOn(queryClient, "invalidateQueries");
+  it.each(Object.entries(SOURCE_QUERY_KEYS) as [BackendEventSource, readonly string[]][])(
+    "maps %s events to %j",
+    (source, expectedKeys) => {
+      const queryClient = new QueryClient();
+      const spy = vi.spyOn(queryClient, "invalidateQueries");
 
-    renderHook(() => useSSE(), { wrapper: wrapper(queryClient) });
-    const es = MockEventSource.instances[0];
-    es.emit("data_changed", { source: "protocols" });
+      renderHook(() => useSSE(), { wrapper: wrapper(queryClient) });
+      const es = MockEventSource.instances[0];
+      es.emit("data_changed", { source });
 
-    const invalidatedKeys = spy.mock.calls.map((call) => (call[0] as { queryKey: unknown[] }).queryKey[0]);
-    expect(invalidatedKeys).toContain("protocols");
-    expect(invalidatedKeys).toContain("todays-doses");
-    expect(invalidatedKeys).toContain("active-runs");
-    expect(invalidatedKeys).toContain("protocol-runs");
-  });
+      const invalidatedKeys = invalidatedKeysOf(spy);
+      for (const key of expectedKeys) {
+        expect(invalidatedKeys).toContain(key);
+      }
+      // Always-invalidated regardless of source.
+      expect(invalidatedKeys).toContain("explore-series");
+      expect(invalidatedKeys).toContain("dashboard-summary");
+      expect(invalidatedKeys).toContain("dashboard-sparklines");
+    },
+  );
 
-  it("falls back to invalidating the raw source for unknown sources", () => {
+  it("falls back to invalidating the raw source for an unknown source, plus the always-keys", () => {
     const queryClient = new QueryClient();
     const spy = vi.spyOn(queryClient, "invalidateQueries");
 
@@ -89,7 +105,50 @@ describe("useSSE data_changed invalidation map", () => {
     const es = MockEventSource.instances[0];
     es.emit("data_changed", { source: "some_future_source" });
 
-    const invalidatedKeys = spy.mock.calls.map((call) => (call[0] as { queryKey: unknown[] }).queryKey[0]);
-    expect(invalidatedKeys).toContain("some_future_source");
+    const invalidatedKeys = invalidatedKeysOf(spy);
+    expect(invalidatedKeys).toEqual(
+      expect.arrayContaining([
+        "some_future_source",
+        "explore-series",
+        "dashboard-summary",
+        "dashboard-sparklines",
+      ]),
+    );
+    expect(invalidatedKeys).toHaveLength(4);
+  });
+
+  it("ignores a payload that is not valid JSON, without throwing", () => {
+    const queryClient = new QueryClient();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderHook(() => useSSE(), { wrapper: wrapper(queryClient) });
+    const es = MockEventSource.instances[0];
+
+    expect(() => es.emitRaw("data_changed", "not json")).not.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("ignores a payload whose source is missing or not a string, without throwing", () => {
+    const queryClient = new QueryClient();
+    const spy = vi.spyOn(queryClient, "invalidateQueries");
+
+    renderHook(() => useSSE(), { wrapper: wrapper(queryClient) });
+    const es = MockEventSource.instances[0];
+
+    expect(() => es.emit("data_changed", {})).not.toThrow();
+    expect(() => es.emit("data_changed", { source: 123 })).not.toThrow();
+    expect(() => es.emit("data_changed", null)).not.toThrow();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("closes the EventSource on unmount", () => {
+    const queryClient = new QueryClient();
+
+    const { unmount } = renderHook(() => useSSE(), { wrapper: wrapper(queryClient) });
+    const es = MockEventSource.instances[0];
+
+    unmount();
+
+    expect(es.close).toHaveBeenCalledOnce();
   });
 });
