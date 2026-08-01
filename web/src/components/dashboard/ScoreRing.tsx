@@ -1,15 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import { DIMENSION_COLORS } from "../dimensionColors.generated";
 import styles from "./ScoreRing.module.css";
-
-const SCORE_COLORS: Record<string, string> = {
-  energy: "#c49a3c",
-  mood: "#c2654a",
-  focus: "#3d8b8b",
-  recovery: "#5a8a5a",
-  libido: "#7b61c2",
-};
 
 interface ScoreRingProps {
   label: string;
@@ -22,7 +15,7 @@ const SIZE = (RADIUS + STROKE) * 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export function ScoreRing({ label, value }: ScoreRingProps) {
-  const color = SCORE_COLORS[label] ?? "#999";
+  const color = DIMENSION_COLORS[label] ?? "#999";
   const progress = value != null ? value / 10 : 0;
   const offset = CIRCUMFERENCE * (1 - progress);
   const hasValue = value != null;

@@ -33,14 +33,30 @@ The palette avoids clinical blues, generic tech purples, and sterile whites. It 
 
 All values live under the `color.*` group in [`tokens.json`](tokens.json). The headline roles:
 
-- **Primary — warm terracotta:** `color.primary.default` (`#c2654a`), with `color.primary.hover` (`#9e4f38`) and `color.primary.light` (`#d4856e`). Grounded, human, distinctive.
-- **Accent — muted teal:** `color.accent.default` (`#3d8b8b`), `color.accent.light` (`#5aadad`), `color.accent.dark` (`#2d6b6b`). Data, charts, interactive elements.
+- **Primary — warm terracotta:** `color.primary.default` (`#b2573c`), with `color.primary.hover` (`#9e4f38`) and `color.primary.light` (`#f7eeec`). Grounded, human, distinctive. (Darkened from an earlier `#c2654a` to clear WCAG AA — see `tools/design-tokens/contrast.js`.)
+- **Accent — muted teal:** `color.accent.default` (`#377c7c`), `color.accent.light` (`#5aadad`), `color.accent.dark` (`#2d6b6b`). Data, charts, interactive elements. (Darkened from an earlier `#3d8b8b` to clear WCAG AA.)
 - **Neutral — warm charcoal:** `color.neutral.900` (`#1e1e1c`) through `color.neutral.50` (`#f7f7f4`). All text and UI chrome.
 - **Surface:** `color.surface.bg` (`#fafaf7`) for the page base, `color.surface.elevated` (`#ffffff`) for cards, and `color.surface.bg-warm` (`#faf6f1`) for warm-tinted sections.
-- **Text:** `color.text.default` (`#1e1e1c`), `color.text.secondary` (`#5e5e57`), `color.text.muted` (`#7a7a72`).
+- **Text:** `color.text.default` (`#1e1e1c`), `color.text.secondary` (`#5e5e57`), `color.text.muted` (`#72726b`).
 - **Border:** `color.border.default` (`#deded6`) for hairlines, `color.border.strong` (`#c2c2b9`) for emphasis.
-- **Feedback — functional colors:** `color.feedback.success` (`#009e73`), `color.feedback.warning` (`#e69f00`), `color.feedback.error` (`#d55e00`), `color.feedback.error-light` (`#f5dede`). These come from the colorblind-safe Wong palette (see [Wong palette and colorblind safety](#wong-palette-and-colorblind-safety)), so success/warning/error stay distinguishable without relying on hue alone.
+- **Feedback — functional colors:** `color.feedback.success` (`#007555`), `color.feedback.warning` (`#976900`), `color.feedback.error` (`#a44900`), `color.feedback.error-light` (`#f5dede`). Darkened from the original Wong-palette values (`#009e73` / `#e69f00` / `#d55e00`) to clear WCAG AA as text; the per-metric `chart.metric.*` slots below still use the original Wong hues, since those are graphical (3:1), not text (4.5:1).
 - **Dimension accents:** `color.dimension.gold` (`#c49a3c`), `color.dimension.sage` (`#5a8a5a`), `color.dimension.purple` (`#7b61c2`) — used to differentiate health "dimensions" in the UI.
+
+### Check-in dimension colors
+
+The five daily check-in dimensions (Energy, Mood, Focus, Recovery, Libido) each have a dedicated token under `color.dimension.*`, generated into `web/src/components/dimensionColors.generated.ts` (`DIMENSION_COLORS`) and, for Libido, `OPColor.purple` on iOS. Four of the five deliberately mirror an existing brand token rather than introducing a new hue — each `$description` in `tokens.json` documents which one:
+
+| Dimension | Token | Value | Mirrors |
+|-----------|-------|-------|---------|
+| Energy | `color.dimension.energy` | `#c49a3c` | `color.dimension.gold` |
+| Mood | `color.dimension.mood` | `#b2573c` | `color.primary.default` |
+| Focus | `color.dimension.focus` | `#377c7c` | `color.accent.default` |
+| Recovery | `color.dimension.recovery` | `#5a8a5a` | `color.dimension.sage` |
+| Libido | `color.dimension.libido` | `#7b61c2` | `color.dimension.purple` |
+
+These are literal duplicate values, not DTCG aliases — `build.js` reads each token's own `value`, so a future change to (say) `color.primary.default` will not silently retint Mood. Change the dimension token explicitly if the two should diverge.
+
+The intervention marker color used to overlay substance/medication/supplement events on charts lives at `chart.intervention` (`#7b61c2`, the same brand purple as Libido). It replaced an off-palette flat-UI purple (`#9b59b6`) that didn't derive from any token. The hue overlap with Libido is acceptable because intervention markers are shape-distinct from dimension series on charts.
 
 ### Usage
 

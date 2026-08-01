@@ -17,6 +17,11 @@ Regenerate with `npm run build:tokens` in `tools/design-tokens`.
 | `color.dimension.gold` | `#c49a3c` |
 | `color.dimension.sage` | `#5a8a5a` |
 | `color.dimension.purple` | `#7b61c2` |
+| `color.dimension.energy` | `#c49a3c` |
+| `color.dimension.mood` | `#b2573c` |
+| `color.dimension.focus` | `#377c7c` |
+| `color.dimension.recovery` | `#5a8a5a` |
+| `color.dimension.libido` | `#7b61c2` |
 | `color.neutral.50` | `#f7f7f4` |
 | `color.neutral.100` | `#eeeeea` |
 | `color.neutral.200` | `#deded6` |
@@ -60,6 +65,7 @@ Regenerate with `npm run build:tokens` in `tools/design-tokens`.
 | `shadow.sm` | `0 1px 2px rgba(0, 0, 0, 0.06)` |
 | `shadow.md` | `0 4px 12px rgba(0, 0, 0, 0.08)` |
 | `shadow.lg` | `0 8px 24px rgba(0, 0, 0, 0.12)` |
+| `chart.intervention` | `#7b61c2` |
 | `chart.metric.heart_rate` | `#d55e00` |
 | `chart.metric.hrv` | `#009e73` |
 | `chart.metric.sleep_duration` | `#7b61c2` |
