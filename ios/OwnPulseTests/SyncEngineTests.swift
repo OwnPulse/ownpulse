@@ -466,6 +466,68 @@ struct SyncEngineTests {
         #expect(persisted == anchorPage3, "persisted anchor must reflect the last ack'd page (page3), got \(persisted?.map { String(format: "%02x", $0) }.joined() ?? "nil")")
     }
 
+    // MARK: - Fix: anchor must not advance past a failed offline-queue enqueue
+
+    @Test("anchor stays at its prior value when both the upload AND the offline-queue enqueue fail")
+    @MainActor
+    func testAnchorDoesNotAdvancePastFailedEnqueue() async throws {
+        // This is the exact gap the pre-fix code left uncovered:
+        // `testAnchorDoesNotAdvancePastFailedUpload` only exercises upload
+        // failure with a SUCCESSFUL enqueue. Here we also fail the GRDB
+        // enqueue so the batch is acknowledged by neither the wire NOR the
+        // offline queue — the anchor must be left exactly where it was
+        // before this sync ran, or the batch is lost forever.
+        let provider = MockHealthKitProvider()
+        let heartRateHKType = HealthKitTypeMap.mapping(forRecordType: "heart_rate")!.hkType
+        let priorAnchor = Data([0xFF])
+        let pageAnchor = Data([0x01])
+        provider.queryPagesByType[heartRateHKType] = [
+            AnchoredQueryResult(
+                samples: Self.makeSamples(recordType: "heart_rate", count: 10),
+                newAnchor: pageAnchor,
+                deletedObjectIDs: []
+            )
+        ]
+
+        let network = MockNetworkClient()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        network.asyncRequestNoContentHandler = { _, path, _ in
+            guard path == Endpoints.healthKitSync else { return }
+            throw NetworkError.serverError(statusCode: 500, body: "boom")
+        }
+
+        let db = DatabaseManager(inMemory: true)
+        let offlineQueue = MockOfflineQueue(databaseManager: db)
+        offlineQueue.enqueueShouldFail = true
+        let anchors = AnchorStore(databaseManager: db)
+        // Seed a known "prior" anchor so we can assert it is untouched.
+        try anchors.saveAnchor(priorAnchor, forRecordType: "heart_rate")
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: provider,
+            offlineQueue: offlineQueue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+
+        await engine.sync()
+
+        #expect(offlineQueue.enqueueCallCount > 0, "expected the engine to attempt an enqueue after the upload failed")
+
+        let persisted = try anchors.anchor(forRecordType: "heart_rate")
+        #expect(
+            persisted == priorAnchor,
+            "anchor must stay at its prior value when the batch was neither uploaded nor durably enqueued, got \(persisted?.map { String(format: "%02x", $0) }.joined() ?? "nil")"
+        )
+    }
+
     // MARK: - Review fix B2: stream must not drop batches under back-pressure
 
     @Test("no batches dropped when upload is slower than producer")

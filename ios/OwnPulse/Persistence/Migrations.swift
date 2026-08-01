@@ -22,6 +22,17 @@ enum Migrations {
             }
         }
 
+        // Adds queue-hygiene columns: `attempts` tracks failed drain
+        // attempts so a permanently-unreachable entry can be abandoned
+        // instead of blocking every future sync retry; `abandoned` marks
+        // that terminal state so `dequeuePending` can exclude it.
+        migrator.registerMigration("v2_offline_queue_attempts") { db in
+            try db.alter(table: "offline_queue") { t in
+                t.add(column: "attempts", .integer).notNull().defaults(to: 0)
+                t.add(column: "abandoned", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         try migrator.migrate(db)
     }
 }

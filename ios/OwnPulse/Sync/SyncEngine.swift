@@ -187,6 +187,11 @@ actor SyncEngine {
                 // Skip and continue — don't let stale queue entries block the entire sync
                 logUploadFailure(error, context: "offline-queue-drain")
                 _lastError = "Offline queue retry failed: \(error.localizedDescription)"
+                // Track the failed attempt so an entry that can never
+                // succeed (e.g. a permanent 4xx) gets abandoned after the
+                // cap instead of being retried — and re-logged — on every
+                // single future sync forever.
+                try? offlineQueue.recordFailedAttempt(id: entry.id)
             }
         }
     }
@@ -354,6 +359,13 @@ actor SyncEngine {
         // enqueued). We persist this at the end — never an anchor for a
         // page whose batches were dropped.
         var lastAckedAnchor: Data?
+        // Once a batch fails BOTH the network upload AND the offline-queue
+        // enqueue, its samples are gone for good — GRDB threw and `try?`
+        // would otherwise silently swallow that. From that point on we must
+        // stop advancing `lastAckedAnchor`, even for later batches/pages
+        // that DO succeed, because advancing past a lost batch means it can
+        // never be retried (see doc comment above `syncType`).
+        var enqueueFailed = false
         for await pagedBatch in stream {
             let records = pagedBatch.samples.map { sample in
                 CreateHealthRecord(
@@ -390,10 +402,19 @@ actor SyncEngine {
                 //     too — those samples have already been read out of
                 //     HealthKit and would be skipped on the next run
                 //     because the anchor will have moved past them.
-                // Only after both can we safely persist the anchor.
-                try? offlineQueue.enqueue(insert)
-                if let pageAnchor = pagedBatch.pageAnchor {
-                    lastAckedAnchor = pageAnchor
+                // Only after both can we safely persist the anchor. If the
+                // enqueue itself throws (e.g. GRDB write failure), the batch
+                // is lost — do NOT advance the anchor past it, or the next
+                // sync would skip re-fetching data that was never actually
+                // saved anywhere.
+                do {
+                    try offlineQueue.enqueue(insert)
+                    if let pageAnchor = pagedBatch.pageAnchor {
+                        lastAckedAnchor = pageAnchor
+                    }
+                } catch {
+                    enqueueFailed = true
+                    engineLogger.error("offline queue enqueue failed: type=\(recordType, privacy: .public) error=\(String(describing: error), privacy: .public)")
                 }
                 logUploadFailure(error, context: "type=\(recordType)")
                 uploadError = error
@@ -416,9 +437,14 @@ actor SyncEngine {
                         )
                     }
                     let leftoverInsert = HealthKitBulkInsert(records: leftoverRecords)
-                    try? offlineQueue.enqueue(leftoverInsert)
-                    if let pageAnchor = leftover.pageAnchor {
-                        lastAckedAnchor = pageAnchor
+                    do {
+                        try offlineQueue.enqueue(leftoverInsert)
+                        if !enqueueFailed, let pageAnchor = leftover.pageAnchor {
+                            lastAckedAnchor = pageAnchor
+                        }
+                    } catch {
+                        enqueueFailed = true
+                        engineLogger.error("offline queue enqueue failed: type=\(recordType, privacy: .public) error=\(String(describing: error), privacy: .public)")
                     }
                 }
                 break
