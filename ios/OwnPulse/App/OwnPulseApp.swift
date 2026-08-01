@@ -15,6 +15,27 @@ struct OwnPulseApp: App {
     @AppStorage(ColorSchemePreference.storageKey) private var colorSchemeRaw =
         ColorSchemePreference.system.rawValue
 
+    init() {
+        // Apple requires `BGTaskScheduler.register(forTaskWithIdentifier:)` to
+        // run before `application(_:didFinishLaunchingWithOptions:)` /
+        // scene-connection completes, so it can never live inside `.onAppear`:
+        // 1. A system-initiated background launch (the whole point of
+        //    BGTaskScheduler) never runs SwiftUI's view body, so `.onAppear`
+        //    never fires and the handler is silently missing when iOS wakes
+        //    us — the task fails or the system stops scheduling it.
+        // 2. `.onAppear` can fire more than once for the same view (e.g. on
+        //    scene reattachment), and registering the same identifier twice
+        //    raises `NSInternalInconsistencyException` and crashes.
+        //
+        // `App.init()` is `@MainActor`-isolated by the `App` protocol itself
+        // and is guaranteed to run exactly once, synchronously, before the
+        // app finishes launching — so it satisfies Apple's requirement and
+        // is race-free by construction. `dependencies`'s default value is
+        // applied before this initializer body runs (standard Swift
+        // stored-property initialization order), so reading it here is safe.
+        registerBackgroundTasks()
+    }
+
     var body: some Scene {
         WindowGroup {
             rootView
@@ -30,7 +51,9 @@ struct OwnPulseApp: App {
                     }
                 }
                 .onAppear {
-                    registerBackgroundTasks()
+                    // NOTE: BGTask registration happens in `init()`, not here
+                    // — see the comment there. `.onAppear` can fire more than
+                    // once, so anything here must tolerate repeat calls.
                     configureNotificationDelegate()
                     // Bootstrap the BGAppRefresh chain and live observer — this
                     // is where we break the chicken-and-egg in the old code.
@@ -85,7 +108,7 @@ struct OwnPulseApp: App {
         // avoids capturing the non-`Sendable`-region `dependencies` graph.
         let syncEngine = dependencies.syncEngine
         BGTaskScheduler.shared.register(
-            forTaskWithIdentifier: "health.ownpulse.sync",
+            forTaskWithIdentifier: SyncScheduler.taskIdentifier,
             using: nil
         ) { @Sendable [syncEngine] task in
             // `BGTask` is not `Sendable` and cannot be made so (non-final
