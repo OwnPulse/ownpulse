@@ -27,7 +27,7 @@ struct NotificationManagerDoseReminderTests {
         return calendar.date(from: components)!
     }
 
-    private func makeRun(runId: String = "run-1", notify: Bool = true) -> DoseReminderRun {
+    private func makeRun(runId: String = "run-1", notify: Bool = true, durationDays: Int = .max) -> DoseReminderRun {
         DoseReminderRun(
             runId: runId,
             protocolId: "proto-1",
@@ -35,7 +35,8 @@ struct NotificationManagerDoseReminderTests {
             startDate: date("2026-06-01"),
             notify: notify,
             notifyTimes: ["09:00"],
-            lines: []
+            lines: [],
+            durationDays: durationDays
         )
     }
 
@@ -123,7 +124,8 @@ struct NotificationManagerDoseReminderTests {
                 startDate: date("2026-06-01"),
                 notify: true,
                 notifyTimes: ["08:00", "20:00"],
-                lines: []
+                lines: [],
+                durationDays: .max
             )
         }
 
@@ -132,32 +134,74 @@ struct NotificationManagerDoseReminderTests {
         #expect(center.addedRequests.count == 64)
     }
 
-    // MARK: - clearDoseReminders
-
-    @Test("clearDoseReminders removes only requests for the given run")
-    func clearDoseRemindersRemovesMatchingRun() async {
+    @Test("scheduleDoseReminders reserves the pending-notification budget for non-dose notifications already scheduled")
+    func scheduleReservesBudgetForNonDoseNotifications() async {
         let center = MockUserNotificationCenter()
-        center.pendingRequests = [
-            UNNotificationRequest(identifier: "dose-run-1-09:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil),
-            UNNotificationRequest(identifier: "dose-run-2-09:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil),
-        ]
+        // 60 unrelated pending notifications already occupy most of the
+        // app-wide 64-notification budget.
+        center.pendingRequests = (0..<60).map {
+            UNNotificationRequest(identifier: "other-\($0)", content: UNMutableNotificationContent(), trigger: nil)
+        }
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
 
-        await manager.clearDoseReminders(runId: "run-1")
+        // 7 candidate dose reminders, but only 4 slots remain (64 - 60).
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
-        let removedIds = center.removedIdentifierBatches.flatMap { $0 }
-        #expect(removedIds.contains("dose-run-1-09:00-2026-06-01"))
-        #expect(!removedIds.contains("dose-run-2-09:00-2026-06-01"))
+        #expect(center.addedRequests.count == 4)
+        // The 60 pre-existing, unrelated requests must be untouched.
+        let removedIds = Set(center.removedIdentifierBatches.flatMap { $0 })
+        #expect(removedIds.isDisjoint(with: (0..<60).map { "other-\($0)" }))
     }
 
-    @Test("clearDoseReminders is a no-op when there is nothing pending for the run")
-    func clearDoseRemindersNoOpWhenEmpty() async {
+    // MARK: - Authorization gating
+
+    @Test("scheduleDoseReminders adds nothing and does not prompt when already denied")
+    func scheduleSkipsWhenDenied() async {
         let center = MockUserNotificationCenter()
+        center.stubbedAuthorizationStatus = .denied
+
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
-        await manager.clearDoseReminders(runId: "run-1")
+        #expect(center.addedRequests.isEmpty)
+        #expect(center.removedIdentifierBatches.isEmpty) // skips pruning too — nothing to schedule anyway
+    }
 
-        #expect(center.removedIdentifierBatches.isEmpty)
+    @Test("scheduleDoseReminders requests authorization when notDetermined and there is something to schedule")
+    func schedulePromptsWhenNotDetermined() async {
+        let center = MockUserNotificationCenter()
+        center.stubbedAuthorizationStatus = .notDetermined
+        center.authorizationGranted = true
+
+        let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
+
+        #expect(center.addedRequests.count == 7)
+    }
+
+    @Test("scheduleDoseReminders does not prompt when notDetermined but there is nothing to schedule")
+    func scheduleDoesNotPromptWithNothingToSchedule() async {
+        let center = MockUserNotificationCenter()
+        center.stubbedAuthorizationStatus = .notDetermined
+
+        let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
+        // notify: false -> zero specs, so no prompt should fire.
+        await manager.scheduleDoseReminders(runs: [makeRun(notify: false)], now: date("2026-06-01"))
+
+        #expect(center.stubbedAuthorizationStatus == .notDetermined) // unchanged — requestAuthorization() never called
+        #expect(center.addedRequests.isEmpty)
+    }
+
+    @Test("scheduleDoseReminders adds nothing when the user denies the prompt")
+    func scheduleSkipsWhenPromptIsDenied() async {
+        let center = MockUserNotificationCenter()
+        center.stubbedAuthorizationStatus = .notDetermined
+        center.authorizationGranted = false
+
+        let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
+
+        #expect(center.addedRequests.isEmpty)
     }
 
     // MARK: - clearAllDoseReminders
@@ -178,5 +222,15 @@ struct NotificationManagerDoseReminderTests {
         #expect(removedIds.contains("dose-run-1-09:00-2026-06-01"))
         #expect(removedIds.contains("dose-run-2-20:00-2026-06-02"))
         #expect(!removedIds.contains("unrelated"))
+    }
+
+    @Test("clearAllDoseReminders is a no-op when nothing is pending")
+    func clearAllNoOpWhenEmpty() async {
+        let center = MockUserNotificationCenter()
+        let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
+
+        await manager.clearAllDoseReminders()
+
+        #expect(center.removedIdentifierBatches.isEmpty)
     }
 }

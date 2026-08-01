@@ -106,12 +106,11 @@ final class ProtocolsViewModel {
             activeRuns = runs
             listState = .loaded
 
-            // Rebuild local dose reminders whenever the active-run list is
-            // refreshed — this is the one hook point every mutation flow
-            // (start/pause/complete/delete/notify-settings change) already
-            // passes through via loadProtocols(), so a paused/completed/
-            // deleted run's reminders are cancelled the moment it drops out
-            // of `activeRuns`.
+            // iOS has no notify-settings UI or run pause/complete controls
+            // (those are web-only); the only run mutation iOS itself performs
+            // is startRun/deleteProtocol, and both already call loadProtocols()
+            // afterward. Rebuilding here also picks up settings changed on the
+            // web the next time this list is refreshed.
             await doseReminderRebuilder?.rebuildReminders()
         } catch {
             logger.error("Failed to load protocols: \(error.localizedDescription, privacy: .public)")

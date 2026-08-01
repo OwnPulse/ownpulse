@@ -12,6 +12,12 @@ final class MockUserNotificationCenter: UserNotificationCenterProtocol, @uncheck
     var authorizationGranted = true
     var addError: Error?
 
+    /// Configurable stub for `authorizationStatus()` — defaults to
+    /// `.authorized` so existing scheduling tests don't need to opt in.
+    /// Tests exercising the authorization-gating behavior (denied/
+    /// notDetermined) set this directly.
+    var stubbedAuthorizationStatus: UNAuthorizationStatus = .authorized
+
     private(set) var addedRequests: [UNNotificationRequest] = []
     private(set) var removedIdentifierBatches: [[String]] = []
 
@@ -19,16 +25,14 @@ final class MockUserNotificationCenter: UserNotificationCenterProtocol, @uncheck
     var pendingRequests: [UNNotificationRequest] = []
 
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool {
-        authorizationGranted
+        // Mirrors what a real prompt would do to the subsequent
+        // authorizationStatus() read.
+        stubbedAuthorizationStatus = authorizationGranted ? .authorized : .denied
+        return authorizationGranted
     }
 
-    func notificationSettings() async -> UNNotificationSettings {
-        // `UNNotificationSettings` has no public initializer, so it can't be
-        // faked here. None of the dose-reminder tests in this suite need
-        // it — `NotificationManager.authorizationStatus()` is covered
-        // separately in `NotificationManagerTests` against the real
-        // `UNUserNotificationCenter`.
-        preconditionFailure("MockUserNotificationCenter.notificationSettings() is unsupported — UNNotificationSettings has no test initializer")
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        stubbedAuthorizationStatus
     }
 
     func add(_ request: UNNotificationRequest) async throws {

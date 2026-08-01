@@ -36,6 +36,13 @@ struct DoseReminderRun: Sendable, Equatable {
     /// loaded (e.g. the protocol detail fetch failed) — in that case the
     /// scheduler falls back to a daily reminder with generic copy.
     let lines: [DoseReminderLine]
+    /// Total length of the run, in days. A day at or past this index is
+    /// never scheduled, regardless of any line's `schedulePattern` — this
+    /// is the hard stop that keeps a finished protocol from reminding
+    /// forever. `Int.max` when genuinely unknown (both the run and its
+    /// protocol detail omitted it) — reminding indefinitely in that rare
+    /// case is preferable to guessing a cutoff and going silent early.
+    let durationDays: Int
 }
 
 /// A fully-resolved local notification to schedule. Pure data — no
@@ -87,18 +94,25 @@ enum DoseReminderScheduler {
                 guard let day = calendar.date(byAdding: .day, value: offset, to: today) else { continue }
                 let dayNumber = calendar.dateComponents([.day], from: runStartDay, to: day).day ?? -1
                 guard dayNumber >= 0 else { continue } // run hasn't started yet on this date
+                guard dayNumber < run.durationDays else { continue } // run has already finished — stop nagging
 
                 let scheduledLines: [DoseReminderLine]
                 let isFallback = run.lines.isEmpty
                 if isFallback {
                     // No per-line schedule data available — schedule daily
-                    // and use generic copy rather than silently going quiet.
+                    // (within durationDays, checked above) and use generic
+                    // copy rather than silently going quiet.
                     scheduledLines = []
                 } else {
+                    // A day index past the end of a line's schedule_pattern
+                    // is NOT scheduled — schedule_pattern is expected to
+                    // cover the full run, so an out-of-range index means
+                    // this line simply isn't dosed that far out, not that
+                    // it's due every day forever.
                     let matched = run.lines.filter { line in
-                        dayNumber < line.schedulePattern.count ? line.schedulePattern[dayNumber] : true
+                        dayNumber < line.schedulePattern.count && line.schedulePattern[dayNumber]
                     }
-                    guard !matched.isEmpty else { continue } // every known line is off today
+                    guard !matched.isEmpty else { continue } // every known line is off (or unscheduled) today
                     scheduledLines = matched
                 }
 
@@ -126,7 +140,13 @@ enum DoseReminderScheduler {
             }
         }
 
-        specs.sort { $0.fireDate < $1.fireDate }
+        // Swift's `sort` is not guaranteed stable, and ties on `fireDate`
+        // are the norm (multiple runs sharing a notify time). Without a
+        // deterministic tiebreaker, which runs keep their reminders past
+        // the cap could change from one rebuild to the next even though
+        // nothing changed. Sorting on `identifier` too makes the ordering
+        // (and therefore the truncation) deterministic.
+        specs.sort { ($0.fireDate, $0.identifier) < ($1.fireDate, $1.identifier) }
         let truncatedCount = max(0, specs.count - maxPending)
         if truncatedCount > 0 {
             specs = Array(specs.prefix(maxPending))
@@ -166,6 +186,7 @@ enum DoseReminderScheduler {
     private static func dateString(_ date: Date, calendar: Calendar) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
         formatter.dateFormat = "yyyy-MM-dd"
         formatter.locale = Locale(identifier: "en_US_POSIX")
         return formatter.string(from: date)

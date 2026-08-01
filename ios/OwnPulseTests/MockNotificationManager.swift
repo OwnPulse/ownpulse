@@ -14,8 +14,6 @@ final class MockNotificationManager: NotificationManagerProtocol, @unchecked Sen
 
     /// Every call to `scheduleDoseReminders`, in order, for assertion in tests.
     private(set) var scheduleDoseRemindersCalls: [[DoseReminderRun]] = []
-    /// Every runId passed to `clearDoseReminders`, in order.
-    private(set) var clearDoseRemindersCalls: [String] = []
     private(set) var clearAllDoseRemindersCallCount = 0
 
     func requestPermission() async -> Bool {
@@ -33,10 +31,6 @@ final class MockNotificationManager: NotificationManagerProtocol, @unchecked Sen
 
     func scheduleDoseReminders(runs: [DoseReminderRun], now: Date) async {
         scheduleDoseRemindersCalls.append(runs)
-    }
-
-    func clearDoseReminders(runId: String) async {
-        clearDoseRemindersCalls.append(runId)
     }
 
     func clearAllDoseReminders() async {

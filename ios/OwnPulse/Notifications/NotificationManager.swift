@@ -15,18 +15,29 @@ private let doseReminderIdentifierPrefix = "dose-"
 
 /// Thin abstraction over `UNUserNotificationCenter` so scheduling logic can
 /// be unit tested without touching the real, process-wide notification
-/// center. `UNUserNotificationCenter` already implements every method below
-/// with matching signatures, so it conforms with no extra code (see the
-/// extension at the bottom of this file).
-protocol UserNotificationCenterProtocol {
+/// center. `authorizationStatus()` isn't one of `UNUserNotificationCenter`'s
+/// native methods — it only exposes authorization via `notificationSettings()`,
+/// and `UNNotificationSettings` has no public initializer a mock could
+/// return. The extension below bridges the two, so the mock can just hand
+/// back the enum directly.
+protocol UserNotificationCenterProtocol: Sendable {
     func requestAuthorization(options: UNAuthorizationOptions) async throws -> Bool
-    func notificationSettings() async -> UNNotificationSettings
+    func authorizationStatus() async -> UNAuthorizationStatus
     func add(_ request: UNNotificationRequest) async throws
     func pendingNotificationRequests() async -> [UNNotificationRequest]
     func removePendingNotificationRequests(withIdentifiers identifiers: [String])
 }
 
-extension UNUserNotificationCenter: UserNotificationCenterProtocol {}
+// `UNUserNotificationCenter.current()` is documented as safe to call from
+// any thread, which is what this conformance actually asserts — the
+// `@preconcurrency import` above doesn't grant this on its own.
+extension UNUserNotificationCenter: @unchecked Sendable {}
+
+extension UNUserNotificationCenter: UserNotificationCenterProtocol {
+    func authorizationStatus() async -> UNAuthorizationStatus {
+        await notificationSettings().authorizationStatus
+    }
+}
 
 /// Protocol for notification management, enabling test doubles.
 protocol NotificationManagerProtocol: Sendable {
@@ -43,9 +54,12 @@ protocol NotificationManagerProtocol: Sendable {
     /// run that was paused/completed/deleted simply won't appear), and adds
     /// the rest. Safe to call repeatedly — deterministic identifiers mean a
     /// re-schedule replaces rather than duplicates.
+    ///
+    /// Gated on notification authorization: prompts once if the status is
+    /// still `.notDetermined` and there's something to schedule, and skips
+    /// scheduling quietly (single log line) when denied, rather than making
+    /// (and logging) up to 64 doomed `add()` calls.
     func scheduleDoseReminders(runs: [DoseReminderRun], now: Date) async
-    /// Cancels every pending reminder for a single run (e.g. on pause/complete/delete).
-    func clearDoseReminders(runId: String) async
     /// Cancels every pending dose reminder this app has scheduled.
     func clearAllDoseReminders() async
 }
@@ -116,22 +130,39 @@ final class NotificationManager: NotificationManagerProtocol, @unchecked Sendabl
     }
 
     func authorizationStatus() async -> UNAuthorizationStatus {
-        let settings = await center.notificationSettings()
-        return settings.authorizationStatus
+        await center.authorizationStatus()
     }
 
     // MARK: - Dose Reminders
 
     func scheduleDoseReminders(runs: [DoseReminderRun], now: Date = Date()) async {
-        let (specs, truncatedCount) = DoseReminderScheduler.computeSpecs(runs: runs, now: now)
+        // The 64-pending cap is an app-wide budget, not a dose-reminder-only
+        // one — reserve room for whatever non-dose notifications are already
+        // pending rather than assuming the whole budget is ours to spend.
+        let pending = await center.pendingNotificationRequests()
+        let existingDoseIds = Set(pending.map(\.identifier).filter { $0.hasPrefix(doseReminderIdentifierPrefix) })
+        let nonDoseCount = pending.count - existingDoseIds.count
+        let budget = max(0, DoseReminderScheduler.maxPendingNotifications - nonDoseCount)
+
+        let (specs, truncatedCount) = DoseReminderScheduler.computeSpecs(runs: runs, now: now, maxPending: budget)
         if truncatedCount > 0 {
             logger.warning(
                 "Dropped \(truncatedCount, privacy: .public) dose reminder(s) past the 64-pending-notification system cap"
             )
         }
 
-        let pending = await center.pendingNotificationRequests()
-        let existingDoseIds = Set(pending.map(\.identifier).filter { $0.hasPrefix(doseReminderIdentifierPrefix) })
+        var status = await center.authorizationStatus()
+        if status == .notDetermined, !specs.isEmpty {
+            _ = await requestPermission()
+            status = await center.authorizationStatus()
+        }
+        guard status == .authorized || status == .provisional else {
+            if status == .denied {
+                logger.notice("Notification permission denied — skipping dose reminder scheduling")
+            }
+            return
+        }
+
         let newIds = Set(specs.map(\.identifier))
         let staleIds = existingDoseIds.subtracting(newIds)
         if !staleIds.isEmpty {
@@ -160,13 +191,6 @@ final class NotificationManager: NotificationManagerProtocol, @unchecked Sendabl
                 )
             }
         }
-    }
-
-    func clearDoseReminders(runId: String) async {
-        let pending = await center.pendingNotificationRequests()
-        let ids = pending.map(\.identifier).filter { $0.hasPrefix("\(doseReminderIdentifierPrefix)\(runId)-") }
-        guard !ids.isEmpty else { return }
-        center.removePendingNotificationRequests(withIdentifiers: ids)
     }
 
     func clearAllDoseReminders() async {

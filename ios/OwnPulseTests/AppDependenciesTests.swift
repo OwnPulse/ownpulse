@@ -5,6 +5,7 @@ import BackgroundTasks
 import Foundation
 import SwiftUI
 import Testing
+import UserNotifications
 @testable import OwnPulse
 
 @Suite("AppDependencies — auto-sync lifecycle wiring")
@@ -242,22 +243,58 @@ struct AppDependenciesTests {
         }
     }
 
-    @Test("logout tears down auto-sync and clears dose reminders without hanging or crashing")
+    @Test("logout removes every pending dose reminder via the notification center")
     func logoutClearsAllDoseReminders() async throws {
-        let (deps, provider, _) = make()
-        let url = URL(string: "ownpulse://auth#token=jwt&refresh_token=refresh")!
-        try await deps.authService.processCallback(url: url)
+        // Seed the keychain with an already-valid, non-expired token so
+        // `AuthService.init` sets `isAuthenticated = true` directly —
+        // deliberately NOT going through `processCallback`/`bootstrapAutoSync`,
+        // so the only dose-reminder-related call this test can observe is
+        // logout's own `clearAll()`, not an incidental login-triggered
+        // rebuild racing to remove the same pre-seeded ids first.
+        let keychain = MockKeychainService()
+        try keychain.save(key: AuthService.accessTokenKey, data: Data(Self.makeValidJWT().utf8))
 
-        try await eventually(timeout: 2.0) { provider.backgroundDeliveryCallCount >= 1 }
+        let network = MockNetworkClient()
+        network.requestHandler = { _, _, _ in [] as [AuthMethod] }
+        network.requestNoContentHandler = { _, _, _ in }
 
-        // `teardownAutoSync()` now also calls `doseReminderCoordinator.clearAll()`
-        // — this exercises that path against the real `NotificationManager`
-        // (backed by the real `UNUserNotificationCenter.current()`, since no
-        // pending requests exist in the unit-test host) and confirms logout
-        // still completes.
+        let center = MockUserNotificationCenter()
+        // As if a previous rebuild had already scheduled reminders — logout
+        // must remove these, not just no-op against an empty center.
+        center.pendingRequests = [
+            UNNotificationRequest(identifier: "dose-run-1-08:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil),
+            UNNotificationRequest(identifier: "dose-run-1-20:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil),
+        ]
+
+        let deps = AppDependencies(
+            keychainService: keychain,
+            networkClient: network,
+            healthKitProvider: MockHealthKitProvider(),
+            syncScheduler: SyncScheduler(submitter: RecordingSubmitter()),
+            notificationCenter: center
+        )
+        #expect(deps.authService.isAuthenticated == true)
+
         await deps.authService.logout()
 
         #expect(deps.authService.isAuthenticated == false)
+        let removedIds = Set(center.removedIdentifierBatches.flatMap { $0 })
+        #expect(removedIds.contains("dose-run-1-08:00-2026-06-01"))
+        #expect(removedIds.contains("dose-run-1-20:00-2026-06-01"))
+        #expect(center.pendingRequests.isEmpty)
+    }
+
+    /// Builds a syntactically-valid, non-expired JWT so `AuthService.init`'s
+    /// `JWTDecoder.isExpired` check passes. The signature segment is never
+    /// validated client-side — only `sub`/`exp` in the payload matter here.
+    private static func makeValidJWT(expiresIn: TimeInterval = 3600) -> String {
+        let header = Data("{\"alg\":\"none\"}".utf8).base64EncodedString()
+        let payload: [String: Any] = [
+            "sub": "user-1",
+            "exp": Date().addingTimeInterval(expiresIn).timeIntervalSince1970,
+        ]
+        let payloadData = try! JSONSerialization.data(withJSONObject: payload)
+        return "\(header).\(payloadData.base64EncodedString()).signature"
     }
 
     // MARK: - Plan fix #6: bootstrap calls authorization BEFORE enabling delivery

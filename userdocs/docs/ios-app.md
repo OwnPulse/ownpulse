@@ -59,14 +59,15 @@ Dose reminders are **local notifications** -- scheduled directly on your iPhone 
 2. Check the **Notifications** section. It shows whether dose reminders are enabled or disabled.
 3. If not enabled, tap **Enable Notifications** to grant permission.
 
-Notification times are configured per protocol run when you start it, or when editing a run's settings (see [Protocols -- Dose reminders](protocols.md#dose-reminders)). Whether you set them from the web app or from iOS, the iOS app reads the run's notify settings and schedules matching local notifications the next time it runs -- it does not receive a push from the backend.
+Notification times are configured **on the web app** when you start a run, or from a run's settings there (see [Protocols -- Dose reminders](protocols.md#dose-reminders)) -- the iOS app has no notify-settings screen of its own. The iOS app reads whatever notify settings the run already has and schedules matching local notifications the next time it runs; it does not receive a push from the backend.
 
 How reminders stay up to date:
 
-- The iOS app schedules reminders up to **7 days ahead** for every active run with notifications enabled, and re-schedules that rolling window every time the app is opened or brought to the foreground.
-- Starting, pausing, completing, or deleting a run -- or changing its notify settings -- updates its reminders the next time the Protocols tab refreshes.
+- The iOS app schedules reminders up to **7 days ahead** for every active run with notifications enabled, and re-schedules that rolling window every time the app is opened or brought to the foreground, or the Protocols tab refreshes.
 - Because reminders are scheduled entirely on-device, they only exist on devices where you've opened OwnPulse recently enough for the app to (re)schedule them. If you don't open the app for more than 7 days, reminders for that period will not fire.
 - "Repeat until logged" is not implemented -- a reminder fires once at its configured time regardless of whether the dose is later logged or skipped.
+- iOS allows at most **64 pending local notifications per app**. If your active runs and notify times add up to more than that, the furthest-out reminders are dropped in favor of the soonest ones -- in practice this only matters with many simultaneous multi-times-daily runs.
+- A reminder's lock screen banner shows the substance name and dose for each scheduled item, since that's what makes the reminder useful -- avoid enabling notifications for a run whose substance names you'd rather not have visible on a locked device.
 
 !!! warning
     If you previously denied notification permission, you will need to enable it manually in iOS Settings under **Notifications > OwnPulse**.
