@@ -19,7 +19,15 @@ final class DatabaseManager: Sendable {
             }
             try Migrations.run(dbQueue)
         } catch {
-            fatalError("Database setup failed: \(error)")
+            // A personal-health-data app that can't open its own database
+            // should fail loudly rather than run in some degraded/undefined
+            // state — keep the fatalError. But log only the error's TYPE:
+            // GRDB's `DatabaseError.description` can embed the failing SQL
+            // statement (and, if `publicStatementArguments` were ever
+            // enabled, bound values) and SQLite's own message can include
+            // the on-disk file path — none of that belongs in a crash
+            // report.
+            fatalError("Database setup failed: \(type(of: error))")
         }
     }
 }

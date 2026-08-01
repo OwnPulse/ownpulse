@@ -47,7 +47,8 @@ struct AppDependenciesTests {
             keychainService: keychain,
             networkClient: network,
             healthKitProvider: provider,
-            syncScheduler: scheduler
+            syncScheduler: scheduler,
+            databaseManager: DatabaseManager(inMemory: true)
         )
         return (deps, provider, submitter)
     }
@@ -222,7 +223,8 @@ struct AppDependenciesTests {
             keychainService: keychain,
             networkClient: network,
             healthKitProvider: MockHealthKitProvider(),
-            syncScheduler: SyncScheduler(submitter: RecordingSubmitter())
+            syncScheduler: SyncScheduler(submitter: RecordingSubmitter()),
+            databaseManager: DatabaseManager(inMemory: true)
         )
         let url = URL(string: "ownpulse://auth#token=jwt&refresh_token=refresh")!
         try await deps.authService.processCallback(url: url)
@@ -271,7 +273,8 @@ struct AppDependenciesTests {
             networkClient: network,
             healthKitProvider: MockHealthKitProvider(),
             syncScheduler: SyncScheduler(submitter: RecordingSubmitter()),
-            notificationCenter: center
+            notificationCenter: center,
+            databaseManager: DatabaseManager(inMemory: true)
         )
         #expect(deps.authService.isAuthenticated == true)
 

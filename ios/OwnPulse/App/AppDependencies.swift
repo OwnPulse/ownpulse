@@ -88,7 +88,15 @@ final class AppDependencies {
         networkClient: NetworkClientProtocol? = nil,
         healthKitProvider: HealthKitProviderProtocol? = nil,
         syncScheduler: SyncScheduler? = nil,
-        notificationCenter: (any UserNotificationCenterProtocol)? = nil
+        notificationCenter: (any UserNotificationCenterProtocol)? = nil,
+        // Defaults to the real on-disk database — production behavior is
+        // unchanged. Tests MUST pass `DatabaseManager(inMemory: true)`:
+        // `DatabaseManager.init` `fatalError`s on any failure to open, and
+        // Swift Testing parallelizes test execution, so multiple test
+        // processes constructing `AppDependencies()` with the default would
+        // all contend for the SAME on-disk `ownpulse.sqlite` and can
+        // deadlock/crash on "database is locked".
+        databaseManager: DatabaseManager = DatabaseManager()
     ) {
         let keychain = keychainService ?? KeychainService()
         self.keychainService = keychain
@@ -116,7 +124,7 @@ final class AppDependencies {
         self.medicationSyncProvider = nil
         #endif
 
-        self.databaseManager = DatabaseManager()
+        self.databaseManager = databaseManager
 
         self.offlineQueue = OfflineQueue(databaseManager: databaseManager)
         self.anchorStore = AnchorStore(databaseManager: databaseManager)
