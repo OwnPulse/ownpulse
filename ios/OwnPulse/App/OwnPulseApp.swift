@@ -7,7 +7,7 @@ import UserNotifications
 
 @main
 struct OwnPulseApp: App {
-    @State private var dependencies = AppDependencies()
+    private let dependencies = AppDependencies()
     @Environment(\.scenePhase) private var scenePhase
     @UIApplicationDelegateAdaptor private var notificationDelegate: NotificationDelegate
     // Explicit light/dark/system appearance preference (mirrors the web
@@ -28,11 +28,12 @@ struct OwnPulseApp: App {
         //    raises `NSInternalInconsistencyException` and crashes.
         //
         // `App.init()` is `@MainActor`-isolated by the `App` protocol itself
-        // and is guaranteed to run exactly once, synchronously, before the
-        // app finishes launching — so it satisfies Apple's requirement and
-        // is race-free by construction. `dependencies`'s default value is
-        // applied before this initializer body runs (standard Swift
-        // stored-property initialization order), so reading it here is safe.
+        // and is guaranteed to run exactly once per process, synchronously,
+        // before the app finishes launching — so it satisfies Apple's
+        // requirement and is race-free by construction. `dependencies` is a
+        // plain stored `let`, initialized before this initializer body runs
+        // (standard Swift stored-property initialization order), so reading
+        // it here is safe.
         registerBackgroundTasks()
     }
 

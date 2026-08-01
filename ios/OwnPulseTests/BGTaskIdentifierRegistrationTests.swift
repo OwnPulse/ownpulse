@@ -5,14 +5,19 @@ import Foundation
 import Testing
 @testable import OwnPulse
 
-/// Guards against a repeat of the bug where `OwnPulseApp` registered a
-/// hardcoded `"health.ownpulse.sync"` string with `BGTaskScheduler` instead
-/// of `SyncScheduler.taskIdentifier`. If the two ever drift apart,
-/// `BGTaskScheduler.register(forTaskWithIdentifier:)` — which requires the
-/// identifier to be present in `Info.plist`'s
-/// `BGTaskSchedulerPermittedIdentifiers` — starts silently failing (or the
-/// task the app *schedules* via `SyncScheduler` no longer matches anything
-/// it registered a handler for).
+/// Asserts `SyncScheduler.taskIdentifier` is one of `Info.plist`'s
+/// `BGTaskSchedulerPermittedIdentifiers`.
+///
+/// Note what this does *not* guard: it can't see what literal
+/// `OwnPulseApp.registerBackgroundTasks()` actually passes to
+/// `BGTaskScheduler.register(forTaskWithIdentifier:)` — there's no seam to
+/// intercept that call from a unit test. If `OwnPulseApp` and
+/// `SyncScheduler` ever register/schedule two different identifier
+/// literals again, this test would still pass as long as both happen to be
+/// listed in `Info.plist`. It only catches `SyncScheduler.taskIdentifier`
+/// drifting away from what `Info.plist` permits, which is enough to catch
+/// the specific class of bug (a permitted-identifiers entry going stale)
+/// that `BGTaskScheduler.register` fails on unconditionally.
 @Suite("BGTask identifier stays in sync with Info.plist")
 struct BGTaskIdentifierRegistrationTests {
     @Test("SyncScheduler.taskIdentifier is listed in Info.plist's BGTaskSchedulerPermittedIdentifiers")
