@@ -24,7 +24,6 @@ const pendingDoses = [
     time_of_day: "08:00",
     day_number: 3,
     status: "pending",
-    dose_id: null,
   },
   {
     protocol_id: "p1",
@@ -38,7 +37,6 @@ const pendingDoses = [
     time_of_day: "08:00",
     day_number: 3,
     status: "pending",
-    dose_id: null,
   },
 ];
 
@@ -46,12 +44,10 @@ const allCompletedDoses = [
   {
     ...pendingDoses[0],
     status: "completed",
-    dose_id: "dose-1",
   },
   {
     ...pendingDoses[1],
     status: "completed",
-    dose_id: "dose-2",
   },
 ];
 
@@ -60,7 +56,6 @@ const mixedDoses = [
   {
     ...pendingDoses[1],
     status: "completed",
-    dose_id: "dose-2",
   },
 ];
 
