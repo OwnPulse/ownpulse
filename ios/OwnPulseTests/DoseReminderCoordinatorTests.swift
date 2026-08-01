@@ -215,9 +215,11 @@ struct DoseReminderCoordinatorTests {
                 // Simulate a logout completing while this request is still
                 // in flight — by the time it resolves, the user is signed out.
                 authenticated = false
-                return [Self.makeRun()] as [ActiveRunResponse]
+                let run = await Self.makeRun()
+                return [run] as [ActiveRunResponse]
             }
-            return Self.makeDetail(lines: [Self.makeLine()])
+            let line = await Self.makeLine()
+            return await Self.makeDetail(lines: [line])
         }
         let notifications = MockNotificationManager()
         let coordinator = Self.makeCoordinator(
@@ -237,11 +239,13 @@ struct DoseReminderCoordinatorTests {
         nonisolated(unsafe) var authenticated = true
         network.asyncRequestHandler = { _, path, _ in
             if path == Endpoints.activeRuns {
-                return [Self.makeRun()] as [ActiveRunResponse]
+                let run = await Self.makeRun()
+                return [run] as [ActiveRunResponse]
             }
             // Logout lands while resolving the per-run protocol detail fetch.
             authenticated = false
-            return Self.makeDetail(lines: [Self.makeLine()])
+            let line = await Self.makeLine()
+            return await Self.makeDetail(lines: [line])
         }
         let notifications = MockNotificationManager()
         let coordinator = Self.makeCoordinator(
@@ -279,7 +283,7 @@ struct DoseReminderCoordinatorTests {
         let gate = ContinuationGate()
         network.asyncRequestHandler = { _, path, _ in
             guard path == Endpoints.activeRuns else {
-                return Self.makeDetail(lines: [])
+                return await Self.makeDetail(lines: [])
             }
             callIndex += 1
             let index = callIndex
@@ -288,7 +292,8 @@ struct DoseReminderCoordinatorTests {
                 // started and cancelled it.
                 await gate.wait()
             }
-            return [Self.makeRun(id: "run-\(index)")] as [ActiveRunResponse]
+            let run = await Self.makeRun(id: "run-\(index)")
+            return [run] as [ActiveRunResponse]
         }
         let notifications = MockNotificationManager()
         let coordinator = Self.makeCoordinator(network: network, notifications: notifications)
