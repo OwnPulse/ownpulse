@@ -53,8 +53,12 @@ final class DoseReminderCoordinator: DoseReminderRebuilding {
 
     func rebuildReminders() async {
         inFlightTask?.cancel()
+        // `self?.performRebuild()` (optional-chained) infers as `Task<()?, Never>`
+        // rather than `Task<Void, Never>` on some toolchains — unwrap explicitly
+        // instead so the closure's return type is unambiguous.
         let task = Task { [weak self] in
-            await self?.performRebuild()
+            guard let self else { return }
+            await self.performRebuild()
         }
         inFlightTask = task
         await task.value
