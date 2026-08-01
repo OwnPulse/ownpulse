@@ -41,7 +41,7 @@ Once linked, you can use either method to sign in going forward.
 
 ## Sessions and tokens
 
-OwnPulse uses JWT (JSON Web Token) authentication. Your session token expires periodically for security. When it does, you will be redirected to the login screen and need to sign in again. The refresh token extends your session transparently in most cases, so you should not need to re-authenticate frequently during normal use.
+OwnPulse uses JWT (JSON Web Token) authentication. Your session token expires periodically for security. When it does, your session refreshes automatically in the background using the refresh token -- you should not notice any interruption during normal use. You are only redirected to the login screen if the refresh itself fails (for example, the refresh token has expired or been revoked).
 
 !!! note "Security details"
     On the web, your JWT is held in memory and your refresh token is stored as an httpOnly cookie -- it is never accessible to JavaScript. On iOS, tokens are stored in the system Keychain. OwnPulse never stores authentication tokens in localStorage or UserDefaults.

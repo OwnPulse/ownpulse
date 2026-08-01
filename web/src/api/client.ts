@@ -15,13 +15,17 @@ export class ApiError extends Error {
   }
 }
 
-// Auth endpoints are excluded from the refresh-and-retry flow below — a 401
-// from /api/v1/auth/* (e.g. login, register, or the refresh call itself)
-// means the credentials/refresh cookie are bad, not that the access token
-// expired, so retrying via another refresh would just loop.
-function isAuthEndpoint(path: string): boolean {
-  return path.startsWith("/api/v1/auth/");
-}
+// A 401 from one of these means the credentials or refresh cookie
+// themselves are bad (not an expired access token), so attempting a refresh
+// would just loop. Other /api/v1/auth/* routes (methods, link/unlink, ...)
+// are ordinary access-token-authenticated calls and go through the normal
+// refresh-and-retry flow below.
+const NO_REFRESH_PATHS: ReadonlySet<string> = new Set([
+  "/api/v1/auth/login",
+  "/api/v1/auth/register",
+  "/api/v1/auth/refresh",
+  "/api/v1/auth/google/login",
+]);
 
 async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const token = useAuthStore.getState().token;
@@ -72,16 +76,22 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
   });
 
   if (response.status === 401) {
-    // Coalesced refresh-and-retry: on a 401 from a non-auth endpoint, attempt
-    // exactly one refresh (shared across any concurrent 401s via
-    // refreshTokenOnce) and retry the original request once with the new
-    // token. Only log out if the refresh itself fails, if this is already a
-    // retry, or if this is an auth endpoint (where refreshing can't help).
-    if (!isRetry && !isAuthEndpoint(path)) {
-      const refreshed = await refreshTokenOnce();
-      if (refreshed) {
+    // Refresh-and-retry only applies once (not on the retry itself), for a
+    // token-bearing session (an anonymous 401 can't be a session expiring),
+    // and for endpoints where a refresh could plausibly fix it.
+    if (!isRetry && token && !NO_REFRESH_PATHS.has(path)) {
+      const result = await refreshTokenOnce();
+      if (result.ok) {
         return request<T>(path, options, true);
       }
+      // Only a refresh rejection that says the session itself is invalid
+      // (401/403) should log the user out. A 429 (shared rate limit) or 5xx
+      // (refresh endpoint down) is transient — surface the original request's
+      // failure and let the next request try again.
+      if (result.status === 401 || result.status === 403) {
+        useAuthStore.getState().logout();
+      }
+      throw new ApiError(401, "Unauthorized");
     }
     useAuthStore.getState().logout();
     throw new ApiError(401, "Unauthorized");

@@ -10,38 +10,51 @@ export interface TokenResponse {
 }
 
 /**
- * Calls the refresh endpoint using the httpOnly refresh cookie and, on
- * success, stores the new access token in memory via the auth store.
- *
- * Deliberately kept in its own module (rather than `api/auth.ts`) so
- * `api/client.ts` can import it for the coalesced 401 retry flow below
- * without creating an import cycle between `client.ts` and `auth.ts`
- * (`auth.ts` imports the `api` wrapper from `client.ts` for its other
- * endpoints). This module never imports `client.ts`.
+ * `status` is 0 for a network-level failure (no HTTP response at all), so
+ * callers can distinguish "the refresh cookie is invalid" (401/403) from
+ * "the refresh endpoint is unreachable/overloaded" (network error, 429,
+ * 5xx) — only the former should force a logout.
  */
-export async function refreshToken(): Promise<boolean> {
+export type RefreshResult = { ok: true } | { ok: false; status: number };
+
+// This module never imports `client.ts`. `client.ts` needs this function for
+// the coalesced 401 retry flow, and `auth.ts` already imports the `api`
+// wrapper from `client.ts` for its other endpoints — putting refresh here
+// keeps `client.ts -> refresh.ts` and `auth.ts -> client.ts` from becoming a
+// cycle.
+export async function refreshToken(): Promise<RefreshResult> {
+  let response: Response;
   try {
-    const response = await fetch("/api/v1/auth/refresh", {
+    response = await fetch("/api/v1/auth/refresh", {
       method: "POST",
       credentials: "include",
     });
-    if (!response.ok) return false;
+  } catch {
+    return { ok: false, status: 0 };
+  }
+
+  if (!response.ok) {
+    // Status only — the body may echo request details we don't want in logs.
+    console.warn(`refresh token request failed with status ${response.status}`);
+    return { ok: false, status: response.status };
+  }
+
+  try {
     const data: TokenResponse = await response.json();
     useAuthStore.getState().login(data.access_token);
-    return true;
+    return { ok: true };
   } catch {
-    return false;
+    console.warn(`refresh token response (status ${response.status}) was not valid JSON`);
+    return { ok: false, status: response.status };
   }
 }
 
-/**
- * Single-flight wrapper: concurrent callers share one in-flight refresh
- * request instead of each firing their own, so N concurrent 401s trigger
- * exactly one call to `/api/v1/auth/refresh`.
- */
-let inFlightRefresh: Promise<boolean> | null = null;
+// Single-flight: concurrent callers share one in-flight refresh request
+// instead of each rotating the refresh cookie independently, which would
+// make every loser's cookie look like a replay to the backend.
+let inFlightRefresh: Promise<RefreshResult> | null = null;
 
-export function refreshTokenOnce(): Promise<boolean> {
+export function refreshTokenOnce(): Promise<RefreshResult> {
   if (!inFlightRefresh) {
     inFlightRefresh = refreshToken().finally(() => {
       inFlightRefresh = null;

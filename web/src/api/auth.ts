@@ -4,13 +4,9 @@
 import { flush as flushTelemetry, resetDeviceId } from "../lib/telemetry";
 import { useAuthStore } from "../store/auth";
 import { api } from "./client";
-import { refreshToken, type TokenResponse } from "./refresh";
+import type { TokenResponse } from "./refresh";
 
 export type { TokenResponse };
-// Re-exported so existing call sites (e.g. `useAuth`) can keep importing
-// `refreshToken` from `api/auth`. Lives in `./refresh` to avoid an import
-// cycle with `client.ts` — see that module for details.
-export { refreshToken };
 
 export async function login(email: string, password: string): Promise<void> {
   const data = await api.post<TokenResponse>("/api/v1/auth/login", {
