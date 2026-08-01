@@ -201,12 +201,14 @@ actor SyncEngine {
         // Surface the current abandoned count so a drop is never silent —
         // read after every drain (not just on new abandonment) so the UI
         // reflects ground truth even if a prior sync abandoned an entry
-        // this one didn't touch.
+        // this one didn't touch. This is dedicated, persistent UI state
+        // (the `SyncStatusView` warning row) — it must NOT also flow
+        // through `_lastError`, which represents THIS sync pass's outcome
+        // and would otherwise mark an otherwise-fully-successful sync as
+        // failed just because an unrelated, already-known abandonment
+        // still exists.
         if let abandoned = try? offlineQueue.abandonedCount() {
             await MainActor.run { self.progress.setAbandonedOfflineEntries(abandoned) }
-            if abandoned > 0 {
-                _lastError = "\(abandoned) offline record batch(es) could not be synced and were dropped after repeated failures"
-            }
         }
     }
 
@@ -214,6 +216,10 @@ actor SyncEngine {
     /// identically forever — the only case where retrying is pointless and
     /// counting toward abandonment is safe. Excludes:
     /// - `.unauthorized` / 401: resolved by the existing token-refresh path.
+    /// - 403: `logUploadFailure` already buckets this as "auth", and
+    ///   self-hosted reverse proxies commonly emit it for operator-fixable
+    ///   reasons (misconfigured auth in front of the API) — not something
+    ///   the client can distinguish from a real permanent rejection.
     /// - 408 / 429: transient (timeout / rate limit) by definition.
     /// - anything else (transport errors, 5xx, decode/no-data): expected to
     ///   resolve on its own and must never count, or an offline window
@@ -223,7 +229,7 @@ actor SyncEngine {
         guard let networkError = error as? NetworkError,
               case let .serverError(statusCode, _) = networkError else { return false }
         guard (400..<500).contains(statusCode) else { return false }
-        return statusCode != 401 && statusCode != 408 && statusCode != 429
+        return ![401, 403, 408, 429].contains(statusCode)
     }
 
     /// Runs `syncType` over `mappings` with bounded concurrency.
@@ -421,6 +427,15 @@ actor SyncEngine {
             lastAckedAnchor = anchor
         }
 
+        // `pendingPageIndex != batch.pageIndex` is only a valid "new page
+        // started" signal because the stream is strictly FIFO with a
+        // SINGLE producer and SINGLE consumer: the producer finishes
+        // yielding every chunk of page N (in order) before it ever fetches
+        // (and starts yielding chunks for) page N+1, and nothing else
+        // writes to the stream. If either assumption changed (e.g.
+        // multiple producers, or out-of-order delivery), batches from
+        // different pages could interleave and this simple "did the index
+        // change" check would no longer reliably mark a page boundary.
         func beginPageIfNeeded(_ batch: PagedBatch) {
             guard pendingPageIndex != batch.pageIndex else { return }
             commitPendingPage()

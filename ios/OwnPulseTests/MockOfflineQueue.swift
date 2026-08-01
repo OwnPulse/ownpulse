@@ -39,8 +39,8 @@ final class MockOfflineQueue: OfflineQueueProtocol, @unchecked Sendable {
         lock.lock(); defer { lock.unlock() }; return _recordFailedAttemptCallCount
     }
 
-    init(databaseManager: DatabaseManager) {
-        self.wrapped = OfflineQueue(databaseManager: databaseManager)
+    init(databaseManager: DatabaseManager, currentBuild: String = "test-build") {
+        self.wrapped = OfflineQueue(databaseManager: databaseManager, currentBuild: currentBuild)
     }
 
     func enqueue(_ records: HealthKitBulkInsert) throws {
@@ -78,5 +78,9 @@ final class MockOfflineQueue: OfflineQueueProtocol, @unchecked Sendable {
 
     func abandonedCount() throws -> Int {
         try wrapped.abandonedCount()
+    }
+
+    func retryAbandoned() throws {
+        try wrapped.retryAbandoned()
     }
 }

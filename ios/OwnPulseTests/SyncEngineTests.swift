@@ -600,6 +600,81 @@ struct SyncEngineTests {
         )
     }
 
+    @Test("persisted anchor stays at page N's anchor when a permanent enqueue failure happens on page N+1 WITHIN the leftover-drain loop")
+    @MainActor
+    func testAnchorStaysAtPriorPageWhenLeftoverDrainLosesALaterPage() async throws {
+        // Page 0 is a FULL page (5000 samples = 10 batches of 500) so the
+        // producer continues on to fetch page 1 instead of terminating.
+        // Only ONE upload is ever attempted — page 0's first batch — and
+        // it fails; that's what cancels the producer and switches
+        // everything still buffered (page 0's remaining 9 batches, then
+        // page 1's single short batch) to enqueue-only "leftover" drain.
+        // Enqueue succeeds for page 0's batches (so page 0 ends up fully
+        // acked) but fails for page 1's batch — a permanent loss on the
+        // page immediately AFTER the one that triggered the leftover path.
+        // The persisted anchor must land on page 0's anchor, never page
+        // 1's (which is permanently lost) and never nil (page 0 WAS fully
+        // covered).
+        let provider = MockHealthKitProvider()
+        let heartRateHKType = HealthKitTypeMap.mapping(forRecordType: "heart_rate")!.hkType
+        let anchorPage0 = Data([0xA0])
+        let anchorPage1 = Data([0xA1])
+        provider.queryPagesByType[heartRateHKType] = [
+            AnchoredQueryResult(
+                samples: (0..<5000).map { Self.makeSample(idx: $0) },
+                newAnchor: anchorPage0,
+                deletedObjectIDs: []
+            ),
+            AnchoredQueryResult(
+                samples: (5000..<5010).map { Self.makeSample(idx: $0) },
+                newAnchor: anchorPage1,
+                deletedObjectIDs: []
+            ),
+        ]
+
+        let network = MockNetworkClient()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        // The ONLY upload attempt (page 0's first batch) fails — that's
+        // what enters the leftover-drain path. Nothing is ever uploaded
+        // again after this; everything else is enqueue-only.
+        network.asyncRequestNoContentHandler = { _, path, _ in
+            guard path == Endpoints.healthKitSync else { return }
+            throw NetworkError.serverError(statusCode: 500, body: "boom")
+        }
+
+        let db = DatabaseManager(inMemory: true)
+        let offlineQueue = MockOfflineQueue(databaseManager: db)
+        // Enqueue call #1 is page 0's failed-upload batch (from the
+        // initial catch block); calls #2-10 are page 0's remaining
+        // batches (drained as leftovers) — all must succeed so page 0
+        // ends up fully acked. Call #11 is page 1's only batch — fail
+        // exactly that one.
+        offlineQueue.enqueueFailAtCall = 11
+        let anchors = AnchorStore(databaseManager: db)
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: provider,
+            offlineQueue: offlineQueue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+
+        await engine.sync()
+
+        let persisted = try anchors.anchor(forRecordType: "heart_rate")
+        #expect(
+            persisted == anchorPage0,
+            "persisted anchor must stay at page 0's anchor — page 0 was fully covered, but page 1's permanent loss must block it (and everything after it) from ever being committed, got \(persisted?.map { String(format: "%02x", $0) }.joined() ?? "nil")"
+        )
+    }
+
     // MARK: - Adversarial review F2: only deterministic rejections count
     // toward offline-queue abandonment
 
