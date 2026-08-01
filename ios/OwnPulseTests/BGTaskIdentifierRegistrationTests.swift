@@ -27,9 +27,7 @@ struct BGTaskIdentifierRegistrationTests {
 
         #expect(
             permittedIdentifiers.contains(SyncScheduler.taskIdentifier),
-            "Info.plist BGTaskSchedulerPermittedIdentifiers \(permittedIdentifiers) must contain " +
-            "SyncScheduler.taskIdentifier (\(SyncScheduler.taskIdentifier)) or background sync " +
-            "registration silently fails on device."
+            "Info.plist BGTaskSchedulerPermittedIdentifiers \(permittedIdentifiers) must contain SyncScheduler.taskIdentifier (\(SyncScheduler.taskIdentifier)) or background sync registration silently fails on device."
         )
     }
 }
