@@ -107,5 +107,4 @@ Register developer accounts early -- some have approval delays:
 
 - **Garmin Connect API** -- developer.garmin.com -- human review, 1-2 weeks
 - **Oura API** -- cloud.ouraring.com/personal-access-tokens -- instant
-- **Dexcom Developer** -- developer.dexcom.com -- approval required, a few days
 - **Google Cloud Console** -- instant

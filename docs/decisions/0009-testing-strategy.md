@@ -18,7 +18,7 @@ The test suite must:
 - Define the interface between services (iOS ↔ backend, web ↔ backend) so agents can work independently
 - Run fast enough that CI feedback is useful (under 10 minutes for any single service)
 
-Additionally, the platform integrates with external APIs (Garmin, Oura, Dexcom, Google) that cannot be called in CI. Tests that hit real external APIs are slow, flaky, and quota-consuming.
+Additionally, the platform integrates with external APIs (Garmin, Oura, Google) that cannot be called in CI. Tests that hit real external APIs are slow, flaky, and quota-consuming.
 
 ---
 

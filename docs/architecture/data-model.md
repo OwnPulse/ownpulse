@@ -199,7 +199,7 @@ OAuth tokens for all third-party integrations. Encrypted with AES-256-GCM.
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `provider` | TEXT | e.g. `garmin`, `oura`, `dexcom`, `google`, `mychart` |
+| `provider` | TEXT | e.g. `garmin`, `oura`, `google`, `mychart` |
 | `access_token_encrypted` | BYTEA | AES-256-GCM encrypted |
 | `refresh_token_encrypted` | BYTEA | AES-256-GCM encrypted |
 | `expires_at` | TIMESTAMPTZ nullable | |
