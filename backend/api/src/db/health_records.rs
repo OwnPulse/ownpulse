@@ -317,18 +317,32 @@ pub async fn get_by_id(
 }
 
 /// Delete a health record. Returns true if a row was actually deleted.
+///
+/// The `duplicate_of` cleanup and the delete run in one transaction: without
+/// that, a `duplicate_of` insert racing between the two statements can leave
+/// the FK pointing at a row that's about to disappear, so the DELETE fails
+/// on the FK constraint after provenance has already been wiped — the record
+/// survives but its dedup history doesn't. Both statements are also scoped
+/// to `user_id`, so the cleanup is a no-op when `id` doesn't belong to the
+/// caller, matching the not-found semantics of the delete.
 pub async fn delete(pool: &PgPool, user_id: Uuid, id: Uuid) -> Result<bool, sqlx::Error> {
-    // Clear any duplicate_of references pointing to this record first.
-    sqlx::query("UPDATE health_records SET duplicate_of = NULL WHERE duplicate_of = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    let mut tx = pool.begin().await?;
+
+    sqlx::query(
+        "UPDATE health_records SET duplicate_of = NULL WHERE duplicate_of = $1 AND user_id = $2",
+    )
+    .bind(id)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
 
     let result = sqlx::query("DELETE FROM health_records WHERE id = $1 AND user_id = $2")
         .bind(id)
         .bind(user_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+
+    tx.commit().await?;
 
     Ok(result.rows_affected() > 0)
 }
