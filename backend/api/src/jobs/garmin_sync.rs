@@ -21,14 +21,15 @@ use crate::models::observation::CreateObservation;
 /// Interval between sync runs (15 minutes).
 const SYNC_INTERVAL_SECS: u64 = 900;
 
-/// Spawn the Garmin sync background job.
+/// Spawn the Garmin sync background job. Returns the task handle so callers
+/// (and tests) can observe shutdown; `main.rs` does not need to await it.
 pub fn spawn(
     pool: PgPool,
     config: Config,
     http_client: reqwest::Client,
     cancel: CancellationToken,
     event_tx: tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
-) {
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         tracing::info!("Garmin sync job started");
 
@@ -45,7 +46,7 @@ pub fn spawn(
                 }
             }
         }
-    });
+    })
 }
 
 /// Run a single sync cycle for all users with Garmin integration tokens.
@@ -100,13 +101,68 @@ async fn run_sync(
     Ok(())
 }
 
-/// Sync data for a single user.
+/// On-demand sync for a single user — used by the
+/// `POST /integrations/garmin/sync` endpoint. Looks up the user's Garmin
+/// connection, runs one sync cycle, and records the outcome the same way the
+/// periodic job does. Returns the number of records inserted.
+pub async fn sync_user_now(
+    pool: &PgPool,
+    config: &Config,
+    http_client: &reqwest::Client,
+    user_id: Uuid,
+    event_tx: &tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
+) -> Result<u32, String> {
+    let encryption_key = crypto::parse_encryption_key(&config.encryption_key)
+        .map_err(|e| format!("bad encryption key: {e}"))?;
+    let prev_key = config
+        .encryption_key_previous
+        .as_ref()
+        .map(|k| crypto::parse_encryption_key(k))
+        .transpose()
+        .map_err(|e| format!("bad previous encryption key: {e}"))?;
+
+    let consumer_key = config
+        .garmin_client_id
+        .as_deref()
+        .ok_or_else(|| "Garmin is not configured".to_string())?;
+    let consumer_secret = config
+        .garmin_client_secret
+        .as_deref()
+        .ok_or_else(|| "Garmin is not configured".to_string())?;
+
+    let client = GarminClient::new(
+        consumer_key.to_string(),
+        consumer_secret.to_string(),
+        config.garmin_base_url.clone(),
+        http_client.clone(),
+    );
+
+    let token_row =
+        integration_tokens::list_for_user(pool, user_id, &encryption_key, prev_key.as_ref())
+            .await
+            .map_err(|e| format!("failed to load integration tokens: {e}"))?
+            .into_iter()
+            .find(|t| t.source == "garmin")
+            .ok_or_else(|| "Garmin is not connected".to_string())?;
+
+    let outcome = sync_user(pool, &client, &token_row, event_tx).await;
+    if let Err(ref e) = outcome {
+        let _ = integration_tokens::update_sync_error(pool, user_id, "garmin", e).await;
+    }
+    outcome
+}
+
+/// Sync data for a single user. Returns the number of records inserted on
+/// success. `last_synced_at` is advanced only when every fetch succeeds — a
+/// partial failure returns `Err` so the caller records `last_sync_error`
+/// instead, leaving the watermark where it was so the failed window is
+/// retried on the next run rather than silently skipped forever.
 async fn sync_user(
     pool: &PgPool,
     client: &GarminClient,
     token_row: &integration_tokens::IntegrationTokenRow,
     event_tx: &tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
-) -> Result<(), String> {
+) -> Result<u32, String> {
     let user_id = token_row.user_id;
 
     let access_token = AccessToken {
@@ -125,6 +181,7 @@ async fn sync_user(
     let end_str = end_date.format("%Y-%m-%d").to_string();
 
     let mut records_inserted = 0u32;
+    let mut fetch_errors = Vec::new();
 
     // Fetch daily summaries
     match client
@@ -137,7 +194,8 @@ async fn sync_user(
             }
         }
         Err(e) => {
-            tracing::warn!(user_id = %user_id, error = %e, "Garmin daily summary fetch failed")
+            tracing::warn!(user_id = %user_id, error = %e, "Garmin daily summary fetch failed");
+            fetch_errors.push(format!("daily summary: {e}"));
         }
     }
 
@@ -148,7 +206,10 @@ async fn sync_user(
                 records_inserted += insert_sleep_observation(pool, user_id, &sleep).await;
             }
         }
-        Err(e) => tracing::warn!(user_id = %user_id, error = %e, "Garmin sleep fetch failed"),
+        Err(e) => {
+            tracing::warn!(user_id = %user_id, error = %e, "Garmin sleep fetch failed");
+            fetch_errors.push(format!("sleep: {e}"));
+        }
     }
 
     // Fetch HRV data
@@ -158,7 +219,10 @@ async fn sync_user(
                 records_inserted += insert_hrv_record(pool, user_id, &hrv).await;
             }
         }
-        Err(e) => tracing::warn!(user_id = %user_id, error = %e, "Garmin HRV fetch failed"),
+        Err(e) => {
+            tracing::warn!(user_id = %user_id, error = %e, "Garmin HRV fetch failed");
+            fetch_errors.push(format!("hrv: {e}"));
+        }
     }
 
     // Fetch body composition
@@ -171,14 +235,14 @@ async fn sync_user(
                 records_inserted += insert_body_comp_records(pool, user_id, &bc).await;
             }
         }
-        Err(e) => tracing::warn!(user_id = %user_id, error = %e, "Garmin body comp fetch failed"),
+        Err(e) => {
+            tracing::warn!(user_id = %user_id, error = %e, "Garmin body comp fetch failed");
+            fetch_errors.push(format!("body composition: {e}"));
+        }
     }
 
-    // Update last_synced_at
-    integration_tokens::update_last_synced(pool, user_id, "garmin")
-        .await
-        .map_err(|e| format!("failed to update last_synced_at: {e}"))?;
-
+    // Notify listeners of newly inserted data even if some fetches failed
+    // below — the records that did land are real and should surface.
     if records_inserted > 0 {
         let _ = event_tx.send((
             user_id,
@@ -189,9 +253,24 @@ async fn sync_user(
         ));
     }
 
+    if !fetch_errors.is_empty() {
+        return Err(format!(
+            "{} of 4 Garmin fetches failed: {}",
+            fetch_errors.len(),
+            fetch_errors.join("; ")
+        ));
+    }
+
+    // Only advance the watermark once every fetch succeeded — a partial
+    // failure above returns before this point, so `last_synced_at` stays put
+    // and the failed window is retried next run instead of lost.
+    integration_tokens::update_last_synced(pool, user_id, "garmin")
+        .await
+        .map_err(|e| format!("failed to update last_synced_at: {e}"))?;
+
     tracing::info!(user_id = %user_id, records = records_inserted, "Garmin sync completed");
 
-    Ok(())
+    Ok(records_inserted)
 }
 
 /// Insert health_records from a Garmin daily summary. Returns count inserted.
@@ -443,5 +522,37 @@ async fn try_insert_health_record(
             tracing::warn!(error = %e, "failed to check for duplicate health record");
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Smoke test for the `main.rs` wiring: `spawn` must respect an
+    /// already-cancelled token and return promptly rather than running the
+    /// (900s-interval) sync loop. Uses a lazy pool — cancellation is checked
+    /// before any query would run, so no real database is needed.
+    #[tokio::test]
+    async fn spawn_shuts_down_promptly_on_cancellation() {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://user:pass@localhost/db")
+            .expect("lazy pool construction should not touch the network");
+        let (event_tx, _) = tokio::sync::broadcast::channel(1);
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+
+        let handle = spawn(
+            pool,
+            crate::config::test_helpers::minimal_config(),
+            reqwest::Client::new(),
+            cancel,
+            event_tx,
+        );
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), handle)
+            .await
+            .expect("job should shut down promptly once cancelled")
+            .expect("job task should not panic");
     }
 }

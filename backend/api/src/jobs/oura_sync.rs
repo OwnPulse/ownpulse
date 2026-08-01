@@ -21,14 +21,15 @@ use crate::models::observation::CreateObservation;
 /// Interval between sync runs (15 minutes).
 const SYNC_INTERVAL_SECS: u64 = 900;
 
-/// Spawn the Oura sync background job.
+/// Spawn the Oura sync background job. Returns the task handle so callers
+/// (and tests) can observe shutdown; `main.rs` does not need to await it.
 pub fn spawn(
     pool: PgPool,
     config: Config,
     http_client: reqwest::Client,
     cancel: CancellationToken,
     event_tx: tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
-) {
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         tracing::info!("Oura sync job started");
 
@@ -45,7 +46,7 @@ pub fn spawn(
                 }
             }
         }
-    });
+    })
 }
 
 /// Run a single sync cycle for all users with Oura integration tokens.
@@ -101,14 +102,70 @@ async fn run_sync(
     Ok(())
 }
 
-/// Sync data for a single user.
+/// On-demand sync for a single user — used by the `POST /integrations/oura/sync`
+/// endpoint. Looks up the user's Oura connection, runs one sync cycle, and
+/// records the outcome the same way the periodic job does. Returns the number
+/// of records inserted.
+pub async fn sync_user_now(
+    pool: &PgPool,
+    config: &Config,
+    http_client: &reqwest::Client,
+    user_id: Uuid,
+    event_tx: &tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
+) -> Result<u32, String> {
+    let encryption_key = crypto::parse_encryption_key(&config.encryption_key)
+        .map_err(|e| format!("bad encryption key: {e}"))?;
+    let prev_key = config
+        .encryption_key_previous
+        .as_ref()
+        .map(|k| crypto::parse_encryption_key(k))
+        .transpose()
+        .map_err(|e| format!("bad previous encryption key: {e}"))?;
+
+    let client_id = config
+        .oura_client_id
+        .as_deref()
+        .ok_or_else(|| "Oura is not configured".to_string())?;
+    let client_secret = config
+        .oura_client_secret
+        .as_deref()
+        .ok_or_else(|| "Oura is not configured".to_string())?;
+
+    let client = OuraClient::new(
+        client_id.to_string(),
+        client_secret.to_string(),
+        config.oura_api_base_url.clone(),
+        config.oura_auth_base_url.clone(),
+        http_client.clone(),
+    );
+
+    let token_row =
+        integration_tokens::list_for_user(pool, user_id, &encryption_key, prev_key.as_ref())
+            .await
+            .map_err(|e| format!("failed to load integration tokens: {e}"))?
+            .into_iter()
+            .find(|t| t.source == "oura")
+            .ok_or_else(|| "Oura is not connected".to_string())?;
+
+    let outcome = sync_user(pool, &client, &token_row, &encryption_key, event_tx).await;
+    if let Err(ref e) = outcome {
+        let _ = integration_tokens::update_sync_error(pool, user_id, "oura", e).await;
+    }
+    outcome
+}
+
+/// Sync data for a single user. Returns the number of records inserted on
+/// success. `last_synced_at` is advanced only when every fetch succeeds — a
+/// partial failure returns `Err` so the caller records `last_sync_error`
+/// instead, leaving the watermark where it was so the failed window is
+/// retried on the next run rather than silently skipped forever.
 async fn sync_user(
     pool: &PgPool,
     client: &OuraClient,
     token_row: &integration_tokens::IntegrationTokenRow,
     encryption_key: &[u8; 32],
     event_tx: &tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
-) -> Result<(), String> {
+) -> Result<u32, String> {
     let user_id = token_row.user_id;
 
     let mut access_token = token_row.access_token.clone();
@@ -157,6 +214,7 @@ async fn sync_user(
     let end_str = end_date.format("%Y-%m-%d").to_string();
 
     let mut records_inserted = 0u32;
+    let mut fetch_errors = Vec::new();
 
     // Fetch daily readiness
     match client
@@ -168,7 +226,10 @@ async fn sync_user(
                 records_inserted += insert_readiness_records(pool, user_id, &readiness).await;
             }
         }
-        Err(e) => tracing::warn!(user_id = %user_id, error = %e, "Oura readiness fetch failed"),
+        Err(e) => {
+            tracing::warn!(user_id = %user_id, error = %e, "Oura readiness fetch failed");
+            fetch_errors.push(format!("readiness: {e}"));
+        }
     }
 
     // Fetch daily sleep
@@ -181,7 +242,10 @@ async fn sync_user(
                 records_inserted += insert_oura_sleep(pool, user_id, &sleep).await;
             }
         }
-        Err(e) => tracing::warn!(user_id = %user_id, error = %e, "Oura sleep fetch failed"),
+        Err(e) => {
+            tracing::warn!(user_id = %user_id, error = %e, "Oura sleep fetch failed");
+            fetch_errors.push(format!("sleep: {e}"));
+        }
     }
 
     // Fetch daily activity
@@ -194,14 +258,14 @@ async fn sync_user(
                 records_inserted += insert_activity_records(pool, user_id, &activity).await;
             }
         }
-        Err(e) => tracing::warn!(user_id = %user_id, error = %e, "Oura activity fetch failed"),
+        Err(e) => {
+            tracing::warn!(user_id = %user_id, error = %e, "Oura activity fetch failed");
+            fetch_errors.push(format!("activity: {e}"));
+        }
     }
 
-    // Update last_synced_at
-    integration_tokens::update_last_synced(pool, user_id, "oura")
-        .await
-        .map_err(|e| format!("failed to update last_synced_at: {e}"))?;
-
+    // Notify listeners of newly inserted data even if some fetches failed
+    // below — the records that did land are real and should surface.
     if records_inserted > 0 {
         let _ = event_tx.send((
             user_id,
@@ -212,9 +276,24 @@ async fn sync_user(
         ));
     }
 
+    if !fetch_errors.is_empty() {
+        return Err(format!(
+            "{} of 3 Oura fetches failed: {}",
+            fetch_errors.len(),
+            fetch_errors.join("; ")
+        ));
+    }
+
+    // Only advance the watermark once every fetch succeeded — a partial
+    // failure above returns before this point, so `last_synced_at` stays put
+    // and the failed window is retried next run instead of lost.
+    integration_tokens::update_last_synced(pool, user_id, "oura")
+        .await
+        .map_err(|e| format!("failed to update last_synced_at: {e}"))?;
+
     tracing::info!(user_id = %user_id, records = records_inserted, "Oura sync completed");
 
-    Ok(())
+    Ok(records_inserted)
 }
 
 /// Insert health records from Oura readiness data. Returns count inserted.
@@ -428,5 +507,37 @@ async fn try_insert_health_record(
             tracing::warn!(error = %e, "failed to check for duplicate health record");
             false
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Smoke test for the `main.rs` wiring: `spawn` must respect an
+    /// already-cancelled token and return promptly rather than running the
+    /// (900s-interval) sync loop. Uses a lazy pool — cancellation is checked
+    /// before any query would run, so no real database is needed.
+    #[tokio::test]
+    async fn spawn_shuts_down_promptly_on_cancellation() {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://user:pass@localhost/db")
+            .expect("lazy pool construction should not touch the network");
+        let (event_tx, _) = tokio::sync::broadcast::channel(1);
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+
+        let handle = spawn(
+            pool,
+            crate::config::test_helpers::minimal_config(),
+            reqwest::Client::new(),
+            cancel,
+            event_tx,
+        );
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), handle)
+            .await
+            .expect("job should shut down promptly once cancelled")
+            .expect("job task should not panic");
     }
 }

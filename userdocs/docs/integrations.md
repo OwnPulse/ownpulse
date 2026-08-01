@@ -31,7 +31,9 @@ When multiple sources report the same metric (for example, heart rate from both 
 
 ## Sync schedule
 
-Connected integrations sync automatically on a recurring schedule. The exact interval depends on the integration. You do not need to manually trigger syncs, but you can force an immediate sync from the Sources page if needed.
+Connected Garmin and Oura integrations sync automatically every 15 minutes, fetching data since your last successful sync (or the last 7 days, on first connect). You do not need to manually trigger syncs, but you can force an immediate sync from the Sources page if you want the latest data right away instead of waiting for the next scheduled run.
+
+If a sync attempt fails (for example, the third-party service is temporarily unavailable), OwnPulse leaves your last-synced timestamp where it was and shows the error, so nothing from that time window is lost -- the next sync (scheduled or manual) picks up from the same point and retries. Once a sync succeeds, the error clears automatically.
 
 ## Troubleshooting
 
@@ -45,6 +47,4 @@ Google Calendar integration syncs your meeting data in read-only mode. OwnPulse 
 
 The following integrations are planned for a future release:
 
-- **Garmin** -- activity, sleep, and HRV data from Garmin wearables
-- **Oura** -- readiness, sleep, and activity data from Oura Ring
 - **Dexcom** -- continuous glucose monitor readings

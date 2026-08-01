@@ -10,6 +10,7 @@ use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
 use opentelemetry_sdk::Resource;
 use sqlx::postgres::PgPoolOptions;
 use tokio::signal;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -262,6 +263,26 @@ async fn run_server() -> anyhow::Result<()> {
         event_tx,
     };
 
+    // Background sync/insight jobs. One shared token so they all stop
+    // draining/querying the pool during the shutdown cleanup below, before we
+    // close the pool out from under them.
+    let jobs_cancel = CancellationToken::new();
+    api::jobs::garmin_sync::spawn(
+        state.pool.clone(),
+        state.config.clone(),
+        state.http_client.clone(),
+        jobs_cancel.clone(),
+        state.event_tx.clone(),
+    );
+    api::jobs::oura_sync::spawn(
+        state.pool.clone(),
+        state.config.clone(),
+        state.http_client.clone(),
+        jobs_cancel.clone(),
+        state.event_tx.clone(),
+    );
+    api::jobs::spawn_insight_job(state.pool.clone(), jobs_cancel.clone());
+
     let app = api::build_app(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080")
@@ -280,6 +301,9 @@ async fn run_server() -> anyhow::Result<()> {
     // The total budget here must fit within terminationGracePeriodSeconds (15s) minus
     // the time already spent draining HTTP connections.
     info!("HTTP server stopped, cleaning up resources");
+
+    // Stop background sync/insight jobs before closing the pool.
+    jobs_cancel.cancel();
 
     // Flush pending OTel spans (5s max)
     if let Some(provider) = TRACER_PROVIDER.get() {

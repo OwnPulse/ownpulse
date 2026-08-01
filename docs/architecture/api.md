@@ -415,8 +415,36 @@ writing a preference via `POST /source-preferences`.
 |--------|------|-------------|-------|
 | GET | `/integrations` | List connected integrations | 1 |
 | DELETE | `/integrations/:source` | Disconnect an integration | 1 |
+| POST | `/integrations/garmin/sync` | Trigger an immediate Garmin fetch | 1 |
+| POST | `/integrations/oura/sync` | Trigger an immediate Oura fetch | 1 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
 | POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
+
+#### Garmin / Oura background sync
+
+Once a Garmin or Oura account is connected (`GET /auth/garmin/login` /
+`GET /auth/oura/login` and their callbacks), the server polls each connected
+account automatically every 15 minutes, fetching data since the last
+successful sync (or the last 7 days, on first sync). No user action is
+required for data to keep flowing in.
+
+`POST /integrations/garmin/sync` and `POST /integrations/oura/sync` (empty
+body) trigger an immediate fetch for the calling user instead of waiting for
+the next scheduled interval — useful right after connecting an account, or to
+force a refresh. Response `200`:
+
+```json
+{ "source": "garmin", "records_inserted": 6 }
+```
+
+A sync (scheduled or manual) only advances the account's watermark
+(`last_synced_at`) when every fetch for that provider succeeds. If any fetch
+fails, the watermark is left where it was and the error is recorded
+(surfaced via `GET /integrations`), so the failed window is retried on the
+next sync instead of being silently skipped. A subsequent fully-successful
+sync clears the recorded error. Manual sync returns `404` if the source isn't
+connected, and the provider's generic failure message (not raw transport
+details) on error.
 
 #### MyChart / SMART-on-FHIR lab import
 

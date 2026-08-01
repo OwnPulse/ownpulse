@@ -379,6 +379,9 @@ fn base_routes() -> Router<AppState> {
         // so these fixed paths are not swallowed by `/integrations/:source`.
         .route("/integrations/mychart/connect", post(mychart::connect))
         .route("/integrations/mychart/sync", post(mychart::sync))
+        // Manual sync — trigger a fetch without waiting for the periodic job.
+        .route("/integrations/garmin/sync", post(garmin::sync))
+        .route("/integrations/oura/sync", post(oura::sync))
         .route("/integrations/:source", delete(integrations::disconnect))
         // Genetics
         .route("/genetics/upload", post(genetics::upload))

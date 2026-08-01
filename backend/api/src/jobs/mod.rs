@@ -16,7 +16,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 /// Spawn the insight generation background job that runs every 6 hours.
-pub fn spawn_insight_job(pool: PgPool, cancel: CancellationToken) {
+/// Returns the task handle so callers (and tests) can observe shutdown;
+/// `main.rs` does not need to await it.
+pub fn spawn_insight_job(pool: PgPool, cancel: CancellationToken) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
         interval.tick().await;
@@ -40,5 +42,30 @@ pub fn spawn_insight_job(pool: PgPool, cancel: CancellationToken) {
                 }
             }
         }
-    });
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Smoke test for the `main.rs` wiring: `spawn_insight_job` must respect
+    /// an already-cancelled token and return promptly rather than waiting for
+    /// the 6-hour interval. Uses a lazy pool — cancellation is checked before
+    /// any query would run, so no real database is needed.
+    #[tokio::test]
+    async fn spawn_insight_job_shuts_down_promptly_on_cancellation() {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://user:pass@localhost/db")
+            .expect("lazy pool construction should not touch the network");
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+
+        let handle = spawn_insight_job(pool, cancel);
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), handle)
+            .await
+            .expect("job should shut down promptly once cancelled")
+            .expect("job task should not panic");
+    }
 }
