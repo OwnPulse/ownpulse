@@ -12,6 +12,41 @@ interface ImportModalProps {
   onClose: () => void;
 }
 
+const SUPPORTED_SCHEMA = "ownpulse-protocol/v1";
+
+// Mirrors what backend/api/src/models/protocol.rs's ProtocolExport /
+// ProtocolLineExport deserializers actually require (schema, name,
+// duration_days, a `tags` array — no #[serde(default)], so it must be
+// present — and each line's substance + pattern, its only non-optional
+// fields). Catching a malformed file here means the user sees "which
+// field" before submitting, instead of the backend's raw serde error.
+function validateExport(data: ProtocolExport): string | null {
+  if (data.schema !== SUPPORTED_SCHEMA) {
+    return `Unsupported protocol file: expected schema "${SUPPORTED_SCHEMA}".`;
+  }
+  if (!data.name || typeof data.name !== "string") {
+    return "Invalid protocol file: missing a name.";
+  }
+  if (typeof data.duration_days !== "number") {
+    return "Invalid protocol file: missing duration_days.";
+  }
+  if (!Array.isArray(data.tags)) {
+    return "Invalid protocol file: missing tags.";
+  }
+  if (!Array.isArray(data.lines) || data.lines.length === 0) {
+    return "Invalid protocol file: at least one line is required.";
+  }
+  for (const line of data.lines) {
+    if (!line.substance || typeof line.substance !== "string") {
+      return "Invalid protocol file: every line needs a substance.";
+    }
+    if (line.pattern === undefined || line.pattern === null) {
+      return "Invalid protocol file: every line needs a schedule pattern.";
+    }
+  }
+  return null;
+}
+
 export function ImportModal({ onClose }: ImportModalProps) {
   const navigate = useNavigate();
   const [dragOver, setDragOver] = useState(false);
@@ -27,19 +62,22 @@ export function ImportModal({ onClose }: ImportModalProps) {
   });
 
   const handleFileContent = useCallback((content: string) => {
+    let data: ProtocolExport;
     try {
-      const data = JSON.parse(content) as ProtocolExport;
-      if (!data.name || !data.duration_days || !Array.isArray(data.lines)) {
-        setError("Invalid protocol file: missing required fields.");
-        setParsed(null);
-        return;
-      }
-      setParsed(data);
-      setError(null);
+      data = JSON.parse(content) as ProtocolExport;
     } catch {
       setError("Invalid JSON file.");
       setParsed(null);
+      return;
     }
+    const validationError = validateExport(data);
+    if (validationError) {
+      setError(validationError);
+      setParsed(null);
+      return;
+    }
+    setParsed(data);
+    setError(null);
   }, []);
 
   const readFile = useCallback(
@@ -135,7 +173,9 @@ export function ImportModal({ onClose }: ImportModalProps) {
         )}
 
         {importMutation.isError && (
-          <p className="op-error-msg">Import failed: {(importMutation.error as Error).message}</p>
+          // Never surface the raw response body (which may be a serde/serialization
+          // error string) directly to the user.
+          <p className="op-error-msg">Import failed. Please check the file and try again.</p>
         )}
 
         <div className={styles.actions}>

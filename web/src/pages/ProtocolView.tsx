@@ -124,7 +124,7 @@ export default function ProtocolView() {
       return protocolsApi.share(id);
     },
     onSuccess: (res) => {
-      const link = `${window.location.origin}/protocols/shared/${res.share_token}`;
+      const link = `${window.location.origin}/protocols/shared/${res.token}`;
       setShareLink(link);
     },
   });
