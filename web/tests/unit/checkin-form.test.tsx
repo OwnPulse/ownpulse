@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DIMENSION_COLORS } from "../../src/components/dimensionColors.generated";
 import CheckinForm from "../../src/components/forms/CheckinForm";
 
 const mockCreate = vi.fn();
@@ -90,6 +91,24 @@ describe("CheckinForm", () => {
     expect(submitted.focus).toBe(6);
     expect(submitted.recovery).toBe(5);
     expect(submitted.libido).toBe(5);
+  });
+
+  it("tints each slider with its DIMENSION_COLORS entry", () => {
+    // CheckinForm looks up DIMENSION_COLORS[label.toLowerCase()]; a label that
+    // doesn't lowercase-match a DIMENSION_COLORS key yields `undefined` and
+    // silently drops the tint, so this asserts the actual resolved color per
+    // slider rather than just that *some* background is set.
+    renderWithProviders();
+    for (const [label, key] of [
+      ["energy", "energy"],
+      ["mood", "mood"],
+      ["focus", "focus"],
+      ["recovery", "recovery"],
+      ["libido", "libido"],
+    ] as const) {
+      const slider = screen.getByLabelText(new RegExp(label, "i"));
+      expect(slider.style.background).toContain(DIMENSION_COLORS[key]);
+    }
   });
 });
 

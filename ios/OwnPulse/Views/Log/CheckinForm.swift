@@ -47,7 +47,7 @@ struct CheckinForm: View {
             ScoreSlider(
                 label: "Libido",
                 value: $viewModel.libido,
-                accentColor: .purple
+                accentColor: OPColor.purple
             )
 
             Divider()

@@ -7,18 +7,11 @@ import { CurveType } from "@unovis/ts";
 import { useCallback, useMemo } from "react";
 import type { DataPoint } from "../../api/explore";
 import { exploreApi } from "../../api/explore";
+import { DIMENSION_COLORS } from "../dimensionColors.generated";
 import styles from "./SparklineRow.module.css";
 
 const DIMENSIONS = ["energy", "mood", "focus", "recovery", "libido"] as const;
 type Dimension = (typeof DIMENSIONS)[number];
-
-const DIMENSION_COLORS: Record<Dimension, string> = {
-  energy: "#c49a3c",
-  mood: "#c2654a",
-  focus: "#3d8b8b",
-  recovery: "#5a8a5a",
-  libido: "#7b61c2",
-};
 
 interface SparklineDatum {
   idx: number;

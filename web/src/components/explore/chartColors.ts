@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { FALLBACK_COLORS, METRIC_ALIASES, METRIC_COLORS } from "./chartMetricColors.generated";
+import {
+  FALLBACK_COLORS,
+  INTERVENTION_COLOR,
+  METRIC_ALIASES,
+  METRIC_COLORS,
+} from "./chartMetricColors.generated";
 
 // Per-metric chart colors are token-driven (single source of truth in
 // docs/design/tokens.json + the alias table in tools/design-tokens/build.js).
@@ -35,4 +40,4 @@ export const LINE_STYLES: Array<"solid" | "dashed" | number[]> = [
   [8, 4, 2, 4],
 ];
 
-export const INTERVENTION_COLOR = "#9b59b6";
+export { INTERVENTION_COLOR };

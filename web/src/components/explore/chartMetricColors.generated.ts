@@ -41,3 +41,6 @@ export const METRIC_ALIASES: Record<string, string> = {
   resting_heart_rate: "heart_rate",
   sleep_analysis: "sleep_duration",
 };
+
+/** Marker color for intervention (substance/medication/supplement) events overlaid on charts. */
+export const INTERVENTION_COLOR: string = "#7b61c2";

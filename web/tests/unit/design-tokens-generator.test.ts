@@ -17,7 +17,14 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { buildTokens, cssVarName, swiftColor } from "../../../tools/design-tokens/build.js";
+import {
+  buildTokens,
+  cssVarName,
+  dimensionColors,
+  interventionColor,
+  loadDictionary,
+  swiftColor,
+} from "../../../tools/design-tokens/build.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const cssPath = resolve(repoRoot, "web/src/styles/_tokens.css");
@@ -25,6 +32,7 @@ const swiftPath = resolve(repoRoot, "ios/OwnPulse/Theme/Tokens.swift");
 const mdPath = resolve(repoRoot, "docs/design/tokens-generated.md");
 const chartTsPath = resolve(repoRoot, "web/src/components/explore/chartMetricColors.generated.ts");
 const chartSwiftPath = resolve(repoRoot, "ios/OwnPulse/Theme/ChartColors.swift");
+const dimensionTsPath = resolve(repoRoot, "web/src/components/dimensionColors.generated.ts");
 
 const read = (p: string) => readFileSync(p, "utf8");
 
@@ -120,6 +128,7 @@ describe("idempotency", () => {
       md: read(mdPath),
       chartTs: read(chartTsPath),
       chartSwift: read(chartSwiftPath),
+      dimensionTs: read(dimensionTsPath),
     };
 
     await buildTokens();
@@ -129,5 +138,59 @@ describe("idempotency", () => {
     expect(read(mdPath)).toBe(before.md);
     expect(read(chartTsPath)).toBe(before.chartTs);
     expect(read(chartSwiftPath)).toBe(before.chartSwift);
+    expect(read(dimensionTsPath)).toBe(before.dimensionTs);
+  });
+});
+
+describe("dimensionColors", () => {
+  it("returns the five dimension keys in canonical order, with values read from tokens.json", async () => {
+    const dictionary = await loadDictionary();
+    const colors = dimensionColors(dictionary);
+    // Values come from the resolved dictionary, not restated here as literals,
+    // so this test can't pass by coincidentally matching a hardcoded guess.
+    const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join("."), t]));
+    expect(Object.keys(colors)).toEqual(["energy", "mood", "focus", "recovery", "libido"]);
+    for (const key of Object.keys(colors)) {
+      expect(colors[key]).toBe(byPath.get(`color.dimension.${key}`)?.original.value);
+    }
+  });
+
+  it("throws when a color.dimension.* key is missing from the token source", () => {
+    const dictionary = { allTokens: [] };
+    expect(() => dimensionColors(dictionary)).toThrow(/color\.dimension\.energy/);
+  });
+});
+
+describe("interventionColor", () => {
+  it("returns the chart.intervention value read from tokens.json", async () => {
+    const dictionary = await loadDictionary();
+    const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join("."), t]));
+    expect(interventionColor(dictionary)).toBe(byPath.get("chart.intervention")?.original.value);
+  });
+
+  it("throws when chart.intervention is missing from the token source", () => {
+    const dictionary = { allTokens: [] };
+    expect(() => interventionColor(dictionary)).toThrow(/chart\.intervention/);
+  });
+});
+
+describe("dimension/OPColor.purple parity (CSS <-> Swift)", () => {
+  it("--color-libido in _tokens.css and OPColor.purple in Tokens.swift resolve to the same hex", () => {
+    // OPColor.purple is sourced from color.dimension.purple (not .libido) in
+    // SWIFT_COLOR_MAP, but the two tokens share a value, so they must still
+    // agree — this guards against the map ever pointing at the wrong token.
+    const css = read(cssPath);
+    const swift = read(swiftPath);
+    const cssMatch = css.match(/--color-libido: (#[0-9a-f]{6});/);
+    expect(cssMatch).not.toBeNull();
+    const hex = cssMatch?.[1] ?? "";
+    const { r, g, b } = {
+      r: Number.parseInt(hex.slice(1, 3), 16),
+      g: Number.parseInt(hex.slice(3, 5), 16),
+      b: Number.parseInt(hex.slice(5, 7), 16),
+    };
+    expect(swift).toContain(
+      `static let purple = Color(red: ${r} / 255, green: ${g} / 255, blue: ${b} / 255)`,
+    );
   });
 });
