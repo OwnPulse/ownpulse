@@ -317,12 +317,21 @@ pub async fn get_by_id(
 }
 
 /// Delete a health record. Returns true if a row was actually deleted.
+///
+/// Both the `duplicate_of` cleanup and the delete itself are scoped to
+/// `user_id`, so a caller can never affect another user's rows by passing an
+/// id they don't own — the cleanup is a no-op when `id` doesn't belong to
+/// `user_id`, matching the not-found semantics of the delete.
 pub async fn delete(pool: &PgPool, user_id: Uuid, id: Uuid) -> Result<bool, sqlx::Error> {
-    // Clear any duplicate_of references pointing to this record first.
-    sqlx::query("UPDATE health_records SET duplicate_of = NULL WHERE duplicate_of = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    // Clear any duplicate_of references pointing to this record first, scoped
+    // to the caller's own records only.
+    sqlx::query(
+        "UPDATE health_records SET duplicate_of = NULL WHERE duplicate_of = $1 AND user_id = $2",
+    )
+    .bind(id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
 
     let result = sqlx::query("DELETE FROM health_records WHERE id = $1 AND user_id = $2")
         .bind(id)
