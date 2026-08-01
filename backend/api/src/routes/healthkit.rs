@@ -16,6 +16,7 @@ use crate::error::ApiError;
 use crate::models::healthkit::{
     HealthKitBulkAck, HealthKitBulkInsert, HealthKitConfirm, HealthKitWriteQueueRow,
 };
+use crate::routes::events::publish_event;
 
 /// Maximum number of records accepted in a single `POST /healthkit/sync` call.
 ///
@@ -155,6 +156,12 @@ pub async fn bulk_insert(
         counter!("healthkit_same_source_duplicates_total").increment(same_source_dropped as u64);
     }
 
+    // Web's SSE dashboard subscribes to "health_records" changes but never
+    // refreshed on an iOS HealthKit sync, since this route was the one write
+    // path that didn't publish. Every other write route does (see
+    // `health_records.rs`, `checkins.rs`, etc.) — match that here.
+    publish_event(&state.event_tx, user_id, "health_records", None);
+
     let ack = HealthKitBulkAck {
         received,
         inserted: result.inserted,
@@ -172,12 +179,14 @@ pub async fn write_queue(
     Ok(Json(rows))
 }
 
-/// POST /healthkit/confirm — confirm that items have been written to HealthKit.
+/// POST /healthkit/confirm — confirm that items have been written to HealthKit,
+/// and/or report items the client attempted but failed to write.
 pub async fn confirm(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<HealthKitConfirm>,
 ) -> Result<StatusCode, ApiError> {
     db::confirm(&state.pool, user_id, &body.ids).await?;
+    db::mark_failed(&state.pool, user_id, &body.failures).await?;
     Ok(StatusCode::NO_CONTENT)
 }

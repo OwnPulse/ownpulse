@@ -31,27 +31,36 @@ User enters data        Third-party sync
        └── source != 'healthkit' AND has HealthKit mapping?
                │
                ▼
-       healthkit_write_queue (status: pending)
+       healthkit_write_queue (pending: confirmed_at IS NULL AND failed_at IS NULL)
                │
                ▼
        iOS app polls GET /api/v1/healthkit/write-queue
                │
                ▼
-       iOS writes to HealthKit via HKHealthStore.save()
+       iOS writes each item to HealthKit via HKHealthStore.save()
                │
-               ▼
-       iOS calls POST /api/v1/healthkit/write-queue/:id/confirm
-               │
-               ▼
-       Queue entry updated (status: written, confirmed_at set)
+       ┌───────┴────────┐
+       ▼                ▼
+   write succeeds    write fails
+       │                │
+       ▼                ▼
+POST /api/v1/healthkit/confirm       POST /api/v1/healthkit/confirm
+  {"ids": [queue_id, ...]}             {"ids": [], "failures": [{"id": queue_id, "error": "..."}]}
+       │                │
+       ▼                ▼
+confirmed_at = now()   failed_at = now(), error = <client message, truncated to 500 chars>
 ```
+
+There is a single endpoint, `POST /api/v1/healthkit/confirm` — there is no per-item `/write-queue/:id/confirm` route. A single request body carries both outcomes: successfully-written item ids in `ids`, and failed items (with the client's error text) in `failures`. Both fields are scoped to the caller's own queue rows — a request can only confirm or fail items belonging to the authenticated user.
+
+`failures` is `#[serde(default)]` on the backend — clients built before this flow existed can omit it entirely and keep working; they simply never report failures, so permanently-unwritable items stay pending forever (see below).
 
 The iOS app polls the write-back queue on:
 - App foreground
 - Background refresh
 - Manual sync trigger
 
-Failed writes are retried on the next poll. Errors are logged with the queue entry.
+Marking an item failed removes it from `GET /write-queue`'s pending set (`WHERE confirmed_at IS NULL AND failed_at IS NULL`) just like confirming it does. This matters because `get_pending` caps results at 100 rows ordered by `scheduled_at ASC`: before failure reporting existed, a permanently-unwritable item (e.g. a HealthKit type whose authorization was revoked) sat at the head of the queue forever and starved every item behind it. Reporting the failure retires the item instead.
 
 ## Deduplication on New Integration Connect
 
@@ -96,6 +105,32 @@ On success, returns `201 Created` with a JSON body:
 - `duplicates` — cross-source near-duplicates detected and marked via `duplicate_of`. These rows **are** included in `inserted` — they land with a `duplicate_of` reference to the existing non-`healthkit` row, they are not dropped.
 
 iOS currently consumes the endpoint with `requestNoContent` and discards the body; the ack shape exists so the HTTP contract is honest and so a future sync-status UI can read the counts without a wire change.
+
+### Write-Queue Item Wire Shape
+
+`GET /api/v1/healthkit/write-queue` returns an array of pending items:
+
+```json
+{
+  "id": "77777777-7777-7777-7777-777777777777",
+  "user_id": "550e8400-e29b-41d4-a716-446655440001",
+  "hk_type": "body_mass",
+  "value": {
+    "value": 82.5,
+    "unit": "kg",
+    "start_time": "2026-03-20T10:00:00Z",
+    "end_time": "2026-03-20T10:00:00Z"
+  },
+  "scheduled_at": "2026-03-20T10:00:00Z",
+  "confirmed_at": null,
+  "failed_at": null,
+  "error": null,
+  "source_record_id": "550e8400-e29b-41d4-a716-446655440010",
+  "source_table": "health_records"
+}
+```
+
+`value` is JSONB and its shape — exactly `{value, unit, start_time, end_time}`, no more, no fewer keys — is the iOS decode contract. It is populated verbatim by the service-layer enqueue call at insertion time (see `db_healthkit::enqueue_write` callers) and is pinned by an integration test (`test_write_queue_shape_after_manual_record_insert`) and the `ios-backend.json` Pact contract, since a prior mismatch between this shape and the iOS decoder shipped undetected.
 
 ## HealthKit Type Mappings
 

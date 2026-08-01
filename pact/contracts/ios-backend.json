@@ -197,7 +197,7 @@
     },
     {
       "description": "a request to get the HealthKit write-back queue",
-      "providerState": "an authenticated user exists",
+      "providerState": "a pending healthkit write-queue item exists",
       "request": {
         "method": "GET",
         "path": "/api/v1/healthkit/write-queue",
@@ -210,12 +210,38 @@
         "headers": {
           "Content-Type": "application/json"
         },
-        "body": []
+        "body": [
+          {
+            "id": "77777777-7777-7777-7777-777777777777",
+            "user_id": "some-uuid",
+            "hk_type": "body_mass",
+            "value": {
+              "value": 82.5,
+              "unit": "kg",
+              "start_time": "2026-03-20T10:00:00Z",
+              "end_time": "2026-03-20T10:00:00Z"
+            },
+            "scheduled_at": "2026-03-20T10:00:00Z",
+            "confirmed_at": null,
+            "failed_at": null,
+            "error": null,
+            "source_record_id": null,
+            "source_table": null
+          }
+        ],
+        "matchingRules": {
+          "$.body[0].user_id": {
+            "match": "type"
+          },
+          "$.body[0].scheduled_at": {
+            "match": "type"
+          }
+        }
       }
     },
     {
       "description": "a request to confirm HealthKit write-back items",
-      "providerState": "an authenticated user exists",
+      "providerState": "a pending healthkit write-queue item exists",
       "request": {
         "method": "POST",
         "path": "/api/v1/healthkit/confirm",
@@ -224,7 +250,13 @@
           "Content-Type": "application/json"
         },
         "body": {
-          "ids": []
+          "ids": [],
+          "failures": [
+            {
+              "id": "77777777-7777-7777-7777-777777777777",
+              "error": "HealthKit authorization denied for Body Mass"
+            }
+          ]
         }
       },
       "response": {

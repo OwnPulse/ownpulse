@@ -378,7 +378,50 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 |--------|------|-------------|-------|
 | POST | `/healthkit/sync` | Bulk insert HealthKit records from iOS | 1 |
 | GET | `/healthkit/write-queue` | Get pending HealthKit write-back items for iOS | 1 |
-| POST | `/healthkit/confirm` | Confirm HealthKit write-backs were completed | 1 |
+| POST | `/healthkit/confirm` | Confirm HealthKit write-backs were completed, and/or report failed writes | 1 |
+
+`GET /healthkit/write-queue` returns the caller's pending items — rows in
+`healthkit_write_queue` with `confirmed_at IS NULL AND failed_at IS NULL`, oldest
+first, capped at 100:
+
+```json
+[
+  {
+    "id": "77777777-7777-7777-7777-777777777777",
+    "user_id": "550e8400-e29b-41d4-a716-446655440001",
+    "hk_type": "body_mass",
+    "value": {
+      "value": 82.5,
+      "unit": "kg",
+      "start_time": "2026-03-20T10:00:00Z",
+      "end_time": "2026-03-20T10:00:00Z"
+    },
+    "scheduled_at": "2026-03-20T10:00:00Z",
+    "confirmed_at": null,
+    "failed_at": null,
+    "error": null,
+    "source_record_id": "550e8400-e29b-41d4-a716-446655440010",
+    "source_table": "health_records"
+  }
+]
+```
+
+`POST /healthkit/confirm` accepts:
+
+```json
+{
+  "ids": ["77777777-7777-7777-7777-777777777777"],
+  "failures": [
+    { "id": "88888888-8888-8888-8888-888888888888", "error": "HealthKit authorization denied" }
+  ]
+}
+```
+
+- `ids` — items the client successfully wrote to HealthKit; their `confirmed_at` is set.
+- `failures` — items the client attempted but could not write; their `failed_at` and `error` are set (`error` is truncated to 500 characters). Optional and defaults to empty — older clients that only ever sent `ids` continue to work unchanged.
+- Both `ids` and `failures` are scoped to the caller's own rows — a user cannot confirm or fail another user's queue items.
+- Marking an item failed also removes it from the pending set returned by `GET /healthkit/write-queue`, same as confirming it — this matters because the 100-row cap orders by `scheduled_at ASC`, so a permanently-unwritable item that is never reported as failed would otherwise block every item behind it indefinitely.
+- Responds `204 No Content` on success (whether or not any ids/failures were provided).
 
 ### Source Preferences
 
