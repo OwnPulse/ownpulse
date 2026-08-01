@@ -19,7 +19,6 @@ on:
       - "tools/design-tokens/**"
       - "web/src/styles/_tokens.css"
       - "web/src/components/explore/chartMetricColors.generated.ts"
-      - "web/src/components/dimensionColors.generated.ts"
       - "ios/OwnPulse/Theme/Tokens.swift"
       - "ios/OwnPulse/Theme/ChartColors.swift"
       - "docs/design/tokens-generated.md"
@@ -31,7 +30,6 @@ on:
       - "tools/design-tokens/**"
       - "web/src/styles/_tokens.css"
       - "web/src/components/explore/chartMetricColors.generated.ts"
-      - "web/src/components/dimensionColors.generated.ts"
       - "ios/OwnPulse/Theme/Tokens.swift"
       - "ios/OwnPulse/Theme/ChartColors.swift"
       - "docs/design/tokens-generated.md"
@@ -64,7 +62,6 @@ jobs:
           if ! git diff --exit-code -- \
             web/src/styles/_tokens.css \
             web/src/components/explore/chartMetricColors.generated.ts \
-            web/src/components/dimensionColors.generated.ts \
             ios/OwnPulse/Theme/Tokens.swift \
             ios/OwnPulse/Theme/ChartColors.swift \
             docs/design/tokens-generated.md; then
