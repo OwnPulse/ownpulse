@@ -7,6 +7,7 @@ import { CurveType } from "@unovis/ts";
 import { useCallback, useMemo } from "react";
 import type { DataPoint } from "../../api/explore";
 import { exploreApi } from "../../api/explore";
+import { localToday } from "../../utils/datetime";
 import styles from "./SparklineRow.module.css";
 
 const DIMENSIONS = ["energy", "mood", "focus", "recovery", "libido"] as const;
@@ -49,11 +50,17 @@ function trendArrow(trend: "up" | "down" | "neutral"): string {
 }
 
 function useSparklineData() {
-  const now = new Date();
-  const start = new Date(now);
-  start.setDate(start.getDate() - 7);
-  const startStr = `${start.toISOString().slice(0, 10)}T00:00:00Z`;
-  const endStr = `${now.toISOString().slice(0, 10)}T23:59:59Z`;
+  // The window boundaries should track the user's local "today", not UTC —
+  // a UTC-derived end-of-day cuts off the last several hours of a west-of-UTC
+  // user's actual today (and shifts the corresponding start of the 7-day
+  // window). Parsed as local date parts, not `new Date(todayStr)` (UTC).
+  const todayStr = localToday();
+  const [y, m, d] = todayStr.split("-").map(Number);
+  const start = new Date(y, m - 1, d - 7);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  const startDateStr = `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`;
+  const startStr = `${startDateStr}T00:00:00Z`;
+  const endStr = `${todayStr}T23:59:59Z`;
 
   return useQuery({
     queryKey: ["dashboard-sparklines", startStr, endStr],
