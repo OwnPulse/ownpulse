@@ -3,6 +3,7 @@
 
 import { trackApiCall } from "../lib/telemetry";
 import { useAuthStore } from "../store/auth";
+import { refreshTokenOnce } from "./refresh";
 
 export class ApiError extends Error {
   constructor(
@@ -14,7 +15,15 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// Auth endpoints are excluded from the refresh-and-retry flow below — a 401
+// from /api/v1/auth/* (e.g. login, register, or the refresh call itself)
+// means the credentials/refresh cookie are bad, not that the access token
+// expired, so retrying via another refresh would just loop.
+function isAuthEndpoint(path: string): boolean {
+  return path.startsWith("/api/v1/auth/");
+}
+
+async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const token = useAuthStore.getState().token;
 
   const headers: Record<string, string> = {
@@ -63,6 +72,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
 
   if (response.status === 401) {
+    // Coalesced refresh-and-retry: on a 401 from a non-auth endpoint, attempt
+    // exactly one refresh (shared across any concurrent 401s via
+    // refreshTokenOnce) and retry the original request once with the new
+    // token. Only log out if the refresh itself fails, if this is already a
+    // retry, or if this is an auth endpoint (where refreshing can't help).
+    if (!isRetry && !isAuthEndpoint(path)) {
+      const refreshed = await refreshTokenOnce();
+      if (refreshed) {
+        return request<T>(path, options, true);
+      }
+    }
     useAuthStore.getState().logout();
     throw new ApiError(401, "Unauthorized");
   }

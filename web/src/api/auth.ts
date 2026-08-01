@@ -4,12 +4,13 @@
 import { flush as flushTelemetry, resetDeviceId } from "../lib/telemetry";
 import { useAuthStore } from "../store/auth";
 import { api } from "./client";
+import { refreshToken, type TokenResponse } from "./refresh";
 
-export interface TokenResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-}
+export type { TokenResponse };
+// Re-exported so existing call sites (e.g. `useAuth`) can keep importing
+// `refreshToken` from `api/auth`. Lives in `./refresh` to avoid an import
+// cycle with `client.ts` — see that module for details.
+export { refreshToken };
 
 export async function login(email: string, password: string): Promise<void> {
   const data = await api.post<TokenResponse>("/api/v1/auth/login", {
@@ -17,21 +18,6 @@ export async function login(email: string, password: string): Promise<void> {
     password,
   });
   useAuthStore.getState().login(data.access_token);
-}
-
-export async function refreshToken(): Promise<boolean> {
-  try {
-    const response = await fetch("/api/v1/auth/refresh", {
-      method: "POST",
-      credentials: "include",
-    });
-    if (!response.ok) return false;
-    const data: TokenResponse = await response.json();
-    useAuthStore.getState().login(data.access_token);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function register(email: string, password: string, inviteCode: string): Promise<void> {
