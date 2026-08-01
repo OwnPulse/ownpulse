@@ -4,7 +4,7 @@
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { api, ApiError } from "../../src/api/client";
+import { ApiError, api } from "../../src/api/client";
 import { useAuthStore } from "../../src/store/auth";
 
 const server = setupServer();

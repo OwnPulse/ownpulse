@@ -56,7 +56,11 @@ describe("refreshToken", () => {
     server.use(
       http.post(
         "/api/v1/auth/refresh",
-        () => new HttpResponse("not json", { status: 200, headers: { "Content-Type": "application/json" } }),
+        () =>
+          new HttpResponse("not json", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
       ),
     );
 
