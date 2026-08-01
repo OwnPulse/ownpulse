@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { interventionsApi } from "../../src/api/interventions";
 import { useAuthStore } from "../../src/store/auth";
+import { refresh401Handler } from "./support/msw-auth-refresh";
 
 const interventionsList = [
   {
@@ -46,6 +47,7 @@ const server = setupServer(
   http.delete("/api/v1/interventions/:id", () => {
     return new HttpResponse(null, { status: 204 });
   }),
+  refresh401Handler,
 );
 
 beforeAll(() => server.listen());

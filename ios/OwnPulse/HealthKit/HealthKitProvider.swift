@@ -101,6 +101,52 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         immediateDeliveryRecordTypes.contains(recordType) ? .immediate : .hourly
     }
 
+    /// Read-side cycle-prevention filter — [ADR-0008](../../../docs/decisions/0008-healthkit-sync.md).
+    ///
+    /// OwnPulse writes records it creates to HealthKit under its own
+    /// `HKSource` (the app's bundle ID). Without a filter, the very next
+    /// anchored read would pick those records back up, producing a
+    /// write → read → re-upload cycle and duplicate data. This predicate
+    /// excludes samples whose source is this app, unconditionally, on
+    /// every read. It is not configurable and must be applied to every
+    /// `HKAnchoredObjectQuery` over a type OwnPulse is able to write.
+    ///
+    /// `HKSource.default()` reflects the current process's bundle ID, which
+    /// is stable and available in the unit test host, so tests can and do
+    /// construct the real predicate here. What tests can't do is exercise
+    /// this against a live `HKHealthStore` read — there's no way to seed
+    /// real HealthKit samples "from this app" vs. "from elsewhere" in a
+    /// unit test, so coverage is limited to shape (an `NSCompoundPredicate`
+    /// of type `.not` wrapping exactly one subpredicate) and to confirming,
+    /// via `makeAnchoredQuery`, that the predicate actually reaches the
+    /// query passed to HealthKit.
+    static func makeReadPredicate() -> NSPredicate {
+        NSCompoundPredicate(
+            notPredicateWithSubpredicate: HKQuery.predicateForObjects(from: HKSource.default())
+        )
+    }
+
+    /// Builds the `HKAnchoredObjectQuery` used by `querySamples`, always
+    /// wired up with `makeReadPredicate()`. Extracted as a static function
+    /// (rather than inlined in `querySamples`) so a test can construct one
+    /// and assert its `.predicate` actually carries the cycle-prevention
+    /// filter — without this seam, a regression that dropped the predicate
+    /// argument would still pass every existing test.
+    static func makeAnchoredQuery(
+        type: HKSampleType,
+        anchor: HKQueryAnchor?,
+        limit: Int,
+        resultsHandler: @escaping (HKAnchoredObjectQuery, [HKSample]?, [HKDeletedObject]?, HKQueryAnchor?, Error?) -> Void
+    ) -> HKAnchoredObjectQuery {
+        HKAnchoredObjectQuery(
+            type: type,
+            predicate: makeReadPredicate(),
+            anchor: anchor,
+            limit: limit,
+            resultsHandler: resultsHandler
+        )
+    }
+
     func requestAuthorization() async throws {
         // HealthKit's `requestAuthorization` raises an `NSException` (not an
         // `NSError`) if any type in `toShare` is disallowed — e.g. Apple
@@ -207,9 +253,8 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
             // Cap each round trip at `limit`. The caller drives a paging
             // loop, so for a 500K-sample type we yield 5K-sample pages
             // instead of materializing the whole result up front.
-            let query = HKAnchoredObjectQuery(
+            let query = Self.makeAnchoredQuery(
                 type: type,
-                predicate: nil,
                 anchor: hkAnchor,
                 limit: limit
             ) { _, added, deleted, newAnchor, error in
@@ -290,7 +335,11 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
             let queries = QueryBag()
 
             for sampleType in sampleTypes {
-                let query = HKObserverQuery(sampleType: sampleType, predicate: nil) { _, completionHandler, error in
+                // Same ADR-0008 cycle-prevention filter as the anchored
+                // query: without it, every OwnPulse write-back wakes the
+                // app via background delivery and kicks off a no-op sync
+                // for a sample the app itself just wrote.
+                let query = HKObserverQuery(sampleType: sampleType, predicate: Self.makeReadPredicate()) { _, completionHandler, error in
                     // HealthKit expects us to call `completionHandler` so it
                     // knows the delivery was handled. On error, log without
                     // sample IDs (no PHI) and still invoke completionHandler
