@@ -41,6 +41,13 @@
 		264F1827147C1C6A3B09B8AE /* MockAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */; };
 		26656421C976B47BF433E327 /* OfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6049367D20366FC7493CBC2 /* OfflineQueue.swift */; };
 		27CF1FFD6541FF4B629FE067 /* MockNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B294575765E4C92C7F8290 /* MockNotificationManager.swift */; };
+		E03C16B3A1BE4DB3A16F2C34 /* DoseReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A11B43B16B4E21AB7293C1 /* DoseReminderScheduler.swift */; };
+		53CA4F98D49A493B88002E4E /* DoseReminderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5E744B6CA6C4DC69F5FCE04 /* DoseReminderCoordinator.swift */; };
+		DF579E4613194B4A9E5BC361 /* DoseReminderSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7CD1B242CE94C54A71B183E /* DoseReminderSchedulerTests.swift */; };
+		2FE6122AF0244360BA37103F /* DoseReminderCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4875ECE27923412A86A8E7A4 /* DoseReminderCoordinatorTests.swift */; };
+		7117839CC0D4467C8AECEFFD /* MockDoseReminderRebuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 337A06B4BA024D788E738F38 /* MockDoseReminderRebuilder.swift */; };
+		15B645A59FAE4CE694CE1CC0 /* MockUserNotificationCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6D43DBFEF14B439A5310E4 /* MockUserNotificationCenter.swift */; };
+		390049E09F2A415E803B42E5 /* NotificationManagerDoseReminderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B87628DE68941278F0E95A4 /* NotificationManagerDoseReminderTests.swift */; };
 		281AF7A8CA053E4DA1D1FC81 /* MockFeatureFlagService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5ECF4C4691493011E79B690 /* MockFeatureFlagService.swift */; };
 		28CA3D3620ACB6EBA5A2269B /* MedicationSyncProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F17B51D542E7FFB01F34E90E /* MedicationSyncProvider.swift */; };
 		29D6DD6A5FFAD5FD2B951CD9 /* APIModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E1B546B8E79698D9917BBB /* APIModelsTests.swift */; };
@@ -373,6 +380,13 @@
 		CCF3CF46259AD8ED8B3D26B6 /* ClinicalRecordProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClinicalRecordProvider.swift; sourceTree = "<group>"; };
 		CF7F419A2EFD4A51FD23A3C4 /* WeeklySummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeeklySummaryCard.swift; sourceTree = "<group>"; };
 		D0B294575765E4C92C7F8290 /* MockNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNotificationManager.swift; sourceTree = "<group>"; };
+		B2A11B43B16B4E21AB7293C1 /* DoseReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseReminderScheduler.swift; sourceTree = "<group>"; };
+		C5E744B6CA6C4DC69F5FCE04 /* DoseReminderCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseReminderCoordinator.swift; sourceTree = "<group>"; };
+		B7CD1B242CE94C54A71B183E /* DoseReminderSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseReminderSchedulerTests.swift; sourceTree = "<group>"; };
+		4875ECE27923412A86A8E7A4 /* DoseReminderCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseReminderCoordinatorTests.swift; sourceTree = "<group>"; };
+		337A06B4BA024D788E738F38 /* MockDoseReminderRebuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockDoseReminderRebuilder.swift; sourceTree = "<group>"; };
+		AE6D43DBFEF14B439A5310E4 /* MockUserNotificationCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUserNotificationCenter.swift; sourceTree = "<group>"; };
+		9B87628DE68941278F0E95A4 /* NotificationManagerDoseReminderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerDoseReminderTests.swift; sourceTree = "<group>"; };
 		D1ED110E1D7CCFA9CD8958BB /* WidgetDataPublisherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataPublisherTests.swift; sourceTree = "<group>"; };
 		D2455C9A6A8D8B0C1934A934 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
 		D2EFCC3ABFED4F18B7F5DF8B /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
@@ -541,11 +555,16 @@
 				5E6426632C9A60D4B0EAE38F /* MockKeychainService.swift */,
 				69FF64D436027417304D659C /* MockNetworkClient.swift */,
 				D0B294575765E4C92C7F8290 /* MockNotificationManager.swift */,
+				337A06B4BA024D788E738F38 /* MockDoseReminderRebuilder.swift */,
+				AE6D43DBFEF14B439A5310E4 /* MockUserNotificationCenter.swift */,
 				9E18928E4B73BBD0F693614A /* MyChartConnectViewModelTests.swift */,
 				28574810456BFBF572A24D3E /* NetworkClientRefreshTests.swift */,
 				933E701E2FE265BEAD6899EA /* NotificationDelegateTests.swift */,
 				568D8D1C5B681A29E905A0FF /* NotificationManagerTests.swift */,
+				9B87628DE68941278F0E95A4 /* NotificationManagerDoseReminderTests.swift */,
 				E5A9330C6329315C52B8D03E /* NotificationModelsTests.swift */,
+				B7CD1B242CE94C54A71B183E /* DoseReminderSchedulerTests.swift */,
+				4875ECE27923412A86A8E7A4 /* DoseReminderCoordinatorTests.swift */,
 				42C46A032CA4261AF4DF4588 /* ObjCExceptionCatcherTests.swift */,
 				E75554390D361CB2DC5B1694 /* OfflineQueueTests.swift */,
 				49911DEAE6D3246B7F5E0F68 /* PKCEHelperTests.swift */,
@@ -633,6 +652,8 @@
 			children = (
 				10C04165D859EBD886EDA054 /* NotificationDelegate.swift */,
 				7EC3BA93997299C82E7D9272 /* NotificationManager.swift */,
+				B2A11B43B16B4E21AB7293C1 /* DoseReminderScheduler.swift */,
+				C5E744B6CA6C4DC69F5FCE04 /* DoseReminderCoordinator.swift */,
 			);
 			path = Notifications;
 			sourceTree = "<group>";
@@ -1048,6 +1069,8 @@
 				EFCC871589CB4A92769DE49F /* NetworkClient.swift in Sources */,
 				9B399468C9D87B6A9EF64EBE /* NotificationDelegate.swift in Sources */,
 				3AE8FE51A51E3C242110ABEE /* NotificationManager.swift in Sources */,
+				E03C16B3A1BE4DB3A16F2C34 /* DoseReminderScheduler.swift in Sources */,
+				53CA4F98D49A493B88002E4E /* DoseReminderCoordinator.swift in Sources */,
 				F58E423001378E6C79F02B60 /* NotificationModels.swift in Sources */,
 				F2ECB7EB0C51CBC4E0816AB0 /* OAuthWebView.swift in Sources */,
 				67D782B53C24AB42C3BF0688 /* ObjCExceptionCatcher.m in Sources */,
@@ -1131,11 +1154,16 @@
 				997B651854B45BE01C2D29B8 /* MockKeychainService.swift in Sources */,
 				63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */,
 				27CF1FFD6541FF4B629FE067 /* MockNotificationManager.swift in Sources */,
+				7117839CC0D4467C8AECEFFD /* MockDoseReminderRebuilder.swift in Sources */,
+				15B645A59FAE4CE694CE1CC0 /* MockUserNotificationCenter.swift in Sources */,
 				40AF712900C8C2B4CD8DBD39 /* MyChartConnectViewModelTests.swift in Sources */,
 				9EAA1F2DDA7D1ED1A74590E0 /* NetworkClientRefreshTests.swift in Sources */,
 				3932874A8CEE6C9B476E42E3 /* NotificationDelegateTests.swift in Sources */,
 				6921675809267BBE75644A64 /* NotificationManagerTests.swift in Sources */,
+				390049E09F2A415E803B42E5 /* NotificationManagerDoseReminderTests.swift in Sources */,
 				41735C37684479B4AAC1107C /* NotificationModelsTests.swift in Sources */,
+				DF579E4613194B4A9E5BC361 /* DoseReminderSchedulerTests.swift in Sources */,
+				2FE6122AF0244360BA37103F /* DoseReminderCoordinatorTests.swift in Sources */,
 				7C6D9B3B092FB1D3168A9AB9 /* ObjCExceptionCatcherTests.swift in Sources */,
 				BCA4D818C417FDC772EBCE4A /* OfflineQueueTests.swift in Sources */,
 				C0BEAECB10367E37B9ECBA54 /* PKCEHelperTests.swift in Sources */,

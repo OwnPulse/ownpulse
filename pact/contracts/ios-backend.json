@@ -880,6 +880,60 @@
       }
     },
     {
+      "description": "a request to list active protocol runs",
+      "providerState": "a protocol with an active, notify-enabled run exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/active",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "77777777-7777-7777-7777-777777777777",
+            "protocol_id": "88888888-8888-8888-8888-888888888888",
+            "protocol_name": "BPC-157 Protocol",
+            "user_id": "99999999-9999-9999-9999-999999999999",
+            "start_date": "2026-03-28",
+            "duration_days": 28,
+            "status": "active",
+            "notify": true,
+            "notify_time": null,
+            "notify_times": [
+              "08:00",
+              "20:00"
+            ],
+            "repeat_reminders": false,
+            "repeat_interval_minutes": null,
+            "progress_pct": 18.0,
+            "doses_today": 1,
+            "doses_completed_today": 0,
+            "created_at": "2026-03-28T10:00:00Z"
+          }
+        ],
+        "matchingRules": {
+          "$.body[0].progress_pct": {
+            "match": "type"
+          },
+          "$.body[0].doses_today": {
+            "match": "type"
+          },
+          "$.body[0].doses_completed_today": {
+            "match": "type"
+          },
+          "$.body[0].created_at": {
+            "match": "type"
+          }
+        }
+      }
+    },
+    {
       "description": "a request to get a protocol by id",
       "providerState": "an authenticated user exists",
       "request": {
