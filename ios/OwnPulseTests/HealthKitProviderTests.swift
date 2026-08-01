@@ -163,15 +163,14 @@ struct HealthKitProviderPagedQueryTests {
 
 @Suite("HealthKitProvider — ADR-0008 cycle-prevention read predicate")
 struct HealthKitProviderReadPredicateTests {
-    // `HKSource.default()` reflects the running process/bundle and can't be
-    // faked or intercepted from a unit test, so we can't assert on its exact
-    // contents here. Instead we assert on the *shape* of the predicate the
-    // cycle guard produces: it must be a NOT-compound wrapping exactly one
-    // subpredicate (the "from OwnPulse's own source" predicate). This is
-    // enough to guard against someone accidentally inverting the logic
-    // (e.g. flipping to `predicateForObjects(from:)` with no NOT, which
-    // would silently *only* sync OwnPulse's own writes and drop every
-    // third-party sample).
+    // The unit test host has a real bundle ID, so `HKSource.default()`
+    // resolves fine here — what a unit test can't do is seed real HealthKit
+    // samples "from this app" vs. "from elsewhere" to exercise filtering
+    // end to end. So in addition to shape (NOT-compound wrapping exactly
+    // one subpredicate — guards against someone inverting the logic, e.g.
+    // to plain `predicateForObjects(from:)`, which would silently sync only
+    // OwnPulse's own writes and drop every third-party sample), we assert
+    // that the predicate actually reaches the query HealthKit executes.
     @Test("makeReadPredicate returns a NOT-compound predicate")
     func returnsNotCompoundPredicate() {
         let predicate = HealthKitProvider.makeReadPredicate()
@@ -185,12 +184,14 @@ struct HealthKitProviderReadPredicateTests {
         #expect(compound.subpredicates.count == 1)
     }
 
-    @Test("makeReadPredicate is deterministic across calls")
-    func isDeterministic() {
-        let first = HealthKitProvider.makeReadPredicate() as? NSCompoundPredicate
-        let second = HealthKitProvider.makeReadPredicate() as? NSCompoundPredicate
+    @Test("makeAnchoredQuery's predicate matches makeReadPredicate — the filter reaches the actual query")
+    func anchoredQueryCarriesReadPredicate() {
+        let query = HealthKitProvider.makeAnchoredQuery(
+            type: HKQuantityType(.heartRate),
+            anchor: nil,
+            limit: 5_000
+        ) { _, _, _, _, _ in }
 
-        #expect(first?.compoundPredicateType == second?.compoundPredicateType)
-        #expect(first?.subpredicates.count == second?.subpredicates.count)
+        #expect(query.predicate?.predicateFormat == HealthKitProvider.makeReadPredicate().predicateFormat)
     }
 }

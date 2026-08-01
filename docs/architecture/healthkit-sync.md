@@ -4,7 +4,7 @@ OwnPulse reads from and writes to Apple HealthKit. This document covers the sync
 
 ## Cycle Prevention
 
-When OwnPulse writes a record to HealthKit, it uses the app's bundle ID (`com.ownpulse.app`) as the `HKSource`. On every HealthKit read, records whose source bundle ID matches OwnPulse's are filtered out unconditionally.
+When OwnPulse writes a record to HealthKit, it uses the app's bundle ID (`health.ownpulse.app`) as the `HKSource`. On every HealthKit sync read (anchored queries and observer queries), records whose source bundle ID matches OwnPulse's are filtered out unconditionally.
 
 This rule is:
 - Enforced in the iOS `HealthKitProvider` implementation
@@ -13,7 +13,9 @@ This rule is:
 
 This prevents the cycle: OwnPulse writes to HealthKit, then reads the same record back, creating a duplicate.
 
-**Implementation:** `HealthKitProvider.makeReadPredicate()` builds the exclusion predicate (`NOT predicateForObjects(from: HKSource.default())`) and is applied to every `HKAnchoredObjectQuery` in `HealthKitProvider.querySamples`. `MedicationSyncProvider` ANDs the same predicate into its dose-event query as defense-in-depth (OwnPulse doesn't currently write dose events, so there's no live cycle risk there yet). `ClinicalRecordProvider` does not apply it — OwnPulse requests read-only clinical record access (`toShare: []`) and third-party apps cannot write `HKClinicalRecord`s, so there is no write → read cycle for that type today.
+One consequence: HealthKit is no longer an implicit backup for data OwnPulse itself wrote there — sync reads never see it again. The backend export is the recovery path for that data, not HealthKit.
+
+**Implementation:** `HealthKitProvider.makeReadPredicate()` builds the exclusion predicate (`NOT predicateForObjects(from: HKSource.default())`) and is applied, via `HealthKitProvider.makeAnchoredQuery()`, to every `HKAnchoredObjectQuery` in `HealthKitProvider.querySamples`, and directly to the `HKObserverQuery` in `HealthKitProvider.observeSampleUpdates()`. `MedicationSyncProvider` does not apply it — OwnPulse only reads dose events (no write-back path exists), so there's no cycle to guard against for that type, and the file is gated behind `#if swift(>=6.3)` (inert on the pinned Swift 6.0 toolchain). `ClinicalRecordProvider` does not apply it either — OwnPulse requests read-only clinical record access (`toShare: []`) and third-party apps cannot write `HKClinicalRecord`s, so there is no write → read cycle for that type today.
 
 ## Write-Back Queue Flow
 
