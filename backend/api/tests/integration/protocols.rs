@@ -454,7 +454,7 @@ async fn test_log_dose_creates_intervention() {
     let line_id = created["lines"][0]["id"].as_str().unwrap();
 
     let dose_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 0
     });
 
@@ -493,6 +493,38 @@ async fn test_log_dose_creates_intervention() {
     assert!(items.iter().any(|i| i["substance"] == "Creatine"));
 }
 
+/// `LogDoseRequest::protocol_line_id` has no `line_id` alias: a body using
+/// the old field name is missing the required `protocol_line_id` field and
+/// must fail deserialization (422), not silently ignore the dose. This locks
+/// in the deliberate break so `line_id` doesn't get quietly re-added as an
+/// alias later.
+#[tokio::test]
+async fn test_log_dose_rejects_old_line_id_field_name() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let created = create_test_protocol(&app, &token).await;
+    let protocol_id = created["id"].as_str().unwrap();
+    let line_id = created["lines"][0]["id"].as_str().unwrap();
+
+    let dose_body = json!({
+        "line_id": line_id,
+        "day_number": 0
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/{protocol_id}/doses/log"),
+            &token,
+            Some(&dose_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 422);
+}
+
 #[tokio::test]
 async fn test_skip_dose() {
     let app = common::setup().await;
@@ -503,7 +535,7 @@ async fn test_skip_dose() {
     let line_id = created["lines"][0]["id"].as_str().unwrap();
 
     let skip_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 0
     });
 
@@ -779,7 +811,7 @@ async fn test_log_dose_validates_schedule_pattern() {
 
     // Try logging on day 1 where schedule_pattern[1] = false
     let dose_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 1
     });
 
@@ -807,7 +839,7 @@ async fn test_log_dose_duplicate_returns_error() {
     let line_id = created["lines"][0]["id"].as_str().unwrap();
 
     let dose_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 0
     });
 
@@ -875,6 +907,7 @@ async fn test_todays_doses() {
     assert_eq!(create_resp.status(), 201);
     let created = common::body_json(create_resp).await;
     let protocol_id = created["id"].as_str().unwrap();
+    let line_id = created["lines"][0]["id"].as_str().unwrap();
 
     // Start a run so todays-doses can find it
     let run_resp = app
@@ -912,4 +945,13 @@ async fn test_todays_doses() {
         "todays-doses should return scheduled doses"
     );
     assert_eq!(items[0]["substance"].as_str().unwrap(), "Omega-3");
+    // The line identifier key must be `protocol_line_id` and must equal the
+    // seeded line's own id — clients send this value back on the dose
+    // log/skip endpoints, so a wrong column alias (e.g. the run id) would
+    // silently corrupt every dose log/skip request built from this response.
+    assert_eq!(
+        items[0]["protocol_line_id"].as_str().unwrap(),
+        line_id,
+        "todays-doses must key the line id as `protocol_line_id` and return the seeded line's id"
+    );
 }
