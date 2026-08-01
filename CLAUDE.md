@@ -429,7 +429,7 @@ All jobs idempotent. No shared runner state. iOS failures do not block deploy �
 
 ## Diagnosing crashes
 
-To diagnose iOS crashes a user reports, run `opdev crashes diagnose --since 24h`. It pulls symbolicated crash logs from App Store Connect (and, after Phase 2 of the crash-tooling work, also from our `app_events` table). Requires App Store Connect credentials for whoever publishes the iOS build — self-hosters of just the backend/web stack don't need this. opdev lives in the separate ownpulse-dev repo. See `docs/guides/diagnosing-crashes.md` for setup and flags.
+**Planned tooling — not yet available.** The design is to diagnose iOS crashes via an `opdev crashes diagnose` subcommand pulling symbolicated crash logs from App Store Connect (and, in a later phase, from our `app_events` table). As of now, `opdev` (in the separate ownpulse-dev repo) has no `crashes` subcommand — only `clean`, `e2e`, `list`, `session`, `setup`, `teardown`, and `update`. See `docs/guides/diagnosing-crashes.md` for the design and setup steps once it ships.
 
 ---
 

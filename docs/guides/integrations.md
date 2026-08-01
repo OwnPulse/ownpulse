@@ -45,5 +45,5 @@ New data sources follow a consistent 12-step process. This ensures each integrat
 |----------|--------|-----|
 | Google OAuth | Implemented (login + calendar events client) | -- |
 | HealthKit | Implemented (bulk sync, write-queue, confirm) | [ADR-0008](../decisions/0008-healthkit-sync.md) |
-| Garmin | Planned (Phase 1 -- OAuth client not yet wired) | -- |
-| Oura | Planned (Phase 1 -- OAuth client not yet wired) | -- |
+| Garmin | Implemented (OAuth 1.0a connect/callback, token storage); sync job exists but isn't wired to a scheduler or manual trigger yet | -- |
+| Oura | Implemented (OAuth 2.0 connect/callback, token storage); sync job exists but isn't wired to a scheduler or manual trigger yet | -- |
