@@ -486,14 +486,17 @@ get the HealthKit write-back queue|confirm HealthKit write-back items)$";
 /// and it FAILS if the provider drifts from the iOS HealthKit-sync contract.
 ///
 /// It deliberately verifies only the deterministic HealthKit-sync subset (see
-/// [`IOS_HEALTHKIT_INTERACTIONS`]). The remaining iOS interactions cannot be
-/// verified today because the committed `ios-backend.json` is a Pact v2 document
-/// with zero matching rules: every dynamic field (generated UUIDs, timestamps,
-/// invite codes) and every literal path id (`proto-1`, fixed admin UUIDs) is
-/// matched by exact equality, which a real provider can never satisfy. Bringing
-/// the full contract under verification requires re-authoring it with type/regex
-/// matchers and seeding every provider state — tracked by `verify_ios_contract`
-/// below, which stays `#[ignore]`d until that work lands.
+/// [`IOS_HEALTHKIT_INTERACTIONS`]). Most of the remaining iOS interactions
+/// cannot be verified today because the committed `ios-backend.json` is a
+/// Pact v2 document with no matching rules for them: every dynamic field
+/// (generated UUIDs, timestamps, invite codes) and every literal path id
+/// (`proto-1`, fixed admin UUIDs) is matched by exact equality, which a real
+/// provider can never satisfy. The protocol dose log/skip interactions are
+/// the one exception — see [`verify_ios_dose_contract`], which does add
+/// matching rules and seeded state for just those two. Bringing the rest of
+/// the contract under verification requires the same treatment for every
+/// other interaction — tracked by `verify_ios_contract` below, which stays
+/// `#[ignore]`d until that work lands.
 #[tokio::test]
 async fn verify_ios_healthkit_contract() {
     let contract = contracts_dir().join("ios-backend.json");
@@ -517,12 +520,11 @@ async fn verify_ios_healthkit_contract() {
 }
 
 /// Regex matching the iOS protocol dose log/skip interactions in
-/// `ios-backend.json`. Now that these interactions seed real provider state
-/// (see `seed_dose_protocol`) with fixed UUIDs and use `type` matchers on the
-/// server-generated `id`/`intervention_id`/`logged_at` response fields, they
-/// can be verified deterministically against the live provider.
-const IOS_DOSE_INTERACTIONS: &str =
-    "^a request to (log|skip) a protocol dose$";
+/// `ios-backend.json`. These interactions seed real provider state (see
+/// `seed_dose_protocol`) with fixed UUIDs and use `type` matchers on the
+/// server-generated `id`/`intervention_id`/`logged_at` response fields, so
+/// they can be verified deterministically against the live provider.
+const IOS_DOSE_INTERACTIONS: &str = "^a request to (log|skip) a protocol dose$";
 
 /// Active iOS Pact gate for the protocol dose log/skip endpoints.
 ///

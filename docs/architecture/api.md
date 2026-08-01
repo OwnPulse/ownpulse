@@ -1158,8 +1158,11 @@ Observer exports all their responses across all polls.
 | GET | `/protocols/:id` | Get protocol with lines + dose status | 1 |
 | PATCH | `/protocols/:id` | Update protocol | 1 |
 | DELETE | `/protocols/:id` | Delete protocol | 1 |
-| POST | `/protocols/:id/log` | Log a dose | 1 |
-| POST | `/protocols/:id/skip` | Skip a dose | 1 |
+| POST | `/protocols/:id/doses/log` | Log a dose directly on a protocol (legacy; no active run required) | 1 |
+| POST | `/protocols/:id/doses/skip` | Skip a dose directly on a protocol (legacy; no active run required) | 1 |
+| POST | `/protocols/runs/:run_id/doses/log` | Log a dose on an active run | 1 |
+| POST | `/protocols/runs/:run_id/doses/skip` | Skip a dose on an active run | 1 |
+| GET | `/protocols/runs/todays-doses` | Today's scheduled doses across all of the user's active runs | 1 |
 | POST | `/protocols/:id/share` | Generate share link | 1 |
 | GET | `/protocols/shared/:token` | View shared protocol (public) | 1 |
 | POST | `/protocols/import/:token` | Copy shared protocol | 1 |
@@ -1214,34 +1217,90 @@ Create a new protocol with one or more lines and a day schedule.
 
 **Errors:** `400` if name is empty, duration is zero, or lines array is empty.
 
-#### `POST /protocols/:id/log`
+#### `POST /protocols/:id/doses/log` and `POST /protocols/runs/:run_id/doses/log`
 
-Log a completed dose for a protocol line on a specific day.
+Log a completed dose for a protocol line on a specific day of the protocol's
+schedule (`day_number` is 0-indexed from the protocol's `start_date` or the
+run's `start_date`). The `:id` (protocol-level) form is the legacy path and
+requires the protocol to have a `start_date`; the `:run_id` form operates on
+an active run and is the one clients should use going forward. Logging a
+dose also creates an `interventions` record for the line's substance/dose/
+route.
 
 **Request body:**
 
 ```json
 {
   "protocol_line_id": "uuid",
-  "day": 3,
-  "logged_at": "2026-04-03T08:30:00Z"
+  "day_number": 3
 }
 ```
 
-**Response:** `201 Created`
+**Response:** `200 OK`
 
 ```json
 {
   "id": "uuid",
-  "protocol_id": "uuid",
   "protocol_line_id": "uuid",
-  "day": 3,
+  "day_number": 3,
   "status": "completed",
+  "intervention_id": "uuid",
   "logged_at": "2026-04-03T08:30:00Z"
 }
 ```
 
-**Errors:** `400` if the day is not an active day for the line. `404` if protocol or line not found.
+**Errors:** `404` if the protocol/run or line is not found or not owned by
+the caller, or if `day_number` is out of range or not scheduled
+(`schedule_pattern[day_number]` is `false`) for the line. `409` if a dose
+has already been logged or skipped for this line and day
+(`UNIQUE(protocol_line_id, day_number)`). `422` if the request body is
+missing `protocol_line_id` or `day_number`.
+
+#### `POST /protocols/:id/doses/skip` and `POST /protocols/runs/:run_id/doses/skip`
+
+Mark a scheduled dose as skipped, without creating an `interventions` record.
+Same request body shape and error semantics as the log endpoints above.
+
+**Request body:**
+
+```json
+{
+  "protocol_line_id": "uuid",
+  "day_number": 3
+}
+```
+
+**Response:** `204 No Content`
+
+#### `GET /protocols/runs/todays-doses`
+
+Returns today's scheduled doses across all of the user's currently active
+runs (paused or completed runs are excluded), one entry per protocol line
+whose `schedule_pattern` marks today's day number as active.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "protocol_id": "uuid",
+    "protocol_name": "BPC-157 — 4 weeks",
+    "run_id": "uuid",
+    "protocol_line_id": "uuid",
+    "substance": "BPC-157",
+    "dose": 250.0,
+    "unit": "mcg",
+    "route": "subcutaneous",
+    "time_of_day": "AM",
+    "day_number": 3,
+    "status": null
+  }
+]
+```
+
+`status` is `null` until a dose is logged or skipped for that line today, then
+`"completed"` or `"skipped"`. `protocol_line_id` is the id to send back to the
+log/skip endpoints above.
 
 ### Server-Sent Events (SSE)
 
