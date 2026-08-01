@@ -5,10 +5,11 @@ import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { useAuthStore } from "../../src/store/auth";
+import { refresh401Handler } from "./support/msw-auth-refresh";
 
 const TOKEN = "test-jwt";
 
-const server = setupServer();
+const server = setupServer(refresh401Handler);
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());

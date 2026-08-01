@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { useExploreStore } from "../../stores/exploreStore";
+import { localToday } from "../../utils/datetime";
 import styles from "./DateRangeBar.module.css";
 
 const PRESETS = ["7d", "30d", "90d", "1y", "all"] as const;
@@ -21,7 +22,9 @@ export function DateRangeBar() {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
 
-  const today = new Date().toISOString().slice(0, 10);
+  // Caps the custom-range date inputs — a UTC-derived "today" would block
+  // users east of UTC from picking their actual current date.
+  const today = localToday();
 
   const handlePreset = (preset: (typeof PRESETS)[number]) => {
     setShowCustom(false);
