@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use chrono::{Duration, SecondsFormat, Utc};
 use serde_json::json;
 use tower::ServiceExt;
 
 use crate::common;
+
+/// RFC3339 timestamp `minutes_ago` in the past, so test data always falls
+/// inside the overlap scan's rolling window regardless of the current date.
+fn recent_ts(minutes_ago: i64) -> String {
+    (Utc::now() - Duration::minutes(minutes_ago)).to_rfc3339_opts(SecondsFormat::Secs, true)
+}
 
 /// Insert a health record for the test user directly via the API.
 async fn insert_record(
@@ -42,44 +49,12 @@ async fn test_overlap_scan_reports_metrics_with_multiple_sources() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     // heart_rate has two sources -> should be reported.
-    insert_record(
-        &app,
-        &token,
-        "garmin",
-        "heart_rate",
-        60.0,
-        "2026-05-20T10:00:00Z",
-    )
-    .await;
-    insert_record(
-        &app,
-        &token,
-        "garmin",
-        "heart_rate",
-        61.0,
-        "2026-05-20T10:01:00Z",
-    )
-    .await;
-    insert_record(
-        &app,
-        &token,
-        "oura",
-        "heart_rate",
-        62.0,
-        "2026-05-20T10:02:00Z",
-    )
-    .await;
+    insert_record(&app, &token, "garmin", "heart_rate", 60.0, &recent_ts(120)).await;
+    insert_record(&app, &token, "garmin", "heart_rate", 61.0, &recent_ts(119)).await;
+    insert_record(&app, &token, "oura", "heart_rate", 62.0, &recent_ts(118)).await;
 
     // weight has a single source -> should NOT be reported.
-    insert_record(
-        &app,
-        &token,
-        "manual",
-        "weight",
-        80.0,
-        "2026-05-20T08:00:00Z",
-    )
-    .await;
+    insert_record(&app, &token, "manual", "weight", 80.0, &recent_ts(240)).await;
 
     let resp = app
         .app
@@ -116,15 +91,7 @@ async fn test_overlap_scan_empty_when_no_overlap() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     // Single-source metric only.
-    insert_record(
-        &app,
-        &token,
-        "manual",
-        "weight",
-        80.0,
-        "2026-05-20T08:00:00Z",
-    )
-    .await;
+    insert_record(&app, &token, "manual", "weight", 80.0, &recent_ts(240)).await;
 
     let resp = app
         .app
@@ -173,18 +140,10 @@ async fn test_overlap_scan_is_user_scoped() {
         "garmin",
         "heart_rate",
         60.0,
-        "2026-05-20T10:00:00Z",
+        &recent_ts(120),
     )
     .await;
-    insert_record(
-        &app,
-        &token_a,
-        "oura",
-        "heart_rate",
-        62.0,
-        "2026-05-20T10:02:00Z",
-    )
-    .await;
+    insert_record(&app, &token_a, "oura", "heart_rate", 62.0, &recent_ts(118)).await;
 
     // A second user with no data must see an empty scan.
     let (_user_b, token_b) = common::create_test_user(&app).await;

@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import type { CreateRunRequest } from "../../api/protocols";
 import { protocolsApi } from "../../api/protocols";
+import { localToday } from "../../utils/datetime";
 import styles from "./StartRunModal.module.css";
 
 interface StartRunModalProps {
@@ -14,11 +15,6 @@ interface StartRunModalProps {
   onStarted?: () => void;
 }
 
-function todayISO(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export function StartRunModal({
   protocolId,
   protocolName,
@@ -26,7 +22,7 @@ export function StartRunModal({
   onStarted,
 }: StartRunModalProps) {
   const queryClient = useQueryClient();
-  const [startDate, setStartDate] = useState(todayISO);
+  const [startDate, setStartDate] = useState(localToday);
   const [notify, setNotify] = useState(false);
   const [notifyEntries, setNotifyEntries] = useState<{ key: number; time: string }[]>([
     { key: 0, time: "08:00" },

@@ -7,8 +7,8 @@ import Foundation
 ///
 /// Centralised so tests can assert the invariant — "no `AreaMark`-style zero
 /// baseline on the Y axis" — without inspecting SwiftUI view trees.
-/// `OverlayChartView`, `SmallMultiplesChartView`, `MetricSparklineChart`, and
-/// `WeightChartView` all consume `includesZeroInYAxis` when wiring up
+/// `OverlayChartView`, `SmallMultiplesChartView`, and `MetricSparklineChart`
+/// all consume `includesZeroInYAxis` when wiring up
 /// `chartYScale(domain: .automatic(includesZero:))`.
 enum ChartAxisConfig {
     /// Whether the Y-axis domain should snap to zero. Explicitly `false` so

@@ -3,6 +3,9 @@
 
 import BackgroundTasks
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "health.ownpulse.app", category: "sync-scheduler")
 
 /// Minimal abstraction over `BGTaskScheduler.submit` so tests can observe
 /// scheduling without a real `BGTaskScheduler` (which cannot be stubbed
@@ -32,12 +35,19 @@ final class SyncScheduler: Sendable {
         self.submitter = submitter
     }
 
-    /// Submits a BGAppRefresh request. Failures are swallowed — we can't
-    /// schedule in some test hosts (no entitlement) and the next sync
-    /// attempt will try again.
+    /// Submits a BGAppRefresh request. Submission failures are expected in
+    /// some test hosts (no BGTaskScheduler entitlement) and the next sync
+    /// attempt will try again, so this never throws — but on device, a
+    /// failure here (e.g. an identifier not present in
+    /// `BGTaskSchedulerPermittedIdentifiers`) would otherwise be completely
+    /// unobservable, so log it.
     func scheduleNextSync() {
         let request = BGAppRefreshTaskRequest(identifier: Self.taskIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: Self.earliestDelaySeconds)
-        try? submitter.submit(request)
+        do {
+            try submitter.submit(request)
+        } catch {
+            logger.error("Failed to submit BGAppRefreshTaskRequest: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
