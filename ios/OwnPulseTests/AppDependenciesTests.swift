@@ -26,6 +26,14 @@ struct AppDependenciesTests {
             if method == "GET" && path == Endpoints.healthKitWriteQueue {
                 return [HealthKitWriteQueueItem]()
             }
+            // Both `bootstrapAutoSync()` (on login) and `handleScenePhase(.active)`
+            // fire a dose-reminder rebuild alongside the HealthKit sync, which
+            // fetches active runs. Stub it to an empty list so those tests
+            // don't crash on a type mismatch against the `[AuthMethod]`
+            // fallback below.
+            if method == "GET" && path == Endpoints.activeRuns {
+                return [ActiveRunResponse]()
+            }
             return [] as [AuthMethod]
         }
         network.requestNoContentHandler = { _, _, _ in /* no-op */ }
@@ -194,6 +202,62 @@ struct AppDependenciesTests {
             let date = await deps.syncEngine.lastSyncDate
             return date != nil
         }
+    }
+
+    // MARK: - Dose reminders wired into scene-phase / login / logout
+
+    @Test("scene phase .active while authenticated rebuilds dose reminders")
+    func activeScenePhaseRebuildsDoseReminders() async throws {
+        let keychain = MockKeychainService()
+        let network = MockNetworkClient()
+        network.requestHandler = { _, path, _ in
+            if path == Endpoints.healthKitWriteQueue { return [HealthKitWriteQueueItem]() }
+            if path == Endpoints.activeRuns { return [ActiveRunResponse]() }
+            return [] as [AuthMethod]
+        }
+        network.requestNoContentHandler = { _, _, _ in }
+
+        let deps = AppDependencies(
+            keychainService: keychain,
+            networkClient: network,
+            healthKitProvider: MockHealthKitProvider(),
+            syncScheduler: SyncScheduler(submitter: RecordingSubmitter())
+        )
+        let url = URL(string: "ownpulse://auth#token=jwt&refresh_token=refresh")!
+        try await deps.authService.processCallback(url: url)
+
+        // Login itself triggers a rebuild (bootstrapAutoSync); wait for it,
+        // then reset the call log and confirm scene-phase .active triggers
+        // its own independent rebuild too.
+        try await eventually(timeout: 2.0) {
+            network.requestCalls.contains { $0.path == Endpoints.activeRuns }
+        }
+
+        let callsBefore = network.requestCalls.count
+        #expect(deps.handleScenePhase(.active) == true)
+
+        try await eventually(timeout: 2.0) {
+            network.requestCalls.count > callsBefore
+                && network.requestCalls.suffix(from: callsBefore).contains { $0.path == Endpoints.activeRuns }
+        }
+    }
+
+    @Test("logout tears down auto-sync and clears dose reminders without hanging or crashing")
+    func logoutClearsAllDoseReminders() async throws {
+        let (deps, provider, _) = make()
+        let url = URL(string: "ownpulse://auth#token=jwt&refresh_token=refresh")!
+        try await deps.authService.processCallback(url: url)
+
+        try await eventually(timeout: 2.0) { provider.backgroundDeliveryCallCount >= 1 }
+
+        // `teardownAutoSync()` now also calls `doseReminderCoordinator.clearAll()`
+        // — this exercises that path against the real `NotificationManager`
+        // (backed by the real `UNUserNotificationCenter.current()`, since no
+        // pending requests exist in the unit-test host) and confirms logout
+        // still completes.
+        await deps.authService.logout()
+
+        #expect(deps.authService.isAuthenticated == false)
     }
 
     // MARK: - Plan fix #6: bootstrap calls authorization BEFORE enabling delivery

@@ -35,7 +35,10 @@ struct ProtocolsListView: View {
         }
         .onAppear {
             if viewModel == nil {
-                viewModel = ProtocolsViewModel(networkClient: dependencies.networkClient)
+                viewModel = ProtocolsViewModel(
+                    networkClient: dependencies.networkClient,
+                    doseReminderRebuilder: dependencies.doseReminderCoordinator
+                )
             }
             Task { await viewModel?.loadProtocols() }
         }

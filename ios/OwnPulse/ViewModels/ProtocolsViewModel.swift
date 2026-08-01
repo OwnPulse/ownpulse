@@ -75,9 +75,14 @@ final class ProtocolsViewModel {
     // MARK: - Dependencies
 
     private let networkClient: NetworkClientProtocol
+    /// Rebuilds local dose reminders whenever active runs are refreshed.
+    /// Optional so existing call sites/tests that don't care about
+    /// notifications don't need to supply one.
+    private let doseReminderRebuilder: DoseReminderRebuilding?
 
-    init(networkClient: NetworkClientProtocol) {
+    init(networkClient: NetworkClientProtocol, doseReminderRebuilder: DoseReminderRebuilding? = nil) {
         self.networkClient = networkClient
+        self.doseReminderRebuilder = doseReminderRebuilder
     }
 
     // MARK: - List
@@ -100,6 +105,14 @@ final class ProtocolsViewModel {
             protocols = items
             activeRuns = runs
             listState = .loaded
+
+            // Rebuild local dose reminders whenever the active-run list is
+            // refreshed — this is the one hook point every mutation flow
+            // (start/pause/complete/delete/notify-settings change) already
+            // passes through via loadProtocols(), so a paused/completed/
+            // deleted run's reminders are cancelled the moment it drops out
+            // of `activeRuns`.
+            await doseReminderRebuilder?.rebuildReminders()
         } catch {
             logger.error("Failed to load protocols: \(error.localizedDescription, privacy: .public)")
             listState = .error("Failed to load protocols")

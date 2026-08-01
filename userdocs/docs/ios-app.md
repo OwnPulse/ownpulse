@@ -53,13 +53,20 @@ The iOS app includes a full native protocol editor. You can create, view, and ma
 
 ## Notifications
 
-The iOS app supports push notifications for protocol dose reminders. To set up notifications:
+Dose reminders are **local notifications** -- scheduled directly on your iPhone using each run's notify settings, with no push-notification service or backend involved. To set them up:
 
 1. Go to **Settings** in the OwnPulse app.
 2. Check the **Notifications** section. It shows whether dose reminders are enabled or disabled.
 3. If not enabled, tap **Enable Notifications** to grant permission.
 
-Notification times are configured per protocol run when you start it (see [Protocols -- Dose reminders](protocols.md#dose-reminders)). You can configure reminders per run from the web interface, and they will be delivered to your iOS device.
+Notification times are configured per protocol run when you start it, or when editing a run's settings (see [Protocols -- Dose reminders](protocols.md#dose-reminders)). Whether you set them from the web app or from iOS, the iOS app reads the run's notify settings and schedules matching local notifications the next time it runs -- it does not receive a push from the backend.
+
+How reminders stay up to date:
+
+- The iOS app schedules reminders up to **7 days ahead** for every active run with notifications enabled, and re-schedules that rolling window every time the app is opened or brought to the foreground.
+- Starting, pausing, completing, or deleting a run -- or changing its notify settings -- updates its reminders the next time the Protocols tab refreshes.
+- Because reminders are scheduled entirely on-device, they only exist on devices where you've opened OwnPulse recently enough for the app to (re)schedule them. If you don't open the app for more than 7 days, reminders for that period will not fire.
+- "Repeat until logged" is not implemented -- a reminder fires once at its configured time regardless of whether the dose is later logged or skipped.
 
 !!! warning
     If you previously denied notification permission, you will need to enable it manually in iOS Settings under **Notifications > OwnPulse**.
