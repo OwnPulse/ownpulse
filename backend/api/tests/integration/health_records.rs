@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use api::models::health_record::CreateHealthRecord;
 use serde_json::json;
 use tower::ServiceExt;
 
@@ -185,6 +186,170 @@ async fn test_delete_health_record() {
         .await
         .unwrap();
     assert_eq!(get_resp.status(), 404);
+}
+
+/// Regression test: deleting a record by id that belongs to another user
+/// must (1) return 404 (ownership is verified, not just "any row with this
+/// id") and (2) must NOT clear that other user's `duplicate_of` provenance
+/// link. Previously the `duplicate_of` cleanup ran before ownership was
+/// checked and had no `user_id` filter, so an attacker who knew (or guessed)
+/// another user's record id could sever their dedup provenance without ever
+/// being able to read or own that record.
+#[tokio::test]
+async fn test_delete_does_not_clear_other_users_duplicate_of() {
+    let app = common::setup().await;
+    let (_user_a_id, token_a) = common::create_test_user(&app).await;
+    let (user_b_id, _token_b) = common::create_test_user(&app).await;
+
+    // User B has two records: an original and a record that was detected as
+    // a cross-source duplicate of it (duplicate_of = original.id).
+    let original = api::db::health_records::insert(
+        &app.pool,
+        user_b_id,
+        &CreateHealthRecord {
+            source: "garmin".to_string(),
+            record_type: "heart_rate".to_string(),
+            value: Some(70.0),
+            unit: Some("bpm".to_string()),
+            start_time: "2026-03-18T14:00:00Z".parse().unwrap(),
+            end_time: None,
+            metadata: None,
+            source_id: None,
+        },
+        None,
+    )
+    .await
+    .unwrap();
+
+    let duplicate = api::db::health_records::insert(
+        &app.pool,
+        user_b_id,
+        &CreateHealthRecord {
+            source: "oura".to_string(),
+            record_type: "heart_rate".to_string(),
+            value: Some(70.2),
+            unit: Some("bpm".to_string()),
+            start_time: "2026-03-18T14:00:05Z".parse().unwrap(),
+            end_time: None,
+            metadata: None,
+            source_id: None,
+        },
+        Some(original.id),
+    )
+    .await
+    .unwrap();
+    assert_eq!(duplicate.duplicate_of, Some(original.id));
+
+    // User A attempts to delete user B's original record by id.
+    let delete_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "DELETE",
+            &format!("/api/v1/health-records/{}", original.id),
+            &token_a,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(delete_resp.status(), 404);
+
+    // User B's original record is untouched.
+    let still_exists: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM health_records WHERE id = $1 AND user_id = $2")
+            .bind(original.id)
+            .bind(user_b_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(still_exists.0, 1, "user B's record must not be deleted");
+
+    // User B's duplicate_of provenance link must not have been cleared.
+    let duplicate_of: (Option<uuid::Uuid>,) =
+        sqlx::query_as("SELECT duplicate_of FROM health_records WHERE id = $1")
+            .bind(duplicate.id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        duplicate_of.0,
+        Some(original.id),
+        "user A must not be able to clear user B's duplicate_of provenance link"
+    );
+}
+
+/// Positive counterpart: deleting a record the caller actually owns still
+/// clears `duplicate_of` links on their own referring records. This is the
+/// regression guard for the cleanup query itself — without the `user_id`
+/// scoping (or with the whole `UPDATE` removed), this still passes, so it's
+/// `test_delete_does_not_clear_other_users_duplicate_of` above that catches
+/// cross-tenant scope regressions and this one that catches the cleanup
+/// being deleted or broken outright.
+#[tokio::test]
+async fn test_delete_clears_own_duplicate_of() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let original = api::db::health_records::insert(
+        &app.pool,
+        user_id,
+        &CreateHealthRecord {
+            source: "garmin".to_string(),
+            record_type: "heart_rate".to_string(),
+            value: Some(70.0),
+            unit: Some("bpm".to_string()),
+            start_time: "2026-03-18T15:00:00Z".parse().unwrap(),
+            end_time: None,
+            metadata: None,
+            source_id: None,
+        },
+        None,
+    )
+    .await
+    .unwrap();
+
+    let duplicate = api::db::health_records::insert(
+        &app.pool,
+        user_id,
+        &CreateHealthRecord {
+            source: "oura".to_string(),
+            record_type: "heart_rate".to_string(),
+            value: Some(70.2),
+            unit: Some("bpm".to_string()),
+            start_time: "2026-03-18T15:00:05Z".parse().unwrap(),
+            end_time: None,
+            metadata: None,
+            source_id: None,
+        },
+        Some(original.id),
+    )
+    .await
+    .unwrap();
+    assert_eq!(duplicate.duplicate_of, Some(original.id));
+
+    let delete_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "DELETE",
+            &format!("/api/v1/health-records/{}", original.id),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(delete_resp.status(), 204);
+
+    let duplicate_of: (Option<uuid::Uuid>,) =
+        sqlx::query_as("SELECT duplicate_of FROM health_records WHERE id = $1")
+            .bind(duplicate.id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        duplicate_of.0, None,
+        "deleting the referenced record must clear the caller's own duplicate_of link"
+    );
 }
 
 /// Cycle guard (ADR-0008): a record with `source = "healthkit"` must NOT

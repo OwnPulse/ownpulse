@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CheckinInput, checkinsApi } from "../../api/checkins";
+import { localToday } from "../../utils/datetime";
 import forms from "./forms.module.css";
 
 const DIMENSION_COLORS: Record<string, string> = {
@@ -19,13 +20,9 @@ function sliderBackground(value: string, color: string): string {
   return `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, var(--color-border) ${pct}%)`;
 }
 
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function CheckinForm() {
   const queryClient = useQueryClient();
-  const [date, setDate] = useState(todayDate);
+  const [date, setDate] = useState(localToday);
   const [energy, setEnergy] = useState("5");
   const [mood, setMood] = useState("5");
   const [focus, setFocus] = useState("5");
@@ -37,7 +34,7 @@ export default function CheckinForm() {
     mutationFn: (data: CheckinInput) => checkinsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["checkins"] });
-      setDate(todayDate());
+      setDate(localToday());
       setEnergy("5");
       setMood("5");
       setFocus("5");

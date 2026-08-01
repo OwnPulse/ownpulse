@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useEffect, useState } from "react";
-import { refreshToken } from "../api/auth";
+import { refreshTokenOnce } from "../api/refresh";
 import { useAuthStore } from "../store/auth";
 
 export function useAuth(): { loading: boolean } {
@@ -20,7 +20,10 @@ export function useAuth(): { loading: boolean } {
           login(token);
           window.history.replaceState({}, document.title, window.location.pathname);
         } else if (!isAuthenticated) {
-          await refreshToken();
+          // Single-flight: shares the in-flight refresh with client.ts's
+          // 401 retry path so a request that 401s during boot can't rotate
+          // the refresh cookie out from under this call (or vice versa).
+          await refreshTokenOnce();
         }
       } finally {
         setLoading(false);

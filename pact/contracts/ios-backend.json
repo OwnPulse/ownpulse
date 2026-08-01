@@ -1023,16 +1023,16 @@
     },
     {
       "description": "a request to log a protocol dose",
-      "providerState": "an authenticated user exists",
+      "providerState": "a protocol with a loggable dose exists",
       "request": {
         "method": "POST",
-        "path": "/api/v1/protocols/proto-1/doses/log",
+        "path": "/api/v1/protocols/11111111-1111-1111-1111-111111111111/doses/log",
         "headers": {
           "Authorization": "Bearer some-jwt-token",
           "Content-Type": "application/json"
         },
         "body": {
-          "protocol_line_id": "line-1",
+          "protocol_line_id": "22222222-2222-2222-2222-222222222222",
           "day_number": 0
         }
       },
@@ -1042,28 +1042,38 @@
           "Content-Type": "application/json"
         },
         "body": {
-          "id": "dose-1",
-          "protocol_line_id": "line-1",
+          "id": "33333333-3333-3333-3333-333333333333",
+          "protocol_line_id": "22222222-2222-2222-2222-222222222222",
           "day_number": 0,
           "status": "completed",
-          "intervention_id": null,
-          "logged_at": "2026-03-28T08:00:00Z",
-          "created_at": "2026-03-28T08:00:00Z"
+          "intervention_id": "44444444-4444-4444-4444-444444444444",
+          "logged_at": "2026-03-28T08:00:00Z"
+        },
+        "matchingRules": {
+          "$.body.id": {
+            "match": "type"
+          },
+          "$.body.intervention_id": {
+            "match": "type"
+          },
+          "$.body.logged_at": {
+            "match": "type"
+          }
         }
       }
     },
     {
       "description": "a request to skip a protocol dose",
-      "providerState": "an authenticated user exists",
+      "providerState": "a protocol with a skippable dose exists",
       "request": {
         "method": "POST",
-        "path": "/api/v1/protocols/proto-1/doses/skip",
+        "path": "/api/v1/protocols/55555555-5555-5555-5555-555555555555/doses/skip",
         "headers": {
           "Authorization": "Bearer some-jwt-token",
           "Content-Type": "application/json"
         },
         "body": {
-          "protocol_line_id": "line-1",
+          "protocol_line_id": "66666666-6666-6666-6666-666666666666",
           "day_number": 1
         }
       },
