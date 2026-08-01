@@ -7,6 +7,10 @@ import { type CheckinInput, checkinsApi } from "../../api/checkins";
 import { DIMENSION_COLORS } from "../dimensionColors.generated";
 import forms from "./forms.module.css";
 
+// Slider labels are capitalized ("Energy") and lowercased at the call site, so
+// the lookup key is a plain string, not the narrower DimensionName literal.
+const dimensionColors: Record<string, string> = DIMENSION_COLORS;
+
 function sliderBackground(value: string, color: string): string {
   const pct = ((parseInt(value, 10) - 1) / 9) * 100;
   return `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, var(--color-border) ${pct}%)`;
@@ -75,7 +79,7 @@ export default function CheckinForm() {
         { label: "Recovery", value: recovery, setter: setRecovery },
         { label: "Libido", value: libido, setter: setLibido },
       ].map(({ label, value, setter }) => {
-        const color = DIMENSION_COLORS[label.toLowerCase()];
+        const color = dimensionColors[label.toLowerCase()];
         return (
           <div key={label} className={forms.sliderField}>
             <div className={forms.sliderLabel}>

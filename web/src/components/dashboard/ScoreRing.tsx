@@ -14,8 +14,12 @@ const STROKE = 5;
 const SIZE = (RADIUS + STROKE) * 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
+// label is a plain string prop (unlike SparklineRow's typed Dimension), so the
+// lookup can miss — widen for the index access rather than narrowing the prop.
+const dimensionColors: Record<string, string> = DIMENSION_COLORS;
+
 export function ScoreRing({ label, value }: ScoreRingProps) {
-  const color = DIMENSION_COLORS[label] ?? "#999";
+  const color = dimensionColors[label] ?? "#999";
   const progress = value != null ? value / 10 : 0;
   const offset = CIRCUMFERENCE * (1 - progress);
   const hasValue = value != null;
@@ -56,9 +60,9 @@ export function ScoreRing({ label, value }: ScoreRingProps) {
           />
         )}
       </svg>
-      <span className={styles.value} style={hasValue ? { color } : undefined}>
-        {hasValue ? value : "\u2014"}
-      </span>
+      {/* Not tinted with the dimension color: some tokens (e.g. energy) only
+          clear WCAG AA at 3:1 as a graphical ring stroke, not 4.5:1 as text. */}
+      <span className={styles.value}>{hasValue ? value : "\u2014"}</span>
       <span className={styles.label}>{label}</span>
     </div>
   );

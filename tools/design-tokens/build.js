@@ -126,7 +126,7 @@ const SWIFT_COLOR_MAP = {
   'color.accent.default': 'teal',
   'color.dimension.gold': 'gold',
   'color.dimension.sage': 'sage',
-  'color.dimension.libido': 'purple',
+  'color.dimension.purple': 'purple',
   'color.surface.bg-warm': 'warmBg',
   'color.surface.elevated': 'cardLight',
   'color.feedback.success': 'success',
@@ -349,24 +349,23 @@ StyleDictionary.registerFormat({
   name: 'ownpulse/dimension-colors-ts',
   format: ({ dictionary }) => {
     const colors = dimensionColors(dictionary);
+    const unionType = DIMENSION_KEYS.map((k) => JSON.stringify(k)).join(' | ');
     const mapLines = Object.entries(colors)
       .map(([k, v]) => `  ${k}: ${JSON.stringify(v)},`)
       .join('\n');
-    const namedExports = Object.entries(colors)
-      .map(([k, v]) => `export const ${k.toUpperCase()}_COLOR: string = ${JSON.stringify(v)};`)
-      .join('\n');
     return `${HEADER_TS}
+
+/** The five check-in subjective-score dimensions. */
+export type DimensionName = ${unionType};
 
 /**
  * Check-in dimension colors, keyed lowercase by dimension name. Single source
  * of truth for CheckinForm, ScoreRing, and SparklineRow so the five dimension
  * colors cannot drift between components.
  */
-export const DIMENSION_COLORS: Record<string, string> = {
+export const DIMENSION_COLORS: Record<DimensionName, string> = {
 ${mapLines}
 };
-
-${namedExports}
 `;
   },
 });
@@ -491,6 +490,18 @@ export async function buildTokens() {
 
   await sd.hasInitialized;
   await sd.buildAllPlatforms();
+}
+
+// Resolved token dictionary with no platform-specific transforms applied,
+// for tests exercising dimensionColors()/interventionColor()/chartMetricColors()
+// against the real token source rather than a hand-rolled fixture.
+export async function loadDictionary() {
+  const sd = new StyleDictionary({
+    source: [tokensPath],
+    platforms: { js: { transformGroup: 'js' } },
+  });
+  await sd.hasInitialized;
+  return sd.getPlatformTokens('js');
 }
 
 // Run only when executed directly (`node build.js`), not when imported by a test.

@@ -17,7 +17,7 @@ Regenerate with `npm run build:tokens` in `tools/design-tokens`.
 | `color.dimension.gold` | `#c49a3c` |
 | `color.dimension.sage` | `#5a8a5a` |
 | `color.dimension.purple` | `#7b61c2` |
-| `color.dimension.energy` | `#c49a3c` |
+| `color.dimension.energy` | `#a78333` |
 | `color.dimension.mood` | `#b2573c` |
 | `color.dimension.focus` | `#377c7c` |
 | `color.dimension.recovery` | `#5a8a5a` |

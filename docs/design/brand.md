@@ -39,7 +39,7 @@ All values live under the `color.*` group in [`tokens.json`](tokens.json). The h
 - **Surface:** `color.surface.bg` (`#fafaf7`) for the page base, `color.surface.elevated` (`#ffffff`) for cards, and `color.surface.bg-warm` (`#faf6f1`) for warm-tinted sections.
 - **Text:** `color.text.default` (`#1e1e1c`), `color.text.secondary` (`#5e5e57`), `color.text.muted` (`#72726b`).
 - **Border:** `color.border.default` (`#deded6`) for hairlines, `color.border.strong` (`#c2c2b9`) for emphasis.
-- **Feedback — functional colors:** `color.feedback.success` (`#007555`), `color.feedback.warning` (`#976900`), `color.feedback.error` (`#a44900`), `color.feedback.error-light` (`#f5dede`). Darkened from the original Wong-palette values (`#009e73` / `#e69f00` / `#d55e00`) to clear WCAG AA as text; the per-metric `chart.metric.*` slots below still use the original Wong hues, since those are graphical (3:1), not text (4.5:1).
+- **Feedback — functional colors:** `color.feedback.success` (`#007555`), `color.feedback.warning` (`#976900`), `color.feedback.error` (`#a44900`), `color.feedback.error-light` (`#f5dede`). Darkened from the original Wong-palette values (`#009e73` / `#e69f00` / `#d55e00`) to clear WCAG AA as text; the per-metric `chart.metric.*` slots below still use the original Wong hues, since those are graphical (3:1), not text (4.5:1). Feedback colors communicate system state (success/warning/error), never a subjective check-in score — use `color.dimension.*` for that, even where a feedback and a dimension token happen to share a hue.
 - **Dimension accents:** `color.dimension.gold` (`#c49a3c`), `color.dimension.sage` (`#5a8a5a`), `color.dimension.purple` (`#7b61c2`) — used to differentiate health "dimensions" in the UI.
 
 ### Check-in dimension colors
@@ -48,13 +48,15 @@ The five daily check-in dimensions (Energy, Mood, Focus, Recovery, Libido) each 
 
 | Dimension | Token | Value | Mirrors |
 |-----------|-------|-------|---------|
-| Energy | `color.dimension.energy` | `#c49a3c` | `color.dimension.gold` |
+| Energy | `color.dimension.energy` | `#a78333` | `color.dimension.gold`, darkened |
 | Mood | `color.dimension.mood` | `#b2573c` | `color.primary.default` |
 | Focus | `color.dimension.focus` | `#377c7c` | `color.accent.default` |
 | Recovery | `color.dimension.recovery` | `#5a8a5a` | `color.dimension.sage` |
 | Libido | `color.dimension.libido` | `#7b61c2` | `color.dimension.purple` |
 
-These are literal duplicate values, not DTCG aliases — `build.js` reads each token's own `value`, so a future change to (say) `color.primary.default` will not silently retint Mood. Change the dimension token explicitly if the two should diverge.
+These are literal duplicate (or, for Energy, hue-derived) values, not DTCG aliases — `build.js` reads each token's own `value`, so a future change to (say) `color.primary.default` will not silently retint Mood. Change the dimension token explicitly if the two should diverge.
+
+Energy diverges from `color.dimension.gold` rather than duplicating it exactly: the raw gold value clears only ~2.5:1 against the light surfaces, below the 3:1 WCAG AA floor for graphical objects (the ScoreRing ring/arc, the SparklineRow line). It's darkened along the same hue to ~3.4–3.5:1. Recovery didn't need the same treatment — `color.dimension.sage` already clears 3:1 (3.85:1 on `surface.bg`) unchanged. The ScoreRing's numeric label is rendered in `color.text.muted`, not the dimension hue, precisely so a hue only has to clear the 3:1 graphical floor and never has to satisfy 4.5:1 as text.
 
 The intervention marker color used to overlay substance/medication/supplement events on charts lives at `chart.intervention` (`#7b61c2`, the same brand purple as Libido). It replaced an off-palette flat-UI purple (`#9b59b6`) that didn't derive from any token. The hue overlap with Libido is acceptable because intervention markers are shape-distinct from dimension series on charts.
 

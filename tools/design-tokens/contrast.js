@@ -214,6 +214,40 @@ export function enumeratePairings(tokens) {
     },
   );
 
+  // Dimension colors (ScoreRing arc/track, SparklineRow line) and the
+  // intervention marker are graphical objects, not text — 3:1, not 4.5:1. Only
+  // asserted against surface.bg and surface.elevated: the two surfaces the
+  // dashboard (ScoreRing, SparklineRow) and explore chart actually render on.
+  // Guarded because the synthetic test palette below doesn't define these groups.
+  const graphicalBg = [
+    ['surface.bg', c.surface.bg.value],
+    ['surface.elevated', c.surface.elevated.value],
+  ];
+  if (c.dimension) {
+    for (const key of ['energy', 'mood', 'focus', 'recovery', 'libido']) {
+      for (const [bgName, bg] of graphicalBg) {
+        pairings.push({
+          name: `dimension.${key} on ${bgName}`,
+          fg: c.dimension[key].value,
+          bg,
+          threshold: THRESHOLD_GRAPHICAL,
+          kind: 'graphical',
+        });
+      }
+    }
+  }
+  if (tokens.chart?.intervention) {
+    for (const [bgName, bg] of graphicalBg) {
+      pairings.push({
+        name: `chart.intervention on ${bgName}`,
+        fg: tokens.chart.intervention.value,
+        bg,
+        threshold: THRESHOLD_GRAPHICAL,
+        kind: 'graphical',
+      });
+    }
+  }
+
   // NOTE: the resting border tokens (color.border.default / .strong) are
   // deliberately NOT asserted. They draw decorative card outlines, dividers,
   // and the resting edge of inputs that are themselves identified by fill,
