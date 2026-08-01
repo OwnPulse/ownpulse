@@ -244,4 +244,28 @@ describe("ProtocolView with runs", () => {
       expect(screen.getByText("Healing protocol")).toBeDefined();
     });
   });
+
+  it("builds the share link from the response's `token` field", async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([])),
+      http.post("/api/v1/protocols/:id/share", () =>
+        HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }),
+      ),
+    );
+
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText("Share")).toBeDefined();
+    });
+
+    await user.click(screen.getByText("Share"));
+
+    await waitFor(() => {
+      const input = screen.getByDisplayValue(/\/protocols\/shared\/share-abc$/);
+      expect(input).toBeDefined();
+    });
+  });
 });
