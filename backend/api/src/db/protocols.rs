@@ -422,7 +422,7 @@ pub async fn log_dose_on_run(
          FROM protocol_lines
          WHERE id = $1 AND protocol_id = $2",
     )
-    .bind(req.line_id)
+    .bind(req.protocol_line_id)
     .bind(run.protocol_id)
     .fetch_one(&mut *tx)
     .await?;
@@ -474,7 +474,7 @@ pub async fn log_dose_on_run(
          VALUES ($1, $2, 'completed', $3, $4)
          RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
     )
-    .bind(req.line_id)
+    .bind(req.protocol_line_id)
     .bind(req.day_number)
     .bind(intervention_id)
     .bind(run_id)
@@ -504,7 +504,7 @@ pub async fn skip_dose_on_run(
     sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM protocol_lines WHERE id = $1 AND protocol_id = $2",
     )
-    .bind(req.line_id)
+    .bind(req.protocol_line_id)
     .bind(protocol_id)
     .fetch_one(pool)
     .await?;
@@ -514,7 +514,7 @@ pub async fn skip_dose_on_run(
          VALUES ($1, $2, 'skipped', $3)
          RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
     )
-    .bind(req.line_id)
+    .bind(req.protocol_line_id)
     .bind(req.day_number)
     .bind(run_id)
     .fetch_one(pool)
@@ -553,7 +553,7 @@ pub async fn log_dose(
          FROM protocol_lines
          WHERE id = $1 AND protocol_id = $2",
     )
-    .bind(req.line_id)
+    .bind(req.protocol_line_id)
     .bind(protocol_id)
     .fetch_one(&mut *tx)
     .await?;
@@ -605,7 +605,7 @@ pub async fn log_dose(
          VALUES ($1, $2, 'completed', $3)
          RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
     )
-    .bind(req.line_id)
+    .bind(req.protocol_line_id)
     .bind(req.day_number)
     .bind(intervention_id)
     .fetch_one(&mut *tx)
@@ -633,7 +633,7 @@ pub async fn skip_dose(
     sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM protocol_lines WHERE id = $1 AND protocol_id = $2",
     )
-    .bind(req.line_id)
+    .bind(req.protocol_line_id)
     .bind(protocol_id)
     .fetch_one(pool)
     .await?;
@@ -643,7 +643,7 @@ pub async fn skip_dose(
          VALUES ($1, $2, 'skipped')
          RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
     )
-    .bind(req.line_id)
+    .bind(req.protocol_line_id)
     .bind(req.day_number)
     .fetch_one(pool)
     .await
@@ -774,7 +774,7 @@ pub async fn todays_doses(
             p.id AS protocol_id,
             p.name AS protocol_name,
             r.id AS run_id,
-            pl.id AS line_id,
+            pl.id AS protocol_line_id,
             pl.substance,
             pl.dose,
             pl.unit,

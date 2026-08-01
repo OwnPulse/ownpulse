@@ -1222,7 +1222,7 @@ Log a completed dose for a protocol line on a specific day.
 
 ```json
 {
-  "line_id": "uuid",
+  "protocol_line_id": "uuid",
   "day": 3,
   "logged_at": "2026-04-03T08:30:00Z"
 }
@@ -1234,7 +1234,7 @@ Log a completed dose for a protocol line on a specific day.
 {
   "id": "uuid",
   "protocol_id": "uuid",
-  "line_id": "uuid",
+  "protocol_line_id": "uuid",
   "day": 3,
   "status": "completed",
   "logged_at": "2026-04-03T08:30:00Z"

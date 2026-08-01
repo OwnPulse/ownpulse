@@ -454,7 +454,7 @@ async fn test_log_dose_creates_intervention() {
     let line_id = created["lines"][0]["id"].as_str().unwrap();
 
     let dose_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 0
     });
 
@@ -503,7 +503,7 @@ async fn test_skip_dose() {
     let line_id = created["lines"][0]["id"].as_str().unwrap();
 
     let skip_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 0
     });
 
@@ -779,7 +779,7 @@ async fn test_log_dose_validates_schedule_pattern() {
 
     // Try logging on day 1 where schedule_pattern[1] = false
     let dose_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 1
     });
 
@@ -807,7 +807,7 @@ async fn test_log_dose_duplicate_returns_error() {
     let line_id = created["lines"][0]["id"].as_str().unwrap();
 
     let dose_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 0
     });
 
@@ -912,4 +912,12 @@ async fn test_todays_doses() {
         "todays-doses should return scheduled doses"
     );
     assert_eq!(items[0]["substance"].as_str().unwrap(), "Omega-3");
+    // The line identifier key must be `protocol_line_id` — this is the field
+    // clients (and the ios-backend Pact contract) actually send/expect on the
+    // dose log/skip endpoints, so the todays-doses response must use the same
+    // key rather than the internal `line_id` shorthand.
+    assert!(
+        items[0].get("protocol_line_id").and_then(|v| v.as_str()).is_some(),
+        "todays-doses response must key the line id as `protocol_line_id`"
+    );
 }

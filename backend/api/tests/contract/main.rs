@@ -144,6 +144,36 @@ impl ProviderStateExecutor for StateExecutor {
                 let mut store = self.tokens.lock().expect("token store lock");
                 store.user_token = Some(token);
             }
+            "a protocol with a loggable dose exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_dose_protocol(
+                    &self.pool,
+                    user_id,
+                    "11111111-1111-1111-1111-111111111111",
+                    "22222222-2222-2222-2222-222222222222",
+                )
+                .await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "a protocol with a skippable dose exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_dose_protocol(
+                    &self.pool,
+                    user_id,
+                    "55555555-5555-5555-5555-555555555555",
+                    "66666666-6666-6666-6666-666666666666",
+                )
+                .await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
             "sleep records exist" => {
                 let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
                 seed_sleep_record(&self.pool, user_id).await;
@@ -278,6 +308,38 @@ async fn seed_admin_data(pool: &sqlx::PgPool) {
         .await
         .expect("insert invite code for admin interactions");
     }
+}
+
+/// Seed a protocol + protocol line (with fixed ids) for the ios-backend
+/// contract's dose log/skip interactions, which reference these ids directly
+/// in their request paths and bodies. `schedule_pattern` covers both day 0
+/// (log interaction) and day 1 (skip interaction) so the same helper can seed
+/// either fixture.
+async fn seed_dose_protocol(pool: &sqlx::PgPool, user_id: Uuid, protocol_id: &str, line_id: &str) {
+    let protocol_id: Uuid = protocol_id.parse().expect("valid protocol UUID");
+    let line_id: Uuid = line_id.parse().expect("valid protocol_line UUID");
+
+    sqlx::query(
+        "INSERT INTO protocols (id, user_id, name, start_date, duration_days) \
+         VALUES ($1, $2, 'Contract Test Protocol', CURRENT_DATE, 7)",
+    )
+    .bind(protocol_id)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test protocol");
+
+    sqlx::query(
+        "INSERT INTO protocol_lines \
+            (id, protocol_id, substance, dose, unit, route, schedule_pattern) \
+         VALUES ($1, $2, 'Creatine', 5.0, 'g', 'oral', \
+                 '[true, true, true, true, true, true, true]'::jsonb)",
+    )
+    .bind(line_id)
+    .bind(protocol_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test protocol line");
 }
 
 /// Seed a sleep observation so the web contract's `GET /api/v1/sleep` returns
@@ -450,6 +512,42 @@ async fn verify_ios_healthkit_contract() {
         // `expected_verified`. A renamed interaction must fail the gate, not
         // silently skip it.
         Some(3),
+    )
+    .await;
+}
+
+/// Regex matching the iOS protocol dose log/skip interactions in
+/// `ios-backend.json`. Now that these interactions seed real provider state
+/// (see `seed_dose_protocol`) with fixed UUIDs and use `type` matchers on the
+/// server-generated `id`/`intervention_id`/`logged_at` response fields, they
+/// can be verified deterministically against the live provider.
+const IOS_DOSE_INTERACTIONS: &str =
+    "^a request to (log|skip) a protocol dose$";
+
+/// Active iOS Pact gate for the protocol dose log/skip endpoints.
+///
+/// Regression test for the `line_id` / `protocol_line_id` field-name mismatch
+/// between the backend and clients: the backend request/response structs
+/// used to use `line_id` while the contract (and both clients) send/expect
+/// `protocol_line_id`, silently breaking dose logging in production. This
+/// test is NOT `#[ignore]`d — it fails the build if either interaction is
+/// ever renamed out of `IOS_DOSE_INTERACTIONS` (silent-skip guard) or if the
+/// provider's request/response shape drifts from the contract again.
+#[tokio::test]
+async fn verify_ios_dose_contract() {
+    let contract = contracts_dir().join("ios-backend.json");
+    assert!(
+        contract.exists(),
+        "iOS contract file not found at {}",
+        contract.display()
+    );
+
+    let app = common::setup().await;
+    verify_contract(
+        &app,
+        contract,
+        FilterInfo::Description(IOS_DOSE_INTERACTIONS.to_string()),
+        Some(2),
     )
     .await;
 }
