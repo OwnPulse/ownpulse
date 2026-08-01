@@ -6,15 +6,15 @@ OwnPulse can pull data from external services to complement your manual entries 
 
 The Sources page displays each integration with its current status:
 
-- **Connected** -- the integration is active and syncing data on schedule.
+- **Connected** -- the integration is authorized and available to sync data.
 - **Disconnected** -- the integration was removed or its authorization expired.
 - **Error** -- the last sync attempt failed. Check the error message for details.
 
-Each connected source also shows the timestamp of its last successful sync.
+Each connected source also shows the timestamp of its last successful sync, where available.
 
 ## Connecting a new source
 
-To connect an integration, tap the **Connect** button next to the source name. You will be redirected to the third-party service to authorize OwnPulse. After granting access, you are returned to OwnPulse and the initial data sync begins automatically.
+To connect an integration, tap the **Connect** button next to the source name. You will be redirected to the third-party service to authorize OwnPulse. After granting access, you are returned to OwnPulse with the source shown as **Connected**.
 
 In the iOS app, open **Settings > Wearables** to connect Garmin or Oura. The authorization page opens in a secure in-app browser; once you finish, the app shows the source as **Connected**. The first time you connect a wearable, OwnPulse offers to resolve any metrics that overlap with Apple Health so you can pick a source of truth.
 
@@ -31,7 +31,7 @@ When multiple sources report the same metric (for example, heart rate from both 
 
 ## Sync schedule
 
-Connected integrations sync automatically on a recurring schedule. The exact interval depends on the integration. You do not need to manually trigger syncs, but you can force an immediate sync from the Sources page if needed.
+Once connected, an integration's data is pulled in via manual or periodic sync depending on the source -- exact scheduling behavior varies by integration and is evolving. Check the Sources page for each integration's last-synced timestamp to see what has come in so far.
 
 ## Troubleshooting
 
@@ -41,10 +41,12 @@ If an integration shows an error status, try disconnecting and reconnecting it. 
 
 Google Calendar integration syncs your meeting data in read-only mode. OwnPulse pulls meeting counts and durations to help you correlate schedule load with your health metrics. Connect via the **Sources** page using your Google account. OwnPulse does not modify your calendar -- access is strictly read-only.
 
+## MyChart and other patient portals
+
+OwnPulse can import lab results from MyChart (Epic) and other patient portals that support the SMART-on-FHIR standard. Connect via the **Sources** page; you'll be sent through your provider's own authorization page, then returned to OwnPulse. Imported labs appear alongside any you entered manually or uploaded as a PDF, and re-syncing skips results you've already imported. Requires the server operator to have configured MyChart support (`MYCHART_CLIENT_ID`) -- it may not be available on every self-hosted instance.
+
 ## Coming soon
 
 The following integrations are planned for a future release:
 
-- **Garmin** -- activity, sleep, and HRV data from Garmin wearables
-- **Oura** -- readiness, sleep, and activity data from Oura Ring
 - **Dexcom** -- continuous glucose monitor readings

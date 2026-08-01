@@ -415,6 +415,10 @@ writing a preference via `POST /source-preferences`.
 |--------|------|-------------|-------|
 | GET | `/integrations` | List connected integrations | 1 |
 | DELETE | `/integrations/:source` | Disconnect an integration | 1 |
+| GET | `/auth/garmin/login` | Start the Garmin OAuth 1.0a flow (requires JWT) | 1 |
+| GET | `/auth/garmin/callback` | Garmin OAuth 1.0a callback — exchanges and stores the token | 1 |
+| GET | `/auth/oura/login` | Start the Oura OAuth 2.0 flow (requires JWT) | 1 |
+| GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token | 1 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
 | POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
 
@@ -1326,14 +1330,273 @@ data: {"source":"health_records","record_type":"heart_rate"}
 
 **Errors:** `401` if the JWT is invalid. `403` if the user is disabled.
 
-## Planned (Phase 2+)
+### Genetics
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| POST | `/genetics/upload` | Upload a raw genetic data file (23andMe, AncestryDNA, VCF) | 2 |
+| GET | `/genetics` | List genetic records with pagination, filterable by chromosome/rsid | 2 |
+| GET | `/genetics/summary` | Summary counts (total variants, chromosomes, annotated count) | 2 |
+| GET | `/genetics/interpretations` | User genotypes matched against the SNP annotation database | 2 |
+| DELETE | `/genetics` | Delete all genetic records for the user (requires confirmation) | 2 |
+
+Genetic records are stored in the `genetic_records` table (see
+[data-model.md](data-model.md)) and have dedicated API endpoints, listed
+above. Cooperative aggregation of genetic data still requires a separate
+`sharing_consents` record with `dataset = 'genetics'` — that consent-gated
+aggregation layer is design-only and not implemented (see
+[Cooperative Sharing](#cooperative-sharing-phase-2) below).
+
+#### `POST /genetics/upload`
+
+Upload a genetic data file as `multipart/form-data`. Format (23andMe,
+AncestryDNA, or VCF) is auto-detected from the file contents. Max file size
+50 MB.
+
+**Response:** `201 Created`
+
+```json
+{
+  "total_variants": 638127,
+  "new_variants": 638127,
+  "duplicates_skipped": 0,
+  "format": "23andme",
+  "source": "23andme"
+}
+```
+
+**Errors:** `400` if the file is empty, too large, an unrecognized format,
+or contains no parseable variants.
+
+#### `GET /genetics`
+
+Query params: `page` (default 1), `per_page` (default 50, max 100),
+`chromosome` (optional filter), `rsid` (optional filter).
+
+**Response:** `200 OK`
+
+```json
+{
+  "records": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "source": "23andme",
+      "rsid": "rs4988235",
+      "chromosome": "2",
+      "position": 136608646,
+      "genotype": "AG",
+      "uploaded_file_id": "uuid",
+      "created_at": "2026-03-01T00:00:00Z"
+    }
+  ],
+  "total": 638127,
+  "page": 1,
+  "per_page": 50
+}
+```
+
+#### `GET /genetics/summary`
+
+**Response:** `200 OK`
+
+```json
+{
+  "total_variants": 638127,
+  "source": "23andme",
+  "uploaded_at": "2026-03-01T00:00:00Z",
+  "chromosomes": { "1": 51234, "2": 48901 },
+  "annotated_count": 412
+}
+```
+
+#### `GET /genetics/interpretations`
+
+Query params: `category` (optional filter). Joins the user's genotypes
+against `snp_annotations` (ClinVar, PharmGKB, SNPedia). Every result cites
+its source database and evidence level; the response always includes a
+disclaimer that this is not medical advice.
+
+**Response:** `200 OK`
+
+```json
+{
+  "interpretations": [
+    {
+      "rsid": "rs4988235",
+      "gene": "MCM6",
+      "chromosome": "2",
+      "position": 136608646,
+      "user_genotype": "AG",
+      "category": "metabolism",
+      "title": "Lactase persistence",
+      "summary": "...",
+      "risk_level": "typical",
+      "significance": "likely_benign",
+      "evidence_level": "strong",
+      "source": "SNPedia",
+      "source_id": "rs4988235",
+      "population_frequency": 0.74,
+      "details": {}
+    }
+  ],
+  "disclaimer": "This information is for educational purposes only and should not be used for medical decisions. Consult a healthcare provider or genetic counselor for clinical interpretation."
+}
+```
+
+#### `DELETE /genetics`
+
+**Request body:**
+
+```json
+{ "confirm": true }
+```
+
+**Response:** `204 No Content`. **Errors:** `400` if `confirm` is not `true`.
+
+### Correlation / Stats
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| POST | `/stats/correlate` | Pearson or Spearman correlation between two metrics over a time range | 3 |
+| POST | `/stats/lag-correlate` | Correlation swept across a range of day lags to find the strongest offset | 3 |
+| POST | `/stats/before-after` | Compare a metric's mean before vs. after an intervention's dose window (Welch's t-test) | 3 |
+
+All three endpoints share a `MetricRef` shape for identifying a metric:
+`{ "source": "string", "field": "string" }` (same source/field pairs as
+`/explore/series`). `resolution` is one of `daily`, `weekly`, `monthly`.
+`method` (where present) is `pearson` (default) or `spearman`.
+
+#### `POST /stats/correlate`
+
+**Request body:**
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "start": "2026-01-01T00:00:00Z",
+  "end": "2026-03-01T00:00:00Z",
+  "resolution": "daily",
+  "method": "pearson"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "r": 0.42,
+  "p_value": 0.01,
+  "n": 58,
+  "significant": true,
+  "method": "pearson",
+  "interpretation": "moderate positive correlation",
+  "scatter": [{ "a": 55.2, "b": 7.0, "t": "2026-01-01T00:00:00Z" }]
+}
+```
+
+Series are aligned by matching timestamp bucket; only buckets present in
+both series are included. `r`/`p_value` are `null` (and `scatter` empty)
+when fewer than 3 aligned points exist.
+
+**Errors:** `400` if `start >= end` or a metric ref does not resolve to a
+known source/field.
+
+#### `POST /stats/lag-correlate`
+
+Same request shape as `/stats/correlate` plus `max_lag_days` (integer,
+1-30). Sweeps lag from `-max_lag_days` to `+max_lag_days` (positive lag
+shifts metric B forward in time relative to A) and returns a result per
+lag plus the lag with the strongest `|r|`.
+
+**Request body:**
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "start": "2026-01-01T00:00:00Z",
+  "end": "2026-03-01T00:00:00Z",
+  "resolution": "daily",
+  "max_lag_days": 7,
+  "method": "pearson"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "lags": [{ "lag": -1, "r": 0.31, "p_value": 0.04, "n": 40 }],
+  "best_lag": { "lag": 2, "r": 0.51, "p_value": 0.002 },
+  "method": "pearson"
+}
+```
+
+**Errors:** `400` if `start >= end` or `max_lag_days` is out of range
+(1-30).
+
+#### `POST /stats/before-after`
+
+Finds the first and last logged dose of `intervention_substance`, then
+compares the metric's mean over a `before_days`-day window ending at the
+first dose against an `after_days`-day window starting at the last dose
+(or, if the intervention is still ongoing — last dose within 7 days of
+now — from the first dose through now). Uses Welch's t-test; `p_value` is
+`null` and `significant` is `false` when either window has fewer than 3
+points.
+
+**Request body:**
+
+```json
+{
+  "intervention_substance": "Magnesium Glycinate",
+  "metric": { "source": "checkins", "field": "energy" },
+  "before_days": 14,
+  "after_days": 14,
+  "resolution": "daily"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "intervention_substance": "Magnesium Glycinate",
+  "first_dose": "2026-02-01T08:00:00Z",
+  "last_dose": "2026-02-01T08:00:00Z",
+  "metric": { "source": "checkins", "field": "energy" },
+  "before": { "mean": 6.1, "std_dev": 0.8, "n": 14, "points": [] },
+  "after": { "mean": 7.3, "std_dev": 0.6, "n": 14, "points": [] },
+  "change_pct": 19.7,
+  "p_value": 0.02,
+  "significant": true,
+  "test_used": "welch_t",
+  "warning": null
+}
+```
+
+If no interventions match `intervention_substance`, the response has
+`first_dose`/`last_dose`/`p_value` all `null`, empty `before`/`after`
+windows, and a `warning` explaining no interventions were found.
+
+**Errors:** `400` if `intervention_substance` is empty, or `before_days`/
+`after_days` is out of range (1-365).
+
+## Planned — not implemented
+
+The endpoints below do not exist yet — nothing to code against. They're kept
+here as a record of intent, not a contract.
 
 ### Auth (Phase 2+)
 
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
-| GET | `/auth/garmin/callback` | Garmin OAuth callback | 2+ |
-| GET | `/auth/oura/callback` | Oura OAuth callback | 2+ |
 | GET | `/auth/dexcom/callback` | Dexcom OAuth callback | 2+ |
 
 ### Observations (Phase 2+)
@@ -1357,13 +1620,10 @@ data: {"source":"health_records","record_type":"heart_rate"}
 | DELETE | `/sharing/consents/:dataset` | Revoke sharing consent (immediate) | 2 |
 | POST | `/processing/restrict/:dataset` | Restrict processing without deletion | 2 |
 
-### Genetic Data (Phase 2+)
-
-Genetic records are stored in the `genetic_records` table but do not yet have dedicated API endpoints. These will be added in Phase 2+ with separate sharing consent requirements.
-
-### Correlation (Phase 3)
-
-| Method | Path | Description | Phase |
-|--------|------|-------------|-------|
-| POST | `/stats/correlate` | Compute correlation between two metrics | 3 |
-| POST | `/stats/lag-correlate` | Compute lag correlation | 3 |
+The `sharing_consents` table exists, but there are no routes or aggregation
+logic built on it yet — see [data-sharing.md](../cooperative/data-sharing.md)
+for the designed-but-not-implemented cooperative aggregation layer. Genetic
+data sharing has always required its own separate `dataset = 'genetics'`
+consent record; that requirement carries over unchanged once this layer is
+built. See [Genetics](#genetics) above for the (implemented) genetic data
+endpoints themselves.
