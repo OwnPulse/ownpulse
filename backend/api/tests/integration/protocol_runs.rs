@@ -394,7 +394,7 @@ async fn test_log_dose_on_run() {
 
     // Log dose on run
     let dose_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 0
     });
 
@@ -440,7 +440,7 @@ async fn test_skip_dose_on_run() {
     let run_id = run["id"].as_str().unwrap();
 
     let skip_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 0
     });
 
@@ -482,7 +482,7 @@ async fn test_log_duplicate_dose_on_run_returns_409() {
     let run_id = run["id"].as_str().unwrap();
 
     let dose_body = json!({
-        "line_id": line_id,
+        "protocol_line_id": line_id,
         "day_number": 0
     });
 
@@ -813,7 +813,7 @@ async fn test_cannot_log_dose_on_other_users_run() {
             "POST",
             &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
             &token_b,
-            Some(&json!({"line_id": line_id, "day_number": 0})),
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
         ))
         .await
         .unwrap();

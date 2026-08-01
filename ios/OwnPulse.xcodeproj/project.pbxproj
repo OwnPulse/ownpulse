@@ -48,6 +48,7 @@
 		2CBC758F6DF27FCAB1722851 /* AdminServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54949C1E6E149322C32F0B1B /* AdminServiceTests.swift */; };
 		2DD65D3B1A369A99B888317D /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4245A1A03B84BDF2DF58525 /* APIModels.swift */; };
 		2E751B72783CBB72F71F5FC4 /* SourcePreferenceWizardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3CA96BBEAAE9C820918EA50 /* SourcePreferenceWizardTests.swift */; };
+		2ED90368BD79585F6DB92DF1 /* DoseReminderScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 580A3764B62FE9BA50FA80F5 /* DoseReminderScheduler.swift */; };
 		2F2E16234FAE9C3F0F5C1187 /* KeychainServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB62068852C423AE6D52F27 /* KeychainServiceTests.swift */; };
 		32E54794834E7B928F64F00D /* SyncCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39BE160B6890EFD903FD7D4F /* SyncCoordinatorTests.swift */; };
 		347AFEC6F1E8FB544751AA4F /* WeightEntryForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 620BF33A40A0FCF7E3F2DE69 /* WeightEntryForm.swift */; };
@@ -66,7 +67,6 @@
 		452B66444DF333AB9E302CBF /* CheckinForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4835EF3237AF28AFEF0CE9 /* CheckinForm.swift */; };
 		46B3707001710B3621543EC1 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69DD6815D274C9513C8AC117 /* DashboardView.swift */; };
 		47891D28A065683F9509E508 /* HeroMetricWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D35E0B6E771C3ABD14DFD0F /* HeroMetricWidget.swift */; };
-		4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CF4D7068AEF598DB5632A8 /* SleepChartView.swift */; };
 		4DA1BF49C8E6350FD193333E /* HealthKitProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 394B8B12B67A3604ECD3CF1A /* HealthKitProviderTests.swift */; };
 		55F78E0C752751D75CF8FDD6 /* WidgetDataPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = A34C6A8F7DD083D48678CDE9 /* WidgetDataPublisher.swift */; };
 		57EE1C7CC900455D2ADB35D9 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 768780B3383F621DD4B4996C /* Assets.xcassets */; };
@@ -94,12 +94,13 @@
 		73D6B27E6F546B8468A3682C /* TelemetryModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36CA7789454C212221803836 /* TelemetryModels.swift */; };
 		73D7684D72CC0B56C9E5014A /* TrendIndicatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C6D711C6F0D0249922F063 /* TrendIndicatorTests.swift */; };
 		751E6A26C1C888524D9831B4 /* ExploreModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67D23FC791398F05350DBFB4 /* ExploreModels.swift */; };
-		7728D01A6C178F913A0D4F3F /* ExploreWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B0CE15DF54DD50F607ACC1C /* ExploreWebView.swift */; };
 		77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */; };
 		77E571FF77848D6DBD7061E6 /* WearableConnectionsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F43C6B99CDEB2853F601616A /* WearableConnectionsViewModelTests.swift */; };
 		79B3A1F2679F920C71ABA808 /* HeroMetricCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF9053F15DDB10EA18EB0FE3 /* HeroMetricCard.swift */; };
+		7A63C77D8618DED631ACA418 /* DoseReminderCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69757560424A0069565B5651 /* DoseReminderCoordinator.swift */; };
 		7C6D9B3B092FB1D3168A9AB9 /* ObjCExceptionCatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42C46A032CA4261AF4DF4588 /* ObjCExceptionCatcherTests.swift */; };
 		7CC463CD27576924170DB812 /* ProtocolsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = C061B329BCCD5829A91ED84A /* ProtocolsViewModel.swift */; };
+		7D94D2C28619A80BE5CA7B40 /* DoseReminderSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A0A0889A39C7D83119A050D /* DoseReminderSchedulerTests.swift */; };
 		7E6D3941885FF39E7197B6C8 /* WeightFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B87B1D8D0ED5457EF0C48E3 /* WeightFormatterTests.swift */; };
 		7E9D3A2C96B1A167638AF57C /* MockOfflineQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65DAD68A0C130D24E5D2ACF8 /* MockOfflineQueue.swift */; };
 		8146F15F61944DDF21B7FD65 /* WearableConnectionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8893827210E60B8D44A1D21B /* WearableConnectionsView.swift */; };
@@ -122,7 +123,6 @@
 		9C6D97593B68906F3B2348EC /* AccessibilityAuditTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A76C321ED13544ABCE9B286D /* AccessibilityAuditTests.swift */; };
 		9E72E02192CCDF3E34F8599E /* MetricDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B2024FFBD0E30AB4B5C5C38 /* MetricDetailView.swift */; };
 		9EAA1F2DDA7D1ED1A74590E0 /* NetworkClientRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28574810456BFBF572A24D3E /* NetworkClientRefreshTests.swift */; };
-		9EF48B042C0061A819AB1642 /* WeightChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28E3F70DEB75DC508144AF95 /* WeightChartView.swift */; };
 		9FA3B9180E813D0EEA3BD43D /* HealthKitPromptSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76D9D39CD864279A19075499 /* HealthKitPromptSheet.swift */; };
 		A14FC677EEF0E3ABB7D8FF54 /* MockHealthKitProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE6946B4A3B390ED063952B5 /* MockHealthKitProvider.swift */; };
 		A2DFFDF78F1019AE623CF7C0 /* FeatureFlagService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ECD3EF4637C840BF4A9A98A /* FeatureFlagService.swift */; };
@@ -151,22 +151,25 @@
 		C4F699C5F3823273C5AEC97E /* BrowseCardPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8628082C8E9832B73461D0A0 /* BrowseCardPresenter.swift */; };
 		C61339D33CC14D51DE65164F /* AppConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */; };
 		C747FC63938C3826E2870EFB /* FlowTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A864E7B479E2596E8BB649 /* FlowTracker.swift */; };
+		C7AC8ACE420582452911D318 /* BGTaskIdentifierRegistrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E1B0A113CAB8755C804B672 /* BGTaskIdentifierRegistrationTests.swift */; };
 		C805D951246089BDF85F5366 /* WidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 519080A85FF5A2E05C6EA8DF /* WidgetSnapshot.swift */; };
 		C8800B69528885EE9AF3C8C4 /* ExploreViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEFA24761B447BB3CCFA15A /* ExploreViewModel.swift */; };
 		C925FE45BFF24569D5EA49CD /* ChartColorsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */; };
 		CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA76F6599478222F387A59 /* Migrations.swift */; };
 		CB7113819FE643F657F85BA4 /* WeightFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B884B5CFC88D057CB131E9E /* WeightFormatter.swift */; };
 		CE8F11EADF231BD14AE6AE70 /* ManualHealthRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB52960E04C11D854448908C /* ManualHealthRecordTests.swift */; };
+		D0B7CFAB1CC74E64A963FEAC /* MockDoseReminderRebuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3A65E4F0F53D106EC1734D2 /* MockDoseReminderRebuilder.swift */; };
 		D0F99DBBAD7A3204D17D2C4E /* SyncProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3140A26FC1E3242A80B7C45 /* SyncProgress.swift */; };
+		D21355A23B90DBB5E44704FC /* MockUserNotificationCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66E273B7CC69F76A9752A169 /* MockUserNotificationCenter.swift */; };
 		D26ED267DE518AE02F64D9BE /* HealthOverviewPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5BD57BDC67D2B9798A89338 /* HealthOverviewPresenter.swift */; };
 		D605A2E0A9354325954175CE /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BFF4111D86972B616E9C8D3 /* SyncCoordinator.swift */; };
 		D8E06DDBCCBBAE69606F3913 /* ExerciseEntryForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BE239286DA7260EE8900EF7 /* ExerciseEntryForm.swift */; };
 		D9C2762F33071710E90C749A /* AppDependenciesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4003A698FBB10A19D2BBB779 /* AppDependenciesTests.swift */; };
 		DA1918D1E497CAC9BF0FA803 /* WriteBackQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 962DF52C962765676F4876DA /* WriteBackQueueView.swift */; };
 		DD05735EFCA7651A0C730B6E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 06208BEB784209E228C86FC6 /* GRDB */; };
+		DDE5B39351AC16E549B02F01 /* NotificationManagerDoseReminderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E056C08B661EA8717AF18B2B /* NotificationManagerDoseReminderTests.swift */; };
 		E0488EF52A020B1D724D1FBD /* ClinicalRecordSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E42F8EDD5D3A046B6B5CC17 /* ClinicalRecordSettings.swift */; };
 		E0D8A7044773E3267198A68B /* JWTDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 858920D3F958E27B5F7A028F /* JWTDecoderTests.swift */; };
-		E1100BD4BCE1A4713EEECF2D /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8CC652689D28A0C6EFA8193 /* HomeView.swift */; };
 		E1D55958DB0C706A04A3F5E9 /* AdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0321F73E335F4082AB05D8E7 /* AdminView.swift */; };
 		E2CAE946D44538FAB76B4E5C /* OwnPulseApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = CABCE14183DE9A92A33EF20D /* OwnPulseApp.swift */; };
 		E3A7F1EED0F93C71117DBB1F /* SyncScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 136CD56F07957B933BFC9D13 /* SyncScheduler.swift */; };
@@ -175,6 +178,7 @@
 		EA1EBA297D65489C2D211415 /* FeatureFlagServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CEB7C232DCDE33E216A94C6 /* FeatureFlagServiceTests.swift */; };
 		EAB91C16000227D36FE6AD3D /* SettingsUnitsPickerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B0483DC70D7864FF836B6F /* SettingsUnitsPickerTests.swift */; };
 		EC6E9F05A2A624BD0A77AC6B /* BackgroundTaskHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB36AD0A05D7874D89C8D38A /* BackgroundTaskHost.swift */; };
+		ED0C4EB943592E7C1F2AA0D5 /* DoseReminderCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21082EC753CBB6EEDD09A1B2 /* DoseReminderCoordinatorTests.swift */; };
 		ED8FFAB48E372B5696C7C161 /* SmallMultiplesChartViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B729CF07C4830C01C210BF0 /* SmallMultiplesChartViewTests.swift */; };
 		EF4DD8852360BDFF3BF50A78 /* BackgroundTaskHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4C21DBABF5AA29B8A4BBC17 /* BackgroundTaskHandler.swift */; };
 		EFCC871589CB4A92769DE49F /* NetworkClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7351C0E5E3BB61A29712219B /* NetworkClient.swift */; };
@@ -236,12 +240,10 @@
 		0321F73E335F4082AB05D8E7 /* AdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminView.swift; sourceTree = "<group>"; };
 		0A7EE472EEBD42E355D92E53 /* LogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogView.swift; sourceTree = "<group>"; };
 		0AAF43305B277074812042A5 /* ObjCExceptionCatcher.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ObjCExceptionCatcher.h; sourceTree = "<group>"; };
-		0B0CE15DF54DD50F607ACC1C /* ExploreWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreWebView.swift; sourceTree = "<group>"; };
 		0B729CF07C4830C01C210BF0 /* SmallMultiplesChartViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmallMultiplesChartViewTests.swift; sourceTree = "<group>"; };
 		0DE2B17DFA620BA4FBD5C8FF /* AnchorStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnchorStore.swift; sourceTree = "<group>"; };
 		0F9F0518177F3899CB8A700E /* ExploreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreView.swift; sourceTree = "<group>"; };
 		10C04165D859EBD886EDA054 /* NotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationDelegate.swift; sourceTree = "<group>"; };
-		10CF4D7068AEF598DB5632A8 /* SleepChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepChartView.swift; sourceTree = "<group>"; };
 		120E4F8AEF92EE78175D7E58 /* SyncProgressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncProgressTests.swift; sourceTree = "<group>"; };
 		132911986050FB28F427C68D /* OwnPulse.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = OwnPulse.entitlements; sourceTree = "<group>"; };
 		136CD56F07957B933BFC9D13 /* SyncScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncScheduler.swift; sourceTree = "<group>"; };
@@ -251,10 +253,11 @@
 		1B22A411AC6BB862732AC59C /* SparklineCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SparklineCard.swift; sourceTree = "<group>"; };
 		1D35E0B6E771C3ABD14DFD0F /* HeroMetricWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroMetricWidget.swift; sourceTree = "<group>"; };
 		1ECD3EF4637C840BF4A9A98A /* FeatureFlagService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlagService.swift; sourceTree = "<group>"; };
+		21082EC753CBB6EEDD09A1B2 /* DoseReminderCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseReminderCoordinatorTests.swift; sourceTree = "<group>"; };
 		2399F677E2475ADEEDB868D6 /* BloodPressureEntryForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BloodPressureEntryForm.swift; sourceTree = "<group>"; };
 		28574810456BFBF572A24D3E /* NetworkClientRefreshTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkClientRefreshTests.swift; sourceTree = "<group>"; };
-		28E3F70DEB75DC508144AF95 /* WeightChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightChartView.swift; sourceTree = "<group>"; };
 		296F32AB684396117D27708E /* ColorSchemePreference.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorSchemePreference.swift; sourceTree = "<group>"; };
+		2A0A0889A39C7D83119A050D /* DoseReminderSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseReminderSchedulerTests.swift; sourceTree = "<group>"; };
 		2D3936FD47876674E77BE8FA /* AppDependenciesDeepLinkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependenciesDeepLinkTests.swift; sourceTree = "<group>"; };
 		3082C7776F6ADD738DDD69F3 /* AdminModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminModels.swift; sourceTree = "<group>"; };
 		34C6D711C6F0D0249922F063 /* TrendIndicatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendIndicatorTests.swift; sourceTree = "<group>"; };
@@ -288,6 +291,7 @@
 		55758FB85386BB707F01C225 /* CheckinSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckinSummaryCard.swift; sourceTree = "<group>"; };
 		568D8D1C5B681A29E905A0FF /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
 		56AE0C1D31FFA50FAE6A7861 /* DatabaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseManager.swift; sourceTree = "<group>"; };
+		580A3764B62FE9BA50FA80F5 /* DoseReminderScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseReminderScheduler.swift; sourceTree = "<group>"; };
 		5868F7EE0B35D3986890B880 /* ChartAxisConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartAxisConfigTests.swift; sourceTree = "<group>"; };
 		5BE239286DA7260EE8900EF7 /* ExerciseEntryForm.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseEntryForm.swift; sourceTree = "<group>"; };
 		5CF5CD1DBD7749FA6F6744EA /* OverlayChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayChartView.swift; sourceTree = "<group>"; };
@@ -301,7 +305,9 @@
 		649703259D6C4F6BFE3BB74D /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		65DAD68A0C130D24E5D2ACF8 /* MockOfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockOfflineQueue.swift; sourceTree = "<group>"; };
 		66E0BF01696C616018AEA71C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		66E273B7CC69F76A9752A169 /* MockUserNotificationCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUserNotificationCenter.swift; sourceTree = "<group>"; };
 		67D23FC791398F05350DBFB4 /* ExploreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreModels.swift; sourceTree = "<group>"; };
+		69757560424A0069565B5651 /* DoseReminderCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoseReminderCoordinator.swift; sourceTree = "<group>"; };
 		69DD6815D274C9513C8AC117 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		69FF64D436027417304D659C /* MockNetworkClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockNetworkClient.swift; sourceTree = "<group>"; };
 		6C498C94BE181EFFF5ABD288 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
@@ -342,6 +348,7 @@
 		9BFF4111D86972B616E9C8D3 /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		9C4CCA7D19143E8CC0B5B309 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		9E18928E4B73BBD0F693614A /* MyChartConnectViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyChartConnectViewModelTests.swift; sourceTree = "<group>"; };
+		9E1B0A113CAB8755C804B672 /* BGTaskIdentifierRegistrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BGTaskIdentifierRegistrationTests.swift; sourceTree = "<group>"; };
 		A077B02C456D93D3B29D233E /* ExploreViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreViewModelTests.swift; sourceTree = "<group>"; };
 		A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModelTests.swift; sourceTree = "<group>"; };
 		A20A7B431539E203061BE8D2 /* WidgetSnapshotUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotUITests.swift; sourceTree = "<group>"; };
@@ -383,11 +390,12 @@
 		D1ED110E1D7CCFA9CD8958BB /* WidgetDataPublisherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataPublisherTests.swift; sourceTree = "<group>"; };
 		D2455C9A6A8D8B0C1934A934 /* Tokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tokens.swift; sourceTree = "<group>"; };
 		D2EFCC3ABFED4F18B7F5DF8B /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
+		D3A65E4F0F53D106EC1734D2 /* MockDoseReminderRebuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockDoseReminderRebuilder.swift; sourceTree = "<group>"; };
 		D4A331F016221490E34041F5 /* AppDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDependencies.swift; sourceTree = "<group>"; };
 		D5ECF4C4691493011E79B690 /* MockFeatureFlagService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockFeatureFlagService.swift; sourceTree = "<group>"; };
 		D6127AD4FA6915AB570D2A98 /* UserPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferences.swift; sourceTree = "<group>"; };
-		D8CC652689D28A0C6EFA8193 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		DBDA009C4ED8F9CD421FCE93 /* JWTDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JWTDecoder.swift; sourceTree = "<group>"; };
+		E056C08B661EA8717AF18B2B /* NotificationManagerDoseReminderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerDoseReminderTests.swift; sourceTree = "<group>"; };
 		E13258E84B902620661AD0FB /* HealthOverviewPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthOverviewPresenterTests.swift; sourceTree = "<group>"; };
 		E1CC43481ABEED5CCA1560D9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		E1E681F4CCF28BDCBE6DC5CD /* BrowseCardPresenterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowseCardPresenterTests.swift; sourceTree = "<group>"; };
@@ -432,12 +440,9 @@
 		0164F5D154F6520AA4A78384 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				D8CC652689D28A0C6EFA8193 /* HomeView.swift */,
 				86CE06D7E9EFE8AF5DE5E74A /* LoginView.swift */,
 				510AACF348448F516940B31C /* MainTabView.swift */,
 				E1CC43481ABEED5CCA1560D9 /* SettingsView.swift */,
-				10CF4D7068AEF598DB5632A8 /* SleepChartView.swift */,
-				28E3F70DEB75DC508144AF95 /* WeightChartView.swift */,
 				AE81279801C7C58861579754 /* Admin */,
 				EB2C5A605F7E508C88F4AD95 /* Dashboard */,
 				9F064F8BEDE6CE33C0A06F0C /* Explore */,
@@ -527,6 +532,7 @@
 				4003A698FBB10A19D2BBB779 /* AppDependenciesTests.swift */,
 				C7928246CBD1BDB2F72B47DB /* AuthServiceTests.swift */,
 				48AD37C03C60F5BFBB1AB5F4 /* BackgroundTaskHandlerTests.swift */,
+				9E1B0A113CAB8755C804B672 /* BGTaskIdentifierRegistrationTests.swift */,
 				E1E681F4CCF28BDCBE6DC5CD /* BrowseCardPresenterTests.swift */,
 				5868F7EE0B35D3986890B880 /* ChartAxisConfigTests.swift */,
 				644970CAB69EF6F4C8624216 /* ChartColorsTests.swift */,
@@ -534,6 +540,8 @@
 				A69AC264B29B6DECF2DF2FD9 /* DashboardChartDataTests.swift */,
 				3DD1FFD08ACB08A0CB3D2BED /* DashboardModelsTests.swift */,
 				A108BF58E2EF70327F94B7ED /* DashboardViewModelTests.swift */,
+				21082EC753CBB6EEDD09A1B2 /* DoseReminderCoordinatorTests.swift */,
+				2A0A0889A39C7D83119A050D /* DoseReminderSchedulerTests.swift */,
 				F341CA09A9C2A550F6200F96 /* EndpointsTests.swift */,
 				A077B02C456D93D3B29D233E /* ExploreViewModelTests.swift */,
 				7CEB7C232DCDE33E216A94C6 /* FeatureFlagServiceTests.swift */,
@@ -547,6 +555,7 @@
 				4BBEEEB77231155980E6056B /* LogViewModelTests.swift */,
 				FB52960E04C11D854448908C /* ManualHealthRecordTests.swift */,
 				F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */,
+				D3A65E4F0F53D106EC1734D2 /* MockDoseReminderRebuilder.swift */,
 				D5ECF4C4691493011E79B690 /* MockFeatureFlagService.swift */,
 				AE6946B4A3B390ED063952B5 /* MockHealthKitProvider.swift */,
 				8E1C11A35F69FB32F8E59F6A /* MockHealthKitProviderTests.swift */,
@@ -554,9 +563,11 @@
 				69FF64D436027417304D659C /* MockNetworkClient.swift */,
 				D0B294575765E4C92C7F8290 /* MockNotificationManager.swift */,
 				65DAD68A0C130D24E5D2ACF8 /* MockOfflineQueue.swift */,
+				66E273B7CC69F76A9752A169 /* MockUserNotificationCenter.swift */,
 				9E18928E4B73BBD0F693614A /* MyChartConnectViewModelTests.swift */,
 				28574810456BFBF572A24D3E /* NetworkClientRefreshTests.swift */,
 				933E701E2FE265BEAD6899EA /* NotificationDelegateTests.swift */,
+				E056C08B661EA8717AF18B2B /* NotificationManagerDoseReminderTests.swift */,
 				568D8D1C5B681A29E905A0FF /* NotificationManagerTests.swift */,
 				E5A9330C6329315C52B8D03E /* NotificationModelsTests.swift */,
 				42C46A032CA4261AF4DF4588 /* ObjCExceptionCatcherTests.swift */,
@@ -642,6 +653,8 @@
 		75A44AA41DA45A6F8F4BA911 /* Notifications */ = {
 			isa = PBXGroup;
 			children = (
+				69757560424A0069565B5651 /* DoseReminderCoordinator.swift */,
+				580A3764B62FE9BA50FA80F5 /* DoseReminderScheduler.swift */,
 				10C04165D859EBD886EDA054 /* NotificationDelegate.swift */,
 				7EC3BA93997299C82E7D9272 /* NotificationManager.swift */,
 			);
@@ -683,7 +696,6 @@
 			children = (
 				B854DF581C080F7DF1307D72 /* DateRangeSegment.swift */,
 				0F9F0518177F3899CB8A700E /* ExploreView.swift */,
-				0B0CE15DF54DD50F607ACC1C /* ExploreWebView.swift */,
 				FF257A99875E1CC4B2E60656 /* HealthOverviewView.swift */,
 				3B2024FFBD0E30AB4B5C5C38 /* MetricDetailView.swift */,
 				5CF5CD1DBD7749FA6F6744EA /* OverlayChartView.swift */,
@@ -1029,12 +1041,13 @@
 				FC00CB6DBD8713812BF31F2F /* DashboardViewModel.swift in Sources */,
 				019A14B3D183E10882BE4E49 /* DatabaseManager.swift in Sources */,
 				659D72FBB90513799DCB7F97 /* DateRangeSegment.swift in Sources */,
+				7A63C77D8618DED631ACA418 /* DoseReminderCoordinator.swift in Sources */,
+				2ED90368BD79585F6DB92DF1 /* DoseReminderScheduler.swift in Sources */,
 				0C32E3221E220A0D26228854 /* Endpoints.swift in Sources */,
 				D8E06DDBCCBBAE69606F3913 /* ExerciseEntryForm.swift in Sources */,
 				751E6A26C1C888524D9831B4 /* ExploreModels.swift in Sources */,
 				BA37AB537435D7681224AD6E /* ExploreView.swift in Sources */,
 				C8800B69528885EE9AF3C8C4 /* ExploreViewModel.swift in Sources */,
-				7728D01A6C178F913A0D4F3F /* ExploreWebView.swift in Sources */,
 				A2DFFDF78F1019AE623CF7C0 /* FeatureFlagService.swift in Sources */,
 				C747FC63938C3826E2870EFB /* FlowTracker.swift in Sources */,
 				1BDF125537F8406EB5DABA91 /* GlucoseEntryForm.swift in Sources */,
@@ -1045,7 +1058,6 @@
 				91AF349E43599A1DE816466B /* HealthOverviewView.swift in Sources */,
 				79B3A1F2679F920C71ABA808 /* HeroMetricCard.swift in Sources */,
 				5D1937A413A4500CC8DB42DA /* HeroMetricWidget.swift in Sources */,
-				E1100BD4BCE1A4713EEECF2D /* HomeView.swift in Sources */,
 				FE0B0EDD012F37BD6CA974B4 /* InsightCardView.swift in Sources */,
 				2142F7CBA5CA2FC19C6300DD /* InterventionForm.swift in Sources */,
 				B4622CFCEFC09953CC76DFC1 /* JWTDecoder.swift in Sources */,
@@ -1079,7 +1091,6 @@
 				590BC0501B1AE531D9D87F12 /* SavedMedicineModels.swift in Sources */,
 				E74306B68AF98B5E6EFA49C3 /* ScoreSlider.swift in Sources */,
 				82FD284E95344C2E5110ED3F /* SettingsView.swift in Sources */,
-				4CB9DFE700CD2167F2F0DD0D /* SleepChartView.swift in Sources */,
 				0C28682BE61E1664D139276F /* SleepEntryForm.swift in Sources */,
 				35697B748FDE579D25320ACC /* SmallMultiplesChartView.swift in Sources */,
 				5A53FFCDCAD5B39C1BC8E7C3 /* SourcePreferenceWizard.swift in Sources */,
@@ -1098,7 +1109,6 @@
 				A7D44223A58409CF7E476CE4 /* UserPreferences.swift in Sources */,
 				8146F15F61944DDF21B7FD65 /* WearableConnectionsView.swift in Sources */,
 				BD32558E97047E465F0AD65B /* WeeklySummaryCard.swift in Sources */,
-				9EF48B042C0061A819AB1642 /* WeightChartView.swift in Sources */,
 				347AFEC6F1E8FB544751AA4F /* WeightEntryForm.swift in Sources */,
 				CB7113819FE643F657F85BA4 /* WeightFormatter.swift in Sources */,
 				0C613C6061B1D6CB9AC19FA5 /* WidgetDataPublisher.swift in Sources */,
@@ -1121,6 +1131,7 @@
 				0D2EF7FC073BFA5DD499FE8F /* AppDependenciesDeepLinkTests.swift in Sources */,
 				D9C2762F33071710E90C749A /* AppDependenciesTests.swift in Sources */,
 				0C3C7A807E0BA9C70B684B65 /* AuthServiceTests.swift in Sources */,
+				C7AC8ACE420582452911D318 /* BGTaskIdentifierRegistrationTests.swift in Sources */,
 				98F1DCBAC487A9E1C1EF8BF1 /* BackgroundTaskHandlerTests.swift in Sources */,
 				0C9DEF013A3BE08CA8FFC631 /* BrowseCardPresenterTests.swift in Sources */,
 				6664FDB133640BD2F9912611 /* ChartAxisConfigTests.swift in Sources */,
@@ -1129,6 +1140,8 @@
 				1EDBFCCF20E830377BFCB15F /* DashboardChartDataTests.swift in Sources */,
 				9BA021B0B501A822024149BD /* DashboardModelsTests.swift in Sources */,
 				77CB51B74EC15F5BFC400FCD /* DashboardViewModelTests.swift in Sources */,
+				ED0C4EB943592E7C1F2AA0D5 /* DoseReminderCoordinatorTests.swift in Sources */,
+				7D94D2C28619A80BE5CA7B40 /* DoseReminderSchedulerTests.swift in Sources */,
 				1B3357AD563092CE9344AF2C /* EndpointsTests.swift in Sources */,
 				6713CB352021864506D8D810 /* ExploreViewModelTests.swift in Sources */,
 				EA1EBA297D65489C2D211415 /* FeatureFlagServiceTests.swift in Sources */,
@@ -1142,6 +1155,7 @@
 				6CCCBF48696234499FC0585E /* LoginViewModelTests.swift in Sources */,
 				CE8F11EADF231BD14AE6AE70 /* ManualHealthRecordTests.swift in Sources */,
 				264F1827147C1C6A3B09B8AE /* MockAuthService.swift in Sources */,
+				D0B7CFAB1CC74E64A963FEAC /* MockDoseReminderRebuilder.swift in Sources */,
 				281AF7A8CA053E4DA1D1FC81 /* MockFeatureFlagService.swift in Sources */,
 				A14FC677EEF0E3ABB7D8FF54 /* MockHealthKitProvider.swift in Sources */,
 				B0FB4FB92F2DD8D1998D7862 /* MockHealthKitProviderTests.swift in Sources */,
@@ -1149,9 +1163,11 @@
 				63AA4A731F794E6995AFD7D7 /* MockNetworkClient.swift in Sources */,
 				27CF1FFD6541FF4B629FE067 /* MockNotificationManager.swift in Sources */,
 				7E9D3A2C96B1A167638AF57C /* MockOfflineQueue.swift in Sources */,
+				D21355A23B90DBB5E44704FC /* MockUserNotificationCenter.swift in Sources */,
 				40AF712900C8C2B4CD8DBD39 /* MyChartConnectViewModelTests.swift in Sources */,
 				9EAA1F2DDA7D1ED1A74590E0 /* NetworkClientRefreshTests.swift in Sources */,
 				3932874A8CEE6C9B476E42E3 /* NotificationDelegateTests.swift in Sources */,
+				DDE5B39351AC16E549B02F01 /* NotificationManagerDoseReminderTests.swift in Sources */,
 				6921675809267BBE75644A64 /* NotificationManagerTests.swift in Sources */,
 				41735C37684479B4AAC1107C /* NotificationModelsTests.swift in Sources */,
 				7C6D9B3B092FB1D3168A9AB9 /* ObjCExceptionCatcherTests.swift in Sources */,

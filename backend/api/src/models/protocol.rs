@@ -95,13 +95,13 @@ pub struct UpdateProtocol {
 
 #[derive(Deserialize)]
 pub struct LogDoseRequest {
-    pub line_id: Uuid,
+    pub protocol_line_id: Uuid,
     pub day_number: i32,
 }
 
 #[derive(Deserialize)]
 pub struct SkipDoseRequest {
-    pub line_id: Uuid,
+    pub protocol_line_id: Uuid,
     pub day_number: i32,
 }
 
@@ -199,7 +199,7 @@ pub struct TodaysDoseItem {
     pub protocol_id: Uuid,
     pub protocol_name: String,
     pub run_id: Uuid,
-    pub line_id: Uuid,
+    pub protocol_line_id: Uuid,
     pub substance: String,
     pub dose: Option<f64>,
     pub unit: Option<String>,

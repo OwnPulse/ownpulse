@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { statsApi } from "../../src/api/stats";
 import { useAuthStore } from "../../src/store/auth";
+import { refresh401Handler } from "./support/msw-auth-refresh";
 
 const beforeAfterResponse = {
   intervention_substance: "Magnesium",
@@ -73,6 +74,7 @@ const server = setupServer(
   http.post("/api/v1/stats/lag-correlate", () => {
     return HttpResponse.json(lagCorrelateResponse);
   }),
+  refresh401Handler,
 );
 
 beforeAll(() => server.listen());

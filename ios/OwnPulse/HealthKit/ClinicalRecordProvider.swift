@@ -54,6 +54,13 @@ final class ClinicalRecordProvider: ClinicalRecordProviderProtocol, @unchecked S
             hkAnchor = nil
         }
 
+        // No ADR-0008 cycle-prevention predicate here: `requestAuthorization`
+        // above requests `toShare: []` for clinical records — OwnPulse never
+        // writes `HKClinicalRecord`s back to HealthKit (Apple treats clinical
+        // records as provider-sourced and third-party apps cannot create
+        // them), so there is no write → read cycle for this type to guard
+        // against. If clinical write-back is ever added, apply
+        // `HealthKitProvider.makeReadPredicate()` here as well.
         return try await withCheckedThrowingContinuation { continuation in
             let query = HKAnchoredObjectQuery(
                 type: clinicalType,

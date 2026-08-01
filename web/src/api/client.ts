@@ -3,6 +3,7 @@
 
 import { trackApiCall } from "../lib/telemetry";
 import { useAuthStore } from "../store/auth";
+import { refreshTokenOnce } from "./refresh";
 
 export class ApiError extends Error {
   constructor(
@@ -14,7 +15,19 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+// A 401 from one of these means the credentials or refresh cookie
+// themselves are bad (not an expired access token), so attempting a refresh
+// would just loop. Other /api/v1/auth/* routes (methods, link/unlink, ...)
+// are ordinary access-token-authenticated calls and go through the normal
+// refresh-and-retry flow below.
+const NO_REFRESH_PATHS: ReadonlySet<string> = new Set([
+  "/api/v1/auth/login",
+  "/api/v1/auth/register",
+  "/api/v1/auth/refresh",
+  "/api/v1/auth/google/login",
+]);
+
+async function request<T>(path: string, options: RequestInit = {}, isRetry = false): Promise<T> {
   const token = useAuthStore.getState().token;
 
   const headers: Record<string, string> = {
@@ -63,6 +76,23 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
 
   if (response.status === 401) {
+    // Refresh-and-retry only applies once (not on the retry itself), for a
+    // token-bearing session (an anonymous 401 can't be a session expiring),
+    // and for endpoints where a refresh could plausibly fix it.
+    if (!isRetry && token && !NO_REFRESH_PATHS.has(path)) {
+      const result = await refreshTokenOnce();
+      if (result.ok) {
+        return request<T>(path, options, true);
+      }
+      // Only a refresh rejection that says the session itself is invalid
+      // (401/403) should log the user out. A 429 (shared rate limit) or 5xx
+      // (refresh endpoint down) is transient — surface the original request's
+      // failure and let the next request try again.
+      if (result.status === 401 || result.status === 403) {
+        useAuthStore.getState().logout();
+      }
+      throw new ApiError(401, "Unauthorized");
+    }
     useAuthStore.getState().logout();
     throw new ApiError(401, "Unauthorized");
   }

@@ -880,6 +880,60 @@
       }
     },
     {
+      "description": "a request to list active protocol runs",
+      "providerState": "a protocol with an active, notify-enabled run exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/active",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "77777777-7777-7777-7777-777777777777",
+            "protocol_id": "88888888-8888-8888-8888-888888888888",
+            "protocol_name": "BPC-157 Protocol",
+            "user_id": "99999999-9999-9999-9999-999999999999",
+            "start_date": "2026-03-28",
+            "duration_days": 28,
+            "status": "active",
+            "notify": true,
+            "notify_time": null,
+            "notify_times": [
+              "08:00",
+              "20:00"
+            ],
+            "repeat_reminders": false,
+            "repeat_interval_minutes": null,
+            "progress_pct": 18.0,
+            "doses_today": 1,
+            "doses_completed_today": 0,
+            "created_at": "2026-03-28T10:00:00Z"
+          }
+        ],
+        "matchingRules": {
+          "$.body[0].progress_pct": {
+            "match": "type"
+          },
+          "$.body[0].doses_today": {
+            "match": "type"
+          },
+          "$.body[0].doses_completed_today": {
+            "match": "type"
+          },
+          "$.body[0].created_at": {
+            "match": "type"
+          }
+        }
+      }
+    },
+    {
       "description": "a request to get a protocol by id",
       "providerState": "an authenticated user exists",
       "request": {
@@ -1023,16 +1077,16 @@
     },
     {
       "description": "a request to log a protocol dose",
-      "providerState": "an authenticated user exists",
+      "providerState": "a protocol with a loggable dose exists",
       "request": {
         "method": "POST",
-        "path": "/api/v1/protocols/proto-1/doses/log",
+        "path": "/api/v1/protocols/11111111-1111-1111-1111-111111111111/doses/log",
         "headers": {
           "Authorization": "Bearer some-jwt-token",
           "Content-Type": "application/json"
         },
         "body": {
-          "protocol_line_id": "line-1",
+          "protocol_line_id": "22222222-2222-2222-2222-222222222222",
           "day_number": 0
         }
       },
@@ -1042,28 +1096,38 @@
           "Content-Type": "application/json"
         },
         "body": {
-          "id": "dose-1",
-          "protocol_line_id": "line-1",
+          "id": "33333333-3333-3333-3333-333333333333",
+          "protocol_line_id": "22222222-2222-2222-2222-222222222222",
           "day_number": 0,
           "status": "completed",
-          "intervention_id": null,
-          "logged_at": "2026-03-28T08:00:00Z",
-          "created_at": "2026-03-28T08:00:00Z"
+          "intervention_id": "44444444-4444-4444-4444-444444444444",
+          "logged_at": "2026-03-28T08:00:00Z"
+        },
+        "matchingRules": {
+          "$.body.id": {
+            "match": "type"
+          },
+          "$.body.intervention_id": {
+            "match": "type"
+          },
+          "$.body.logged_at": {
+            "match": "type"
+          }
         }
       }
     },
     {
       "description": "a request to skip a protocol dose",
-      "providerState": "an authenticated user exists",
+      "providerState": "a protocol with a skippable dose exists",
       "request": {
         "method": "POST",
-        "path": "/api/v1/protocols/proto-1/doses/skip",
+        "path": "/api/v1/protocols/55555555-5555-5555-5555-555555555555/doses/skip",
         "headers": {
           "Authorization": "Bearer some-jwt-token",
           "Content-Type": "application/json"
         },
         "body": {
-          "protocol_line_id": "line-1",
+          "protocol_line_id": "66666666-6666-6666-6666-666666666666",
           "day_number": 1
         }
       },

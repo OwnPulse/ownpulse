@@ -28,8 +28,19 @@ final class AppDependencies {
     let syncCoordinator: SyncCoordinator
     let adminService: AdminService
     let notificationManager: NotificationManager
+    /// Rebuilds local (on-device) dose reminders from the current active
+    /// runs. See `DoseReminderCoordinator` — reminders are scheduled via
+    /// `UNCalendarNotificationTrigger`, never pushed from the backend.
+    let doseReminderCoordinator: DoseReminderCoordinator
     let featureFlagService: FeatureFlagService
     private var crashReporter: CrashReporter?
+
+    /// The dose-reminder rebuild triggered by login bootstrap or scene-phase
+    /// foreground. Retained (rather than fire-and-forget) so `teardownAutoSync`
+    /// can cancel it on logout — otherwise a rebuild already past its own
+    /// internal auth check but still mid-flight when the user signs out could
+    /// finish after `clearAll()` and re-add reminders for the signed-out user.
+    private var doseReminderTask: Task<Void, Never>?
 
     /// Long-running backfill task owned by this dependencies container, NOT
     /// by any view. Survives view dismissal / navigation. See
@@ -76,7 +87,8 @@ final class AppDependencies {
         keychainService: KeychainServiceProtocol? = nil,
         networkClient: NetworkClientProtocol? = nil,
         healthKitProvider: HealthKitProviderProtocol? = nil,
-        syncScheduler: SyncScheduler? = nil
+        syncScheduler: SyncScheduler? = nil,
+        notificationCenter: (any UserNotificationCenterProtocol)? = nil
     ) {
         let keychain = keychainService ?? KeychainService()
         self.keychainService = keychain
@@ -137,7 +149,16 @@ final class AppDependencies {
 
         self.adminService = AdminService(networkClient: network)
 
-        self.notificationManager = NotificationManager(networkClient: network)
+        self.notificationManager = notificationCenter.map {
+            NotificationManager(networkClient: network, notificationCenter: $0)
+        } ?? NotificationManager(networkClient: network)
+
+        let authServiceForReminders = self.authService
+        self.doseReminderCoordinator = DoseReminderCoordinator(
+            networkClient: network,
+            notificationManager: self.notificationManager,
+            isAuthenticated: { authServiceForReminders.isAuthenticated }
+        )
 
         self.featureFlagService = FeatureFlagService(networkClient: network)
 
@@ -193,6 +214,16 @@ final class AppDependencies {
         guard authService.isAuthenticated else { return }
 
         syncScheduler.scheduleNextSync()
+
+        // Rebuild local dose reminders too — on first login there may
+        // already be active runs with notify enabled (e.g. re-installing
+        // the app), and on relaunch this refreshes the rolling 7-day
+        // window of scheduled reminders. Retained so a logout that races
+        // with this can cancel it — see `doseReminderTask`.
+        doseReminderTask?.cancel()
+        doseReminderTask = Task { [doseReminderCoordinator] in
+            await doseReminderCoordinator.rebuildReminders()
+        }
 
         // Defensive: ensure HealthKit authorization runs before we wire up
         // observers or background delivery. Each of the next two awaits
@@ -270,6 +301,14 @@ final class AppDependencies {
         } catch {
             syncLogger.error("disableAllBackgroundDelivery failed: \(error.localizedDescription, privacy: .public)")
         }
+        // Cancel any in-flight rebuild BEFORE clearing, so a rebuild that
+        // was already past its own auth check can't re-add reminders (with
+        // substance names on the lock screen) after clearAll() runs for a
+        // user who just signed out. `DoseReminderCoordinator.clearAll()`
+        // also cancels its own internal in-flight task as a second layer.
+        doseReminderTask?.cancel()
+        doseReminderTask = nil
+        await doseReminderCoordinator.clearAll()
     }
 
     /// Pure handler for `ScenePhase` changes. Returns `true` when a sync was
@@ -288,6 +327,17 @@ final class AppDependencies {
         Task { [syncEngine] in
             await syncEngine.sync()
         }
+
+        // Reminders are scheduled up to 7 days ahead — refresh the window
+        // (and pick up any notify-settings/run changes made elsewhere)
+        // every time the app comes to the foreground, independent of
+        // whether the Protocols tab is visited. Retained/cancelled the same
+        // way as the login-bootstrap rebuild — see `doseReminderTask`.
+        doseReminderTask?.cancel()
+        doseReminderTask = Task { [doseReminderCoordinator] in
+            await doseReminderCoordinator.rebuildReminders()
+        }
+
         return true
     }
 }
