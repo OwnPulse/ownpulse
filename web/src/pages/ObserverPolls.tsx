@@ -10,6 +10,7 @@ import {
   observerPollsApi,
   type Poll,
 } from "../api/observer-polls";
+import { localToday } from "../utils/datetime";
 import styles from "./ObserverPolls.module.css";
 
 const DIMENSIONS = [
@@ -20,10 +21,6 @@ const DIMENSIONS = [
   { value: "libido", label: "Libido" },
   { value: "appearance", label: "Appearance" },
 ];
-
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function CreatePollForm({ onCreated }: { onCreated: () => void }) {
   const queryClient = useQueryClient();
@@ -307,7 +304,7 @@ function ResponsesTable({
 
 function ObserverResponseForm({ poll }: { poll: ObserverPollView }) {
   const queryClient = useQueryClient();
-  const [date, setDate] = useState(todayDate);
+  const [date, setDate] = useState(localToday);
   const [scores, setScores] = useState<Record<string, string>>(() =>
     Object.fromEntries(poll.dimensions.map((d) => [d, "5"])),
   );
