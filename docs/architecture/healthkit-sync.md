@@ -13,6 +13,8 @@ This rule is:
 
 This prevents the cycle: OwnPulse writes to HealthKit, then reads the same record back, creating a duplicate.
 
+**Implementation:** `HealthKitProvider.makeReadPredicate()` builds the exclusion predicate (`NOT predicateForObjects(from: HKSource.default())`) and is applied to every `HKAnchoredObjectQuery` in `HealthKitProvider.querySamples`. `MedicationSyncProvider` ANDs the same predicate into its dose-event query as defense-in-depth (OwnPulse doesn't currently write dose events, so there's no live cycle risk there yet). `ClinicalRecordProvider` does not apply it — OwnPulse requests read-only clinical record access (`toShare: []`) and third-party apps cannot write `HKClinicalRecord`s, so there is no write → read cycle for that type today.
+
 ## Write-Back Queue Flow
 
 ```

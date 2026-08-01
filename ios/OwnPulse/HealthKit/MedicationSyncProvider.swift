@@ -128,12 +128,23 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
         medicationCache = cache
     }
 
+    /// OwnPulse only ever *reads* dose events (`requestAuthorization` above
+    /// requests per-object read, never write) — there is no path by which
+    /// this app writes a `HKMedicationDoseEvent`, so the ADR-0008 cycle
+    /// cannot occur for this type today. We still AND in the shared
+    /// cycle-prevention predicate (`HealthKitProvider.makeReadPredicate()`)
+    /// as defense-in-depth in case dose-event write-back is added later —
+    /// `HKMedicationDoseEvent` is an `HKSample` subtype, so the source
+    /// predicate is supported by the API.
     private func takenDosesPredicate() -> NSPredicate {
-        NSPredicate(
-            format: "%K == %d",
-            HKPredicateKeyPathStatus,
-            HKMedicationDoseEvent.LogStatus.taken.rawValue
-        )
+        NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(
+                format: "%K == %d",
+                HKPredicateKeyPathStatus,
+                HKMedicationDoseEvent.LogStatus.taken.rawValue
+            ),
+            HealthKitProvider.makeReadPredicate(),
+        ])
     }
 
     static func mapFormToRoute(_ form: String?) -> String {

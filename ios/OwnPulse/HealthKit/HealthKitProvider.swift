@@ -101,6 +101,28 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         immediateDeliveryRecordTypes.contains(recordType) ? .immediate : .hourly
     }
 
+    /// Read-side cycle-prevention filter — [ADR-0008](../../../docs/decisions/0008-healthkit-sync.md).
+    ///
+    /// OwnPulse writes records it creates to HealthKit under its own
+    /// `HKSource` (the app's bundle ID). Without a filter, the very next
+    /// anchored read would pick those records back up, producing a
+    /// write → read → re-upload cycle and duplicate data. This predicate
+    /// excludes samples whose source is this app, unconditionally, on
+    /// every read. It is not configurable and must be applied to every
+    /// `HKAnchoredObjectQuery` over a type OwnPulse is able to write.
+    ///
+    /// `HKSource.default()` reflects the current process's bundle ID and
+    /// requires a live HealthKit environment (real device or simulator with
+    /// the HealthKit entitlement) — it cannot be constructed in a plain
+    /// unit test. Unit tests instead assert on the shape of the returned
+    /// predicate (an `NSCompoundPredicate` of type `.not` wrapping exactly
+    /// one subpredicate) rather than resolving the real `HKSource`.
+    static func makeReadPredicate() -> NSPredicate {
+        NSCompoundPredicate(
+            notPredicateWithSubpredicate: HKQuery.predicateForObjects(from: HKSource.default())
+        )
+    }
+
     func requestAuthorization() async throws {
         // HealthKit's `requestAuthorization` raises an `NSException` (not an
         // `NSError`) if any type in `toShare` is disallowed — e.g. Apple
@@ -209,7 +231,7 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
             // instead of materializing the whole result up front.
             let query = HKAnchoredObjectQuery(
                 type: type,
-                predicate: nil,
+                predicate: Self.makeReadPredicate(),
                 anchor: hkAnchor,
                 limit: limit
             ) { _, added, deleted, newAnchor, error in

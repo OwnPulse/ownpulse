@@ -160,3 +160,37 @@ struct HealthKitProviderPagedQueryTests {
         #expect(provider.authorizationStatus(for: HKQuantityType(.bodyMass)) == .sharingAuthorized)
     }
 }
+
+@Suite("HealthKitProvider — ADR-0008 cycle-prevention read predicate")
+struct HealthKitProviderReadPredicateTests {
+    // `HKSource.default()` reflects the running process/bundle and can't be
+    // faked or intercepted from a unit test, so we can't assert on its exact
+    // contents here. Instead we assert on the *shape* of the predicate the
+    // cycle guard produces: it must be a NOT-compound wrapping exactly one
+    // subpredicate (the "from OwnPulse's own source" predicate). This is
+    // enough to guard against someone accidentally inverting the logic
+    // (e.g. flipping to `predicateForObjects(from:)` with no NOT, which
+    // would silently *only* sync OwnPulse's own writes and drop every
+    // third-party sample).
+    @Test("makeReadPredicate returns a NOT-compound predicate")
+    func returnsNotCompoundPredicate() {
+        let predicate = HealthKitProvider.makeReadPredicate()
+
+        guard let compound = predicate as? NSCompoundPredicate else {
+            Issue.record("Expected an NSCompoundPredicate, got \(type(of: predicate))")
+            return
+        }
+
+        #expect(compound.compoundPredicateType == .not)
+        #expect(compound.subpredicates.count == 1)
+    }
+
+    @Test("makeReadPredicate is deterministic across calls")
+    func isDeterministic() {
+        let first = HealthKitProvider.makeReadPredicate() as? NSCompoundPredicate
+        let second = HealthKitProvider.makeReadPredicate() as? NSCompoundPredicate
+
+        #expect(first?.compoundPredicateType == second?.compoundPredicateType)
+        #expect(first?.subpredicates.count == second?.subpredicates.count)
+    }
+}
