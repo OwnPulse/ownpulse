@@ -7,6 +7,29 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// WHERE-clause fragment excluding `health_records` rows that have been
+/// deduplicated in favor of a different, user-preferred source (i.e. rows
+/// where `duplicate_of IS NOT NULL` and `source_preferences` names some
+/// *other* source as canonical for this metric type).
+///
+/// This is the "applied at query time" half of the dedup rule described in
+/// `CLAUDE.md` and `docs/architecture/healthkit-sync.md`: both records are
+/// always kept in the table, but the non-preferred one is hidden from
+/// default aggregate views. It must **never** be applied to `GET
+/// /health-records` or any export path — those stay raw so provenance is
+/// never dropped.
+///
+/// Requires the query to alias `health_records` as `hr`.
+pub const SOURCE_PREFERENCE_EXCLUSION: &str = "NOT (
+        hr.duplicate_of IS NOT NULL
+        AND EXISTS (
+            SELECT 1 FROM source_preferences sp
+            WHERE sp.user_id = hr.user_id
+              AND sp.metric_type = hr.record_type
+              AND sp.preferred_source <> hr.source
+        )
+    )";
+
 /// A cross-source dedup match for a single record in a bulk-insert batch.
 /// Emitted by [`bulk_insert_healthkit`] so the caller can log/metric each
 /// match without re-querying the DB.
