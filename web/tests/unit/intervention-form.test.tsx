@@ -122,7 +122,7 @@ describe("InterventionForm", () => {
     expect(screen.getByLabelText(/dose/i)).toBeDefined();
     expect(screen.getByLabelText(/unit/i)).toBeDefined();
     expect(screen.getByLabelText(/route/i)).toBeDefined();
-    expect(screen.getByRole("button", { name: /save intervention/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /log intervention/i })).toBeDefined();
   });
 
   it("renders quick-pick chips when active substances exist", async () => {
@@ -186,7 +186,7 @@ describe("InterventionForm", () => {
     // Fill via chip
     await user.click(screen.getByText("BPC-157 250mcg SubQ"));
 
-    await user.click(screen.getByRole("button", { name: /save intervention/i }));
+    await user.click(screen.getByRole("button", { name: /log intervention/i }));
 
     await waitFor(() => {
       expect(screen.getByText("Saved!")).toBeDefined();
@@ -209,7 +209,7 @@ describe("InterventionForm", () => {
     await user.type(screen.getByLabelText(/unit/i), "mg");
     await user.type(screen.getByLabelText(/route/i), "oral");
 
-    await user.click(screen.getByRole("button", { name: /save intervention/i }));
+    await user.click(screen.getByRole("button", { name: /log intervention/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/error:/i)).toBeDefined();

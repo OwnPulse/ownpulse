@@ -18,7 +18,7 @@ export default function DataEntry() {
 
   return (
     <main className="op-page">
-      <h1>Data Entry</h1>
+      <h1>Log</h1>
       <div className="op-tab-bar">
         {TABS.map((tab) => (
           <button

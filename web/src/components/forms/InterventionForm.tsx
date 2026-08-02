@@ -275,7 +275,7 @@ export default function InterventionForm() {
       </div>
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Intervention"}
+          {mutation.isPending ? "Saving..." : "Log Intervention"}
         </button>
       </div>
       {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
