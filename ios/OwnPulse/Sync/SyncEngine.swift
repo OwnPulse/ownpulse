@@ -8,6 +8,24 @@ import os
 
 private let engineLogger = Logger(subsystem: "health.ownpulse.app", category: "sync-engine")
 
+/// Raised by `processWriteBack` when one or more queue items could not be
+/// written to Apple Health (unmapped type, no numeric value, HealthKit write
+/// failure, etc). Deterministic failures are also reported to the backend via
+/// `failures` on `/healthkit/confirm`; transient ones are left pending for a
+/// later retry (see `WriteBackFailureClassifier`). Either way, this error
+/// exists so `sync()` surfaces a non-empty `_lastError` instead of the
+/// problem being silently swallowed.
+enum WriteBackError: Error, LocalizedError {
+    case itemsFailed(count: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .itemsFailed(let count):
+            return "\(count) write-back item\(count == 1 ? "" : "s") failed to write to Apple Health"
+        }
+    }
+}
+
 // Observable state bag — lives on MainActor, updated by SyncEngine after each operation.
 @Observable
 @MainActor
@@ -692,32 +710,80 @@ actor SyncEngine {
         guard !items.isEmpty else { return }
 
         var confirmedIDs: [String] = []
+        var failures: [HealthKitConfirmFailure] = []
+        var unreportedTransientFailures = 0
 
         for item in items {
             guard let mapping = HealthKitTypeMap.mapping(forRecordType: item.hkType) else {
+                failures.append(HealthKitConfirmFailure(id: item.id, error: "Unknown HealthKit type: \(item.hkType)"))
                 continue
+            }
+
+            // The backend's row has no route-level requirement that a
+            // numeric value be present — a record enqueued without one
+            // serves `value.value == nil`. A quantity sample can't be
+            // written without a value; report it rather than writing a
+            // placeholder (e.g. 0) that would misrepresent the user's data.
+            guard let numericValue = item.value.value else {
+                failures.append(HealthKitConfirmFailure(id: item.id, error: "Write-queue item has no numeric value"))
+                continue
+            }
+
+            // Validates writability, unit parseability/compatibility, and
+            // start/end ordering WITHOUT touching HealthKit — see
+            // `HealthKitWriteBackValidator` for why each check exists (in
+            // particular: an incompatible-but-parseable unit would otherwise
+            // crash `HKQuantity`'s initializer with an uncatchable
+            // `NSInvalidArgumentException`).
+            let unit: HKUnit
+            let start: Date
+            let end: Date
+            switch HealthKitWriteBackValidator.resolve(payload: item.value, mapping: mapping) {
+            case .invalid(let reason):
+                failures.append(HealthKitConfirmFailure(id: item.id, error: reason))
+                continue
+            case .ready(let resolvedUnit, let resolvedStart, let resolvedEnd):
+                unit = resolvedUnit
+                start = resolvedStart
+                end = resolvedEnd
             }
 
             do {
                 try await healthKitProvider.writeSample(
                     type: mapping.hkType,
-                    value: item.value,
-                    unit: mapping.unit,
-                    start: item.scheduledAt,
-                    end: item.scheduledAt
+                    value: numericValue,
+                    unit: unit,
+                    start: start,
+                    end: end,
+                    syncIdentifier: item.id
                 )
                 confirmedIDs.append(item.id)
             } catch {
-                // Skip failed writes — server will retry
+                logUploadFailure(error, context: "writeback-type=\(item.hkType)")
+                // Reporting an item via `failures` permanently retires it
+                // server-side — see `WriteBackFailureClassifier`. Only
+                // report failures we're sure won't clear up on their own;
+                // transient ones are skipped so the item stays pending and
+                // the write-queue's natural retry (next sync) picks it up.
+                if WriteBackFailureClassifier.isDeterministic(error) {
+                    failures.append(HealthKitConfirmFailure(id: item.id, error: error.localizedDescription))
+                } else {
+                    unreportedTransientFailures += 1
+                }
             }
         }
 
-        if !confirmedIDs.isEmpty {
+        if !confirmedIDs.isEmpty || !failures.isEmpty {
             try await networkClient.requestNoContent(
                 method: "POST",
                 path: Endpoints.healthKitConfirm,
-                body: HealthKitConfirm(ids: confirmedIDs)
+                body: HealthKitConfirm(ids: confirmedIDs, failures: failures)
             )
+        }
+
+        let totalFailures = failures.count + unreportedTransientFailures
+        if totalFailures > 0 {
+            throw WriteBackError.itemsFailed(count: totalFailures)
         }
     }
 }
