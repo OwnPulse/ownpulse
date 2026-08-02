@@ -166,16 +166,21 @@ may legitimately repeat.
 
 ### `calendar_days`
 
-Meeting and schedule aggregates per day.
+Meeting aggregates per day, populated by the Google Calendar background sync
+(`jobs::google_calendar_sync`). **Aggregates only** — event titles,
+descriptions, attendees, and locations are never stored; see
+`docs/decisions/0011-explore-and-observer-polls.md`. `UNIQUE(user_id, date)`
+— each sync fully recomputes and overwrites the row for a day rather than
+accumulating.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
 | `date` | DATE | |
-| `meeting_count` | INT | |
-| `meeting_hours` | DOUBLE | |
-| `created_at` | TIMESTAMPTZ | |
+| `meeting_count` | INT | Number of timed events that day; all-day entries don't count |
+| `meeting_minutes` | INT | Total minutes across those events |
+| `synced_at` | TIMESTAMPTZ | Last time this row was (re)computed |
 
 ### `genetic_records`
 

@@ -519,6 +519,9 @@ writing a preference via `POST /source-preferences`.
 | GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 1 |
 | POST | `/integrations/garmin/sync` | Trigger an immediate Garmin fetch | 1 |
 | POST | `/integrations/oura/sync` | Trigger an immediate Oura fetch | 1 |
+| GET | `/auth/google-calendar/login` | Start the Google Calendar OAuth 2.0 connect flow (requires JWT) | 2 |
+| GET | `/auth/google-calendar/callback` | Google Calendar OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 2 |
+| POST | `/integrations/google-calendar/sync` | Trigger an immediate Google Calendar fetch | 2 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
 | POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
 
@@ -557,6 +560,41 @@ fails, the watermark is left where it was and the error is recorded
 (surfaced via `GET /integrations`), so the failed window is retried on the
 next sync instead of being silently skipped. A subsequent fully-successful
 sync clears the recorded error.
+
+#### Google Calendar background sync
+
+Separate from `/auth/google/login` (account login/signup — see Auth above):
+`/auth/google-calendar/login` requires an already-authenticated user and
+requests the read-only `calendar.readonly` scope with `access_type=offline` +
+`prompt=consent`, so a refresh token is issued for the background job to use.
+It reuses `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` but has its own redirect
+URI (`GOOGLE_CALENDAR_REDIRECT_URI`, defaulting to
+`<WEB_ORIGIN>/api/v1/auth/google-calendar/callback`) since Google requires an
+exact registered redirect per OAuth client/flow combination.
+
+**Aggregates only — never event content.** The sync job fetches calendar
+events for a rolling window (last 7 days on first sync, or since the last
+successful sync; always through one day ahead, to catch same-day meetings)
+and writes per-day counts into `calendar_days`: `meeting_count` and
+`meeting_minutes`. Event titles, descriptions, attendees, and locations are
+never deserialized from the Google Calendar API response, let alone stored —
+there is no code path through which meeting content reaches the database,
+logs, or an error message. All-day entries (holidays, out-of-office blocks)
+are not counted as meetings. Every sync fully recomputes and *overwrites*
+(`ON CONFLICT ... DO UPDATE`) each day's aggregate from the source data,
+rather than accumulating — a meeting cancelled or rescheduled upstream is
+reflected correctly on the next sync.
+
+`POST /integrations/google-calendar/sync` follows the same manual-sync,
+cooldown, advisory-lock, and honest-watermark semantics described above for
+Garmin/Oura. Response `200`:
+
+```json
+{ "source": "google_calendar", "records_inserted": 2 }
+```
+
+(`records_inserted` here counts `calendar_days` rows written, not individual
+events.)
 
 #### MyChart / SMART-on-FHIR lab import
 

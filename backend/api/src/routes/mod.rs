@@ -18,6 +18,7 @@ pub mod export;
 pub mod friends;
 pub mod garmin;
 pub mod genetics;
+pub mod google_calendar;
 pub mod health_records;
 pub mod healthkit;
 pub mod insights;
@@ -168,6 +169,10 @@ fn rate_limited_auth_routes() -> Router<AppState> {
         .route("/auth/reset-password", post(auth::reset_password))
         .route("/auth/garmin/login", get(garmin::garmin_login))
         .route("/auth/oura/login", get(oura::oura_login))
+        .route(
+            "/auth/google-calendar/login",
+            get(google_calendar::google_calendar_login),
+        )
 }
 
 /// OAuth callback routes that are server-initiated redirects protected by
@@ -180,6 +185,10 @@ fn oauth_callback_routes() -> Router<AppState> {
         .route("/auth/apple/callback", post(auth::apple_callback))
         .route("/auth/garmin/callback", get(garmin::garmin_callback))
         .route("/auth/oura/callback", get(oura::oura_callback))
+        .route(
+            "/auth/google-calendar/callback",
+            get(google_calendar::google_calendar_callback),
+        )
 }
 
 /// Build the versioned API router with rate limiting on auth, explore, and
@@ -383,6 +392,10 @@ fn base_routes() -> Router<AppState> {
         // Manual sync — trigger a fetch without waiting for the periodic job.
         .route("/integrations/garmin/sync", post(garmin::sync))
         .route("/integrations/oura/sync", post(oura::sync))
+        .route(
+            "/integrations/google-calendar/sync",
+            post(google_calendar::sync),
+        )
         .route("/integrations/:source", delete(integrations::disconnect))
         // Genetics
         .route("/genetics/upload", post(genetics::upload))

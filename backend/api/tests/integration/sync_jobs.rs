@@ -970,3 +970,457 @@ async fn garmin_manual_sync_without_server_config_returns_501() {
 
     assert_eq!(response.status(), 501);
 }
+
+// ── Google Calendar manual sync ───────────────────────────────────────────
+
+async fn mount_google_calendar(mock: &MockServer) {
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(include_str!("../fixtures/google_calendar/events-list.json")),
+        )
+        .mount(mock)
+        .await;
+}
+
+async fn connect_google_calendar(app: &common::TestApp, user_id: uuid::Uuid) {
+    let key = test_encryption_key();
+    api::db::integration_tokens::upsert(
+        &app.pool,
+        user_id,
+        "google_calendar",
+        "gcal-access",
+        Some("gcal-refresh"),
+        None,
+        &key,
+    )
+    .await
+    .unwrap();
+}
+
+async fn calendar_days_count(pool: &sqlx::PgPool, user_id: uuid::Uuid) -> i64 {
+    let (count,): (i64,) = sqlx::query_as("SELECT count(*) FROM calendar_days WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .unwrap();
+    count
+}
+
+#[tokio::test]
+async fn google_calendar_manual_sync_requires_auth() {
+    let app = common::setup().await;
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/integrations/google-calendar/sync")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 401);
+}
+
+#[tokio::test]
+async fn google_calendar_manual_sync_without_connection_returns_404() {
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+    })
+    .await;
+
+    let (_, token) = common::create_test_user(&app).await;
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 404);
+}
+
+#[tokio::test]
+async fn google_calendar_manual_sync_without_server_config_returns_501() {
+    let app = common::setup().await;
+    let (_, token) = common::create_test_user(&app).await;
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 501);
+}
+
+#[tokio::test]
+async fn google_calendar_manual_sync_writes_aggregates_and_advances_watermark() {
+    let mock = MockServer::start().await;
+    mount_google_calendar(&mock).await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    connect_google_calendar(&app, user_id).await;
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200);
+    let body = body_json(response).await;
+    assert_eq!(body["source"], "google_calendar");
+    // Fixture has two days of timed events (2026-06-01, 2026-06-02); the
+    // all-day "holiday" entry on 2026-06-01 must not count as a meeting.
+    assert_eq!(body["records_inserted"].as_u64().unwrap(), 2);
+
+    assert_eq!(calendar_days_count(&app.pool, user_id).await, 2);
+
+    let day1: (i32, i32) = sqlx::query_as(
+        "SELECT meeting_count, meeting_minutes FROM calendar_days \
+         WHERE user_id = $1 AND date = '2026-06-01'",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(day1, (2, 45), "30min + 15min meetings, holiday excluded");
+
+    let day2: (i32, i32) = sqlx::query_as(
+        "SELECT meeting_count, meeting_minutes FROM calendar_days \
+         WHERE user_id = $1 AND date = '2026-06-02'",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(day2, (1, 60));
+
+    let (last_synced_at, last_sync_error) =
+        sync_status(&app.pool, user_id, "google_calendar").await;
+    assert!(last_synced_at.is_some());
+    assert!(last_sync_error.is_none());
+}
+
+#[tokio::test]
+async fn google_calendar_manual_sync_failure_leaves_watermark_then_clears_on_success() {
+    let mock = MockServer::start().await;
+    // First request fails; subsequent requests succeed.
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .respond_with(ResponseTemplate::new(503))
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&mock)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(include_str!("../fixtures/google_calendar/events-list.json")),
+        )
+        .with_priority(2)
+        .mount(&mock)
+        .await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    connect_google_calendar(&app, user_id).await;
+
+    let first = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 502);
+
+    let (after_failure_synced_at, after_failure_error) =
+        sync_status(&app.pool, user_id, "google_calendar").await;
+    assert!(
+        after_failure_synced_at.is_none(),
+        "watermark must not advance when the fetch fails"
+    );
+    assert!(
+        after_failure_error.is_some(),
+        "last_sync_error must be recorded on failure"
+    );
+    assert_eq!(
+        calendar_days_count(&app.pool, user_id).await,
+        0,
+        "a failed sync must not write partial aggregates"
+    );
+
+    backdate_last_attempt(&app.pool, user_id, "google_calendar").await;
+
+    let second = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), 200);
+
+    let (after_success_synced_at, after_success_error) =
+        sync_status(&app.pool, user_id, "google_calendar").await;
+    assert!(after_success_synced_at.is_some());
+    assert!(after_success_error.is_none());
+    assert_eq!(calendar_days_count(&app.pool, user_id).await, 2);
+}
+
+#[tokio::test]
+async fn google_calendar_re_sync_overwrites_rather_than_duplicates() {
+    let mock = MockServer::start().await;
+    mount_google_calendar(&mock).await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    connect_google_calendar(&app, user_id).await;
+
+    let first = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 200);
+    assert_eq!(calendar_days_count(&app.pool, user_id).await, 2);
+
+    // Roll the watermark back and re-sync so WireMock re-serves the exact
+    // same fixture — this is the scenario that would double-insert without
+    // the `ON CONFLICT (user_id, date) DO UPDATE` upsert.
+    sqlx::query(
+        "UPDATE integration_tokens SET last_synced_at = now() - interval '7 days' \
+         WHERE user_id = $1 AND source = 'google_calendar'",
+    )
+    .bind(user_id)
+    .execute(&app.pool)
+    .await
+    .unwrap();
+    backdate_last_attempt(&app.pool, user_id, "google_calendar").await;
+
+    let second = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), 200);
+
+    assert_eq!(
+        calendar_days_count(&app.pool, user_id).await,
+        2,
+        "re-syncing identical data must overwrite existing rows, not add new ones"
+    );
+
+    let day1: (i32, i32) = sqlx::query_as(
+        "SELECT meeting_count, meeting_minutes FROM calendar_days \
+         WHERE user_id = $1 AND date = '2026-06-01'",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        day1,
+        (2, 45),
+        "values must be recomputed from source data, not accumulated"
+    );
+}
+
+#[tokio::test]
+async fn google_calendar_manual_sync_cooldown_returns_429_with_retry_after() {
+    let mock = MockServer::start().await;
+    mount_google_calendar(&mock).await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    connect_google_calendar(&app, user_id).await;
+
+    let first = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 200);
+
+    let second = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), 429);
+    assert!(second.headers().get("retry-after").is_some());
+}
+
+#[tokio::test]
+async fn google_calendar_concurrent_manual_syncs_only_one_runs() {
+    let mock = MockServer::start().await;
+    let delay = std::time::Duration::from_millis(300);
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(include_str!("../fixtures/google_calendar/events-list.json"))
+                .set_delay(delay),
+        )
+        .mount(&mock)
+        .await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    connect_google_calendar(&app, user_id).await;
+
+    let app_a = app.app.clone();
+    let token_a = token.clone();
+    let app_b = app.app.clone();
+    let token_b = token.clone();
+
+    let (result_a, result_b) = tokio::join!(
+        app_a.oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token_a
+        )),
+        app_b.oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token_b
+        )),
+    );
+
+    let statuses = [result_a.unwrap().status(), result_b.unwrap().status()];
+    assert_eq!(
+        statuses.iter().filter(|s| **s == 200).count(),
+        1,
+        "exactly one concurrent sync should run to completion, got {statuses:?}"
+    );
+    assert_eq!(
+        statuses.iter().filter(|s| **s == 429).count(),
+        1,
+        "the loser of the advisory lock race should be told to retry, got {statuses:?}"
+    );
+
+    assert_eq!(calendar_days_count(&app.pool, user_id).await, 2);
+}
+
+#[tokio::test]
+async fn google_calendar_run_sync_is_interrupted_by_cancellation_mid_flight() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string("{\"items\": []}")
+                .set_delay(std::time::Duration::from_secs(5)),
+        )
+        .mount(&mock)
+        .await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+    })
+    .await;
+
+    let (user_id, _token) = common::create_test_user(&app).await;
+    connect_google_calendar(&app, user_id).await;
+
+    let pool = app.pool.clone();
+    let config = app.config.clone();
+    let http_client = reqwest::Client::new();
+    let (event_tx, _) = tokio::sync::broadcast::channel(4);
+    let cancel = tokio_util::sync::CancellationToken::new();
+    let cancel_for_task = cancel.clone();
+
+    let task = tokio::spawn(async move {
+        tokio::select! {
+            _ = cancel_for_task.cancelled() => Err("cancelled".to_string()),
+            result = api::jobs::google_calendar_sync::run_sync(&pool, &config, &http_client, &event_tx, &cancel_for_task) => result,
+        }
+    });
+
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    cancel.cancel();
+
+    let result = tokio::time::timeout(std::time::Duration::from_secs(2), task)
+        .await
+        .expect("cancellation should let the pass exit promptly, well under the 5s mock delay")
+        .expect("task must not panic");
+    assert!(result.is_err(), "the cancelled branch should win the race");
+
+    let (last_synced_at, _) = sync_status(&app.pool, user_id, "google_calendar").await;
+    assert!(
+        last_synced_at.is_none(),
+        "a cancelled-mid-flight sync must not advance the watermark"
+    );
+}
