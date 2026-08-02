@@ -630,6 +630,8 @@ localhost.
 | GET | `/export/json` | Full JSON export (streaming) | 1 |
 | GET | `/export/csv` | Full CSV export (streaming) | 1 |
 
+`/export/json` covers `health_records`, `interventions`, `daily_checkins`, `lab_results`, `observations` (which includes sleep and all other user-defined data), `protocols`, `protocol_lines`, `protocol_runs`, `protocol_doses`, and (only if present) `genetic_records`. **`/export/csv` covers `health_records` only** — it does not include interventions, checkins, labs, observations, protocols, or genetics; use `/export/json` for a complete export.
+
 ### Account
 
 | Method | Path | Description | Phase |
