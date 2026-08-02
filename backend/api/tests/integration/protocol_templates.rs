@@ -96,7 +96,7 @@ async fn test_export_protocol_returns_json_file() {
     let body = common::body_json(resp).await;
     assert_eq!(body["schema"], "ownpulse-protocol/v1");
     assert_eq!(body["name"], name);
-    assert!(body["lines"].as_array().unwrap().len() > 0);
+    assert!(!body["lines"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]

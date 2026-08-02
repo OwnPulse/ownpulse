@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-use crate::models::intervention::{CreateIntervention, InterventionRow};
+use crate::models::intervention::{CreateIntervention, InterventionRow, UpdateIntervention};
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -19,7 +19,7 @@ pub async fn insert(
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING id, user_id, substance, dose, unit, route,
                    administered_at, fasted, timing_relative_to, notes,
-                   healthkit_written, created_at",
+                   healthkit_written, created_at, updated_at",
     )
     .bind(user_id)
     .bind(&intervention.substance)
@@ -44,7 +44,7 @@ pub async fn list(
     sqlx::query_as::<_, InterventionRow>(
         "SELECT id, user_id, substance, dose, unit, route,
                 administered_at, fasted, timing_relative_to, notes,
-                healthkit_written, created_at
+                healthkit_written, created_at, updated_at
          FROM interventions
          WHERE user_id = $1
            AND ($2::timestamptz IS NULL OR administered_at >= $2)
@@ -68,13 +68,52 @@ pub async fn get_by_id(
     sqlx::query_as::<_, InterventionRow>(
         "SELECT id, user_id, substance, dose, unit, route,
                 administered_at, fasted, timing_relative_to, notes,
-                healthkit_written, created_at
+                healthkit_written, created_at, updated_at
          FROM interventions
          WHERE id = $1 AND user_id = $2",
     )
     .bind(id)
     .bind(user_id)
     .fetch_one(pool)
+    .await
+}
+
+/// Update the mutable fields of an intervention (COALESCE — unset fields are
+/// left unchanged). Returns `None` if no row matched (not found, or not
+/// owned by this user).
+pub async fn update(
+    pool: &PgPool,
+    user_id: Uuid,
+    id: Uuid,
+    req: &UpdateIntervention,
+) -> Result<Option<InterventionRow>, sqlx::Error> {
+    sqlx::query_as::<_, InterventionRow>(
+        "UPDATE interventions
+         SET substance = COALESCE($3, substance),
+             dose = COALESCE($4, dose),
+             unit = COALESCE($5, unit),
+             route = COALESCE($6, route),
+             administered_at = COALESCE($7, administered_at),
+             fasted = COALESCE($8, fasted),
+             timing_relative_to = COALESCE($9, timing_relative_to),
+             notes = COALESCE($10, notes),
+             updated_at = now()
+         WHERE id = $1 AND user_id = $2
+         RETURNING id, user_id, substance, dose, unit, route,
+                   administered_at, fasted, timing_relative_to, notes,
+                   healthkit_written, created_at, updated_at",
+    )
+    .bind(id)
+    .bind(user_id)
+    .bind(&req.substance)
+    .bind(req.dose)
+    .bind(&req.unit)
+    .bind(&req.route)
+    .bind(req.administered_at)
+    .bind(req.fasted)
+    .bind(&req.timing_relative_to)
+    .bind(&req.notes)
+    .fetch_optional(pool)
     .await
 }
 

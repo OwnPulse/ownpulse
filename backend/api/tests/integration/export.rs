@@ -32,6 +32,28 @@ async fn test_export_json() {
         .unwrap();
     assert_eq!(create_resp.status(), 201);
 
+    // Also create an intervention — regression coverage for the
+    // InterventionRow SELECT staying in sync with its columns (a stale
+    // SELECT missing a new non-Option column 500s the whole export).
+    let intervention_body = json!({
+        "substance": "caffeine",
+        "dose": 100.0,
+        "unit": "mg",
+        "administered_at": "2026-03-18T09:00:00Z"
+    });
+    let intervention_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/interventions",
+            &token,
+            Some(&intervention_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(intervention_resp.status(), 201);
+
     // Export JSON
     let export_resp = app
         .app
@@ -57,6 +79,12 @@ async fn test_export_json() {
         !json["health_records"].as_array().unwrap().is_empty(),
         "export should contain the health record we created"
     );
+    assert!(
+        !json["interventions"].as_array().unwrap().is_empty(),
+        "export should contain the intervention we created"
+    );
+    assert_eq!(json["interventions"][0]["substance"], "caffeine");
+    assert!(json["interventions"][0]["updated_at"].is_string());
 }
 
 #[tokio::test]

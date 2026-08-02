@@ -47,6 +47,12 @@ pub struct ProtocolDoseRow {
     pub status: String,
     pub intervention_id: Option<Uuid>,
     pub logged_at: DateTime<Utc>,
+    /// The run this dose belongs to. `None` for legacy protocol-level doses
+    /// logged before runs existed (or via the deprecated `/protocols/:id/doses/*`
+    /// endpoints), so a protocol detail response can scope doses to a single run.
+    pub run_id: Option<Uuid>,
+    /// Optional free-text reason recorded when a dose is skipped.
+    pub skip_reason: Option<String>,
 }
 
 #[derive(FromRow, Serialize, Clone)]
@@ -97,12 +103,24 @@ pub struct UpdateProtocol {
 pub struct LogDoseRequest {
     pub protocol_line_id: Uuid,
     pub day_number: i32,
+    /// Optional explicit timestamp for the created intervention. Must fall
+    /// within a day of the calendar date of `start_date + day_number`
+    /// (evaluated in `tz_offset_minutes` if given). When omitted, a default
+    /// time is derived from the line's `time_of_day`, in that same offset.
+    pub administered_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+    /// Caller's local UTC offset in minutes (e.g. `-420` for UTC-7), used to
+    /// interpret "today"/the default dose time in the caller's own calendar
+    /// day rather than UTC's. Range: -840..=840 (UTC-14:00..UTC+14:00).
+    /// Defaults to UTC (`0`) when omitted.
+    pub tz_offset_minutes: Option<i32>,
 }
 
 #[derive(Deserialize)]
 pub struct SkipDoseRequest {
     pub protocol_line_id: Uuid,
     pub day_number: i32,
+    pub skip_reason: Option<String>,
 }
 
 #[derive(Deserialize)]

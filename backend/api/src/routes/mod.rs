@@ -324,6 +324,7 @@ fn base_routes() -> Router<AppState> {
         .route("/interventions", post(interventions::create))
         .route("/interventions", get(interventions::list))
         .route("/interventions/:id", get(interventions::get))
+        .route("/interventions/:id", patch(interventions::update))
         .route("/interventions/:id", delete(interventions::delete))
         // Saved medicines
         .route("/saved-medicines", get(saved_medicines::list))
@@ -462,6 +463,10 @@ fn base_routes() -> Router<AppState> {
         .route(
             "/protocols/runs/:run_id/doses/skip",
             post(protocols::skip_dose_on_run),
+        )
+        .route(
+            "/protocols/runs/:run_id/doses/:dose_id",
+            delete(protocols::delete_dose),
         )
         .route(
             "/protocols/notifications",
