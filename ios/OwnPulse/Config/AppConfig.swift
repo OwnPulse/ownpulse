@@ -28,6 +28,14 @@ enum AppConfig {
         return "\(version) (\(build))"
     }
 
+    /// The running app's build identifier — used to stamp offline-queue
+    /// entries abandoned due to an undecodable payload, so a later app
+    /// version (which may have changed the payload shape back, or fixed
+    /// the decoder) automatically gets a fresh chance to drain them.
+    static var buildNumber: String {
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown"
+    }
+
     static var gitSHA: String? {
         let sha = Bundle.main.infoDictionary?["OPGitSHA"] as? String
         // Build setting substitution leaves "$(GIT_SHA)" when unset

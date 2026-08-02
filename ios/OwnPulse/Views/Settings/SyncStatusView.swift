@@ -102,6 +102,32 @@ struct SyncStatusView: View {
                 .tint(OPColor.terracotta)
             }
 
+            if progress.abandonedOfflineEntries > 0 {
+                HStack(spacing: 8) {
+                    Label(
+                        "\(progress.abandonedOfflineEntries) queued upload\(progress.abandonedOfflineEntries == 1 ? "" : "s") need\(progress.abandonedOfflineEntries == 1 ? "s" : "") attention",
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.red)
+
+                    Spacer()
+
+                    Button("Retry") {
+                        // Retained, not dropped: `retryAbandoned` clears
+                        // abandoned + attempt state so these entries are
+                        // eligible to drain again. Clear the count
+                        // optimistically — the sync this kicks off will
+                        // confirm (and restore it if the retry fails again).
+                        try? dependencies.offlineQueue.retryAbandoned()
+                        progress.setAbandonedOfflineEntries(0)
+                        dependencies.kickOffBackfill()
+                    }
+                    .font(.caption.bold())
+                }
+                .accessibilityIdentifier("abandonedOfflineEntriesWarning")
+            }
+
             if !isSyncing {
                 Button {
                     // Detached from view lifecycle — the user can navigate
