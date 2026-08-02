@@ -6,7 +6,8 @@ import { api } from "./client";
 export interface IntegrationStatus {
   source: string;
   connected: boolean;
-  last_sync?: string;
+  last_synced_at?: string;
+  last_sync_error?: string;
 }
 
 export const integrationsApi = {
