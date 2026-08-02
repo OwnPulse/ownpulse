@@ -28,6 +28,23 @@ pub struct HealthKitBulkInsert {
 #[derive(Deserialize)]
 pub struct HealthKitConfirm {
     pub ids: Vec<Uuid>,
+    /// Items the client attempted but failed to write to HealthKit (e.g.
+    /// authorization revoked, HealthKit store unavailable). `#[serde(default)]`
+    /// so existing clients that only ever confirmed successes keep working
+    /// unchanged.
+    #[serde(default)]
+    pub failures: Vec<WriteFailure>,
+}
+
+/// A single failed write-back item reported by the client.
+///
+/// `error` is client-supplied and free text — never trusted for anything
+/// beyond storage/display, and truncated in `db::healthkit::mark_failed`
+/// before it reaches the `error` column.
+#[derive(Deserialize)]
+pub struct WriteFailure {
+    pub id: Uuid,
+    pub error: String,
 }
 
 /// Acknowledgement returned by `POST /api/v1/healthkit/sync`.

@@ -707,3 +707,728 @@ async fn test_healthkit_sync_rejects_oversized_batch() {
         .unwrap();
     assert_eq!(count.0, 0);
 }
+
+// ============================================================================
+// GET /healthkit/write-queue + POST /healthkit/confirm
+// ============================================================================
+
+/// Posting a HK-mapped manual health record enqueues a write-queue item whose
+/// `value` JSONB has exactly the {value, unit, start_time, end_time} shape —
+/// this is the iOS decode contract and, before this test, was never pinned.
+#[tokio::test]
+async fn test_write_queue_shape_after_manual_record_insert() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "source": "manual",
+        "record_type": "body_mass",
+        "value": 82.5,
+        "unit": "kg",
+        "start_time": "2026-04-19T08:00:00Z",
+        "end_time": "2026-04-19T08:00:00Z"
+    });
+
+    let create_response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/health-records",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), 201);
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            "/api/v1/healthkit/write-queue",
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    let queue = common::body_json(response).await;
+    let items = queue.as_array().expect("array response");
+    assert_eq!(
+        items.len(),
+        1,
+        "manual record must enqueue exactly one item"
+    );
+
+    let item = &items[0];
+    assert_eq!(item["hk_type"], "body_mass");
+    assert_eq!(item["user_id"], user_id.to_string());
+
+    // Pin the `value` JSONB shape key-by-key — this is the iOS decode contract.
+    let value = item["value"]
+        .as_object()
+        .expect("value must be a JSON object");
+    let mut keys: Vec<&str> = value.keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        vec!["end_time", "start_time", "unit", "value"],
+        "write-queue value JSONB must have exactly these keys"
+    );
+    assert_eq!(value["value"], 82.5);
+    assert_eq!(value["unit"], "kg");
+    assert_eq!(value["start_time"], "2026-04-19T08:00:00Z");
+    assert_eq!(value["end_time"], "2026-04-19T08:00:00Z");
+}
+
+/// Every inner field of the write-queue `value` JSONB except `start_time` is
+/// nullable on the decode contract: `HealthRecordRow.value`/`unit`/`end_time`
+/// are all `Option` in the DB model, and a manual record posted with none of
+/// them still enqueues — with those keys present and `null`, not omitted.
+/// (iOS is being told separately to decode these as `Double?`/`String?`/
+/// `Date?` and fail-report null-value items rather than crash.)
+#[tokio::test]
+async fn test_write_queue_shape_with_null_value_fields() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "source": "manual",
+        "record_type": "workout",
+        "value": null,
+        "unit": null,
+        "start_time": "2026-04-19T08:00:00Z",
+        "end_time": null
+    });
+
+    let create_response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/health-records",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(create_response.status(), 201);
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            "/api/v1/healthkit/write-queue",
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let queue = common::body_json(response).await;
+    let items = queue.as_array().expect("array response");
+    assert_eq!(items.len(), 1);
+
+    let value = items[0]["value"]
+        .as_object()
+        .expect("value must be a JSON object");
+    let mut keys: Vec<&str> = value.keys().map(String::as_str).collect();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        vec!["end_time", "start_time", "unit", "value"],
+        "keys must be present even when null, not omitted"
+    );
+    assert!(value["value"].is_null());
+    assert!(value["unit"].is_null());
+    assert_eq!(value["start_time"], "2026-04-19T08:00:00Z");
+    assert!(value["end_time"].is_null());
+}
+
+/// `POST /healthkit/sync` on an all-duplicate (0-inserted) batch must not
+/// publish a `health_records` SSE event — iOS polls this endpoint frequently
+/// even with nothing new to sync, and every dashboard query refetching on a
+/// zero-row batch defeats the point of the event (signal, not noise).
+#[tokio::test]
+async fn test_healthkit_sync_all_duplicate_batch_does_not_publish_event() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let mut receiver = app.event_tx.subscribe();
+
+    let body = json!({
+        "records": [
+            {
+                "source": "healthkit",
+                "record_type": "heart_rate",
+                "value": 72.0,
+                "unit": "bpm",
+                "start_time": "2026-04-20T10:00:00Z",
+                "source_id": "replay-event-check"
+            }
+        ]
+    });
+
+    // First sync — inserts one row and (correctly) publishes.
+    let first = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/sync",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 201);
+    receiver
+        .try_recv()
+        .expect("first sync inserts a row and must publish an event");
+
+    // Replay the identical batch — 0 rows inserted (ON CONFLICT DO NOTHING).
+    let second = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/sync",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), 201);
+
+    assert!(
+        receiver.try_recv().is_err(),
+        "an all-duplicate (0-inserted) batch must not publish an event"
+    );
+}
+
+/// Within a single `POST /healthkit/confirm` request, an id present in both
+/// `ids` and `failures` resolves to confirmed — `confirm` wins over a
+/// same-request failure report.
+#[tokio::test]
+async fn test_confirm_wins_over_failure_in_same_request() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let queue_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO healthkit_write_queue (user_id, hk_type, value)
+         VALUES ($1, 'body_mass', '{\"value\": 80.0, \"unit\": \"kg\"}'::jsonb)
+         RETURNING id",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+
+    let body = json!({
+        "ids": [queue_id],
+        "failures": [{ "id": queue_id, "error": "reported failed and confirmed in one request" }]
+    });
+    let response = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 204);
+
+    let row: (
+        Option<chrono::DateTime<chrono::Utc>>,
+        Option<chrono::DateTime<chrono::Utc>>,
+    ) = sqlx::query_as("SELECT confirmed_at, failed_at FROM healthkit_write_queue WHERE id = $1")
+        .bind(queue_id)
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
+    assert!(row.0.is_some(), "confirmed_at must be set — confirm wins");
+    assert!(
+        row.1.is_none(),
+        "failed_at must NOT be set when the same id is also confirmed"
+    );
+}
+
+/// An id already marked failed by an earlier request stays failed if a later,
+/// unrelated request lists it in `ids` (e.g. a stale client retry queued
+/// before the failure was reported) — `confirm`'s guard excludes rows with
+/// `failed_at` already set.
+#[tokio::test]
+async fn test_previously_failed_id_stays_failed_on_later_confirm() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let queue_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO healthkit_write_queue (user_id, hk_type, value)
+         VALUES ($1, 'body_mass', '{\"value\": 80.0, \"unit\": \"kg\"}'::jsonb)
+         RETURNING id",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+
+    // First request: report it failed.
+    let fail_body = json!({
+        "ids": [],
+        "failures": [{ "id": queue_id, "error": "HealthKit authorization denied" }]
+    });
+    let fail_response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token,
+            Some(&fail_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(fail_response.status(), 204);
+
+    // Second, later request: a stale retry lists the same id as confirmed.
+    let confirm_body = json!({ "ids": [queue_id] });
+    let confirm_response = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token,
+            Some(&confirm_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(confirm_response.status(), 204);
+
+    let row: (
+        Option<chrono::DateTime<chrono::Utc>>,
+        Option<chrono::DateTime<chrono::Utc>>,
+    ) = sqlx::query_as("SELECT confirmed_at, failed_at FROM healthkit_write_queue WHERE id = $1")
+        .bind(queue_id)
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
+    assert!(
+        row.1.is_some(),
+        "failed_at must remain set — a later confirm must not override an earlier failure"
+    );
+    assert!(
+        row.0.is_none(),
+        "confirmed_at must stay unset for a row already marked failed"
+    );
+}
+
+/// Two failures reported for the same id in one request must not error or
+/// store a nondeterministic result — the last occurrence in the array wins.
+#[tokio::test]
+async fn test_confirm_dedupes_repeated_failure_id_keeping_last_error() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let queue_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO healthkit_write_queue (user_id, hk_type, value)
+         VALUES ($1, 'body_mass', '{\"value\": 80.0, \"unit\": \"kg\"}'::jsonb)
+         RETURNING id",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+
+    let body = json!({
+        "ids": [],
+        "failures": [
+            { "id": queue_id, "error": "first report" },
+            { "id": queue_id, "error": "second report" }
+        ]
+    });
+    let response = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        response.status(),
+        204,
+        "a duplicate id within failures must not error"
+    );
+
+    let row: (Option<String>,) =
+        sqlx::query_as("SELECT error FROM healthkit_write_queue WHERE id = $1")
+            .bind(queue_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        row.0.as_deref(),
+        Some("second report"),
+        "the last occurrence of a duplicate id must win deterministically"
+    );
+}
+
+/// `POST /healthkit/confirm` with `ids` marks matching rows confirmed and
+/// they no longer appear in the pending write-queue.
+#[tokio::test]
+async fn test_confirm_marks_ids_confirmed_and_removes_from_pending() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let queue_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO healthkit_write_queue (user_id, hk_type, value)
+         VALUES ($1, 'body_mass', '{\"value\": 80.0, \"unit\": \"kg\"}'::jsonb)
+         RETURNING id",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+
+    let body = json!({ "ids": [queue_id] });
+    let response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 204);
+
+    let row: (Option<chrono::DateTime<chrono::Utc>>,) =
+        sqlx::query_as("SELECT confirmed_at FROM healthkit_write_queue WHERE id = $1")
+            .bind(queue_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert!(row.0.is_some(), "confirmed_at must be set");
+
+    let pending_response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            "/api/v1/healthkit/write-queue",
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let pending = common::body_json(pending_response).await;
+    assert_eq!(pending.as_array().unwrap().len(), 0);
+}
+
+/// `POST /healthkit/confirm` with `failures` sets `failed_at` and `error` on
+/// the matching rows, and they no longer appear in the pending write-queue —
+/// unblocking the `LIMIT 100` head-of-line problem a permanently-failing item
+/// would otherwise cause.
+#[tokio::test]
+async fn test_confirm_with_failures_marks_failed_and_removes_from_pending() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let queue_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO healthkit_write_queue (user_id, hk_type, value)
+         VALUES ($1, 'body_mass', '{\"value\": 80.0, \"unit\": \"kg\"}'::jsonb)
+         RETURNING id",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+
+    let body = json!({
+        "ids": [],
+        "failures": [
+            { "id": queue_id, "error": "HealthKit authorization denied for Body Mass" }
+        ]
+    });
+    let response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 204);
+
+    let row: (Option<chrono::DateTime<chrono::Utc>>, Option<String>) =
+        sqlx::query_as("SELECT failed_at, error FROM healthkit_write_queue WHERE id = $1")
+            .bind(queue_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert!(row.0.is_some(), "failed_at must be set");
+    assert_eq!(
+        row.1.as_deref(),
+        Some("HealthKit authorization denied for Body Mass")
+    );
+
+    let pending_response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            "/api/v1/healthkit/write-queue",
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let pending = common::body_json(pending_response).await;
+    assert_eq!(
+        pending.as_array().unwrap().len(),
+        0,
+        "failed items must not remain pending"
+    );
+}
+
+/// Error strings longer than 500 chars are truncated before storage — the
+/// client controls this text and it must not grow the column unbounded.
+#[tokio::test]
+async fn test_confirm_with_failures_truncates_long_error() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let queue_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO healthkit_write_queue (user_id, hk_type, value)
+         VALUES ($1, 'body_mass', '{\"value\": 80.0, \"unit\": \"kg\"}'::jsonb)
+         RETURNING id",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+
+    let long_error = "x".repeat(1000);
+    let body = json!({
+        "ids": [],
+        "failures": [{ "id": queue_id, "error": long_error }]
+    });
+    let response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 204);
+
+    let row: (Option<String>,) =
+        sqlx::query_as("SELECT error FROM healthkit_write_queue WHERE id = $1")
+            .bind(queue_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(row.0.map(|e| e.len()), Some(500));
+}
+
+/// Old clients that omit `failures` entirely (pre-this-PR wire format) still
+/// work — `#[serde(default)]` on the field.
+#[tokio::test]
+async fn test_confirm_without_failures_field_is_backward_compatible() {
+    let app = common::setup().await;
+    let (user_id, token) = common::create_test_user(&app).await;
+
+    let queue_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO healthkit_write_queue (user_id, hk_type, value)
+         VALUES ($1, 'body_mass', '{\"value\": 80.0, \"unit\": \"kg\"}'::jsonb)
+         RETURNING id",
+    )
+    .bind(user_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+
+    // No `failures` key at all — the pre-PR wire shape.
+    let body = json!({ "ids": [queue_id] });
+    let response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 204);
+
+    let row: (Option<chrono::DateTime<chrono::Utc>>,) =
+        sqlx::query_as("SELECT confirmed_at FROM healthkit_write_queue WHERE id = $1")
+            .bind(queue_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert!(row.0.is_some());
+}
+
+// Note: the ADR-0008 cycle-guard regression (healthkit-sourced records never
+// enqueue for write-back) is covered by
+// `health_records::test_healthkit_sourced_record_never_enqueues_write_back`.
+// `enqueue_write`'s only caller is `routes/health_records.rs`'s `create`
+// handler — `POST /healthkit/sync` never calls it, so a test that posts to
+// `/healthkit/sync` and asserts an empty write-queue proves nothing about the
+// guard (it passes identically whether or not the guard exists).
+
+/// User A cannot confirm or fail user B's write-queue rows — both `confirm`
+/// and `mark_failed` are user-scoped.
+#[tokio::test]
+async fn test_confirm_and_failures_are_scoped_per_user() {
+    let app = common::setup().await;
+    let (user_a_id, _token_a) = common::create_test_user(&app).await;
+    let (_user_b_id, token_b) = common::create_test_user(&app).await;
+
+    let queue_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO healthkit_write_queue (user_id, hk_type, value)
+         VALUES ($1, 'body_mass', '{\"value\": 80.0, \"unit\": \"kg\"}'::jsonb)
+         RETURNING id",
+    )
+    .bind(user_a_id)
+    .fetch_one(&app.pool)
+    .await
+    .unwrap();
+
+    // User B attempts to confirm user A's row.
+    let confirm_body = json!({ "ids": [queue_id] });
+    let confirm_response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token_b,
+            Some(&confirm_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(confirm_response.status(), 204);
+
+    let row: (Option<chrono::DateTime<chrono::Utc>>,) =
+        sqlx::query_as("SELECT confirmed_at FROM healthkit_write_queue WHERE id = $1")
+            .bind(queue_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert!(
+        row.0.is_none(),
+        "user B must not be able to confirm user A's row"
+    );
+
+    // User B attempts to fail user A's row.
+    let fail_body = json!({
+        "ids": [],
+        "failures": [{ "id": queue_id, "error": "cross-user attempt" }]
+    });
+    let fail_response = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token_b,
+            Some(&fail_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(fail_response.status(), 204);
+
+    let row: (Option<chrono::DateTime<chrono::Utc>>, Option<String>) =
+        sqlx::query_as("SELECT failed_at, error FROM healthkit_write_queue WHERE id = $1")
+            .bind(queue_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert!(
+        row.0.is_none() && row.1.is_none(),
+        "user B must not be able to mark user A's row failed"
+    );
+}
+
+/// Unauthenticated requests to the write-queue endpoints are rejected with 401.
+#[tokio::test]
+async fn test_write_queue_endpoints_unauthenticated() {
+    let app = common::setup().await;
+
+    let get_response = app
+        .app
+        .clone()
+        .oneshot(
+            http::Request::builder()
+                .method("GET")
+                .uri("/api/v1/healthkit/write-queue")
+                .body(axum::body::Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(get_response.status(), 401);
+
+    let confirm_response = app
+        .app
+        .clone()
+        .oneshot(
+            http::Request::builder()
+                .method("POST")
+                .uri("/api/v1/healthkit/confirm")
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(
+                    serde_json::to_string(&json!({ "ids": [] })).unwrap(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(confirm_response.status(), 401);
+}
+
+/// Malformed confirm bodies are rejected with a 4xx, never a 500.
+#[tokio::test]
+async fn test_confirm_invalid_body() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    // `ids` must be an array of UUIDs, not strings.
+    let body = json!({ "ids": ["not-a-uuid"] });
+    let response = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/healthkit/confirm",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    let status = response.status().as_u16();
+    assert!(
+        (400..500).contains(&status),
+        "expected 4xx for malformed confirm body, got {status}"
+    );
+}
