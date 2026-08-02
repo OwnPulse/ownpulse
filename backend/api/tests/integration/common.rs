@@ -29,6 +29,7 @@ pub fn migrations_ready_flag() -> api::migration_check::MigrationsReady {
 pub struct TestApp {
     pub app: Router,
     pub pool: PgPool,
+    pub config: api::config::Config,
     pub event_tx: tokio::sync::broadcast::Sender<(Uuid, api::models::explore::DataChangedEvent)>,
     // The container is kept alive by holding this handle; dropping it stops Postgres.
     pub _container: testcontainers::ContainerAsync<Postgres>,
@@ -102,6 +103,7 @@ pub async fn setup() -> TestApp {
     run_migrations(&pool).await;
 
     let config = test_config(&database_url);
+    let config_for_test_app = config.clone();
     let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let event_tx_for_test = event_tx.clone();
     let state = api::AppState {
@@ -117,6 +119,7 @@ pub async fn setup() -> TestApp {
     TestApp {
         app,
         pool,
+        config: config_for_test_app,
         event_tx: event_tx_for_test,
         _container: container,
     }
@@ -149,6 +152,7 @@ pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config))
 
     let mut config = test_config(&database_url);
     config_fn(&mut config);
+    let config_for_test_app = config.clone();
 
     let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let event_tx_for_test = event_tx.clone();
@@ -165,6 +169,7 @@ pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config))
     TestApp {
         app,
         pool,
+        config: config_for_test_app,
         event_tx: event_tx_for_test,
         _container: container,
     }
@@ -297,6 +302,7 @@ pub async fn setup_with_rate_limiting() -> TestApp {
 
     let config = test_config(&database_url);
     let web_origin = config.web_origin.clone();
+    let config_for_test_app = config.clone();
     let (event_tx, _) = tokio::sync::broadcast::channel(256);
     let event_tx_for_test = event_tx.clone();
     let state = api::AppState {
@@ -322,6 +328,7 @@ pub async fn setup_with_rate_limiting() -> TestApp {
     TestApp {
         app,
         pool,
+        config: config_for_test_app,
         event_tx: event_tx_for_test,
         _container: container,
     }

@@ -33,6 +33,9 @@ pub struct ObservationRow {
     pub end_time: Option<DateTime<Utc>>,
     pub value: Option<serde_json::Value>,
     pub source: String,
+    /// Deterministic per-source id (e.g. `garmin-sleep-2026-03-28`) used to
+    /// dedupe re-synced rows. Always `NULL` for manual entries.
+    pub source_id: Option<String>,
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }

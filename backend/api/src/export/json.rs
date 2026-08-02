@@ -72,7 +72,7 @@ pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sq
     // observation, since sqlx looks for a column called `type`.
     let observations = sqlx::query_as::<_, ObservationRow>(
         "SELECT id, user_id, type, name, start_time, \
-         end_time, value, source, metadata, created_at \
+         end_time, value, source, source_id, metadata, created_at \
          FROM observations WHERE user_id = $1 ORDER BY start_time",
     )
     .bind(user_id)
