@@ -3,26 +3,39 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { dashboardApi } from "../api/dashboard";
+import { type DashboardSummary, dashboardApi } from "../api/dashboard";
 import { InsightCards } from "../components/dashboard/InsightCards";
 import { ScoreRing } from "../components/dashboard/ScoreRing";
 import { SparklineRow } from "../components/dashboard/SparklineRow";
 import { TodaysDoses } from "../components/dashboard/TodaysDoses";
+import { QueryState } from "../components/QueryState";
 import styles from "./Dashboard.module.css";
 
 export default function Dashboard() {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: dashboardApi.summary,
   });
 
-  if (isLoading) return <main className="op-page">Loading...</main>;
-  if (isError || !data) return <main className="op-page">Error loading dashboard.</main>;
+  return (
+    <main className="op-page">
+      <QueryState
+        isLoading={isLoading}
+        isError={isError || !data}
+        onRetry={refetch}
+        errorText="Error loading dashboard."
+      >
+        {data && <DashboardContent data={data} />}
+      </QueryState>
+    </main>
+  );
+}
 
+function DashboardContent({ data }: { data: DashboardSummary }) {
   const scores = data.latest_checkin;
 
   return (
-    <main className="op-page">
+    <>
       <div className="op-page-header">
         <h1>Dashboard</h1>
         <Link to="/entry" className={`op-btn op-btn-primary ${styles.logBtn}`}>
@@ -87,6 +100,6 @@ export default function Dashboard() {
       )}
       {/* Insights */}
       <InsightCards />
-    </main>
+    </>
   );
 }

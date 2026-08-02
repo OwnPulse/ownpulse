@@ -13,6 +13,7 @@ import { MetricPicker } from "../components/explore/MetricPicker";
 import { ResolutionToggle } from "../components/explore/ResolutionToggle";
 import { SaveChartDialog } from "../components/explore/SaveChartDialog";
 import { SavedChartCard } from "../components/explore/SavedChartCard";
+import { QueryState } from "../components/QueryState";
 import { dateRangeToParams, useExploreStore } from "../stores/exploreStore";
 import styles from "./Explore.module.css";
 
@@ -151,8 +152,15 @@ export default function Explore() {
           <MetricPicker />
         </aside>
         <div className={styles.chartArea}>
-          {seriesQuery.isLoading && selectedMetrics.length > 0 && <p>Loading chart data...</p>}
-          {seriesQuery.isError && <p className="op-error-msg">Error loading chart data.</p>}
+          <QueryState
+            isLoading={seriesQuery.isLoading && selectedMetrics.length > 0}
+            isError={seriesQuery.isError}
+            onRetry={() => seriesQuery.refetch()}
+            loadingText="Loading chart data..."
+            errorText="Error loading chart data."
+          >
+            {null}
+          </QueryState>
           <ExploreChart series={seriesData} interventions={interventionsData} />
           <ChartLegend series={seriesData} />
         </div>
@@ -177,7 +185,15 @@ export default function Explore() {
 
       <SaveChartDialog open={saveOpen} onClose={() => setSaveOpen(false)} />
 
-      {savedChartQuery.isLoading && chartId && <p>Loading saved chart...</p>}
+      <QueryState
+        isLoading={savedChartQuery.isLoading && !!chartId}
+        isError={savedChartQuery.isError && !!chartId}
+        onRetry={() => savedChartQuery.refetch()}
+        loadingText="Loading saved chart..."
+        errorText="Error loading saved chart."
+      >
+        {null}
+      </QueryState>
     </main>
   );
 }

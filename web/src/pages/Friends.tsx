@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { DATA_TYPES, type FriendShare, friendsApi } from "../api/friends";
+import { QueryState } from "../components/QueryState";
 import styles from "./Friends.module.css";
 
 function DataTypePills({ types }: { types: string[] }) {
@@ -150,8 +151,14 @@ export default function Friends() {
       {/* Sharing with (outgoing) */}
       <section>
         <h2>Sharing with</h2>
-        {outgoing.isLoading && <p>Loading...</p>}
-        {outgoing.isError && <p>Error loading shares.</p>}
+        <QueryState
+          isLoading={outgoing.isLoading}
+          isError={outgoing.isError}
+          onRetry={() => outgoing.refetch()}
+          errorText="Error loading shares."
+        >
+          {null}
+        </QueryState>
         {outgoing.data && outgoing.data.length === 0 && (
           <p className={styles.emptyText}>Not sharing with anyone yet.</p>
         )}
@@ -195,8 +202,14 @@ export default function Friends() {
       {/* Shared with me (incoming) */}
       <section>
         <h2>Shared with me</h2>
-        {incoming.isLoading && <p>Loading...</p>}
-        {incoming.isError && <p>Error loading shares.</p>}
+        <QueryState
+          isLoading={incoming.isLoading}
+          isError={incoming.isError}
+          onRetry={() => incoming.refetch()}
+          errorText="Error loading shares."
+        >
+          {null}
+        </QueryState>
         {incoming.data && incoming.data.length === 0 && (
           <p className={styles.emptyText}>No one is sharing with you yet.</p>
         )}

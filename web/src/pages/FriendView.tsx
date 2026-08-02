@@ -4,6 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import { friendsApi } from "../api/friends";
+import { QueryState } from "../components/QueryState";
 import styles from "./FriendView.module.css";
 
 interface CheckinRow {
@@ -46,20 +47,27 @@ interface LabResultRow {
 export default function FriendView() {
   const { friendId } = useParams<{ friendId: string }>();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["friend-data", friendId],
     queryFn: () => friendsApi.getFriendData(friendId as string),
     enabled: !!friendId,
   });
 
-  if (isLoading) return <main className="op-page">Loading...</main>;
-  if (isError)
+  if (isLoading || isError) {
     return (
       <main className="op-page">
-        <p>Error loading friend data.</p>
-        <Link to="/friends">Back to Friends</Link>
+        <QueryState
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={refetch}
+          errorText="Error loading friend data."
+        >
+          {null}
+        </QueryState>
+        {isError && <Link to="/friends">Back to Friends</Link>}
       </main>
     );
+  }
 
   const checkins = (data?.checkins ?? []) as CheckinRow[];
   const healthRecords = (data?.health_records ?? []) as HealthRecordRow[];
