@@ -68,4 +68,49 @@ describe("DataEntry", () => {
     expect(screen.getByTestId("lab-result-form")).toBeDefined();
     expect(screen.queryByTestId("intervention-form")).toBeNull();
   });
+
+  it("exposes an accessible tablist with the active tab selected", () => {
+    renderWithProviders();
+
+    const tablist = screen.getByRole("tablist", { name: /data entry type/i });
+    expect(tablist).toBeDefined();
+
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs).toHaveLength(5);
+
+    const checkinTab = screen.getByRole("tab", { name: "Check-in" });
+    expect(checkinTab.getAttribute("aria-selected")).toBe("true");
+
+    const interventionTab = screen.getByRole("tab", { name: "Intervention" });
+    expect(interventionTab.getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("switching tabs via click updates aria-selected and the tabpanel", async () => {
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("tab", { name: "Intervention" }));
+
+    expect(screen.getByRole("tab", { name: "Intervention" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    expect(screen.getByRole("tab", { name: "Check-in" }).getAttribute("aria-selected")).toBe(
+      "false",
+    );
+    expect(screen.getByRole("tabpanel")).toBeDefined();
+  });
+
+  it("arrow keys move focus and selection between tabs", async () => {
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    const checkinTab = screen.getByRole("tab", { name: "Check-in" });
+    checkinTab.focus();
+
+    await user.keyboard("{ArrowRight}");
+
+    const interventionTab = screen.getByRole("tab", { name: "Intervention" });
+    expect(interventionTab.getAttribute("aria-selected")).toBe("true");
+    expect(interventionTab).toHaveFocus();
+  });
 });

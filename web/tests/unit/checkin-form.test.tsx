@@ -43,6 +43,38 @@ describe("CheckinForm", () => {
     expect(screen.getByRole("button", { name: /save check-in/i })).toBeDefined();
   });
 
+  it("exposes slider values as accessible valuetext", () => {
+    renderWithProviders();
+
+    const energySlider = screen.getByRole("slider", { name: /energy/i });
+    expect(energySlider.getAttribute("aria-valuetext")).toBe("5 out of 10");
+
+    fireInputChange(energySlider, "8");
+    expect(energySlider.getAttribute("aria-valuetext")).toBe("8 out of 10");
+  });
+
+  it("announces the success message via an accessible status region", async () => {
+    mockCreate.mockResolvedValue({
+      id: "uuid-1",
+      user_id: "user-1",
+      date: "2026-03-18",
+      energy: 5,
+      mood: 5,
+      focus: 5,
+      recovery: 5,
+      libido: 5,
+      created_at: "2026-03-18T00:00:00Z",
+    });
+
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole("button", { name: /save check-in/i }));
+
+    const status = await screen.findByRole("status");
+    expect(status.textContent).toMatch(/saved/i);
+  });
+
   it("submits correct data", async () => {
     mockCreate.mockResolvedValue({
       id: "uuid-1",

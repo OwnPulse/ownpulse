@@ -102,6 +102,7 @@ export default function CheckinForm() {
                 } as React.CSSProperties
               }
               aria-label={label}
+              aria-valuetext={`${value} out of 10`}
             />
           </div>
         );
@@ -122,8 +123,16 @@ export default function CheckinForm() {
           {mutation.isPending ? "Saving..." : "Save Check-in"}
         </button>
       </div>
-      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
+      {mutation.isError && (
+        <p className={forms.errorMsg} role="status" aria-live="polite">
+          Error: {mutation.error.message}
+        </p>
+      )}
+      {mutation.isSuccess && (
+        <p className={forms.successMsg} role="status" aria-live="polite">
+          Saved!
+        </p>
+      )}
     </form>
   );
 }

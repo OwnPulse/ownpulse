@@ -140,8 +140,16 @@ export default function LabResultForm() {
           {mutation.isPending ? "Saving..." : "Save Lab Result"}
         </button>
       </div>
-      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
+      {mutation.isError && (
+        <p className={forms.errorMsg} role="status" aria-live="polite">
+          Error: {mutation.error.message}
+        </p>
+      )}
+      {mutation.isSuccess && (
+        <p className={forms.successMsg} role="status" aria-live="polite">
+          Saved!
+        </p>
+      )}
     </form>
   );
 }
