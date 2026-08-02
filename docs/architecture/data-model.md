@@ -4,6 +4,10 @@
 
 When the database schema changes, this document and `schema/open-schema.json` must be updated in the same PR.
 
+## Export coverage
+
+`GET /export/json` (`export/json.rs`) streams every table below except `genetic_records` (excluded by default; requires separate consent) into a flat top-level array per table — see [`schema/open-schema.md`](../../schema/open-schema.md) for the full key list. As of schema `0.2.0` this includes `protocols`, `protocol_lines`, `protocol_runs`, and `protocol_doses` (protocol templates, i.e. `protocols` rows with `user_id = NULL`, are excluded). `GET /export/csv` covers `health_records` only — see [api.md](api.md#export).
+
 ## Tables
 
 ### `users`
@@ -135,7 +139,7 @@ Flexible extensibility layer for user-defined data. See [ADR-0002](../decisions/
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `type` | TEXT | `event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental` |
+| `type` | TEXT | `event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental`, `sleep`. Sleep has no dedicated table — `POST/GET /sleep` (`routes/sleep.rs`) read and write `observations` rows with `type = 'sleep'`; duration/stage/score fields live in `value`. |
 | `name` | TEXT | User-defined freeform name |
 | `value` | JSONB | Shape depends on `type` (validated in API layer) |
 | `started_at` | TIMESTAMPTZ | |
