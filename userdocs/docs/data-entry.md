@@ -1,6 +1,6 @@
-# Manual Data Entry
+# Log
 
-The Data Entry page is where you log health information by hand. It is organized into tabs, each covering a different type of data. Every data type in OwnPulse supports manual entry -- wearables and integrations are optional.
+The Log page is where you log health information by hand. It is organized into tabs, each covering a different type of data. Every data type in OwnPulse supports manual entry -- wearables and integrations are optional.
 
 ## Check-ins
 
