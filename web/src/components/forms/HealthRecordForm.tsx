@@ -113,16 +113,20 @@ export default function HealthRecordForm() {
           {mutation.isPending ? "Saving..." : "Save Health Record"}
         </button>
       </div>
-      {mutation.isError && (
-        <p className={forms.errorMsg} role="status" aria-live="polite">
-          Error: {mutation.error.message}
-        </p>
-      )}
-      {mutation.isSuccess && (
-        <p className={forms.successMsg} role="status" aria-live="polite">
-          Saved!
-        </p>
-      )}
+      {/* Always mounted (only the text is conditional) so assistive tech
+          reliably announces the result — a role="status" node that's
+          inserted fresh into the DOM each time is not guaranteed to be
+          picked up by screen readers. */}
+      <p
+        className={
+          mutation.isError ? forms.errorMsg : mutation.isSuccess ? forms.successMsg : undefined
+        }
+        role="status"
+        aria-live="polite"
+      >
+        {mutation.isError && `Error: ${mutation.error.message}`}
+        {mutation.isSuccess && "Saved!"}
+      </p>
     </form>
   );
 }

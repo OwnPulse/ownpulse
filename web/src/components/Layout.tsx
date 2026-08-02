@@ -52,12 +52,12 @@ export default function Layout() {
     <div className={styles.layout}>
       <button
         type="button"
-        className={`${styles.menuBtn}${sidebarOpen ? ` ${styles.menuBtnHidden}` : ""}`}
+        className={styles.menuBtn}
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label="Toggle menu"
+        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
         aria-expanded={sidebarOpen}
       >
-        &#9776;
+        {sidebarOpen ? "✕" : "☰"}
       </button>
 
       <button

@@ -50,23 +50,28 @@ describe("DataEntry", () => {
     expect(screen.getByText("Lab Result")).toBeDefined();
   });
 
-  it("switching tabs changes content", async () => {
+  it("switching tabs toggles the hidden attribute on each tabpanel (panels stay mounted so aria-controls always points at a real element)", async () => {
     renderWithProviders();
     const user = userEvent.setup();
 
-    // Default tab is Check-in
-    expect(screen.getByTestId("checkin-form")).toBeDefined();
-    expect(screen.queryByTestId("intervention-form")).toBeNull();
+    const checkinPanel = screen.getByTestId("checkin-form").parentElement as HTMLElement;
+    const interventionPanel = screen.getByTestId("intervention-form").parentElement as HTMLElement;
+    const labResultPanel = screen.getByTestId("lab-result-form").parentElement as HTMLElement;
+
+    // Default tab is Check-in — all panels are mounted, only the active one is unhidden
+    expect(checkinPanel).not.toHaveAttribute("hidden");
+    expect(interventionPanel).toHaveAttribute("hidden");
+    expect(labResultPanel).toHaveAttribute("hidden");
 
     // Switch to Intervention
     await user.click(screen.getByText("Intervention"));
-    expect(screen.getByTestId("intervention-form")).toBeDefined();
-    expect(screen.queryByTestId("checkin-form")).toBeNull();
+    expect(interventionPanel).not.toHaveAttribute("hidden");
+    expect(checkinPanel).toHaveAttribute("hidden");
 
     // Switch to Lab Result
     await user.click(screen.getByText("Lab Result"));
-    expect(screen.getByTestId("lab-result-form")).toBeDefined();
-    expect(screen.queryByTestId("intervention-form")).toBeNull();
+    expect(labResultPanel).not.toHaveAttribute("hidden");
+    expect(interventionPanel).toHaveAttribute("hidden");
   });
 
   it("exposes an accessible tablist with the active tab selected", () => {
@@ -112,5 +117,32 @@ describe("DataEntry", () => {
     const interventionTab = screen.getByRole("tab", { name: "Intervention" });
     expect(interventionTab.getAttribute("aria-selected")).toBe("true");
     expect(interventionTab).toHaveFocus();
+  });
+
+  it("Home/End keys jump to the first/last tab", async () => {
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    const checkinTab = screen.getByRole("tab", { name: "Check-in" });
+    checkinTab.focus();
+
+    await user.keyboard("{End}");
+    const labResultTab = screen.getByRole("tab", { name: "Lab Result" });
+    expect(labResultTab.getAttribute("aria-selected")).toBe("true");
+    expect(labResultTab).toHaveFocus();
+
+    await user.keyboard("{Home}");
+    expect(checkinTab.getAttribute("aria-selected")).toBe("true");
+    expect(checkinTab).toHaveFocus();
+  });
+
+  it("every tab's aria-controls resolves to a real (if hidden) tabpanel element", () => {
+    renderWithProviders();
+
+    for (const tab of screen.getAllByRole("tab")) {
+      const controlsId = tab.getAttribute("aria-controls");
+      expect(controlsId).toBeTruthy();
+      expect(document.getElementById(controlsId as string)).not.toBeNull();
+    }
   });
 });

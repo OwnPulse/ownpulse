@@ -24,14 +24,27 @@ function panelId(tab: Tab): string {
 export default function DataEntry() {
   const [activeTab, setActiveTab] = useState<Tab>("Check-in");
 
+  const focusTab = (tab: Tab) => {
+    setActiveTab(tab);
+    document.getElementById(tabId(tab))?.focus();
+  };
+
   const handleTabKeyDown = (e: React.KeyboardEvent, index: number) => {
+    if (e.key === "Home") {
+      e.preventDefault();
+      focusTab(TABS[0]);
+      return;
+    }
+    if (e.key === "End") {
+      e.preventDefault();
+      focusTab(TABS[TABS.length - 1]);
+      return;
+    }
     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
     e.preventDefault();
     const delta = e.key === "ArrowRight" ? 1 : -1;
     const nextIndex = (index + delta + TABS.length) % TABS.length;
-    const nextTab = TABS[nextIndex];
-    setActiveTab(nextTab);
-    document.getElementById(tabId(nextTab))?.focus();
+    focusTab(TABS[nextIndex]);
   };
 
   return (
@@ -56,18 +69,23 @@ export default function DataEntry() {
         ))}
       </div>
       <div className={styles.content}>
-        {TABS.map(
-          (tab) =>
-            activeTab === tab && (
-              <div key={tab} id={panelId(tab)} role="tabpanel" aria-labelledby={tabId(tab)}>
-                {tab === "Check-in" && <CheckinForm />}
-                {tab === "Intervention" && <InterventionForm />}
-                {tab === "Health Record" && <HealthRecordForm />}
-                {tab === "Observation" && <ObservationForm />}
-                {tab === "Lab Result" && <LabResultForm />}
-              </div>
-            ),
-        )}
+        {TABS.map((tab) => (
+          <div
+            key={tab}
+            id={panelId(tab)}
+            role="tabpanel"
+            aria-labelledby={tabId(tab)}
+            hidden={activeTab !== tab}
+            /* biome-ignore lint/a11y/noNoninteractiveTabindex: WAI-ARIA APG tab pattern requires the tabpanel to be tabbable itself. */
+            tabIndex={0}
+          >
+            {tab === "Check-in" && <CheckinForm />}
+            {tab === "Intervention" && <InterventionForm />}
+            {tab === "Health Record" && <HealthRecordForm />}
+            {tab === "Observation" && <ObservationForm />}
+            {tab === "Lab Result" && <LabResultForm />}
+          </div>
+        ))}
       </div>
     </main>
   );

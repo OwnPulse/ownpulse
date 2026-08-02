@@ -53,7 +53,7 @@ describe("CheckinForm", () => {
     expect(energySlider.getAttribute("aria-valuetext")).toBe("8 out of 10");
   });
 
-  it("announces the success message via an accessible status region", async () => {
+  it("mounts an accessible status region before submit, and updates its text (rather than mounting a new node) on success", async () => {
     mockCreate.mockResolvedValue({
       id: "uuid-1",
       user_id: "user-1",
@@ -69,10 +69,19 @@ describe("CheckinForm", () => {
     renderWithProviders();
     const user = userEvent.setup();
 
+    // The status container must already exist (and be empty) before submit —
+    // a role="status" node that only mounts once the mutation settles isn't
+    // reliably announced by screen readers.
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("");
+
     await user.click(screen.getByRole("button", { name: /save check-in/i }));
 
-    const status = await screen.findByRole("status");
-    expect(status.textContent).toMatch(/saved/i);
+    await waitFor(() => {
+      expect(status.textContent).toMatch(/saved/i);
+    });
+    // Same node throughout — confirms the container wasn't unmounted/remounted.
+    expect(screen.getByRole("status")).toBe(status);
   });
 
   it("submits correct data", async () => {
