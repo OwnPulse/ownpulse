@@ -291,16 +291,30 @@ pub async fn list_active_runs(
         doses_completed_today: i64,
         scheduled_so_far: i64,
         completed_so_far: i64,
+        skipped_so_far: i64,
         doses_missed: i64,
     }
 
-    // The `scheduled_so_far` / `completed_so_far` / `doses_missed` columns
-    // implement the same canonical dose-status rule as
-    // `crate::dose_status::compute_dose_status`, expressed in SQL so all
-    // active runs are scored in one query (no N+1 across runs). See that
-    // module's doc comment for the rule itself.
+    // `scheduled_so_far` / `completed_so_far` / `skipped_so_far` /
+    // `doses_missed` all share the identical closed-day bound
+    // (`LEAST((CURRENT_DATE - r.start_date)::int - 1, p.duration_days - 1)`
+    // — see `crate::dose_status::closed_bound`) and the identical
+    // pause-exclusion (`pause_days` CTE, see `dose_status::is_paused`), in
+    // lockstep with `fetch_line_adherence`'s per-run implementation of the
+    // same rule — expressed here in one query so all active runs are
+    // scored without an N+1 across runs. `doses_today`/
+    // `doses_completed_today` are unaffected by pause history: this query
+    // already filters to `status = 'active'`, so today itself is never
+    // inside an open pause interval.
     let rows = sqlx::query_as::<_, RunWithProtocol>(
-        "SELECT r.id, r.protocol_id, r.user_id, r.start_date, r.status,
+        "WITH pause_days AS (
+             SELECT rp.run_id,
+                    (rp.paused_on - pr.start_date)::int AS start_day,
+                    (rp.resumed_on - pr.start_date)::int AS end_day
+             FROM run_pauses rp
+             JOIN protocol_runs pr ON pr.id = rp.run_id
+         )
+         SELECT r.id, r.protocol_id, r.user_id, r.start_date, r.status,
                 r.notify, r.notify_time, r.notify_times,
                 r.repeat_reminders, r.repeat_interval_minutes, r.created_at,
                 p.name AS protocol_name, p.duration_days,
@@ -329,10 +343,16 @@ pub async fn list_active_runs(
                     SELECT COUNT(*)
                     FROM protocol_lines pl
                     CROSS JOIN LATERAL generate_series(
-                        0, LEAST((CURRENT_DATE - r.start_date)::int, p.duration_days - 1)
+                        0, LEAST((CURRENT_DATE - r.start_date)::int - 1, p.duration_days - 1)
                     ) AS gs(day_number)
                     WHERE pl.protocol_id = p.id
                       AND (pl.schedule_pattern->gs.day_number)::text = 'true'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM pause_days pz
+                          WHERE pz.run_id = r.id
+                            AND gs.day_number >= pz.start_day
+                            AND (pz.end_day IS NULL OR gs.day_number < pz.end_day)
+                      )
                 ), 0) AS scheduled_so_far,
                 COALESCE((
                     SELECT COUNT(*)
@@ -341,8 +361,31 @@ pub async fn list_active_runs(
                     WHERE pl.protocol_id = p.id
                       AND pd.run_id = r.id
                       AND pd.status = 'completed'
-                      AND pd.day_number <= LEAST((CURRENT_DATE - r.start_date)::int, p.duration_days - 1)
+                      AND pd.day_number <= LEAST((CURRENT_DATE - r.start_date)::int - 1, p.duration_days - 1)
+                      AND (pl.schedule_pattern->pd.day_number)::text = 'true'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM pause_days pz
+                          WHERE pz.run_id = r.id
+                            AND pd.day_number >= pz.start_day
+                            AND (pz.end_day IS NULL OR pd.day_number < pz.end_day)
+                      )
                 ), 0) AS completed_so_far,
+                COALESCE((
+                    SELECT COUNT(*)
+                    FROM protocol_doses pd
+                    JOIN protocol_lines pl ON pl.id = pd.protocol_line_id
+                    WHERE pl.protocol_id = p.id
+                      AND pd.run_id = r.id
+                      AND pd.status = 'skipped'
+                      AND pd.day_number <= LEAST((CURRENT_DATE - r.start_date)::int - 1, p.duration_days - 1)
+                      AND (pl.schedule_pattern->pd.day_number)::text = 'true'
+                      AND NOT EXISTS (
+                          SELECT 1 FROM pause_days pz
+                          WHERE pz.run_id = r.id
+                            AND pd.day_number >= pz.start_day
+                            AND (pz.end_day IS NULL OR pd.day_number < pz.end_day)
+                      )
+                ), 0) AS skipped_so_far,
                 COALESCE((
                     SELECT COUNT(*)
                     FROM protocol_lines pl
@@ -356,6 +399,12 @@ pub async fn list_active_runs(
                           WHERE pd.protocol_line_id = pl.id
                             AND pd.run_id = r.id
                             AND pd.day_number = gs.day_number
+                      )
+                      AND NOT EXISTS (
+                          SELECT 1 FROM pause_days pz
+                          WHERE pz.run_id = r.id
+                            AND gs.day_number >= pz.start_day
+                            AND (pz.end_day IS NULL OR gs.day_number < pz.end_day)
                       )
                 ), 0) AS doses_missed
          FROM protocol_runs r
@@ -386,18 +435,24 @@ pub async fn list_active_runs(
             let mut resp = run_to_response(run, Some(r.protocol_name), Some(r.duration_days));
             resp.doses_today = r.doses_today;
             resp.doses_completed_today = r.doses_completed_today;
-            resp.doses_missed = r.doses_missed;
-            resp.adherence_pct = if r.scheduled_so_far == 0 {
-                None
-            } else {
-                Some(r.completed_so_far as f64 / r.scheduled_so_far as f64 * 100.0)
-            };
+            resp.doses_missed = Some(r.doses_missed);
+            resp.adherence_pct = dose_status::adherence_pct(
+                r.completed_so_far,
+                r.scheduled_so_far,
+                r.skipped_so_far,
+            );
             resp
         })
         .collect())
 }
 
 /// Update a run's status and/or notification settings.
+///
+/// When `status` transitions `active` -> `paused` or `paused` -> `active`,
+/// this also records the transition in `run_pauses` (see
+/// [`record_pause_transition`]) so adherence math can exclude paused days
+/// from scheduling entirely — pausing stops the adherence clock rather than
+/// silently accruing missed doses against a schedule the user put on hold.
 pub async fn update_run(
     pool: &PgPool,
     run_id: Uuid,
@@ -408,6 +463,18 @@ pub async fn update_run(
         .notify_times
         .as_ref()
         .map(|t| serde_json::to_value(t).unwrap_or_default());
+
+    let mut tx = pool.begin().await?;
+
+    // Read the pre-update status so the pause transition reacts to the
+    // active<->paused edge, not just the target state (e.g. a no-op
+    // "paused" -> "paused" request must not open a second interval).
+    let previous_status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM protocol_runs WHERE id = $1 AND user_id = $2")
+            .bind(run_id)
+            .bind(user_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
     let result = sqlx::query(
         "UPDATE protocol_runs
@@ -427,10 +494,69 @@ pub async fn update_run(
     .bind(&notify_times)
     .bind(req.repeat_reminders)
     .bind(req.repeat_interval_minutes)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
-    Ok(result.rows_affected() > 0)
+    let updated = result.rows_affected() > 0;
+
+    if updated {
+        record_pause_transition(
+            &mut tx,
+            run_id,
+            previous_status.as_deref(),
+            req.status.as_deref(),
+        )
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(updated)
+}
+
+/// Open or close a `run_pauses` interval on an active<->paused status
+/// transition. No-op for any other transition (including `status: None`,
+/// i.e. this request didn't touch status at all).
+async fn record_pause_transition(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    run_id: Uuid,
+    previous_status: Option<&str>,
+    new_status: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    let Some(new_status) = new_status else {
+        return Ok(());
+    };
+
+    match (previous_status, new_status) {
+        (Some("active"), "paused") => {
+            sqlx::query("INSERT INTO run_pauses (run_id, paused_on) VALUES ($1, CURRENT_DATE)")
+                .bind(run_id)
+                .execute(&mut **tx)
+                .await?;
+        }
+        (Some("paused"), "active") => {
+            // Close the most recent open interval. Multiple pause/resume
+            // cycles are supported — each is its own row — so this must
+            // target the latest one, not "any" open row (there should only
+            // ever be at most one open row per run, but ORDER BY + LIMIT 1
+            // is defensive against that invariant ever being violated).
+            sqlx::query(
+                "UPDATE run_pauses
+                 SET resumed_on = CURRENT_DATE
+                 WHERE id = (
+                     SELECT id FROM run_pauses
+                     WHERE run_id = $1 AND resumed_on IS NULL
+                     ORDER BY paused_on DESC
+                     LIMIT 1
+                 )",
+            )
+            .bind(run_id)
+            .execute(&mut **tx)
+            .await?;
+        }
+        _ => {}
+    }
+
+    Ok(())
 }
 
 /// Errors from logging a dose that need a distinct HTTP status (as opposed
@@ -1056,10 +1182,41 @@ async fn fetch_run_info(
     .await
 }
 
+/// Fetch a run's `run_pauses` rows and convert to day-number space (via
+/// `start_date`) for [`crate::dose_status::is_paused`]. Plain `NaiveDate`
+/// arithmetic in Rust here is consistent with "the database's calendar
+/// day" — `paused_on`/`resumed_on` are dates already resolved by Postgres.
+async fn fetch_pauses(
+    pool: &PgPool,
+    run_id: Uuid,
+    start_date: NaiveDate,
+) -> Result<Vec<dose_status::PauseInterval>, sqlx::Error> {
+    #[derive(sqlx::FromRow)]
+    struct PauseRow {
+        paused_on: NaiveDate,
+        resumed_on: Option<NaiveDate>,
+    }
+
+    let rows = sqlx::query_as::<_, PauseRow>(
+        "SELECT paused_on, resumed_on FROM run_pauses WHERE run_id = $1",
+    )
+    .bind(run_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| dose_status::PauseInterval {
+            start_day: (r.paused_on - start_date).num_days() as i32,
+            end_day: r.resumed_on.map(|d| (d - start_date).num_days() as i32),
+        })
+        .collect())
+}
+
 /// List the dose status of every scheduled (line, day) pair in
 /// `[from_day, to_day]` for a run. Days that aren't scheduled (pattern
-/// false, or out of the run's duration) are omitted — see
-/// [`crate::dose_status::compute_dose_status`].
+/// false, out of the run's duration, or inside a pause interval) are
+/// omitted — see [`crate::dose_status::compute_dose_status`].
 ///
 /// Defaults: `from_day = 0`, `to_day = min(today_day, duration_days - 1)`
 /// (today_day from Postgres `CURRENT_DATE`, not the app server's clock).
@@ -1083,9 +1240,14 @@ pub async fn run_doses(
     let to = to_day.unwrap_or(today_day.min(run.duration_days - 1));
 
     if from < 0 || to >= run.duration_days {
+        // Report exactly what the caller sent (or "default" when they
+        // omitted a bound) rather than the resolved `from`/`to` — quoting a
+        // default value back as if the caller had sent it is misleading.
         return Err(RunDosesError::Invalid(format!(
-            "from_day/to_day must be within [0, {}); got from_day={from}, to_day={to}",
-            run.duration_days
+            "from_day/to_day must be within [0, {}); got from_day={}, to_day={}",
+            run.duration_days,
+            from_day.map_or_else(|| "default".to_string(), |v| v.to_string()),
+            to_day.map_or_else(|| "default".to_string(), |v| v.to_string()),
         )));
     }
     if from > to {
@@ -1122,27 +1284,40 @@ pub async fn run_doses(
     .fetch_all(pool)
     .await?;
 
+    let pauses = fetch_pauses(pool, run_id, run.start_date).await?;
+
     let mut by_line_day: std::collections::HashMap<(Uuid, i32), &ProtocolDoseRow> =
         std::collections::HashMap::new();
     for d in &doses {
         by_line_day.insert((d.protocol_line_id, d.day_number), d);
     }
 
-    let mut result = Vec::new();
-    for day in from..=to {
-        for line in &lines {
-            let pattern: Vec<bool> = line
+    // Hoist schedule_pattern parsing out of the day loop: parse each line's
+    // pattern once, not once per (day, line) pair.
+    let lines_with_patterns: Vec<(&ProtocolLineRow, Vec<bool>)> = lines
+        .iter()
+        .map(|line| {
+            let pattern = line
                 .schedule_pattern
                 .as_array()
                 .map(|a| a.iter().map(|v| v.as_bool().unwrap_or(false)).collect())
                 .unwrap_or_default();
+            (line, pattern)
+        })
+        .collect();
+
+    let mut result = Vec::new();
+    for day in from..=to {
+        let paused = dose_status::is_paused(day, &pauses);
+        for (line, pattern) in &lines_with_patterns {
             let existing = by_line_day.get(&(line.id, day));
             let status = dose_status::compute_dose_status(
                 day,
                 run.duration_days,
-                &pattern,
+                pattern,
                 existing.map(|d| d.status.as_str()),
                 today_day,
+                paused,
             );
             let Some(status) = status else { continue };
 
@@ -1175,7 +1350,14 @@ pub async fn missed_doses(
     user_id: Uuid,
 ) -> Result<Vec<MissedDoseItem>, sqlx::Error> {
     sqlx::query_as::<_, MissedDoseItem>(
-        "SELECT
+        "WITH pause_days AS (
+             SELECT rp.run_id,
+                    (rp.paused_on - pr.start_date)::int AS start_day,
+                    (rp.resumed_on - pr.start_date)::int AS end_day
+             FROM run_pauses rp
+             JOIN protocol_runs pr ON pr.id = rp.run_id
+         )
+         SELECT
             p.id AS protocol_id,
             p.name AS protocol_name,
             r.id AS run_id,
@@ -1203,7 +1385,17 @@ pub async fn missed_doses(
                  AND pd.run_id = r.id
                  AND pd.day_number = gs.day_number
            )
-         ORDER BY date DESC
+           -- Paused days are not scheduled at all — see dose_status::is_paused.
+           AND NOT EXISTS (
+               SELECT 1 FROM pause_days pz
+               WHERE pz.run_id = r.id
+                 AND gs.day_number >= pz.start_day
+                 AND (pz.end_day IS NULL OR gs.day_number < pz.end_day)
+           )
+         -- Deterministic order: date DESC is the primary sort the route
+         -- documents, but ties (same date, different line/run) need a
+         -- stable tiebreak so the 200-row cap doesn't cut off arbitrarily.
+         ORDER BY date DESC, run_id, protocol_line_id
          LIMIT 200",
     )
     .bind(user_id)
@@ -1215,20 +1407,48 @@ pub async fn missed_doses(
 /// `[0, sched_bound]` for scheduled/completed/skipped and `[0, missed_bound]`
 /// for missed (negative bounds yield an empty `generate_series`, i.e. all
 /// zero counts — used for runs that haven't started yet).
+/// Per-line adherence aggregate rows for one run, all four counts bounded
+/// to the identical `[0, closed_bound]` range (see
+/// [`crate::dose_status::closed_bound`]) — using different bounds for, say,
+/// `completed`/`skipped` vs. `scheduled_so_far` would let a dose logged
+/// today or on the tolerance day be subtracted from a denominator that
+/// never counted it as scheduled, making negative or over-100% percentages
+/// reachable. `completed`/`skipped` additionally re-check
+/// `schedule_pattern[day]` as defense-in-depth: `protocol_doses` rows are
+/// normally only ever inserted for scheduled days, but this holds even if
+/// that invariant is ever violated elsewhere (e.g. the legacy skip path).
+/// A negative `closed_bound` (the run has no closed day yet) yields an
+/// empty `generate_series`, i.e. all-zero counts.
+///
+/// Paused days (`run_pauses`) are excluded from every count here — a
+/// paused day is not scheduled at all, so it does not become "missed" or
+/// count toward the denominator. See `dose_status::is_paused`'s doc
+/// comment for the rule this implements in SQL.
 async fn fetch_line_adherence(
     pool: &PgPool,
     protocol_id: Uuid,
     run_id: Uuid,
-    sched_bound: i32,
-    missed_bound: i32,
+    closed_bound: i32,
 ) -> Result<Vec<LineAdherenceRow>, sqlx::Error> {
     sqlx::query_as::<_, LineAdherenceRow>(
-        "SELECT
+        "WITH pause_days AS (
+             SELECT (rp.paused_on - pr.start_date)::int AS start_day,
+                    (rp.resumed_on - pr.start_date)::int AS end_day
+             FROM run_pauses rp
+             JOIN protocol_runs pr ON pr.id = rp.run_id
+             WHERE rp.run_id = $3
+         )
+         SELECT
             pl.id AS protocol_line_id,
             pl.substance,
             COALESCE((
                 SELECT COUNT(*) FROM generate_series(0, $2) AS gs(day_number)
                 WHERE (pl.schedule_pattern->gs.day_number)::text = 'true'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pause_days pz
+                      WHERE gs.day_number >= pz.start_day
+                        AND (pz.end_day IS NULL OR gs.day_number < pz.end_day)
+                  )
             ), 0) AS scheduled_so_far,
             COALESCE((
                 SELECT COUNT(*) FROM protocol_doses pd
@@ -1236,6 +1456,12 @@ async fn fetch_line_adherence(
                   AND pd.run_id = $3
                   AND pd.status = 'completed'
                   AND pd.day_number <= $2
+                  AND (pl.schedule_pattern->pd.day_number)::text = 'true'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pause_days pz
+                      WHERE pd.day_number >= pz.start_day
+                        AND (pz.end_day IS NULL OR pd.day_number < pz.end_day)
+                  )
             ), 0) AS completed,
             COALESCE((
                 SELECT COUNT(*) FROM protocol_doses pd
@@ -1243,9 +1469,15 @@ async fn fetch_line_adherence(
                   AND pd.run_id = $3
                   AND pd.status = 'skipped'
                   AND pd.day_number <= $2
+                  AND (pl.schedule_pattern->pd.day_number)::text = 'true'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pause_days pz
+                      WHERE pd.day_number >= pz.start_day
+                        AND (pz.end_day IS NULL OR pd.day_number < pz.end_day)
+                  )
             ), 0) AS skipped,
             COALESCE((
-                SELECT COUNT(*) FROM generate_series(0, $4) AS gs(day_number)
+                SELECT COUNT(*) FROM generate_series(0, $2) AS gs(day_number)
                 WHERE (pl.schedule_pattern->gs.day_number)::text = 'true'
                   AND NOT EXISTS (
                       SELECT 1 FROM protocol_doses pd
@@ -1253,59 +1485,64 @@ async fn fetch_line_adherence(
                         AND pd.run_id = $3
                         AND pd.day_number = gs.day_number
                   )
+                  AND NOT EXISTS (
+                      SELECT 1 FROM pause_days pz
+                      WHERE gs.day_number >= pz.start_day
+                        AND (pz.end_day IS NULL OR gs.day_number < pz.end_day)
+                  )
             ), 0) AS missed
          FROM protocol_lines pl
          WHERE pl.protocol_id = $1
          ORDER BY pl.sort_order",
     )
     .bind(protocol_id)
-    .bind(sched_bound)
+    .bind(closed_bound)
     .bind(run_id)
-    .bind(missed_bound)
     .fetch_all(pool)
     .await
 }
 
-/// Sum per-line adherence rows into run-level totals + adherence_pct.
+/// Sum per-line adherence rows into run-level totals + adherence_pct (see
+/// [`crate::dose_status::adherence_pct`] for the formula and null rule).
 fn summarize_adherence(lines: &[LineAdherenceRow]) -> (i64, i64, i64, i64, Option<f64>) {
     let scheduled_so_far: i64 = lines.iter().map(|l| l.scheduled_so_far).sum();
     let completed: i64 = lines.iter().map(|l| l.completed).sum();
     let skipped: i64 = lines.iter().map(|l| l.skipped).sum();
     let missed: i64 = lines.iter().map(|l| l.missed).sum();
-    let pct = if scheduled_so_far == 0 {
-        None
-    } else {
-        Some(completed as f64 / scheduled_so_far as f64 * 100.0)
-    };
+    let pct = dose_status::adherence_pct(completed, scheduled_so_far, skipped);
     (scheduled_so_far, completed, skipped, missed, pct)
 }
 
 /// `(adherence_pct, doses_missed)` for a single run — used to populate
 /// `RunResponse` right after `create_run`, without a second round-trip
 /// through the ownership check (the caller already knows `protocol_id`).
+/// `today` is passed in (rather than queried again here) so the caller can
+/// fetch `CURRENT_DATE` once and share it with `progress_pct` — one
+/// response body, one clock.
 pub async fn run_adherence_totals(
     pool: &PgPool,
     protocol_id: Uuid,
     run_id: Uuid,
     start_date: NaiveDate,
     duration_days: i32,
+    today: NaiveDate,
 ) -> Result<(Option<f64>, i64), sqlx::Error> {
-    let today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
-        .fetch_one(pool)
-        .await?;
     let today_day = dose_status::today_day(start_date, today);
-    let sched_bound = today_day.min(duration_days - 1);
-    let missed_bound = (today_day - 1).min(duration_days - 1);
+    let bound = dose_status::closed_bound(today_day, duration_days);
 
-    let lines = fetch_line_adherence(pool, protocol_id, run_id, sched_bound, missed_bound).await?;
+    let lines = fetch_line_adherence(pool, protocol_id, run_id, bound).await?;
     let (_, _, _, missed, pct) = summarize_adherence(&lines);
     Ok((pct, missed))
 }
 
 /// Full per-line + run-level adherence breakdown for `GET
-/// /protocols/runs/:run_id/adherence`. `scheduled_so_far` includes today
-/// (a dose logged today counts); `missed` only counts days strictly before
-/// today (today itself is "pending", not "missed").
+/// /protocols/runs/:run_id/adherence`. `scheduled_so_far`/`completed`/
+/// `skipped`/`missed` are all computed over **closed** days only — scheduled
+/// days strictly before today, excluding any paused interval — so a dose
+/// logged today (or on the write path's tolerance day) does not yet count
+/// either way; it still shows up via `/doses` with its real status, and
+/// rolls into these numbers once its day closes. See
+/// [`crate::dose_status::closed_bound`] and [`crate::dose_status::adherence_pct`].
 pub async fn run_adherence(
     pool: &PgPool,
     user_id: Uuid,
@@ -1316,22 +1553,16 @@ pub async fn run_adherence(
         .ok_or(sqlx::Error::RowNotFound)?;
 
     let today_day = dose_status::today_day(run.start_date, run.today);
-    let sched_bound = today_day.min(run.duration_days - 1);
-    let missed_bound = (today_day - 1).min(run.duration_days - 1);
+    let bound = dose_status::closed_bound(today_day, run.duration_days);
 
-    let lines =
-        fetch_line_adherence(pool, run.protocol_id, run_id, sched_bound, missed_bound).await?;
+    let lines = fetch_line_adherence(pool, run.protocol_id, run_id, bound).await?;
 
     let (scheduled_so_far, completed, skipped, missed, adherence_pct) = summarize_adherence(&lines);
 
     let line_responses = lines
         .into_iter()
         .map(|l| {
-            let pct = if l.scheduled_so_far == 0 {
-                None
-            } else {
-                Some(l.completed as f64 / l.scheduled_so_far as f64 * 100.0)
-            };
+            let pct = dose_status::adherence_pct(l.completed, l.scheduled_so_far, l.skipped);
             LineAdherence {
                 protocol_line_id: l.protocol_line_id,
                 substance: l.substance,
@@ -1893,7 +2124,7 @@ fn run_to_response(
         // Not computed here — see the doc comment on `RunResponse`. Only
         // `list_active_runs` and `create_run` populate real values.
         adherence_pct: None,
-        doses_missed: 0,
+        doses_missed: None,
         created_at: run.created_at,
     }
 }

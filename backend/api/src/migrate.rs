@@ -140,6 +140,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0033_observations_source_dedup.sql",
         include_str!("../../../db/migrations/0033_observations_source_dedup.sql"),
     ),
+    (
+        "0034_protocol_run_pauses.sql",
+        include_str!("../../../db/migrations/0034_protocol_run_pauses.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]

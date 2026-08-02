@@ -407,11 +407,12 @@ async fn seed_healthkit_write_queue_item(pool: &sqlx::PgPool, user_id: Uuid) {
 /// contract's adherence/missed-doses interactions. `start_date` is set to
 /// three days before `CURRENT_DATE`; combined with a daily (all-true)
 /// 7-day pattern and no doses logged, this gives a deterministic result
-/// regardless of when the test runs: `today_day == 3`, so days 0/1/2 are
-/// scheduled+missed and day 3 (today) is scheduled+pending, giving
-/// `scheduled_so_far=4, completed=0, skipped=0, missed=3,
-/// adherence_pct=0.0`. Only the `date` field (which depends on the real
-/// calendar date) needs a Pact type matcher rather than an exact value.
+/// regardless of when the test runs: `today_day == 3`, so the closed days
+/// are 0/1/2 (day 3, today, is not yet closed — see `dose_status::
+/// closed_bound`), all scheduled and missed, giving `scheduled_so_far=3,
+/// completed=0, skipped=0, missed=3, adherence_pct=0.0`. Every field here is
+/// deterministic and exact-matched; only `/missed-doses`' `date` field
+/// (which depends on the real calendar date) needs a Pact type matcher.
 async fn seed_adherence_run(
     pool: &sqlx::PgPool,
     user_id: Uuid,

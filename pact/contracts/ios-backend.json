@@ -1396,7 +1396,7 @@
         },
         "body": {
           "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
-          "scheduled_so_far": 4,
+          "scheduled_so_far": 3,
           "completed": 0,
           "skipped": 0,
           "missed": 3,
@@ -1405,21 +1405,13 @@
             {
               "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
               "substance": "Creatine",
-              "scheduled_so_far": 4,
+              "scheduled_so_far": 3,
               "completed": 0,
               "skipped": 0,
               "missed": 3,
               "adherence_pct": 0.0
             }
           ]
-        },
-        "matchingRules": {
-          "$.body.adherence_pct": {
-            "match": "type"
-          },
-          "$.body.lines[0].adherence_pct": {
-            "match": "type"
-          }
         }
       }
     },

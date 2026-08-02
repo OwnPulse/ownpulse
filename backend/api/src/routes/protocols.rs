@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::response::IntoResponse;
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 
 use crate::AppState;
 use crate::auth::extractor::AuthUser;
@@ -164,7 +164,12 @@ pub async fn create_run(
             .fetch_optional(&state.pool)
             .await?;
 
-    let today = Utc::now().date_naive();
+    // "Today" comes from Postgres, not the app server's clock, and is
+    // shared between `progress_pct` and the adherence computation below —
+    // one response body, one clock.
+    let today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
+        .fetch_one(&state.pool)
+        .await?;
     let progress_pct = if let Some(dur) = duration {
         if today < run.start_date {
             0.0
@@ -180,9 +185,18 @@ pub async fn create_run(
     // was backdated, so compute this for real rather than hardcoding zero.
     let (adherence_pct, doses_missed) = match duration {
         Some(dur) => {
-            db::run_adherence_totals(&state.pool, protocol_id, run.id, run.start_date, dur).await?
+            let (pct, missed) = db::run_adherence_totals(
+                &state.pool,
+                protocol_id,
+                run.id,
+                run.start_date,
+                dur,
+                today,
+            )
+            .await?;
+            (pct, Some(missed))
         }
-        None => (None, 0),
+        None => (None, None),
     };
 
     let response = RunResponse {

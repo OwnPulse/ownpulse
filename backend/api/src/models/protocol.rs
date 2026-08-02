@@ -195,15 +195,21 @@ pub struct RunResponse {
     pub progress_pct: f64,
     pub doses_today: i64,
     pub doses_completed_today: i64,
-    /// `completed / scheduled_so_far * 100`, `None` when nothing has been
-    /// scheduled yet (e.g. a run that starts in the future). Populated for
-    /// `GET /protocols/runs/active` and run-creation responses; other run
-    /// listings (e.g. `GET /protocols/:id/runs`) leave this `None` since
-    /// they aren't in the hot "today" path.
+    /// `completed_closed / (scheduled_closed - skipped_closed) * 100`,
+    /// rounded to 1 decimal place. "Closed" days are scheduled days
+    /// strictly before today (`day_number < today_day`) that are not
+    /// inside a pause interval — see `crate::dose_status`. `None` when the
+    /// denominator is 0 (nothing scheduled yet, e.g. a run that starts in
+    /// the future or was created today; or every closed day was skipped).
+    /// Populated for `GET /protocols/runs/active` and run-creation
+    /// responses; other run listings (e.g. `GET /protocols/:id/runs`) leave
+    /// this `None` since they aren't in the hot "today" path.
     pub adherence_pct: Option<f64>,
-    /// Count of scheduled days strictly before today with no dose row.
-    /// Same caveat as `adherence_pct` re: which endpoints populate it.
-    pub doses_missed: i64,
+    /// Count of closed scheduled days with no dose row (excluding paused
+    /// days). `None` on the same placeholder paths as `adherence_pct`
+    /// (kept `Option` rather than defaulting to `0` so a future path that
+    /// genuinely can't compute it doesn't have to silently lie with `0`).
+    pub doses_missed: Option<i64>,
     pub created_at: DateTime<Utc>,
 }
 

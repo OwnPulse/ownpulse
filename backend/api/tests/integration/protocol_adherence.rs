@@ -153,6 +153,115 @@ fn find_line<'a>(items: &'a [Value], line_id: &str) -> &'a Value {
         .unwrap_or_else(|| panic!("no adherence entry for line {line_id}"))
 }
 
+/// Create a single-line, daily-scheduled protocol recipe.
+async fn create_one_line_recipe(app: &common::TestApp, token: &str, duration_days: i32) -> Value {
+    let daily: Vec<bool> = vec![true; duration_days as usize];
+    let body = json!({
+        "name": "Single Line Stack",
+        "duration_days": duration_days,
+        "lines": [{
+            "substance": "Vitamin D",
+            "dose": 1000.0,
+            "unit": "IU",
+            "schedule_pattern": daily,
+            "sort_order": 0
+        }]
+    });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/protocols",
+            token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201);
+    common::body_json(resp).await
+}
+
+async fn fetch_doses(
+    app: &common::TestApp,
+    token: &str,
+    run_id: &str,
+    from_day: i32,
+    to_day: i32,
+) -> Vec<Value> {
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/protocols/runs/{run_id}/doses?from_day={from_day}&to_day={to_day}"),
+            token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    common::body_json(resp).await.as_array().unwrap().clone()
+}
+
+async fn fetch_adherence(app: &common::TestApp, token: &str, run_id: &str) -> Value {
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/protocols/runs/{run_id}/adherence"),
+            token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    common::body_json(resp).await
+}
+
+async fn fetch_active_runs(app: &common::TestApp, token: &str) -> Vec<Value> {
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            "/api/v1/protocols/runs/active",
+            token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    common::body_json(resp).await.as_array().unwrap().clone()
+}
+
+/// Independently recompute closed-day adherence totals from `/doses`'
+/// per-day statuses (a second implementation of the same rule, cross-checked
+/// against `/adherence`'s own SQL-side computation). `today_day` mirrors
+/// `dose_status::closed_bound`'s cutoff: a day counts only if
+/// `day_number < today_day`.
+fn derive_adherence_from_doses(doses: &[Value], today_day: i64) -> (i64, i64, i64, i64) {
+    let mut scheduled = 0i64;
+    let mut completed = 0i64;
+    let mut skipped = 0i64;
+    let mut missed = 0i64;
+    for d in doses {
+        let day = d["day_number"].as_i64().unwrap();
+        if day >= today_day {
+            continue;
+        }
+        scheduled += 1;
+        match d["status"].as_str().unwrap() {
+            "completed" => completed += 1,
+            "skipped" => skipped += 1,
+            "missed" => missed += 1,
+            other => panic!("unexpected status {other} for a closed day"),
+        }
+    }
+    (scheduled, completed, skipped, missed)
+}
+
 // ---------------------------------------------------------------------------
 // GET /protocols/runs/:run_id/doses
 // ---------------------------------------------------------------------------
@@ -376,25 +485,33 @@ async fn test_adherence_full_matrix_including_per_line() {
     let json = common::body_json(resp).await;
 
     assert_eq!(json["run_id"], run_id);
-    // Line A: scheduled_so_far=6 (days 0-5), completed=2, skipped=1, missed=2.
-    // Line B: scheduled_so_far=3 (days 0,2,4), completed=1, skipped=1, missed=1.
-    assert_eq!(json["scheduled_so_far"], 9);
+    // Adherence is computed over CLOSED days only (day_number < today_day
+    // == 5), so day5 (today, unlogged on line A) is excluded entirely —
+    // scheduled_so_far no longer includes it.
+    // Line A: closed days 0-4, all scheduled (daily) -> scheduled_so_far=5,
+    // completed=2 (day0,day4), skipped=1 (day1), missed=2 (day2,day3).
+    // Line B: closed days 0-4, scheduled at 0,2,4 -> scheduled_so_far=3,
+    // completed=1 (day0), skipped=1 (day2), missed=1 (day4).
+    assert_eq!(json["scheduled_so_far"], 8);
     assert_eq!(json["completed"], 3);
     assert_eq!(json["skipped"], 2);
     assert_eq!(json["missed"], 3);
+    // adherence_pct = completed / (scheduled_so_far - skipped) * 100
+    //               = 3 / (8 - 2) * 100 = 50.0
     let pct = json["adherence_pct"].as_f64().unwrap();
-    assert!((pct - (3.0 / 9.0 * 100.0)).abs() < 1e-9);
+    assert!((pct - 50.0).abs() < 1e-9);
 
     let lines = json["lines"].as_array().unwrap();
     assert_eq!(lines.len(), 2);
 
     let a = find_line(lines, &line_a);
-    assert_eq!(a["scheduled_so_far"], 6);
+    assert_eq!(a["scheduled_so_far"], 5);
     assert_eq!(a["completed"], 2);
     assert_eq!(a["skipped"], 1);
     assert_eq!(a["missed"], 2);
+    // 2 / (5 - 1) * 100 = 50.0
     let a_pct = a["adherence_pct"].as_f64().unwrap();
-    assert!((a_pct - (2.0 / 6.0 * 100.0)).abs() < 1e-9);
+    assert!((a_pct - 50.0).abs() < 1e-9);
 
     let b = lines
         .iter()
@@ -404,6 +521,9 @@ async fn test_adherence_full_matrix_including_per_line() {
     assert_eq!(b["completed"], 1);
     assert_eq!(b["skipped"], 1);
     assert_eq!(b["missed"], 1);
+    // 1 / (3 - 1) * 100 = 50.0
+    let b_pct = b["adherence_pct"].as_f64().unwrap();
+    assert!((b_pct - 50.0).abs() < 1e-9);
 }
 
 #[tokio::test]
@@ -754,8 +874,9 @@ async fn test_list_active_runs_includes_adherence_fields() {
         .expect("seeded run should be active");
 
     assert_eq!(run["doses_missed"], 3);
+    // completed(3) / (scheduled_so_far(8) - skipped(2)) * 100 = 50.0
     let pct = run["adherence_pct"].as_f64().unwrap();
-    assert!((pct - (3.0 / 9.0 * 100.0)).abs() < 1e-9);
+    assert!((pct - 50.0).abs() < 1e-9);
 }
 
 #[tokio::test]
@@ -780,11 +901,389 @@ async fn test_create_run_response_includes_adherence_fields() {
     assert_eq!(resp.status(), 201);
     let run = common::body_json(resp).await;
 
-    // Fresh run started today: nothing missed, and today is "pending" for
-    // both lines so nothing completed either -> null pct (0 completed of
-    // whatever is scheduled so far is still a defined percentage only when
-    // scheduled_so_far > 0; a same-day run has scheduled_so_far >= 1 for
-    // the daily line, so pct is Some(0.0) rather than null).
+    // Fresh run started today: today_day=0, so there is no closed day yet
+    // (closed_bound = today_day - 1 = -1) — scheduled_so_far is 0 and
+    // adherence_pct is null, not 0%. This is the fix for the
+    // fresh-run-shows-0%-adherence problem: a run that's had zero chances
+    // to be adherent isn't the same as one with 0% adherence.
     assert_eq!(run["doses_missed"], 0);
-    assert!(run["adherence_pct"].as_f64().unwrap() < 1e-9);
+    assert!(run["adherence_pct"].is_null());
+}
+
+#[tokio::test]
+async fn test_create_run_with_backdated_start_date_computes_real_adherence() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let duration_days = 10;
+    let protocol = create_one_line_recipe(&app, &token, duration_days).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+
+    // 5 days ago -> today_day=5, closed days 0..4, nothing logged.
+    let start_date = (Utc::now() - Duration::days(5)).date_naive();
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/{protocol_id}/runs"),
+            &token,
+            Some(&json!({"start_date": start_date.to_string()})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201);
+    let run = common::body_json(resp).await;
+
+    // scheduled_so_far=5, completed=0, skipped=0 -> pct=0.0 (not null: the
+    // denominator (5) is > 0, it's just that nothing was completed).
+    assert_eq!(run["doses_missed"], 5);
+    let pct = run["adherence_pct"].as_f64().unwrap();
+    assert!((pct - 0.0).abs() < 1e-9);
+}
+
+// ---------------------------------------------------------------------------
+// Cross-implementation agreement: /adherence, /doses, and /runs/active all
+// derive from the same canonical rule (dose_status::compute_dose_status +
+// closed_bound + adherence_pct) via independent code paths — a pure-Rust
+// per-day loop for /doses, and SQL aggregates for /adherence and
+// /runs/active. These tests assert all three agree, using scenarios that
+// specifically exercise the closed-day boundary the fix round introduced.
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_cross_implementation_agreement_fully_elapsed_run() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let duration_days = 5;
+    let protocol = create_two_line_recipe(&app, &token, duration_days).await;
+    let protocol_id = protocol["id"].as_str().unwrap().to_string();
+    let line_a = protocol["lines"][0]["id"].as_str().unwrap().to_string();
+    let line_b = protocol["lines"][1]["id"].as_str().unwrap().to_string();
+
+    // Started well before the run's duration ended: every scheduled day is closed.
+    let run = start_run(&app, &token, &protocol_id, 10).await;
+    let run_id = run["id"].as_str().unwrap().to_string();
+    let start_date = (Utc::now() - Duration::days(10)).date_naive();
+
+    // Line A (daily, 5 scheduled days): completed, skipped, gap, completed, skipped.
+    log_dose(&app, &token, &run_id, &line_a, 0).await;
+    skip_dose(&app, &token, &run_id, &line_a, 1).await;
+    // day2 left unlogged -> missed
+    log_dose(&app, &token, &run_id, &line_a, 3).await;
+    skip_dose(&app, &token, &run_id, &line_a, 4).await;
+
+    // Line B (every other day: 0, 2, 4): completed, gap, skipped.
+    log_dose(&app, &token, &run_id, &line_b, 0).await;
+    // day2 left unlogged -> missed
+    skip_dose(&app, &token, &run_id, &line_b, 4).await;
+
+    let today_day = (Utc::now().date_naive() - start_date).num_days();
+    let doses = fetch_doses(&app, &token, &run_id, 0, duration_days - 1).await;
+    let adherence = fetch_adherence(&app, &token, &run_id).await;
+    let active_runs = fetch_active_runs(&app, &token).await;
+    let active_run = active_runs
+        .iter()
+        .find(|r| r["id"] == run_id)
+        .expect("run should be active");
+
+    // Expected (worked by hand): line A scheduled=5 completed=2 skipped=2
+    // missed=1; line B scheduled=3 completed=1 skipped=1 missed=1. Totals:
+    // scheduled=8 completed=3 skipped=3 missed=2;
+    // pct = 3 / (8 - 3) * 100 = 60.0.
+    assert_eq!(adherence["scheduled_so_far"], 8);
+    assert_eq!(adherence["completed"], 3);
+    assert_eq!(adherence["skipped"], 3);
+    assert_eq!(adherence["missed"], 2);
+    let pct = adherence["adherence_pct"].as_f64().unwrap();
+    assert!((pct - 60.0).abs() < 1e-9);
+
+    let (d_scheduled, d_completed, d_skipped, d_missed) =
+        derive_adherence_from_doses(&doses, today_day);
+    assert_eq!(d_scheduled, adherence["scheduled_so_far"]);
+    assert_eq!(d_completed, adherence["completed"]);
+    assert_eq!(d_skipped, adherence["skipped"]);
+    assert_eq!(d_missed, adherence["missed"]);
+
+    assert_eq!(active_run["doses_missed"], d_missed);
+    let active_pct = active_run["adherence_pct"].as_f64().unwrap();
+    assert!((active_pct - 60.0).abs() < 1e-9);
+}
+
+#[tokio::test]
+async fn test_cross_implementation_agreement_tolerance_day_dose() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let duration_days = 5;
+    let protocol = create_one_line_recipe(&app, &token, duration_days).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap().to_string();
+
+    // 1 day ago -> today_day=1. day2 is the write path's "today_day + 1"
+    // tolerance day.
+    let run = start_run(&app, &token, protocol_id, 1).await;
+    let run_id = run["id"].as_str().unwrap().to_string();
+    let start_date = (Utc::now() - Duration::days(1)).date_naive();
+
+    // day0 (the only closed day) is left unlogged -> missed.
+    // day2 (tolerance day, not closed) is logged -> completed in /doses,
+    // but must NOT count toward adherence.
+    log_dose(&app, &token, &run_id, &line_id, 2).await;
+
+    let today_day = (Utc::now().date_naive() - start_date).num_days();
+    let doses = fetch_doses(&app, &token, &run_id, 0, duration_days - 1).await;
+    let adherence = fetch_adherence(&app, &token, &run_id).await;
+
+    // The tolerance-day dose is visible in /doses with its real status...
+    let tolerance_entry = doses
+        .iter()
+        .find(|d| d["day_number"] == 2)
+        .expect("tolerance-day entry should be present");
+    assert_eq!(tolerance_entry["status"], "completed");
+    assert!(tolerance_entry["dose_id"].as_str().is_some());
+
+    // ...but /adherence only has one closed day (day0), which is missed —
+    // the tolerance-day completion does not roll in yet.
+    assert_eq!(adherence["scheduled_so_far"], 1);
+    assert_eq!(adherence["completed"], 0);
+    assert_eq!(adherence["skipped"], 0);
+    assert_eq!(adherence["missed"], 1);
+    let pct = adherence["adherence_pct"].as_f64().unwrap();
+    assert!((pct - 0.0).abs() < 1e-9);
+
+    let (d_scheduled, d_completed, d_skipped, d_missed) =
+        derive_adherence_from_doses(&doses, today_day);
+    assert_eq!(d_scheduled, adherence["scheduled_so_far"]);
+    assert_eq!(d_completed, adherence["completed"]);
+    assert_eq!(d_skipped, adherence["skipped"]);
+    assert_eq!(d_missed, adherence["missed"]);
+}
+
+#[tokio::test]
+async fn test_cross_implementation_agreement_messy_run() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let duration_days = 10;
+    // Daily pattern except day2, which is deliberately NOT scheduled — a
+    // mid-pattern false day must never appear anywhere, closed or not.
+    let mut pattern = vec![true; duration_days as usize];
+    pattern[2] = false;
+
+    let body = json!({
+        "name": "Messy Run Stack",
+        "duration_days": duration_days,
+        "lines": [{
+            "substance": "Creatine",
+            "dose": 5.0,
+            "unit": "g",
+            "schedule_pattern": pattern,
+            "sort_order": 0
+        }]
+    });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/protocols",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201);
+    let protocol = common::body_json(resp).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap().to_string();
+
+    // 4 days ago -> today_day=4.
+    let run = start_run(&app, &token, protocol_id, 4).await;
+    let run_id = run["id"].as_str().unwrap().to_string();
+    let start_date = (Utc::now() - Duration::days(4)).date_naive();
+
+    log_dose(&app, &token, &run_id, &line_id, 0).await; // closed, completed
+    skip_dose(&app, &token, &run_id, &line_id, 1).await; // closed, skipped
+    // day2: not scheduled at all (pattern false) — no action, must never appear.
+    // day3: closed, gap -> missed.
+    log_dose(&app, &token, &run_id, &line_id, 4).await; // today-log: not closed
+    log_dose(&app, &token, &run_id, &line_id, 5).await; // tolerance-day log: not closed
+    // days 6-9: future gaps -> pending, not closed.
+
+    let today_day = (Utc::now().date_naive() - start_date).num_days();
+    let doses = fetch_doses(&app, &token, &run_id, 0, duration_days - 1).await;
+    let adherence = fetch_adherence(&app, &token, &run_id).await;
+    let active_runs = fetch_active_runs(&app, &token).await;
+    let active_run = active_runs
+        .iter()
+        .find(|r| r["id"] == run_id)
+        .expect("run should be active");
+
+    // day2 must not appear in /doses under any circumstance.
+    assert!(
+        !doses.iter().any(|d| d["day_number"] == 2),
+        "unscheduled day2 must never appear in /doses: {doses:#?}"
+    );
+    // today-log and tolerance-day log are visible with their real status.
+    assert_eq!(
+        doses.iter().find(|d| d["day_number"] == 4).unwrap()["status"],
+        "completed"
+    );
+    assert_eq!(
+        doses.iter().find(|d| d["day_number"] == 5).unwrap()["status"],
+        "completed"
+    );
+
+    // Closed days (0,1,3 — day2 excluded): scheduled=3, completed=1 (day0),
+    // skipped=1 (day1), missed=1 (day3). pct = 1 / (3 - 1) * 100 = 50.0.
+    assert_eq!(adherence["scheduled_so_far"], 3);
+    assert_eq!(adherence["completed"], 1);
+    assert_eq!(adherence["skipped"], 1);
+    assert_eq!(adherence["missed"], 1);
+    let pct = adherence["adherence_pct"].as_f64().unwrap();
+    assert!((pct - 50.0).abs() < 1e-9);
+
+    let (d_scheduled, d_completed, d_skipped, d_missed) =
+        derive_adherence_from_doses(&doses, today_day);
+    assert_eq!(d_scheduled, adherence["scheduled_so_far"]);
+    assert_eq!(d_completed, adherence["completed"]);
+    assert_eq!(d_skipped, adherence["skipped"]);
+    assert_eq!(d_missed, adherence["missed"]);
+
+    assert_eq!(active_run["doses_missed"], 1);
+    let active_pct = active_run["adherence_pct"].as_f64().unwrap();
+    assert!((active_pct - 50.0).abs() < 1e-9);
+}
+
+// ---------------------------------------------------------------------------
+// Pause semantics
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_patch_run_paused_then_resumed_records_pause_interval() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_one_line_recipe(&app, &token, 10).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let run = start_run(&app, &token, protocol_id, 0).await;
+    let run_id_str = run["id"].as_str().unwrap().to_string();
+    let run_id: uuid::Uuid = run_id_str.parse().unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/protocols/runs/{run_id_str}"),
+            &token,
+            Some(&json!({"status": "paused"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 204);
+
+    let today = chrono::Utc::now().date_naive();
+    let row: (chrono::NaiveDate, Option<chrono::NaiveDate>) =
+        sqlx::query_as("SELECT paused_on, resumed_on FROM run_pauses WHERE run_id = $1")
+            .bind(run_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(row.0, today);
+    assert!(
+        row.1.is_none(),
+        "resumed_on should be null while still paused"
+    );
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/protocols/runs/{run_id_str}"),
+            &token,
+            Some(&json!({"status": "active"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 204);
+
+    let row: (chrono::NaiveDate, Option<chrono::NaiveDate>) =
+        sqlx::query_as("SELECT paused_on, resumed_on FROM run_pauses WHERE run_id = $1")
+            .bind(run_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        row.1,
+        Some(today),
+        "resumed_on should be set after resuming"
+    );
+}
+
+#[tokio::test]
+async fn test_paused_interval_excludes_days_from_adherence_and_doses() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let duration_days = 10;
+    let protocol = create_one_line_recipe(&app, &token, duration_days).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap().to_string();
+
+    // 7 days ago -> today_day=7, closed days 0..6.
+    let run = start_run(&app, &token, protocol_id, 7).await;
+    let run_id_str = run["id"].as_str().unwrap().to_string();
+    let run_id: uuid::Uuid = run_id_str.parse().unwrap();
+    let start_date = (Utc::now() - Duration::days(7)).date_naive();
+
+    log_dose(&app, &token, &run_id_str, &line_id, 0).await;
+
+    // Directly seed a [2, 5) pause interval (days 2, 3, 4) — this can't be
+    // reproduced through the PATCH endpoint in a fast-running test, since
+    // paused_on/resumed_on there are always CURRENT_DATE at the moment of
+    // the call, never an arbitrary day in the past.
+    let paused_on = start_date + Duration::days(2);
+    let resumed_on = start_date + Duration::days(5);
+    sqlx::query("INSERT INTO run_pauses (run_id, paused_on, resumed_on) VALUES ($1, $2, $3)")
+        .bind(run_id)
+        .bind(paused_on)
+        .bind(resumed_on)
+        .execute(&app.pool)
+        .await
+        .unwrap();
+
+    // Closed days 0..6 minus paused days {2,3,4}: {0,1,5,6}. day0 completed;
+    // day1,5,6 gaps -> missed. scheduled=4, completed=1, skipped=0, missed=3.
+    let adherence = fetch_adherence(&app, &token, &run_id_str).await;
+    assert_eq!(adherence["scheduled_so_far"], 4);
+    assert_eq!(adherence["completed"], 1);
+    assert_eq!(adherence["skipped"], 0);
+    assert_eq!(adherence["missed"], 3);
+
+    let doses = fetch_doses(&app, &token, &run_id_str, 0, duration_days - 1).await;
+    for paused_day in [2, 3, 4] {
+        assert!(
+            !doses.iter().any(|d| d["day_number"] == paused_day),
+            "paused day {paused_day} must not appear in /doses at all: {doses:#?}"
+        );
+    }
+    assert_eq!(
+        doses.iter().find(|d| d["day_number"] == 0).unwrap()["status"],
+        "completed"
+    );
+    assert_eq!(
+        doses.iter().find(|d| d["day_number"] == 1).unwrap()["status"],
+        "missed"
+    );
+
+    let active_runs = fetch_active_runs(&app, &token).await;
+    let active_run = active_runs
+        .iter()
+        .find(|r| r["id"] == run_id_str)
+        .expect("run should still be active");
+    assert_eq!(active_run["doses_missed"], 3);
 }
