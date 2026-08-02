@@ -49,6 +49,7 @@ function UsersSection() {
   const {
     data: users,
     isLoading,
+    isFetching,
     isError,
     refetch,
   } = useQuery({ queryKey: ["admin-users"], queryFn: adminApi.listUsers });
@@ -70,8 +71,10 @@ function UsersSection() {
   return (
     <QueryState
       isLoading={isLoading}
+      isFetching={isFetching}
       isError={isError}
-      onRetry={refetch}
+      onRetry={() => refetch()}
+      loadingText="Loading users..."
       errorText="Error loading users."
     >
       <div className={styles.userGrid}>

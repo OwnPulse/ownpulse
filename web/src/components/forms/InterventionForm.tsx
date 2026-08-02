@@ -136,7 +136,9 @@ export default function InterventionForm() {
                 </button>
                 <button
                   type="button"
-                  className={styles.deleteChipBtn}
+                  className={`${styles.deleteChipBtn}${
+                    deletingId === m.id ? ` ${styles.deleteChipBtnConfirming}` : ""
+                  }`}
                   aria-label={`Delete ${m.substance}`}
                   onClick={() => handleDeleteMedicine(m.id)}
                 >

@@ -154,6 +154,7 @@ export default function Explore() {
         <div className={styles.chartArea}>
           <QueryState
             isLoading={seriesQuery.isLoading && selectedMetrics.length > 0}
+            isFetching={seriesQuery.isFetching}
             isError={seriesQuery.isError}
             onRetry={() => seriesQuery.refetch()}
             loadingText="Loading chart data..."
@@ -187,6 +188,7 @@ export default function Explore() {
 
       <QueryState
         isLoading={savedChartQuery.isLoading && !!chartId}
+        isFetching={savedChartQuery.isFetching}
         isError={savedChartQuery.isError && !!chartId}
         onRetry={() => savedChartQuery.refetch()}
         loadingText="Loading saved chart..."

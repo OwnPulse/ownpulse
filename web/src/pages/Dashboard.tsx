@@ -12,7 +12,7 @@ import { QueryState } from "../components/QueryState";
 import styles from "./Dashboard.module.css";
 
 export default function Dashboard() {
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["dashboard-summary"],
     queryFn: dashboardApi.summary,
   });
@@ -21,8 +21,9 @@ export default function Dashboard() {
     <main className="op-page">
       <QueryState
         isLoading={isLoading}
+        isFetching={isFetching}
         isError={isError || !data}
-        onRetry={refetch}
+        onRetry={() => refetch()}
         errorText="Error loading dashboard."
       >
         {data && <DashboardContent data={data} />}

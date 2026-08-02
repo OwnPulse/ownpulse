@@ -47,7 +47,7 @@ interface LabResultRow {
 export default function FriendView() {
   const { friendId } = useParams<{ friendId: string }>();
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["friend-data", friendId],
     queryFn: () => friendsApi.getFriendData(friendId as string),
     enabled: !!friendId,
@@ -58,8 +58,9 @@ export default function FriendView() {
       <main className="op-page">
         <QueryState
           isLoading={isLoading}
+          isFetching={isFetching}
           isError={isError}
-          onRetry={refetch}
+          onRetry={() => refetch()}
           errorText="Error loading friend data."
         >
           {null}

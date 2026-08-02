@@ -153,6 +153,7 @@ export default function Friends() {
         <h2>Sharing with</h2>
         <QueryState
           isLoading={outgoing.isLoading}
+          isFetching={outgoing.isFetching}
           isError={outgoing.isError}
           onRetry={() => outgoing.refetch()}
           errorText="Error loading shares."
@@ -204,6 +205,7 @@ export default function Friends() {
         <h2>Shared with me</h2>
         <QueryState
           isLoading={incoming.isLoading}
+          isFetching={incoming.isFetching}
           isError={incoming.isError}
           onRetry={() => incoming.refetch()}
           errorText="Error loading shares."
