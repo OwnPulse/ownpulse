@@ -88,7 +88,17 @@ final class AppDependencies {
         networkClient: NetworkClientProtocol? = nil,
         healthKitProvider: HealthKitProviderProtocol? = nil,
         syncScheduler: SyncScheduler? = nil,
-        notificationCenter: (any UserNotificationCenterProtocol)? = nil
+        notificationCenter: (any UserNotificationCenterProtocol)? = nil,
+        // No default — tests MUST pass `DatabaseManager(inMemory: true)`.
+        // Swift Testing runs tests concurrently IN-PROCESS (not as separate
+        // processes); a test that got the real on-disk DB would open its
+        // own connection to the same `ownpulse.sqlite` file the test host
+        // app itself already has open, and GRDB's default `busyMode`
+        // (`.immediateError`) has zero retry, so any overlapping write
+        // instantly threw `SQLITE_BUSY` and `fatalError`'d. Requiring the
+        // caller to choose makes it impossible for a future test to
+        // silently get the on-disk DB.
+        databaseManager: DatabaseManager
     ) {
         let keychain = keychainService ?? KeychainService()
         self.keychainService = keychain
@@ -116,7 +126,7 @@ final class AppDependencies {
         self.medicationSyncProvider = nil
         #endif
 
-        self.databaseManager = DatabaseManager()
+        self.databaseManager = databaseManager
 
         self.offlineQueue = OfflineQueue(databaseManager: databaseManager)
         self.anchorStore = AnchorStore(databaseManager: databaseManager)
