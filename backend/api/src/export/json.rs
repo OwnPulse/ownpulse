@@ -33,7 +33,7 @@ pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sq
 
     let interventions = sqlx::query_as::<_, InterventionRow>(
         "SELECT id, user_id, substance, dose, unit, route, administered_at, \
-         fasted, timing_relative_to, notes, healthkit_written, created_at \
+         fasted, timing_relative_to, notes, healthkit_written, created_at, updated_at \
          FROM interventions WHERE user_id = $1 ORDER BY administered_at",
     )
     .bind(user_id)

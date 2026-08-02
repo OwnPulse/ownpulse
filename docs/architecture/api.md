@@ -351,7 +351,40 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 | GET | `/interventions` | List interventions (paginated, filterable) | 1 |
 | POST | `/interventions` | Log an intervention | 1 |
 | GET | `/interventions/:id` | Get a single intervention | 1 |
+| PATCH | `/interventions/:id` | Update an intervention's fields | 1 |
 | DELETE | `/interventions/:id` | Delete an intervention | 1 |
+
+#### `PATCH /interventions/:id`
+
+Updates any subset of an intervention's mutable fields. All fields are
+optional — unset fields are left unchanged (`COALESCE` semantics), and
+**there is no way to clear a field back to `null` via this endpoint** — an
+explicit `null` in the request body is indistinguishable from an omitted
+key. No substance-name validation is applied, per project rules.
+
+`updated_at` is bumped on every call, including a no-op `{}` body — the
+response and stored row always reflect "last called", not "last changed".
+
+**Request body:**
+
+```json
+{
+  "substance": "caffeine",
+  "dose": 200.0,
+  "unit": "mg",
+  "route": "oral",
+  "administered_at": "2026-04-03T07:30:00Z",
+  "fasted": true,
+  "timing_relative_to": "pre-workout",
+  "notes": "updated after re-reading the label"
+}
+```
+
+**Response:** `200 OK` — the full updated intervention row, including the
+`updated_at` timestamp.
+
+**Errors:** `400` if `substance` is provided but blank. `404` if the
+intervention doesn't exist or isn't owned by the caller.
 
 ### Daily Check-ins
 
@@ -387,7 +420,63 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 |--------|------|-------------|-------|
 | POST | `/healthkit/sync` | Bulk insert HealthKit records from iOS | 1 |
 | GET | `/healthkit/write-queue` | Get pending HealthKit write-back items for iOS | 1 |
-| POST | `/healthkit/confirm` | Confirm HealthKit write-backs were completed | 1 |
+| POST | `/healthkit/confirm` | Confirm HealthKit write-backs were completed, and/or report failed writes | 1 |
+
+`GET /healthkit/write-queue` returns the caller's pending items — rows in
+`healthkit_write_queue` with `confirmed_at IS NULL AND failed_at IS NULL`, oldest
+first, capped at 100:
+
+```json
+[
+  {
+    "id": "77777777-7777-7777-7777-777777777777",
+    "user_id": "550e8400-e29b-41d4-a716-446655440001",
+    "hk_type": "body_mass",
+    "value": {
+      "value": 82.5,
+      "unit": "kg",
+      "start_time": "2026-03-20T10:00:00Z",
+      "end_time": "2026-03-20T10:00:00Z"
+    },
+    "scheduled_at": "2026-03-20T10:00:00Z",
+    "confirmed_at": null,
+    "failed_at": null,
+    "error": null,
+    "source_record_id": "550e8400-e29b-41d4-a716-446655440010",
+    "source_table": "health_records"
+  }
+]
+```
+
+Every field of `value` except `start_time` is nullable — the underlying `health_records.value`/`unit`/`end_time` columns are all optional, and a record posted without them still enqueues, with those keys present and `null` (never omitted). Clients must decode `value`/`unit`/`end_time` as optional and treat a null `value` as a fail-reportable item rather than a decode error.
+
+`POST /healthkit/confirm` accepts:
+
+```json
+{
+  "ids": ["77777777-7777-7777-7777-777777777777"],
+  "failures": [
+    { "id": "88888888-8888-8888-8888-888888888888", "error": "HealthKit authorization denied" }
+  ]
+}
+```
+
+- `ids` — items the client successfully wrote to HealthKit; their `confirmed_at` is set.
+- `failures` — items the client attempted but could not write; their `failed_at` and `error` are set (`error` is truncated to 500 characters, on Unicode scalar boundaries). Optional and defaults to empty — older clients that only ever sent `ids` continue to work unchanged.
+- Both `ids` and `failures` are scoped to the caller's own rows — a user cannot confirm or fail another user's queue items.
+- Both updates run in a single transaction. If an id appears in both `ids` and `failures` in the same request, **confirm wins** (`confirmed_at` is set, `failed_at` is not). A row already marked failed by an earlier request is **not** re-confirmed by a later request that lists its id in `ids` — `confirm`'s guard excludes rows with `failed_at` already set, so the first terminal state (confirmed or failed) for a given row sticks.
+- Duplicate ids within `failures` in one request are deduplicated before the update — the last occurrence in the array wins deterministically.
+- Marking an item failed also removes it from the pending set returned by `GET /healthkit/write-queue`, same as confirming it — this matters because the 100-row cap orders by `scheduled_at ASC`, so a permanently-unwritable item that is never reported as failed would otherwise block every item behind it indefinitely. Only deterministic failures should be reported this way — a client should keep transient errors (e.g. a momentary `HKHealthStore.save()` failure) pending so they retry on the next poll, rather than retiring them.
+- Responds `204 No Content` on success (whether or not any ids/failures were provided).
+
+**Compatibility matrix:**
+
+| iOS client | Backend | Result |
+|---|---|---|
+| old (sends `{"ids": [...]}` only) | new (this change) | Works unchanged — `failures` defaults to empty. |
+| new (sends `failures`) | old (pre-this-change) | The old server's JSON deserializer silently ignores the unrecognized `failures` field (no `deny_unknown_fields`) — the request still 204s, but nothing is recorded for the failed items. They are neither confirmed nor retired, and stay pending indefinitely. Self-hosters: upgrade the backend before or alongside an iOS build that reports failures. |
+
+The Pact consumer contract (`pact/contracts/ios-backend.json`) is ahead of the currently-shipped iOS client — it documents the `failures` field before the iOS PR that populates it has landed.
 
 ### Source Preferences
 
@@ -1209,10 +1298,11 @@ Observer exports all their responses across all polls.
 | GET | `/protocols/:id` | Get protocol with lines + dose status | 1 |
 | PATCH | `/protocols/:id` | Update protocol | 1 |
 | DELETE | `/protocols/:id` | Delete protocol | 1 |
-| POST | `/protocols/:id/doses/log` | Log a dose directly on a protocol (legacy; no active run required) | 1 |
-| POST | `/protocols/:id/doses/skip` | Skip a dose directly on a protocol (legacy; no active run required) | 1 |
+| POST | `/protocols/:id/doses/log` | Log a dose directly on a protocol (legacy; resolves the protocol's current run) | 1 |
+| POST | `/protocols/:id/doses/skip` | Skip a dose directly on a protocol (legacy; resolves the protocol's current run) | 1 |
 | POST | `/protocols/runs/:run_id/doses/log` | Log a dose on an active run | 1 |
 | POST | `/protocols/runs/:run_id/doses/skip` | Skip a dose on an active run | 1 |
+| DELETE | `/protocols/runs/:run_id/doses/:dose_id` | Undo a logged/skipped dose on a run | 1 |
 | GET | `/protocols/runs/todays-doses` | Today's scheduled doses across all of the user's active runs | 1 |
 | POST | `/protocols/:id/share` | Generate share link | 1 |
 | GET | `/protocols/shared/:token` | View shared protocol (public) | 1 |
@@ -1271,21 +1361,52 @@ Create a new protocol with one or more lines and a day schedule.
 #### `POST /protocols/:id/doses/log` and `POST /protocols/runs/:run_id/doses/log`
 
 Log a completed dose for a protocol line on a specific day of the protocol's
-schedule (`day_number` is 0-indexed from the protocol's `start_date` or the
-run's `start_date`). The `:id` (protocol-level) form is the legacy path and
-requires the protocol to have a `start_date`; the `:run_id` form operates on
-an active run and is the one clients should use going forward. Logging a
-dose also creates an `interventions` record for the line's substance/dose/
-route.
+schedule (`day_number` is 0-indexed from the run's `start_date`). The
+`:id` (protocol-level) form is the legacy path; the `:run_id` form operates
+on a specific active run and is the one clients should use going forward.
+Logging a dose also creates an `interventions` record for the line's
+substance/dose/route.
+
+The legacy `:id` form resolves the protocol's *current* run — its active
+run, or its most recently created run if none is active — and writes to
+that run (only a protocol with no runs at all writes a `NULL` run_id). This
+means a dose logged through the legacy endpoint shows up correctly on the
+run-scoped dose grid instead of being invisible on it, and a retry conflicts
+(`409`) like it would on the `:run_id` form, rather than silently writing a
+second, invisible row.
+
+The dose grid on `GET /protocols/:id` (and on `GET /protocols/shared/:token`)
+is scoped to that same single run — a second run of the same protocol no
+longer shows the first run's checkmarks, and starts with an empty grid of
+its own.
+
+`administered_at` and `notes` are accepted and behave identically on both
+the `:id` and `:run_id` forms (the legacy form delegates to the same
+validation and timestamp logic as the run-scoped one).
 
 **Request body:**
 
 ```json
 {
   "protocol_line_id": "uuid",
-  "day_number": 3
+  "day_number": 3,
+  "administered_at": "2026-04-03T09:15:00Z",
+  "notes": "logged a bit late",
+  "tz_offset_minutes": -420
 }
 ```
+
+- `administered_at` — optional. Must fall within one calendar day of
+  `start_date + day_number` (evaluated in `tz_offset_minutes` if given),
+  otherwise `400`. When omitted, the created intervention's timestamp
+  defaults to a time derived from the line's `time_of_day` — `AM` → `08:00`,
+  `PM` → `20:00`, anything else → `12:00` — interpreted in
+  `tz_offset_minutes` (UTC if omitted).
+- `notes` — optional. Stored on the created intervention.
+- `tz_offset_minutes` — optional, `-840`..`840` (UTC-14:00..UTC+14:00),
+  otherwise `400`. The caller's local UTC offset, used both to resolve the
+  default `administered_at` above and to evaluate date comparisons in the
+  caller's own calendar day rather than UTC's. Defaults to UTC (`0`).
 
 **Response:** `200 OK`
 
@@ -1296,32 +1417,58 @@ route.
   "day_number": 3,
   "status": "completed",
   "intervention_id": "uuid",
-  "logged_at": "2026-04-03T08:30:00Z"
+  "logged_at": "2026-04-03T08:30:00Z",
+  "run_id": "uuid",
+  "skip_reason": null
 }
 ```
 
 **Errors:** `404` if the protocol/run or line is not found or not owned by
 the caller, or if `day_number` is out of range or not scheduled
-(`schedule_pattern[day_number]` is `false`) for the line. `409` if a dose
-has already been logged or skipped for this line and day
-(`UNIQUE(protocol_line_id, day_number)`). `422` if the request body is
-missing `protocol_line_id` or `day_number`.
+(`schedule_pattern[day_number]` is `false`) for the line. `400` if
+`day_number` is more than one day ahead of today (a single day of tolerance
+absorbs timezone skew — a user east of UTC may legitimately be logging
+"their today" while it's still tomorrow in UTC), if `administered_at` falls
+more than a day from the calendar date for `day_number`, or if
+`tz_offset_minutes` is out of range. `409` if a dose has already been logged
+or skipped for this line, run, and day
+(`UNIQUE(protocol_line_id, run_id, day_number)`). `422` if the request body
+is missing `protocol_line_id` or `day_number`.
 
 #### `POST /protocols/:id/doses/skip` and `POST /protocols/runs/:run_id/doses/skip`
 
 Mark a scheduled dose as skipped, without creating an `interventions` record.
-Same request body shape and error semantics as the log endpoints above.
+Same request body shape and error semantics as the log endpoints above,
+except skips are allowed for any in-range day (past, present, or future) —
+planned skips are legitimate — and there is no `administered_at`/`notes`/
+`tz_offset_minutes` handling since no intervention is created. The legacy
+`:id` form resolves the protocol's current run the same way the legacy log
+endpoint does (see above).
 
 **Request body:**
 
 ```json
 {
   "protocol_line_id": "uuid",
-  "day_number": 3
+  "day_number": 3,
+  "skip_reason": "traveling, forgot supplies"
 }
 ```
 
+- `skip_reason` — optional free-text reason, stored on the dose row.
+
 **Response:** `204 No Content`
+
+#### `DELETE /protocols/runs/:run_id/doses/:dose_id`
+
+Undo a logged or skipped dose: deletes the `protocol_doses` row and, if
+logging it created one, the linked `interventions` row, in a single
+transaction.
+
+**Response:** `204 No Content`
+
+**Errors:** `404` if the dose doesn't exist or doesn't belong to a run owned
+by the caller.
 
 #### `GET /protocols/runs/todays-doses`
 

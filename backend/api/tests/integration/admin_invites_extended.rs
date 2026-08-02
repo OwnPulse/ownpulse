@@ -40,7 +40,7 @@ async fn test_check_valid_invite() {
         .oneshot(
             http::Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/invites/{code}/check"))
+                .uri(format!("/api/v1/invites/{code}/check"))
                 .body(axum::body::Body::empty())
                 .unwrap(),
         )
@@ -121,7 +121,7 @@ async fn test_check_revoked_invite() {
         .oneshot(
             http::Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/invites/{code}/check"))
+                .uri(format!("/api/v1/invites/{code}/check"))
                 .body(axum::body::Body::empty())
                 .unwrap(),
         )
@@ -157,7 +157,7 @@ async fn test_check_expired_invite() {
         .oneshot(
             http::Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/invites/{code}/check"))
+                .uri(format!("/api/v1/invites/{code}/check"))
                 .body(axum::body::Body::empty())
                 .unwrap(),
         )
@@ -225,7 +225,7 @@ async fn test_check_exhausted_invite() {
         .oneshot(
             http::Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/invites/{code}/check"))
+                .uri(format!("/api/v1/invites/{code}/check"))
                 .body(axum::body::Body::empty())
                 .unwrap(),
         )
@@ -367,7 +367,7 @@ async fn test_invite_claims_requires_auth() {
         .oneshot(
             http::Request::builder()
                 .method("GET")
-                .uri(&format!("/api/v1/admin/invites/{random_id}/claims"))
+                .uri(format!("/api/v1/admin/invites/{random_id}/claims"))
                 .body(axum::body::Body::empty())
                 .unwrap(),
         )

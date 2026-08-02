@@ -910,6 +910,952 @@ async fn test_get_protocol_includes_runs() {
 }
 
 // ---------------------------------------------------------------------------
+// Dose tracking foundation: per-run scoping, timestamps, validation, undo
+// ---------------------------------------------------------------------------
+
+/// Start a run on `protocol_id` (defaults to today) and return the parsed
+/// run JSON.
+async fn start_run(app: &common::TestApp, token: &str, protocol_id: &str) -> Value {
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/{protocol_id}/runs"),
+            token,
+            Some(&json!({})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201);
+    common::body_json(resp).await
+}
+
+#[tokio::test]
+async fn test_second_run_of_same_protocol_logs_same_day_without_collision() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run1 = start_run(&app, &token, protocol_id).await;
+    let run1_id = run1["id"].as_str().unwrap();
+
+    let dose_body = json!({"protocol_line_id": line_id, "day_number": 0});
+
+    let resp1 = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run1_id}/doses/log"),
+            &token,
+            Some(&dose_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp1.status(), 200);
+
+    // Start a second run of the SAME protocol and log the same day_number —
+    // this must not collide with the first run's dose (the old
+    // UNIQUE(protocol_line_id, day_number) constraint would 409 here).
+    let run2 = start_run(&app, &token, protocol_id).await;
+    let run2_id = run2["id"].as_str().unwrap();
+    assert_ne!(run1_id, run2_id);
+
+    let resp2 = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run2_id}/doses/log"),
+            &token,
+            Some(&dose_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp2.status(),
+        200,
+        "second run should log day 0 independently of the first run"
+    );
+}
+
+#[tokio::test]
+async fn test_legacy_null_run_dose_unaffected_by_run_scoped_dose() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    // A legacy protocol with its own start_date (pre-runs style).
+    let today = chrono::Utc::now().date_naive();
+    let body = json!({
+        "name": "Legacy Protocol",
+        "start_date": today.to_string(),
+        "duration_days": 3,
+        "lines": [{
+            "substance": "Creatine",
+            "dose": 5.0,
+            "unit": "g",
+            "schedule_pattern": [true, true, true],
+            "sort_order": 0
+        }]
+    });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/protocols",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    let protocol = common::body_json(resp).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    // Log via the legacy protocol-level endpoint (run_id stays NULL).
+    let dose_body = json!({"protocol_line_id": line_id, "day_number": 0});
+    let legacy_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/{protocol_id}/doses/log"),
+            &token,
+            Some(&dose_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(legacy_resp.status(), 200);
+    let legacy_dose = common::body_json(legacy_resp).await;
+    assert!(legacy_dose["run_id"].is_null());
+
+    // A duplicate legacy log for the same day still conflicts (NULL-run rows
+    // remain unique among themselves via NULLS NOT DISTINCT).
+    let legacy_dup = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/{protocol_id}/doses/log"),
+            &token,
+            Some(&dose_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(legacy_dup.status(), 409);
+
+    // Now start a real run on the same protocol and log the same
+    // line/day_number — it must succeed because run_id differs (Some vs None).
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let run_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&dose_body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        run_resp.status(),
+        200,
+        "a run-scoped dose must not collide with the legacy NULL-run dose"
+    );
+}
+
+#[tokio::test]
+async fn test_default_administered_at_derived_from_time_of_day() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    // BPC-157 line has time_of_day "morning" (not AM/PM) -> defaults to noon.
+    // TB-500 line also has time_of_day "morning".
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    let dose = common::body_json(resp).await;
+    let intervention_id = dose["intervention_id"].as_str().unwrap();
+
+    let get_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/interventions/{intervention_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let intervention = common::body_json(get_resp).await;
+    let administered_at = intervention["administered_at"].as_str().unwrap();
+    // time_of_day is not "AM"/"PM" -> default noon.
+    assert!(
+        administered_at.ends_with("T12:00:00Z"),
+        "expected noon default, got {administered_at}"
+    );
+}
+
+#[tokio::test]
+async fn test_am_pm_default_administered_at_timestamps() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "name": "AM/PM Stack",
+        "duration_days": 2,
+        "lines": [
+            {
+                "substance": "Morning Vitamin",
+                "schedule_pattern": [true, true],
+                "time_of_day": "AM",
+                "sort_order": 0
+            },
+            {
+                "substance": "Evening Magnesium",
+                "schedule_pattern": [true, true],
+                "time_of_day": "PM",
+                "sort_order": 1
+            }
+        ]
+    });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/protocols",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    let protocol = common::body_json(resp).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let am_line_id = protocol["lines"][0]["id"].as_str().unwrap();
+    let pm_line_id = protocol["lines"][1]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    for (line_id, expected_suffix) in [(am_line_id, "T08:00:00Z"), (pm_line_id, "T20:00:00Z")] {
+        let resp = app
+            .app
+            .clone()
+            .oneshot(common::auth_request(
+                "POST",
+                &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+                &token,
+                Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200);
+        let dose = common::body_json(resp).await;
+        let intervention_id = dose["intervention_id"].as_str().unwrap();
+
+        let get_resp = app
+            .app
+            .clone()
+            .oneshot(common::auth_request(
+                "GET",
+                &format!("/api/v1/interventions/{intervention_id}"),
+                &token,
+                None,
+            ))
+            .await
+            .unwrap();
+        let intervention = common::body_json(get_resp).await;
+        let administered_at = intervention["administered_at"].as_str().unwrap();
+        assert!(
+            administered_at.ends_with(expected_suffix),
+            "expected {expected_suffix}, got {administered_at}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn test_log_dose_default_timestamp_respects_tz_offset() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    // AM line with no explicit administered_at: default is "08:00 local".
+    // At UTC-07:00 (tz_offset_minutes = -420), 08:00 local is 15:00 UTC.
+    let body = json!({
+        "name": "Offset Stack",
+        "duration_days": 1,
+        "lines": [{
+            "substance": "Melatonin",
+            "schedule_pattern": [true],
+            "time_of_day": "AM",
+            "sort_order": 0
+        }]
+    });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/protocols",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    let protocol = common::body_json(resp).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({
+                "protocol_line_id": line_id,
+                "day_number": 0,
+                "tz_offset_minutes": -420
+            })),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    let dose = common::body_json(resp).await;
+    let intervention_id = dose["intervention_id"].as_str().unwrap();
+
+    let get_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/interventions/{intervention_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let intervention = common::body_json(get_resp).await;
+    let administered_at = intervention["administered_at"].as_str().unwrap();
+    assert!(
+        administered_at.ends_with("T15:00:00Z"),
+        "expected 15:00 UTC (08:00 at UTC-7), got {administered_at}"
+    );
+}
+
+#[tokio::test]
+async fn test_log_dose_invalid_tz_offset_returns_400() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({
+                "protocol_line_id": line_id,
+                "day_number": 0,
+                "tz_offset_minutes": 900
+            })),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_log_dose_with_explicit_administered_at_on_date() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+    let start_date = run["start_date"].as_str().unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({
+                "protocol_line_id": line_id,
+                "day_number": 0,
+                "administered_at": format!("{start_date}T09:15:00Z"),
+                "notes": "logged a bit late"
+            })),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    let dose = common::body_json(resp).await;
+    let intervention_id = dose["intervention_id"].as_str().unwrap();
+
+    let get_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/interventions/{intervention_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let intervention = common::body_json(get_resp).await;
+    assert_eq!(
+        intervention["administered_at"],
+        format!("{start_date}T09:15:00Z")
+    );
+    assert_eq!(intervention["notes"], "logged a bit late");
+}
+
+#[tokio::test]
+async fn test_log_dose_administered_at_off_date_returns_400() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({
+                "protocol_line_id": line_id,
+                "day_number": 0,
+                "administered_at": "2099-01-01T09:00:00Z"
+            })),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_log_dose_for_future_day_returns_400() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    // day_number 2 is two days ahead of a run started today — beyond the
+    // one-day timezone-skew tolerance, so it's rejected.
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 2})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_log_dose_one_day_ahead_allowed_for_timezone_skew() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    // day_number 1 (tomorrow, UTC) is allowed: a user east of UTC may
+    // legitimately be logging "their today" while it's still tomorrow in
+    // UTC — one day of tolerance absorbs that skew.
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 1})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+}
+
+#[tokio::test]
+async fn test_skip_dose_with_reason_round_trips() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/skip"),
+            &token,
+            Some(&json!({
+                "protocol_line_id": line_id,
+                "day_number": 0,
+                "skip_reason": "traveling, forgot supplies"
+            })),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 204);
+
+    // Confirm the skip_reason round-trips through the protocol detail view.
+    let get_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/protocols/{protocol_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let protocol = common::body_json(get_resp).await;
+    let doses = protocol["lines"][0]["doses"].as_array().unwrap();
+    let skipped = doses
+        .iter()
+        .find(|d| d["day_number"] == 0)
+        .expect("dose for day 0 should exist");
+    assert_eq!(skipped["status"], "skipped");
+    assert_eq!(skipped["skip_reason"], "traveling, forgot supplies");
+}
+
+#[tokio::test]
+async fn test_delete_dose_removes_dose_and_intervention() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let log_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    let dose = common::body_json(log_resp).await;
+    let dose_id = dose["id"].as_str().unwrap();
+    let intervention_id = dose["intervention_id"].as_str().unwrap();
+
+    let delete_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "DELETE",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/{dose_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(delete_resp.status(), 204);
+
+    // The intervention it created is gone too.
+    let get_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/interventions/{intervention_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(get_resp.status(), 404);
+
+    // Re-logging the same day now succeeds (no leftover unique-constraint row).
+    let relog_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(relog_resp.status(), 200);
+}
+
+#[tokio::test]
+async fn test_delete_dose_not_found_for_other_user() {
+    let app = common::setup().await;
+    let (_uid_a, token_a) = common::create_test_user(&app).await;
+    let (_uid_b, token_b) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token_a).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token_a, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let log_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token_a,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    let dose = common::body_json(log_resp).await;
+    let dose_id = dose["id"].as_str().unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "DELETE",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/{dose_id}"),
+            &token_b,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 404);
+}
+
+#[tokio::test]
+async fn test_delete_skipped_dose_has_no_intervention_to_remove() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let skip_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/skip"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(skip_resp.status(), 204);
+
+    // Find the skipped dose's id via the protocol detail view.
+    let get_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/protocols/{protocol_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let protocol = common::body_json(get_resp).await;
+    let doses = protocol["lines"][0]["doses"].as_array().unwrap();
+    let skipped = doses
+        .iter()
+        .find(|d| d["day_number"] == 0)
+        .expect("dose for day 0 should exist");
+    assert!(skipped["intervention_id"].is_null());
+    let dose_id = skipped["id"].as_str().unwrap();
+
+    // Deleting a skipped dose (no linked intervention) should still succeed.
+    let delete_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "DELETE",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/{dose_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(delete_resp.status(), 204);
+
+    // The day is free to log/skip again.
+    let relog_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/skip"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(relog_resp.status(), 204);
+}
+
+#[tokio::test]
+async fn test_legacy_log_on_protocol_with_active_run_is_visible_on_run_grid() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    // Log via the legacy protocol-level endpoint even though an active run
+    // exists — it must attach to that run, not write a NULL run_id.
+    let legacy_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/{protocol_id}/doses/log"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(legacy_resp.status(), 200);
+    let legacy_dose = common::body_json(legacy_resp).await;
+    assert_eq!(legacy_dose["run_id"], run_id);
+
+    // Visible on the run-scoped dose grid via GET /protocols/:id.
+    let get_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/protocols/{protocol_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let protocol = common::body_json(get_resp).await;
+    let doses = protocol["lines"][0]["doses"].as_array().unwrap();
+    assert!(
+        doses
+            .iter()
+            .any(|d| d["day_number"] == 0 && d["status"] == "completed"),
+        "legacy-logged dose should be visible on the run-scoped grid"
+    );
+
+    // Logging the same day again via the run-scoped endpoint conflicts —
+    // proving it's the SAME (line, run, day) row, not an invisible NULL-run
+    // duplicate.
+    let run_scoped_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(run_scoped_resp.status(), 409);
+}
+
+#[tokio::test]
+async fn test_second_run_shows_empty_grid_for_its_own_run() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run1 = start_run(&app, &token, protocol_id).await;
+    let run1_id = run1["id"].as_str().unwrap();
+
+    let log_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run1_id}/doses/log"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(log_resp.status(), 200);
+
+    // Start a second (most-recently-created, active) run of the same
+    // protocol — it becomes the "current" run for GET /protocols/:id.
+    let _run2 = start_run(&app, &token, protocol_id).await;
+
+    let get_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/protocols/{protocol_id}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let protocol = common::body_json(get_resp).await;
+    let doses = protocol["lines"][0]["doses"].as_array().unwrap();
+    assert!(
+        doses.is_empty(),
+        "the second run hasn't logged anything yet, so its grid should be \
+         empty even though run 1 has a completed dose: {doses:?}"
+    );
+}
+
+#[tokio::test]
+async fn test_get_shared_protocol_shows_current_run_doses() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_recipe(&app, &token).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap();
+
+    let run = start_run(&app, &token, protocol_id).await;
+    let run_id = run["id"].as_str().unwrap();
+
+    let log_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/runs/{run_id}/doses/log"),
+            &token,
+            Some(&json!({"protocol_line_id": line_id, "day_number": 0})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(log_resp.status(), 200);
+
+    let share_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            &format!("/api/v1/protocols/{protocol_id}/share"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(share_resp.status(), 200);
+    let share = common::body_json(share_resp).await;
+    let share_token = share["token"].as_str().unwrap();
+
+    let shared_resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            &format!("/api/v1/protocols/shared/{share_token}"),
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(shared_resp.status(), 200);
+    let shared_protocol = common::body_json(shared_resp).await;
+    let doses = shared_protocol["lines"][0]["doses"].as_array().unwrap();
+    assert!(
+        doses
+            .iter()
+            .any(|d| d["day_number"] == 0 && d["status"] == "completed"),
+        "shared protocol view should show the current run's logged dose"
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Notification preferences
 // ---------------------------------------------------------------------------
 

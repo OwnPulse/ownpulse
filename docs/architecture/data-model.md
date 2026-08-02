@@ -73,6 +73,24 @@ Substance, medication, and supplement logs. Names are freeform text with no vali
 | `route` | TEXT nullable | e.g. `oral`, `sublingual`, `injection` |
 | `taken_at` | TIMESTAMPTZ | |
 | `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | Added in `0032_protocol_dose_tracking.sql`. Set on every edit via `PATCH /interventions/:id`. |
+
+### `protocol_doses`
+
+Logged/skipped doses for a protocol line, scoped to a specific `protocol_runs` execution.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `protocol_line_id` | UUID FK | References `protocol_lines`, `ON DELETE CASCADE` |
+| `run_id` | UUID FK nullable | References `protocol_runs`, `ON DELETE CASCADE`. `NULL` for legacy protocol-level doses logged before runs existed (or via the deprecated `/protocols/:id/doses/*` endpoints). |
+| `day_number` | INT | Offset from the run's `start_date` (or the protocol's `start_date` for legacy `NULL`-run rows) |
+| `status` | TEXT | `completed` or `skipped` |
+| `intervention_id` | UUID FK nullable | References `interventions`; set only for `completed` doses |
+| `skip_reason` | TEXT nullable | Added in `0032_protocol_dose_tracking.sql`. Optional free-text reason recorded when skipping. |
+| `logged_at` | TIMESTAMPTZ | |
+
+**Unique constraint:** `(protocol_line_id, run_id, day_number)` with `NULLS NOT DISTINCT` (added in `0032_protocol_dose_tracking.sql`, replacing the original `(protocol_line_id, day_number)` constraint). This scopes duplicate-dose detection to a single run — a second run of the same protocol can log the same `day_number` without colliding with the first run's doses — while still keeping legacy `NULL`-run rows unique among themselves.
 
 ### `daily_checkins`
 

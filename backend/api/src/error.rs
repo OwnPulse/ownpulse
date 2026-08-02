@@ -130,3 +130,12 @@ impl From<sqlx::Error> for ApiError {
         }
     }
 }
+
+impl From<crate::db::protocols::DoseLogError> for ApiError {
+    fn from(err: crate::db::protocols::DoseLogError) -> Self {
+        match err {
+            crate::db::protocols::DoseLogError::Db(e) => e.into(),
+            crate::db::protocols::DoseLogError::Invalid(msg) => ApiError::BadRequest(msg),
+        }
+    }
+}
