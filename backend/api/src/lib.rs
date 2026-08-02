@@ -5,6 +5,7 @@ pub mod auth;
 pub mod config;
 pub mod crypto;
 pub mod db;
+pub mod dose_status;
 pub mod email;
 pub mod error;
 pub mod export;

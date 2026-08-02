@@ -458,7 +458,16 @@ fn base_routes() -> Router<AppState> {
             get(protocols::active_substances),
         )
         .route("/protocols/runs/active", get(protocols::list_active_runs))
+        .route("/protocols/runs/missed-doses", get(protocols::missed_doses))
         .route("/protocols/runs/:run_id", patch(protocols::update_run))
+        .route(
+            "/protocols/runs/:run_id/doses",
+            get(protocols::get_run_doses),
+        )
+        .route(
+            "/protocols/runs/:run_id/adherence",
+            get(protocols::get_run_adherence),
+        )
         .route(
             "/protocols/runs/:run_id/doses/log",
             post(protocols::log_dose_on_run),

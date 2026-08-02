@@ -1304,6 +1304,9 @@ Observer exports all their responses across all polls.
 | POST | `/protocols/runs/:run_id/doses/skip` | Skip a dose on an active run | 1 |
 | DELETE | `/protocols/runs/:run_id/doses/:dose_id` | Undo a logged/skipped dose on a run | 1 |
 | GET | `/protocols/runs/todays-doses` | Today's scheduled doses across all of the user's active runs | 1 |
+| GET | `/protocols/runs/:run_id/doses` | Dose status for every scheduled day of a run, in a `from_day..to_day` range | 1 |
+| GET | `/protocols/runs/missed-doses` | Scheduled-but-missed days across all of the user's active runs | 1 |
+| GET | `/protocols/runs/:run_id/adherence` | Adherence summary (scheduled/completed/skipped/missed) for a run, overall + per line | 1 |
 | POST | `/protocols/:id/share` | Generate share link | 1 |
 | GET | `/protocols/shared/:token` | View shared protocol (public) | 1 |
 | POST | `/protocols/import/:token` | Copy shared protocol | 1 |
@@ -1499,6 +1502,158 @@ whose `schedule_pattern` marks today's day number as active.
 `status` is `null` until a dose is logged or skipped for that line today, then
 `"completed"` or `"skipped"`. `protocol_line_id` is the id to send back to the
 log/skip endpoints above.
+
+#### Canonical dose-status rule
+
+The `doses`, `missed-doses`, and `adherence` endpoints below all derive a
+per-day dose status from the same rule (implemented once, in
+`crate::dose_status::compute_dose_status`, and unit-tested there — both the
+web and iOS clients should treat this as the single source of truth rather
+than re-deriving it):
+
+For run day `d` (0-based; calendar date = `run.start_date + d`) and a line
+with `schedule_pattern` (a bool array):
+
+- **not scheduled** if `d >= duration_days`, `d >= schedule_pattern.length`,
+  or `schedule_pattern[d] == false`. Not-scheduled days are omitted from
+  `doses`/`adherence` entirely — "not scheduled" is not itself a dose status.
+- else if a `protocol_doses` row exists for `(line, run, d)`: its status,
+  `"completed"` or `"skipped"` — **regardless** of how `d` compares to
+  today. (The dose-log write path tolerates a dose landing on
+  `today_day + 1`, for users east of UTC logging near local midnight; a
+  day with a dose row is always reported as that row's status, never
+  clamped as invalid or out-of-range.)
+- else if `d < today_day`: `"missed"`
+- else: `"pending"`
+
+where `today_day = (CURRENT_DATE - run.start_date)`, computed **by the
+server, from Postgres's `CURRENT_DATE`** — one clock, never the
+application server's local clock. Clients send `day_number`, not a date;
+the UTC day-boundary is a server-side concern. If your local calendar day
+doesn't line up with the server's UTC day near midnight, a dose you log
+"today" may be recorded a day off from your wall clock — this is an
+accepted, documented boundary case, not a bug to work around client-side.
+
+#### `GET /protocols/runs/:run_id/doses?from_day=&to_day=`
+
+Dose status for every *scheduled* (line, day) pair in a run, within
+`[from_day, to_day]`. Defaults: `from_day=0`,
+`to_day=min(today_day, duration_days - 1)`. If neither query param is
+given and the run hasn't started yet (nothing scheduled so far), returns
+an empty array rather than an error.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "day_number": 3,
+    "date": "2026-04-04",
+    "protocol_line_id": "uuid",
+    "substance": "BPC-157",
+    "dose": 250.0,
+    "unit": "mcg",
+    "route": "subcutaneous",
+    "time_of_day": "AM",
+    "status": "missed",
+    "dose_id": null,
+    "intervention_id": null,
+    "skip_reason": null,
+    "logged_at": null
+  }
+]
+```
+
+`status` is one of `"completed"`, `"skipped"`, `"missed"`, `"pending"` (see
+the canonical rule above). `dose_id`/`intervention_id`/`skip_reason`/
+`logged_at` are populated only when a `protocol_doses` row exists for that
+day (`status` is `"completed"` or `"skipped"`).
+
+**Errors:** `404` if the run doesn't exist or isn't owned by the caller.
+`400` if `from_day`/`to_day` are outside `[0, duration_days)`, or an
+explicit `from_day > to_day`.
+
+#### `GET /protocols/runs/missed-doses`
+
+Scheduled days, in the past, with no dose row, across **all** of the
+caller's active runs (paused/completed runs are excluded). Ordered by date
+descending, capped at 200 rows — this is meant to surface a manageable
+"you're behind" list, not a full history. Use
+`GET /protocols/runs/:run_id/doses` for a complete per-run view.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "protocol_id": "uuid",
+    "protocol_name": "BPC-157 — 4 weeks",
+    "run_id": "uuid",
+    "protocol_line_id": "uuid",
+    "substance": "BPC-157",
+    "dose": 250.0,
+    "unit": "mcg",
+    "route": "subcutaneous",
+    "time_of_day": "AM",
+    "day_number": 2,
+    "date": "2026-04-03",
+    "status": "missed"
+  }
+]
+```
+
+#### `GET /protocols/runs/:run_id/adherence`
+
+Adherence summary for a run: overall totals plus a per-line breakdown.
+`scheduled_so_far` counts scheduled days through **today inclusive**
+(`min(today_day, duration_days - 1)`) — a dose logged today counts.
+`missed` only counts scheduled days strictly **before** today (today
+itself is `"pending"`, not `"missed"`, until the day is over).
+`adherence_pct = completed / scheduled_so_far * 100`; skips count in the
+denominator but are reported separately — a skip is data, not a failure,
+and is never folded into "non-adherence". `adherence_pct` is `null` when
+`scheduled_so_far` is `0` (e.g. a run that hasn't started yet).
+
+**Response:** `200 OK`
+
+```json
+{
+  "run_id": "uuid",
+  "scheduled_so_far": 9,
+  "completed": 3,
+  "skipped": 2,
+  "missed": 3,
+  "adherence_pct": 33.33,
+  "lines": [
+    {
+      "protocol_line_id": "uuid",
+      "substance": "BPC-157",
+      "scheduled_so_far": 6,
+      "completed": 2,
+      "skipped": 1,
+      "missed": 2,
+      "adherence_pct": 33.33
+    }
+  ]
+}
+```
+
+**Errors:** `404` if the run doesn't exist or isn't owned by the caller.
+
+#### `RunResponse` adherence fields
+
+Every run object returned by `POST /protocols/:id/runs`,
+`GET /protocols/runs/active`, and `GET /protocols/:id/runs` now includes:
+
+- `adherence_pct` (`number | null`) — same definition as above.
+- `doses_missed` (`integer`) — same `missed` definition as above.
+
+`GET /protocols/runs/active` and `POST /protocols/:id/runs` compute real
+values (a single query per call, no N+1 across runs). `GET
+/protocols/:id/runs` (and the run list embedded in `GET /protocols/:id`)
+currently return `adherence_pct: null` / `doses_missed: 0` placeholders —
+they aren't in the "today" hot path; computing real per-run values there
+is tracked as follow-up work, not implemented in this change.
 
 ### Server-Sent Events (SSE)
 

@@ -195,6 +195,15 @@ pub struct RunResponse {
     pub progress_pct: f64,
     pub doses_today: i64,
     pub doses_completed_today: i64,
+    /// `completed / scheduled_so_far * 100`, `None` when nothing has been
+    /// scheduled yet (e.g. a run that starts in the future). Populated for
+    /// `GET /protocols/runs/active` and run-creation responses; other run
+    /// listings (e.g. `GET /protocols/:id/runs`) leave this `None` since
+    /// they aren't in the hot "today" path.
+    pub adherence_pct: Option<f64>,
+    /// Count of scheduled days strictly before today with no dose row.
+    /// Same caveat as `adherence_pct` re: which endpoints populate it.
+    pub doses_missed: i64,
     pub created_at: DateTime<Utc>,
 }
 
@@ -240,6 +249,87 @@ pub struct ActiveSubstanceItem {
 pub struct ShareResponse {
     pub token: String,
     pub expires_at: DateTime<Utc>,
+}
+
+// --- Adherence / dose-status types ---
+
+/// Query params for `GET /protocols/runs/:run_id/doses`.
+#[derive(Deserialize)]
+pub struct DoseRangeQuery {
+    pub from_day: Option<i32>,
+    pub to_day: Option<i32>,
+}
+
+/// One entry of `GET /protocols/runs/:run_id/doses` — a single scheduled
+/// (line, day) pair with its computed dose status.
+#[derive(Serialize)]
+pub struct RunDoseItem {
+    pub day_number: i32,
+    pub date: NaiveDate,
+    pub protocol_line_id: Uuid,
+    pub substance: String,
+    pub dose: Option<f64>,
+    pub unit: Option<String>,
+    pub route: Option<String>,
+    pub time_of_day: Option<String>,
+    pub status: String,
+    pub dose_id: Option<Uuid>,
+    pub intervention_id: Option<Uuid>,
+    pub skip_reason: Option<String>,
+    pub logged_at: Option<DateTime<Utc>>,
+}
+
+/// One entry of `GET /protocols/runs/missed-doses` — a scheduled day, in
+/// the past, across the user's active runs, with no dose row.
+#[derive(FromRow, Serialize)]
+pub struct MissedDoseItem {
+    pub protocol_id: Uuid,
+    pub protocol_name: String,
+    pub run_id: Uuid,
+    pub protocol_line_id: Uuid,
+    pub substance: String,
+    pub dose: Option<f64>,
+    pub unit: Option<String>,
+    pub route: Option<String>,
+    pub time_of_day: Option<String>,
+    pub day_number: i32,
+    pub date: NaiveDate,
+    pub status: String,
+}
+
+/// Row shape for the per-line adherence aggregate query.
+#[derive(FromRow)]
+pub struct LineAdherenceRow {
+    pub protocol_line_id: Uuid,
+    pub substance: String,
+    pub scheduled_so_far: i64,
+    pub completed: i64,
+    pub skipped: i64,
+    pub missed: i64,
+}
+
+/// Per-line breakdown in `GET /protocols/runs/:run_id/adherence`.
+#[derive(Serialize)]
+pub struct LineAdherence {
+    pub protocol_line_id: Uuid,
+    pub substance: String,
+    pub scheduled_so_far: i64,
+    pub completed: i64,
+    pub skipped: i64,
+    pub missed: i64,
+    pub adherence_pct: Option<f64>,
+}
+
+/// Response body of `GET /protocols/runs/:run_id/adherence`.
+#[derive(Serialize)]
+pub struct AdherenceResponse {
+    pub run_id: Uuid,
+    pub scheduled_so_far: i64,
+    pub completed: i64,
+    pub skipped: i64,
+    pub missed: i64,
+    pub adherence_pct: Option<f64>,
+    pub lines: Vec<LineAdherence>,
 }
 
 // --- Export/Import types ---

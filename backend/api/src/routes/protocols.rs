@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use uuid::Uuid;
 
@@ -15,11 +15,11 @@ use crate::auth::extractor::AuthUser;
 use crate::db::protocols as db;
 use crate::error::ApiError;
 use crate::models::protocol::{
-    ActiveSubstanceItem, CopyTemplateRequest, CreateProtocol, CreateRunRequest, LogDoseRequest,
-    NotificationPreferencesRow, ProtocolDoseRow, ProtocolExport, ProtocolListItem,
-    ProtocolResponse, PushTokenRow, RegisterPushTokenRequest, RunResponse, ShareResponse,
-    SkipDoseRequest, TemplateListItem, TodaysDoseItem, UpdateNotificationPreferences,
-    UpdateProtocol, UpdateRunRequest,
+    ActiveSubstanceItem, AdherenceResponse, CopyTemplateRequest, CreateProtocol, CreateRunRequest,
+    DoseRangeQuery, LogDoseRequest, MissedDoseItem, NotificationPreferencesRow, ProtocolDoseRow,
+    ProtocolExport, ProtocolListItem, ProtocolResponse, PushTokenRow, RegisterPushTokenRequest,
+    RunDoseItem, RunResponse, ShareResponse, SkipDoseRequest, TemplateListItem, TodaysDoseItem,
+    UpdateNotificationPreferences, UpdateProtocol, UpdateRunRequest,
 };
 use crate::routes::events::publish_event;
 
@@ -176,6 +176,15 @@ pub async fn create_run(
         0.0
     };
 
+    // A freshly created run can already have missed doses if `start_date`
+    // was backdated, so compute this for real rather than hardcoding zero.
+    let (adherence_pct, doses_missed) = match duration {
+        Some(dur) => {
+            db::run_adherence_totals(&state.pool, protocol_id, run.id, run.start_date, dur).await?
+        }
+        None => (None, 0),
+    };
+
     let response = RunResponse {
         id: run.id,
         protocol_id: run.protocol_id,
@@ -192,6 +201,8 @@ pub async fn create_run(
         progress_pct,
         doses_today: 0,
         doses_completed_today: 0,
+        adherence_pct,
+        doses_missed,
         created_at: run.created_at,
     };
 
@@ -281,6 +292,47 @@ pub async fn delete_dose(
     publish_event(&state.event_tx, user_id, "protocols", None);
     publish_event(&state.event_tx, user_id, "interventions", None);
     Ok(StatusCode::NO_CONTENT)
+}
+
+// --- Adherence / dose-status ---
+
+/// GET /protocols/runs/:run_id/doses?from_day=&to_day=
+///
+/// Scheduled-days-only dose status for a run, defaulting to `0..=min(today,
+/// duration-1)`. 404 if the run doesn't belong to the caller; 400 for an
+/// explicit out-of-bounds or backwards range.
+pub async fn get_run_doses(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Path(run_id): Path<Uuid>,
+    Query(query): Query<DoseRangeQuery>,
+) -> Result<Json<Vec<RunDoseItem>>, ApiError> {
+    let doses = db::run_doses(&state.pool, user_id, run_id, query.from_day, query.to_day).await?;
+    Ok(Json(doses))
+}
+
+/// GET /protocols/runs/missed-doses
+///
+/// Scheduled days, in the past, with no dose row, across all of the
+/// caller's active runs. Capped at 200 rows (most recent first) — this is
+/// meant to surface a manageable "you're behind" list, not a full history;
+/// use `GET /protocols/runs/:run_id/doses` for a complete per-run view.
+pub async fn missed_doses(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+) -> Result<Json<Vec<MissedDoseItem>>, ApiError> {
+    let rows = db::missed_doses(&state.pool, user_id).await?;
+    Ok(Json(rows))
+}
+
+/// GET /protocols/runs/:run_id/adherence
+pub async fn get_run_adherence(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Path(run_id): Path<Uuid>,
+) -> Result<Json<AdherenceResponse>, ApiError> {
+    let adherence = db::run_adherence(&state.pool, user_id, run_id).await?;
+    Ok(Json(adherence))
 }
 
 // --- Existing endpoints ---
