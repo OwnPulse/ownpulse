@@ -16,6 +16,18 @@ use sha1::Sha1;
 
 type HmacSha1 = Hmac<Sha1>;
 
+/// Build a short, sanitized error message for a non-2xx Garmin response.
+///
+/// Callers eventually persist this string in `integration_tokens.last_sync_error`
+/// and surface it to the user via `GET /integrations` — it must never contain
+/// the raw response body, which could echo back request parameters or, on a
+/// misconfigured/compromised endpoint, arbitrary content. The full body is
+/// logged server-side only, at `debug` level, for operator troubleshooting.
+fn sanitized_upstream_error(context: &str, status: reqwest::StatusCode, body: &str) -> String {
+    tracing::debug!(%status, body, context, "Garmin API returned a non-2xx response");
+    format!("{context}: Garmin API returned HTTP {status}")
+}
+
 // ── OAuth 1.0a types ────────────────────────────────────────────────────
 
 /// Temporary request token returned by Garmin during the OAuth 1.0a flow.
@@ -281,7 +293,7 @@ impl GarminClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "unreadable body".into());
-            return Err(format!("request token returned {status}: {body}"));
+            return Err(sanitized_upstream_error("request token", status, &body));
         }
 
         let body = response
@@ -339,7 +351,7 @@ impl GarminClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "unreadable body".into());
-            return Err(format!("access token returned {status}: {body}"));
+            return Err(sanitized_upstream_error("access token", status, &body));
         }
 
         let body = response
@@ -451,7 +463,7 @@ impl GarminClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "unreadable body".into());
-            return Err(format!("Garmin API returned {status}: {body}"));
+            return Err(sanitized_upstream_error("fetch", status, &body));
         }
 
         response

@@ -12,6 +12,18 @@
 
 use serde::Deserialize;
 
+/// Build a short, sanitized error message for a non-2xx Oura response.
+///
+/// Callers eventually persist this string in `integration_tokens.last_sync_error`
+/// and surface it to the user via `GET /integrations` — it must never contain
+/// the raw response body, which could echo back request parameters or, on a
+/// misconfigured/compromised endpoint, arbitrary content. The full body is
+/// logged server-side only, at `debug` level, for operator troubleshooting.
+fn sanitized_upstream_error(context: &str, status: reqwest::StatusCode, body: &str) -> String {
+    tracing::debug!(%status, body, context, "Oura API returned a non-2xx response");
+    format!("{context}: Oura API returned HTTP {status}")
+}
+
 // ── OAuth 2.0 types ─────────────────────────────────────────────────────
 
 /// Token response from Oura's OAuth 2.0 token endpoint.
@@ -172,7 +184,7 @@ impl OuraClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "unreadable body".into());
-            return Err(format!("Oura token exchange returned {status}: {body}"));
+            return Err(sanitized_upstream_error("token exchange", status, &body));
         }
 
         response
@@ -204,7 +216,7 @@ impl OuraClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "unreadable body".into());
-            return Err(format!("Oura token refresh returned {status}: {body}"));
+            return Err(sanitized_upstream_error("token refresh", status, &body));
         }
 
         response
@@ -299,7 +311,7 @@ impl OuraClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "unreadable body".into());
-            return Err(format!("Oura API returned {status}: {body}"));
+            return Err(sanitized_upstream_error("fetch", status, &body));
         }
 
         response

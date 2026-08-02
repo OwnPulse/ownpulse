@@ -179,11 +179,12 @@ pub async fn sync(
     )
     .await
     .map_err(|e| {
-        if e == "Oura is not connected" {
-            return ApiError::NotFoundMsg(e);
+        // Match on the typed outcome rather than comparing error strings —
+        // `ApiError::from` maps each variant to the right HTTP status.
+        if let crate::jobs::SyncError::Upstream(ref msg) = e {
+            tracing::warn!(user_id = %auth_user.id, error = %msg, "Oura manual sync failed");
         }
-        tracing::warn!(user_id = %auth_user.id, error = %e, "Oura manual sync failed");
-        ApiError::Internal("Oura sync failed".to_string())
+        ApiError::from(e)
     })?;
 
     Ok(Json(SyncResponse {

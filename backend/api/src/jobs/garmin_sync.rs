@@ -6,8 +6,11 @@
 //! Periodically fetches daily summaries, sleep, HRV, and body composition
 //! data from Garmin for all users with connected Garmin integrations.
 
+use std::time::Duration as StdDuration;
+
 use chrono::{Duration, NaiveDate, Utc};
 use sqlx::PgPool;
+use tokio::time::MissedTickBehavior;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -15,11 +18,20 @@ use crate::config::Config;
 use crate::crypto;
 use crate::db::{health_records, integration_tokens, observations};
 use crate::integrations::garmin::{AccessToken, GarminClient};
+use crate::jobs::{SyncError, try_with_user_sync_lock};
 use crate::models::health_record::CreateHealthRecord;
 use crate::models::observation::CreateObservation;
 
 /// Interval between sync runs (15 minutes).
 const SYNC_INTERVAL_SECS: u64 = 900;
+
+/// Minimum time between sync *attempts* (manual or scheduled, success or
+/// failure) for a single user — see [`sync_user_now`].
+const MIN_SYNC_INTERVAL_SECS: i64 = 60;
+
+/// Source key used for both the `integration_tokens.source` column and the
+/// per-user advisory sync lock.
+const SOURCE: &str = "garmin";
 
 /// Spawn the Garmin sync background job. Returns the task handle so callers
 /// (and tests) can observe shutdown; `main.rs` does not need to await it.
@@ -33,15 +45,35 @@ pub fn spawn(
     tokio::spawn(async move {
         tracing::info!("Garmin sync job started");
 
+        let mut interval = tokio::time::interval(StdDuration::from_secs(SYNC_INTERVAL_SECS));
+        // `Burst` (the default) fires repeated back-to-back ticks to catch up
+        // after a missed tick (e.g. a slow previous cycle) — `Delay` just
+        // resumes the normal cadence, which is what we want for a periodic
+        // poll rather than an at-least-N-times job.
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        interval.tick().await; // consume the immediate first tick — first real sync is one interval later
+
         loop {
             tokio::select! {
                 _ = cancel.cancelled() => {
                     tracing::info!("Garmin sync job shutting down");
                     break;
                 }
-                _ = tokio::time::sleep(std::time::Duration::from_secs(SYNC_INTERVAL_SECS)) => {
-                    if let Err(e) = run_sync(&pool, &config, &http_client, &event_tx).await {
-                        tracing::error!(error = %e, "Garmin sync run failed");
+                _ = interval.tick() => {
+                    // Race the sync pass itself against cancellation so a slow
+                    // provider (or many connected users) can't delay shutdown
+                    // past the in-flight HTTP request's timeout — dropping the
+                    // future here aborts whatever request/query was pending.
+                    tokio::select! {
+                        _ = cancel.cancelled() => {
+                            tracing::info!("Garmin sync job cancelled mid-cycle");
+                            break;
+                        }
+                        result = run_sync(&pool, &config, &http_client, &event_tx, &cancel) => {
+                            if let Err(e) = result {
+                                tracing::error!(error = %e, "Garmin sync run failed");
+                            }
+                        }
                     }
                 }
             }
@@ -50,11 +82,17 @@ pub fn spawn(
 }
 
 /// Run a single sync cycle for all users with Garmin integration tokens.
-async fn run_sync(
+/// Checks `cancel` between users so a shutdown signal can interrupt a pass
+/// partway through rather than waiting for every remaining user. `pub` (not
+/// used outside this crate) so integration tests can race it against
+/// cancellation directly, the same way [`spawn`]'s loop does, without
+/// waiting through the real 15-minute interval.
+pub async fn run_sync(
     pool: &PgPool,
     config: &Config,
     http_client: &reqwest::Client,
     event_tx: &tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
+    cancel: &CancellationToken,
 ) -> Result<(), String> {
     let encryption_key = crypto::parse_encryption_key(&config.encryption_key)
         .map_err(|e| format!("bad encryption key: {e}"))?;
@@ -83,7 +121,7 @@ async fn run_sync(
 
     let tokens = integration_tokens::list_for_user_by_source(
         pool,
-        "garmin",
+        SOURCE,
         &encryption_key,
         prev_key.as_ref(),
     )
@@ -91,10 +129,34 @@ async fn run_sync(
     .map_err(|e| format!("failed to list Garmin tokens: {e}"))?;
 
     for token_row in tokens {
+        if cancel.is_cancelled() {
+            tracing::info!("Garmin sync pass interrupted by shutdown");
+            break;
+        }
+
         let user_id = token_row.user_id;
-        if let Err(e) = sync_user(pool, &client, &token_row, event_tx).await {
-            tracing::error!(user_id = %user_id, error = %e, "Garmin sync failed for user");
-            let _ = integration_tokens::update_sync_error(pool, user_id, "garmin", &e).await;
+
+        // Advisory lock keyed on (source, user_id): skip (don't block) if
+        // another sync for this user is already running — a concurrent
+        // manual sync, or (with `replicaCount: 2`) another replica's
+        // periodic job iterating the same rows.
+        let lock_result = try_with_user_sync_lock(pool, SOURCE, user_id, || {
+            sync_user(pool, &client, &token_row, event_tx)
+        })
+        .await;
+
+        match lock_result {
+            Ok(Some(Err(e))) => {
+                tracing::error!(user_id = %user_id, error = %e, "Garmin sync failed for user");
+                let _ = integration_tokens::update_sync_error(pool, user_id, SOURCE, &e).await;
+            }
+            Ok(Some(Ok(_))) => {}
+            Ok(None) => {
+                tracing::debug!(user_id = %user_id, "skipping Garmin sync — already in progress elsewhere");
+            }
+            Err(e) => {
+                tracing::error!(user_id = %user_id, error = %e, "failed to acquire Garmin sync lock");
+            }
         }
     }
 
@@ -111,24 +173,24 @@ pub async fn sync_user_now(
     http_client: &reqwest::Client,
     user_id: Uuid,
     event_tx: &tokio::sync::broadcast::Sender<(Uuid, crate::models::explore::DataChangedEvent)>,
-) -> Result<u32, String> {
+) -> Result<u32, SyncError> {
     let encryption_key = crypto::parse_encryption_key(&config.encryption_key)
-        .map_err(|e| format!("bad encryption key: {e}"))?;
+        .map_err(|e| SyncError::Upstream(format!("bad encryption key: {e}")))?;
     let prev_key = config
         .encryption_key_previous
         .as_ref()
         .map(|k| crypto::parse_encryption_key(k))
         .transpose()
-        .map_err(|e| format!("bad previous encryption key: {e}"))?;
+        .map_err(|e| SyncError::Upstream(format!("bad previous encryption key: {e}")))?;
 
     let consumer_key = config
         .garmin_client_id
         .as_deref()
-        .ok_or_else(|| "Garmin is not configured".to_string())?;
+        .ok_or(SyncError::NotConfigured)?;
     let consumer_secret = config
         .garmin_client_secret
         .as_deref()
-        .ok_or_else(|| "Garmin is not configured".to_string())?;
+        .ok_or(SyncError::NotConfigured)?;
 
     let client = GarminClient::new(
         consumer_key.to_string(),
@@ -140,16 +202,54 @@ pub async fn sync_user_now(
     let token_row =
         integration_tokens::list_for_user(pool, user_id, &encryption_key, prev_key.as_ref())
             .await
-            .map_err(|e| format!("failed to load integration tokens: {e}"))?
+            .map_err(|e| SyncError::Upstream(format!("failed to load integration tokens: {e}")))?
             .into_iter()
-            .find(|t| t.source == "garmin")
-            .ok_or_else(|| "Garmin is not connected".to_string())?;
+            .find(|t| t.source == SOURCE)
+            .ok_or(SyncError::NotConnected)?;
 
-    let outcome = sync_user(pool, &client, &token_row, event_tx).await;
-    if let Err(ref e) = outcome {
-        let _ = integration_tokens::update_sync_error(pool, user_id, "garmin", e).await;
+    // Cooldown: reject if a *prior* attempt (success or failure, manual or
+    // scheduled) completed too recently. `updated_at` is bumped by both
+    // `update_last_synced` and `update_sync_error`, so it reflects the last
+    // attempt either way — this protects our shared Garmin app quota (a
+    // human-reviewed developer registration) from an abusive client loop.
+    // Skipped entirely the first time a freshly-connected account is synced
+    // (no `last_synced_at`/`last_sync_error` yet) so connecting and
+    // immediately syncing always works.
+    let has_prior_attempt =
+        token_row.last_synced_at.is_some() || token_row.last_sync_error.is_some();
+    if has_prior_attempt {
+        let elapsed_secs = Utc::now()
+            .signed_duration_since(token_row.updated_at)
+            .num_seconds();
+        if elapsed_secs < MIN_SYNC_INTERVAL_SECS {
+            return Err(SyncError::RateLimited {
+                retry_after_secs: (MIN_SYNC_INTERVAL_SECS - elapsed_secs).max(1) as u64,
+            });
+        }
     }
-    outcome
+
+    let lock_result = try_with_user_sync_lock(pool, SOURCE, user_id, || {
+        sync_user(pool, &client, &token_row, event_tx)
+    })
+    .await
+    .map_err(|e| SyncError::Upstream(format!("failed to acquire sync lock: {e}")))?;
+
+    let outcome = match lock_result {
+        Some(outcome) => outcome,
+        // Another sync for this user is already running (a concurrent manual
+        // sync, or the periodic job landed on this user first). A short fixed
+        // retry — the other sync will very likely have finished by then.
+        None => {
+            return Err(SyncError::RateLimited {
+                retry_after_secs: 5,
+            });
+        }
+    };
+
+    if let Err(ref e) = outcome {
+        let _ = integration_tokens::update_sync_error(pool, user_id, SOURCE, e).await;
+    }
+    outcome.map_err(SyncError::Upstream)
 }
 
 /// Sync data for a single user. Returns the number of records inserted on
@@ -373,8 +473,13 @@ async fn insert_sleep_observation(
         metadata: None,
     };
 
-    match observations::insert(pool, user_id, &obs).await {
-        Ok(_) => 1,
+    // Deterministic per-night id so a re-sync of the same night is a no-op
+    // (`insert_synced`) rather than a fresh duplicate row every 15 minutes.
+    let source_id = format!("garmin-sleep-{date_str}");
+
+    match observations::insert_synced(pool, user_id, &obs, &source_id).await {
+        Ok(Some(_)) => 1,
+        Ok(None) => 0, // already synced — not an error, don't warn
         Err(e) => {
             tracing::warn!(user_id = %user_id, error = %e, "failed to insert Garmin sleep observation");
             0
@@ -491,8 +596,12 @@ async fn try_insert_health_record(
     user_id: Uuid,
     record: &CreateHealthRecord,
 ) -> bool {
-    // Check for duplicates
-    match health_records::find_duplicate(pool, user_id, record).await {
+    // Check for a cross-source duplicate (different source, same value/time
+    // window — see CLAUDE.md's dedup rule). Either way, the actual write
+    // below goes through `insert_synced`: every Garmin record carries a
+    // deterministic `source_id`, so re-syncing the same day is a normal `None`
+    // outcome, not a unique-violation warning on every 15-minute cycle.
+    let duplicate_of = match health_records::find_duplicate(pool, user_id, record).await {
         Ok(Some(existing)) => {
             tracing::warn!(
                 user_id = %user_id,
@@ -502,24 +611,20 @@ async fn try_insert_health_record(
                 record_type = %record.record_type,
                 "duplicate health record detected from Garmin sync"
             );
-            // Insert with duplicate_of reference
-            match health_records::insert(pool, user_id, record, Some(existing.id)).await {
-                Ok(_) => true,
-                Err(e) => {
-                    tracing::warn!(error = %e, "failed to insert duplicate-linked health record");
-                    false
-                }
-            }
+            Some(existing.id)
         }
-        Ok(None) => match health_records::insert(pool, user_id, record, None).await {
-            Ok(_) => true,
-            Err(e) => {
-                tracing::warn!(error = %e, record_type = %record.record_type, "failed to insert health record from Garmin");
-                false
-            }
-        },
+        Ok(None) => None,
         Err(e) => {
             tracing::warn!(error = %e, "failed to check for duplicate health record");
+            return false;
+        }
+    };
+
+    match health_records::insert_synced(pool, user_id, record, duplicate_of).await {
+        Ok(Some(_)) => true,
+        Ok(None) => false, // already synced — not an error, don't warn
+        Err(e) => {
+            tracing::warn!(error = %e, record_type = %record.record_type, "failed to insert health record from Garmin");
             false
         }
     }
