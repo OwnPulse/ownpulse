@@ -8,6 +8,11 @@
   margin-bottom: 1.25rem;
 }
 
+/*
+ * .label carries the same visual rules as the shared .op-label, but with a
+ * slightly larger bottom margin for this form layout — kept local rather
+ * than composed since the override is layout-only.
+ */
 .label {
   display: block;
   font-size: var(--text-sm);
@@ -16,66 +21,18 @@
   font-weight: 500;
 }
 
+/* Identical to the shared .op-input/.op-textarea/.op-select — no local
+ * layout overrides needed, so these compose the global classes directly. */
 .input {
-  display: block;
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  font-family: var(--font-body);
-  color: var(--color-text);
-  background: var(--color-surface-elevated);
-  outline: none;
-  transition: border-color 0.15s ease;
-  box-sizing: border-box;
-}
-
-.input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(194, 101, 74, 0.15);
+  composes: op-input from global;
 }
 
 .textarea {
-  display: block;
-  width: 100%;
-  min-height: 5rem;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  font-family: var(--font-body);
-  color: var(--color-text);
-  background: var(--color-surface-elevated);
-  outline: none;
-  resize: vertical;
-  transition: border-color 0.15s ease;
-  box-sizing: border-box;
-}
-
-.textarea:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(194, 101, 74, 0.15);
+  composes: op-textarea from global;
 }
 
 .select {
-  display: block;
-  width: 100%;
-  padding: 0.625rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--text-sm);
-  font-family: var(--font-body);
-  color: var(--color-text);
-  background: var(--color-surface-elevated);
-  outline: none;
-  cursor: pointer;
-  transition: border-color 0.15s ease;
-}
-
-.select:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(194, 101, 74, 0.15);
+  composes: op-select from global;
 }
 
 .sliderField {
