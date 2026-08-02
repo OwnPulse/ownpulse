@@ -22,11 +22,14 @@ pub fn migrations_ready_flag() -> api::migration_check::MigrationsReady {
     Arc::new(AtomicBool::new(true))
 }
 
-/// Holds the Axum app, database pool, and the container handle (which keeps
-/// the ephemeral Postgres alive for the lifetime of the test).
+/// Holds the Axum app, database pool, the SSE broadcast sender (so tests can
+/// subscribe a receiver and assert on which events a route does or doesn't
+/// publish), and the container handle (which keeps the ephemeral Postgres
+/// alive for the lifetime of the test).
 pub struct TestApp {
     pub app: Router,
     pub pool: PgPool,
+    pub event_tx: tokio::sync::broadcast::Sender<(Uuid, api::models::explore::DataChangedEvent)>,
     // The container is kept alive by holding this handle; dropping it stops Postgres.
     pub _container: testcontainers::ContainerAsync<Postgres>,
 }
@@ -100,6 +103,7 @@ pub async fn setup() -> TestApp {
 
     let config = test_config(&database_url);
     let (event_tx, _) = tokio::sync::broadcast::channel(256);
+    let event_tx_for_test = event_tx.clone();
     let state = api::AppState {
         pool: pool.clone(),
         config,
@@ -113,6 +117,7 @@ pub async fn setup() -> TestApp {
     TestApp {
         app,
         pool,
+        event_tx: event_tx_for_test,
         _container: container,
     }
 }
@@ -146,6 +151,7 @@ pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config))
     config_fn(&mut config);
 
     let (event_tx, _) = tokio::sync::broadcast::channel(256);
+    let event_tx_for_test = event_tx.clone();
     let state = api::AppState {
         pool: pool.clone(),
         config,
@@ -159,6 +165,7 @@ pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config))
     TestApp {
         app,
         pool,
+        event_tx: event_tx_for_test,
         _container: container,
     }
 }
@@ -291,6 +298,7 @@ pub async fn setup_with_rate_limiting() -> TestApp {
     let config = test_config(&database_url);
     let web_origin = config.web_origin.clone();
     let (event_tx, _) = tokio::sync::broadcast::channel(256);
+    let event_tx_for_test = event_tx.clone();
     let state = api::AppState {
         pool: pool.clone(),
         config,
@@ -314,6 +322,7 @@ pub async fn setup_with_rate_limiting() -> TestApp {
     TestApp {
         app,
         pool,
+        event_tx: event_tx_for_test,
         _container: container,
     }
 }
