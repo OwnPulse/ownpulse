@@ -103,11 +103,17 @@ pub struct UpdateProtocol {
 pub struct LogDoseRequest {
     pub protocol_line_id: Uuid,
     pub day_number: i32,
-    /// Optional explicit timestamp for the created intervention. Must fall on
-    /// the calendar date of `run.start_date + day_number`. When omitted, a
-    /// default time is derived from the line's `time_of_day`.
+    /// Optional explicit timestamp for the created intervention. Must fall
+    /// within a day of the calendar date of `start_date + day_number`
+    /// (evaluated in `tz_offset_minutes` if given). When omitted, a default
+    /// time is derived from the line's `time_of_day`, in that same offset.
     pub administered_at: Option<DateTime<Utc>>,
     pub notes: Option<String>,
+    /// Caller's local UTC offset in minutes (e.g. `-420` for UTC-7), used to
+    /// interpret "today"/the default dose time in the caller's own calendar
+    /// day rather than UTC's. Range: -840..=840 (UTC-14:00..UTC+14:00).
+    /// Defaults to UTC (`0`) when omitted.
+    pub tz_offset_minutes: Option<i32>,
 }
 
 #[derive(Deserialize)]

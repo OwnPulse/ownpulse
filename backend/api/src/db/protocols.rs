@@ -138,14 +138,9 @@ pub async fn get_by_id(
     .await?;
 
     let runs = list_runs_for_protocol(pool, protocol_id, user_id).await?;
-    // Scope the dose grid to a single run: prefer the active one, otherwise
-    // fall back to the most recently created run. `runs` is already ordered
-    // by created_at DESC, so `runs.first()` is the most recent.
-    let current_run_id = runs
-        .iter()
-        .find(|r| r.status == "active")
-        .or_else(|| runs.first())
-        .map(|r| r.id);
+    // Scope the dose grid to a single run: the active one, or the most
+    // recently created run if none is active (see `resolve_current_run_id`).
+    let current_run_id = resolve_current_run_id(pool, protocol_id).await?;
     let lines = fetch_lines_with_doses(pool, protocol_id, current_run_id).await?;
 
     Ok(build_response(protocol, lines, runs))
@@ -390,8 +385,8 @@ pub async fn update_run(
     Ok(result.rows_affected() > 0)
 }
 
-/// Errors from logging a dose on a run that need a distinct HTTP status
-/// (as opposed to plain [`sqlx::Error`], which mostly maps to 404/409/500).
+/// Errors from logging a dose that need a distinct HTTP status (as opposed
+/// to plain [`sqlx::Error`], which mostly maps to 404/409/500).
 #[derive(Debug, thiserror::Error)]
 pub enum DoseLogError {
     #[error(transparent)]
@@ -401,9 +396,10 @@ pub enum DoseLogError {
     Invalid(String),
 }
 
-/// Derive the default `administered_at` time-of-day for a dose logged
-/// without an explicit `administered_at`: "AM" -> 08:00Z, "PM" -> 20:00Z,
-/// anything else (including unset) -> 12:00Z.
+/// Derive the default local time-of-day for a dose logged without an
+/// explicit `administered_at`: "AM" -> 08:00, "PM" -> 20:00, anything else
+/// (including unset) -> 12:00. Interpreted in the caller's `tz_offset_minutes`
+/// by [`log_dose_core`].
 fn default_dose_time(time_of_day: Option<&str>) -> chrono::NaiveTime {
     let (h, m, s) = match time_of_day {
         Some(t) if t.eq_ignore_ascii_case("AM") => (8, 0, 0),
@@ -413,40 +409,53 @@ fn default_dose_time(time_of_day: Option<&str>) -> chrono::NaiveTime {
     chrono::NaiveTime::from_hms_opt(h, m, s).unwrap_or_default()
 }
 
-/// Log a dose on a run.
-pub async fn log_dose_on_run(
-    pool: &PgPool,
-    user_id: Uuid,
-    run_id: Uuid,
-    req: &LogDoseRequest,
-    _config: &Config,
-) -> Result<ProtocolDoseRow, DoseLogError> {
-    let mut tx = pool.begin().await?;
+/// The calendar date a UTC instant falls on in a given `tz_offset_minutes`
+/// (positive = east of UTC), for date-only comparisons.
+fn local_date(ts: chrono::DateTime<Utc>, tz_offset_minutes: i32) -> NaiveDate {
+    (ts + chrono::Duration::minutes(i64::from(tz_offset_minutes))).date_naive()
+}
 
-    // 1. Verify user owns the run and get protocol info
-    #[derive(sqlx::FromRow)]
-    struct RunInfo {
-        protocol_id: Uuid,
-        start_date: NaiveDate,
-    }
-
-    let run = sqlx::query_as::<_, RunInfo>(
-        "SELECT protocol_id, start_date FROM protocol_runs
-         WHERE id = $1 AND user_id = $2 AND status = 'active'",
+/// Resolve which run a legacy protocol-level dose should be attached to:
+/// the protocol's active run if one exists, otherwise its most recently
+/// created run, otherwise `None` (a truly run-less protocol). This is the
+/// same active-else-most-recent choice `get_by_id`/`get_shared` use to pick
+/// which run's doses to display, so a legacy-logged dose is always visible
+/// on the run-scoped dose grid instead of being invisible or colliding with
+/// a NULL-run row.
+async fn resolve_current_run_id<'e, E>(
+    executor: E,
+    protocol_id: Uuid,
+) -> Result<Option<Uuid>, sqlx::Error>
+where
+    E: sqlx::Executor<'e, Database = sqlx::Postgres>,
+{
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM protocol_runs
+         WHERE protocol_id = $1
+         ORDER BY (status = 'active') DESC, created_at DESC
+         LIMIT 1",
     )
-    .bind(run_id)
-    .bind(user_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .bind(protocol_id)
+    .fetch_optional(executor)
+    .await
+}
 
-    // 2. Get protocol duration
-    let duration_days: i32 =
-        sqlx::query_scalar("SELECT duration_days FROM protocols WHERE id = $1")
-            .bind(run.protocol_id)
-            .fetch_one(&mut *tx)
-            .await?;
-
-    // 3. Get the protocol_line (verify it belongs to the protocol)
+/// Shared core of dose logging, used by both `log_dose_on_run` (explicit
+/// `run_id`, must be active) and the legacy protocol-level `log_dose`
+/// (`run_id` resolved via [`resolve_current_run_id`]) so notes,
+/// `administered_at`/timezone handling, and validation live in one place
+/// instead of drifting between the two route families. `run_id` is `None`
+/// only when the protocol has no runs at all.
+async fn log_dose_core(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    user_id: Uuid,
+    protocol_id: Uuid,
+    run_id: Option<Uuid>,
+    start_date: NaiveDate,
+    duration_days: i32,
+    req: &LogDoseRequest,
+) -> Result<ProtocolDoseRow, DoseLogError> {
+    // 1. Get the protocol_line (verify it belongs to the protocol)
     let line = sqlx::query_as::<_, ProtocolLineRow>(
         "SELECT id, protocol_id, substance, dose, unit, route, time_of_day,
                 schedule_pattern, sort_order, created_at
@@ -454,11 +463,11 @@ pub async fn log_dose_on_run(
          WHERE id = $1 AND protocol_id = $2",
     )
     .bind(req.protocol_line_id)
-    .bind(run.protocol_id)
-    .fetch_one(&mut *tx)
+    .bind(protocol_id)
+    .fetch_one(&mut **tx)
     .await?;
 
-    // 4. Verify the day_number is valid and schedule_pattern[day_number] is true
+    // 2. Verify the day_number is valid and schedule_pattern[day_number] is true
     let pattern = line
         .schedule_pattern
         .as_array()
@@ -477,35 +486,53 @@ pub async fn log_dose_on_run(
         return Err(sqlx::Error::RowNotFound.into());
     }
 
-    // 5. Reject logging for a day that hasn't happened yet.
-    let dose_date = run.start_date + chrono::Duration::days(i64::from(req.day_number));
-    let today = Utc::now().date_naive();
-    if dose_date > today {
+    let tz_offset = req.tz_offset_minutes.unwrap_or(0);
+    if !(-840..=840).contains(&tz_offset) {
+        return Err(DoseLogError::Invalid(
+            "tz_offset_minutes must be between -840 and 840".to_string(),
+        ));
+    }
+
+    // 3. Reject logging more than a day ahead of "today". A single day of
+    // tolerance absorbs timezone skew — a user east of UTC may legitimately
+    // be logging "their today" while it's still tomorrow in UTC. "Today" is
+    // read from Postgres rather than `Utc::now()` so this shares one clock
+    // with the rest of the dose logic (SQL `CURRENT_DATE` elsewhere), even
+    // on a self-hosted deployment with a non-UTC Postgres `TimeZone`.
+    let dose_date = start_date + chrono::Duration::days(i64::from(req.day_number));
+    let today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
+        .fetch_one(&mut **tx)
+        .await?;
+    if dose_date > today + chrono::Duration::days(1) {
         return Err(DoseLogError::Invalid(format!(
             "cannot log a dose for day {} ({dose_date}) — that day hasn't happened yet",
             req.day_number
         )));
     }
 
-    // 6. Resolve the intervention timestamp: an explicit `administered_at`
-    // must fall on the calendar date of this dose; otherwise derive a
-    // default from the line's time_of_day.
+    // 4. Resolve the intervention timestamp: an explicit `administered_at`
+    // must fall within a day of the calendar date of this dose (evaluated in
+    // `tz_offset_minutes`, absorbing the same timezone skew as above);
+    // otherwise derive a default from the line's time_of_day, interpreted in
+    // that same offset.
     let administered_at_utc = match req.administered_at {
         Some(ts) => {
-            if ts.with_timezone(&Utc).date_naive() != dose_date {
+            let ts_local_date = local_date(ts, tz_offset);
+            if (ts_local_date - dose_date).num_days().abs() > 1 {
                 return Err(DoseLogError::Invalid(format!(
-                    "administered_at must fall on {dose_date} (day {} of this run)",
+                    "administered_at must fall within a day of {dose_date} (day {} of this run)",
                     req.day_number
                 )));
             }
             ts
         }
-        None => dose_date
-            .and_time(default_dose_time(line.time_of_day.as_deref()))
-            .and_utc(),
+        None => {
+            let local_dt = dose_date.and_time(default_dose_time(line.time_of_day.as_deref()));
+            (local_dt - chrono::Duration::minutes(i64::from(tz_offset))).and_utc()
+        }
     };
 
-    // 7. Create an intervention record
+    // 5. Create an intervention record
     let intervention_id: Uuid = sqlx::query_scalar(
         "INSERT INTO interventions
             (user_id, substance, dose, unit, route, administered_at, notes)
@@ -519,10 +546,11 @@ pub async fn log_dose_on_run(
     .bind(&line.route)
     .bind(administered_at_utc)
     .bind(&req.notes)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
-    // 8. Insert protocol_dose with run_id
+    // 6. Insert protocol_dose, scoped to `run_id` (NULL only for a protocol
+    // with no runs at all).
     let dose = sqlx::query_as::<_, ProtocolDoseRow>(
         "INSERT INTO protocol_doses (protocol_line_id, day_number, status, intervention_id, run_id)
          VALUES ($1, $2, 'completed', $3, $4)
@@ -533,7 +561,53 @@ pub async fn log_dose_on_run(
     .bind(req.day_number)
     .bind(intervention_id)
     .bind(run_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(dose)
+}
+
+/// Log a dose on a run.
+pub async fn log_dose_on_run(
+    pool: &PgPool,
+    user_id: Uuid,
+    run_id: Uuid,
+    req: &LogDoseRequest,
+    _config: &Config,
+) -> Result<ProtocolDoseRow, DoseLogError> {
+    let mut tx = pool.begin().await?;
+
+    // Verify user owns the run and get protocol info
+    #[derive(sqlx::FromRow)]
+    struct RunInfo {
+        protocol_id: Uuid,
+        start_date: NaiveDate,
+    }
+
+    let run = sqlx::query_as::<_, RunInfo>(
+        "SELECT protocol_id, start_date FROM protocol_runs
+         WHERE id = $1 AND user_id = $2 AND status = 'active'",
+    )
+    .bind(run_id)
+    .bind(user_id)
     .fetch_one(&mut *tx)
+    .await?;
+
+    let duration_days: i32 =
+        sqlx::query_scalar("SELECT duration_days FROM protocols WHERE id = $1")
+            .bind(run.protocol_id)
+            .fetch_one(&mut *tx)
+            .await?;
+
+    let dose = log_dose_core(
+        &mut tx,
+        user_id,
+        run.protocol_id,
+        Some(run_id),
+        run.start_date,
+        duration_days,
+        req,
+    )
     .await?;
 
     tx.commit().await?;
@@ -590,21 +664,15 @@ pub async fn delete_dose(
     Ok(true)
 }
 
-/// Skip a dose on a run.
-pub async fn skip_dose_on_run(
+/// Shared core of dose skipping, used by both `skip_dose_on_run` and the
+/// legacy protocol-level `skip_dose` so run scoping and `skip_reason` bind
+/// uniformly instead of drifting between the two route families.
+async fn skip_dose_core(
     pool: &PgPool,
-    user_id: Uuid,
-    run_id: Uuid,
+    protocol_id: Uuid,
+    run_id: Option<Uuid>,
     req: &SkipDoseRequest,
 ) -> Result<ProtocolDoseRow, sqlx::Error> {
-    // Verify ownership
-    let protocol_id: Uuid =
-        sqlx::query_scalar("SELECT protocol_id FROM protocol_runs WHERE id = $1 AND user_id = $2")
-            .bind(run_id)
-            .bind(user_id)
-            .fetch_one(pool)
-            .await?;
-
     // Verify line belongs to protocol
     sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM protocol_lines WHERE id = $1 AND protocol_id = $2",
@@ -628,17 +696,42 @@ pub async fn skip_dose_on_run(
     .await
 }
 
+/// Skip a dose on a run.
+pub async fn skip_dose_on_run(
+    pool: &PgPool,
+    user_id: Uuid,
+    run_id: Uuid,
+    req: &SkipDoseRequest,
+) -> Result<ProtocolDoseRow, sqlx::Error> {
+    // Verify ownership
+    let protocol_id: Uuid =
+        sqlx::query_scalar("SELECT protocol_id FROM protocol_runs WHERE id = $1 AND user_id = $2")
+            .bind(run_id)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await?;
+
+    skip_dose_core(pool, protocol_id, Some(run_id), req).await
+}
+
 /// Legacy: Log a dose directly on a protocol (backward compatibility).
+///
+/// Writes are scoped to the protocol's *current* run — its active run, or
+/// its most recently created run if none is active (the same choice
+/// `get_by_id`/`get_shared` use) — via [`resolve_current_run_id`], so a dose
+/// logged here shows up on the run-scoped dose grid instead of being
+/// invisible on it or colliding with it on retry. Only a protocol with no
+/// runs at all writes a `NULL` run_id.
 pub async fn log_dose(
     pool: &PgPool,
     user_id: Uuid,
     protocol_id: Uuid,
     req: &LogDoseRequest,
     _config: &Config,
-) -> Result<ProtocolDoseRow, sqlx::Error> {
+) -> Result<ProtocolDoseRow, DoseLogError> {
     let mut tx = pool.begin().await?;
 
-    // 1. Verify user owns the protocol
+    // Verify user owns the protocol
     let protocol = sqlx::query_as::<_, ProtocolRow>(
         "SELECT id, user_id, name, description, start_date, duration_days,
                 status, is_template, tags, source_url,
@@ -651,79 +744,34 @@ pub async fn log_dose(
     .fetch_one(&mut *tx)
     .await?;
 
-    let start_date = protocol.start_date.ok_or(sqlx::Error::RowNotFound)?;
+    let run_id = resolve_current_run_id(&mut *tx, protocol_id).await?;
+    let start_date = match run_id {
+        Some(run_id) => {
+            sqlx::query_scalar("SELECT start_date FROM protocol_runs WHERE id = $1")
+                .bind(run_id)
+                .fetch_one(&mut *tx)
+                .await?
+        }
+        None => protocol.start_date.ok_or(sqlx::Error::RowNotFound)?,
+    };
 
-    // 2. Get the protocol_line (verify it belongs to the protocol)
-    let line = sqlx::query_as::<_, ProtocolLineRow>(
-        "SELECT id, protocol_id, substance, dose, unit, route, time_of_day,
-                schedule_pattern, sort_order, created_at
-         FROM protocol_lines
-         WHERE id = $1 AND protocol_id = $2",
+    let dose = log_dose_core(
+        &mut tx,
+        user_id,
+        protocol_id,
+        run_id,
+        start_date,
+        protocol.duration_days,
+        req,
     )
-    .bind(req.protocol_line_id)
-    .bind(protocol_id)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // 3. Verify the day_number is valid and schedule_pattern[day_number] is true
-    let pattern = line
-        .schedule_pattern
-        .as_array()
-        .ok_or(sqlx::Error::RowNotFound)?;
-
-    if req.day_number < 0 || req.day_number >= protocol.duration_days {
-        return Err(sqlx::Error::RowNotFound);
-    }
-
-    let scheduled = pattern
-        .get(req.day_number as usize)
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    if !scheduled {
-        return Err(sqlx::Error::RowNotFound);
-    }
-
-    // 4. Create an intervention record
-    let administered_at = start_date + chrono::Duration::days(i64::from(req.day_number));
-    let administered_at_utc = administered_at
-        .and_hms_opt(12, 0, 0)
-        .unwrap_or_default()
-        .and_utc();
-
-    let intervention_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO interventions
-            (user_id, substance, dose, unit, route, administered_at)
-         VALUES ($1, $2, $3, $4, $5, $6)
-         RETURNING id",
-    )
-    .bind(user_id)
-    .bind(&line.substance)
-    .bind(line.dose)
-    .bind(&line.unit)
-    .bind(&line.route)
-    .bind(administered_at_utc)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    // 5. Insert protocol_dose
-    let dose = sqlx::query_as::<_, ProtocolDoseRow>(
-        "INSERT INTO protocol_doses (protocol_line_id, day_number, status, intervention_id)
-         VALUES ($1, $2, 'completed', $3)
-         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at,
-                   run_id, skip_reason",
-    )
-    .bind(req.protocol_line_id)
-    .bind(req.day_number)
-    .bind(intervention_id)
-    .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
     Ok(dose)
 }
 
-/// Legacy: Skip a dose directly on a protocol.
+/// Legacy: Skip a dose directly on a protocol. Scoped to the protocol's
+/// current run the same way [`log_dose`] is — see its doc comment.
 pub async fn skip_dose(
     pool: &PgPool,
     user_id: Uuid,
@@ -737,26 +785,8 @@ pub async fn skip_dose(
         .fetch_one(pool)
         .await?;
 
-    // Verify line belongs to protocol
-    sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM protocol_lines WHERE id = $1 AND protocol_id = $2",
-    )
-    .bind(req.protocol_line_id)
-    .bind(protocol_id)
-    .fetch_one(pool)
-    .await?;
-
-    sqlx::query_as::<_, ProtocolDoseRow>(
-        "INSERT INTO protocol_doses (protocol_line_id, day_number, status, skip_reason)
-         VALUES ($1, $2, 'skipped', $3)
-         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at,
-                   run_id, skip_reason",
-    )
-    .bind(req.protocol_line_id)
-    .bind(req.day_number)
-    .bind(&req.skip_reason)
-    .fetch_one(pool)
-    .await
+    let run_id = resolve_current_run_id(pool, protocol_id).await?;
+    skip_dose_core(pool, protocol_id, run_id, req).await
 }
 
 /// Generate a share token with 7-day expiry.
@@ -800,7 +830,10 @@ pub async fn get_shared(pool: &PgPool, token: &str) -> Result<ProtocolResponse, 
     .fetch_one(pool)
     .await?;
 
-    let lines = fetch_lines_with_doses(pool, protocol.id, None).await?;
+    // Same active-else-most-recent scoping as `get_by_id`, so a shared link
+    // still shows the run's dose grid instead of an all-empty one.
+    let current_run_id = resolve_current_run_id(pool, protocol.id).await?;
+    let lines = fetch_lines_with_doses(pool, protocol.id, current_run_id).await?;
 
     Ok(build_response(protocol, lines, vec![]))
 }
@@ -1290,27 +1323,6 @@ pub async fn bulk_import_templates(
     }
 
     Ok(count)
-}
-
-/// Get a protocol by id (no user_id check — for admin/template operations).
-pub async fn get_by_id_unscoped(
-    pool: &PgPool,
-    protocol_id: Uuid,
-) -> Result<ProtocolResponse, sqlx::Error> {
-    let protocol = sqlx::query_as::<_, ProtocolRow>(
-        "SELECT id, user_id, name, description, start_date, duration_days,
-                status, is_template, tags, source_url,
-                share_token, share_expires_at, created_at
-         FROM protocols
-         WHERE id = $1",
-    )
-    .bind(protocol_id)
-    .fetch_one(pool)
-    .await?;
-
-    let lines = fetch_lines_with_doses(pool, protocol_id, None).await?;
-
-    Ok(build_response(protocol, lines, vec![]))
 }
 
 /// Copy a template to a user with an optional start date (recipe by default).

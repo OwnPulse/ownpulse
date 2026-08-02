@@ -21,3 +21,7 @@ CREATE INDEX idx_protocol_doses_run ON protocol_doses (run_id);
 
 -- Needed by the new PATCH /interventions/:id endpoint.
 ALTER TABLE interventions ADD COLUMN updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+-- Backfill existing rows so they reflect when they were actually created,
+-- not the moment this migration ran.
+UPDATE interventions SET updated_at = created_at;

@@ -1088,7 +1088,8 @@
         "body": {
           "protocol_line_id": "22222222-2222-2222-2222-222222222222",
           "day_number": 0,
-          "notes": "AM dose, as scheduled"
+          "notes": "AM dose, as scheduled",
+          "tz_offset_minutes": -420
         }
       },
       "response": {
