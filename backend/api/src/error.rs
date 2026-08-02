@@ -139,3 +139,12 @@ impl From<crate::db::protocols::DoseLogError> for ApiError {
         }
     }
 }
+
+impl From<crate::db::protocols::RunDosesError> for ApiError {
+    fn from(err: crate::db::protocols::RunDosesError) -> Self {
+        match err {
+            crate::db::protocols::RunDosesError::Db(e) => e.into(),
+            crate::db::protocols::RunDosesError::Invalid(msg) => ApiError::BadRequest(msg),
+        }
+    }
+}

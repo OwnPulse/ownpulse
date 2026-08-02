@@ -1378,6 +1378,114 @@
       "response": {
         "status": 204
       }
+    },
+    {
+      "description": "a request to get run adherence",
+      "providerState": "a protocol run with adherence data exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/aaaaaaaa-3333-3333-3333-333333333333/adherence",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
+          "scheduled_so_far": 3,
+          "completed": 0,
+          "skipped": 0,
+          "missed": 3,
+          "adherence_pct": 0.0,
+          "lines": [
+            {
+              "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+              "substance": "Creatine",
+              "scheduled_so_far": 3,
+              "completed": 0,
+              "skipped": 0,
+              "missed": 3,
+              "adherence_pct": 0.0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "a request to list missed doses",
+      "providerState": "a protocol run with adherence data exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/missed-doses",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "protocol_id": "aaaaaaaa-1111-1111-1111-111111111111",
+            "protocol_name": "Contract Adherence Protocol",
+            "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
+            "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+            "substance": "Creatine",
+            "dose": 5.0,
+            "unit": "g",
+            "route": "oral",
+            "time_of_day": null,
+            "day_number": 2,
+            "date": "2026-03-28",
+            "status": "missed"
+          },
+          {
+            "protocol_id": "aaaaaaaa-1111-1111-1111-111111111111",
+            "protocol_name": "Contract Adherence Protocol",
+            "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
+            "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+            "substance": "Creatine",
+            "dose": 5.0,
+            "unit": "g",
+            "route": "oral",
+            "time_of_day": null,
+            "day_number": 1,
+            "date": "2026-03-27",
+            "status": "missed"
+          },
+          {
+            "protocol_id": "aaaaaaaa-1111-1111-1111-111111111111",
+            "protocol_name": "Contract Adherence Protocol",
+            "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
+            "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+            "substance": "Creatine",
+            "dose": 5.0,
+            "unit": "g",
+            "route": "oral",
+            "time_of_day": null,
+            "day_number": 0,
+            "date": "2026-03-26",
+            "status": "missed"
+          }
+        ],
+        "matchingRules": {
+          "$.body[0].date": {
+            "match": "type"
+          },
+          "$.body[1].date": {
+            "match": "type"
+          },
+          "$.body[2].date": {
+            "match": "type"
+          }
+        }
+      }
     }
   ],
   "metadata": {

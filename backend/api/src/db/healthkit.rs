@@ -126,41 +126,6 @@ fn truncate_chars(s: &str, max: usize) -> String {
     s.chars().take(max).collect()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn truncate_chars_leaves_short_strings_untouched() {
-        assert_eq!(truncate_chars("short", 500), "short");
-    }
-
-    #[test]
-    fn truncate_chars_truncates_ascii_by_char_count() {
-        let input = "x".repeat(1000);
-        let result = truncate_chars(&input, 500);
-        assert_eq!(result.chars().count(), 500);
-        assert_eq!(result.len(), 500); // 1 byte/char for ASCII
-    }
-
-    #[test]
-    fn truncate_chars_truncates_multibyte_by_char_count_not_byte_count() {
-        // 'é' is 2 bytes in UTF-8. Truncating by byte count would either
-        // panic (String::truncate on a non-char-boundary) or silently cut a
-        // char in half; truncating by char count must yield exactly 500
-        // chars (1000 bytes), not 500 bytes (250 chars).
-        let input = "é".repeat(1000);
-        let result = truncate_chars(&input, 500);
-        assert_eq!(result.chars().count(), 500);
-        assert_eq!(result.len(), 1000);
-    }
-
-    #[test]
-    fn truncate_chars_max_zero_yields_empty_string() {
-        assert_eq!(truncate_chars("anything", 0), "");
-    }
-}
-
 /// Enqueue a new HealthKit write-back entry.
 ///
 /// **Cycle guard (ADR-0008, unconditional):** records whose originating
@@ -199,4 +164,39 @@ pub async fn enqueue_write(
     .execute(pool)
     .await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncate_chars_leaves_short_strings_untouched() {
+        assert_eq!(truncate_chars("short", 500), "short");
+    }
+
+    #[test]
+    fn truncate_chars_truncates_ascii_by_char_count() {
+        let input = "x".repeat(1000);
+        let result = truncate_chars(&input, 500);
+        assert_eq!(result.chars().count(), 500);
+        assert_eq!(result.len(), 500); // 1 byte/char for ASCII
+    }
+
+    #[test]
+    fn truncate_chars_truncates_multibyte_by_char_count_not_byte_count() {
+        // 'é' is 2 bytes in UTF-8. Truncating by byte count would either
+        // panic (String::truncate on a non-char-boundary) or silently cut a
+        // char in half; truncating by char count must yield exactly 500
+        // chars (1000 bytes), not 500 bytes (250 chars).
+        let input = "é".repeat(1000);
+        let result = truncate_chars(&input, 500);
+        assert_eq!(result.chars().count(), 500);
+        assert_eq!(result.len(), 1000);
+    }
+
+    #[test]
+    fn truncate_chars_max_zero_yields_empty_string() {
+        assert_eq!(truncate_chars("anything", 0), "");
+    }
 }
