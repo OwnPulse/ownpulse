@@ -1,5 +1,13 @@
 # Diagnosing iOS crashes
 
+> **Status: planned tooling, not yet available.** Everything below describes
+> the intended design. `opdev` (the OwnPulse developer CLI, in the
+> [ownpulse-dev](https://github.com/OwnPulse/ownpulse-dev) repo) does not
+> currently have a `crashes` subcommand — its commands today are `clean`,
+> `e2e`, `list`, `session`, `setup`, `teardown`, and `update`. Treat this
+> guide as a spec for future work, not a description of a tool you can run
+> today.
+
 ## TL;DR
 
 ```bash

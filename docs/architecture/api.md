@@ -41,6 +41,15 @@ by additive changes within it.
 
 ## Implemented
 
+This section is not exhaustive. Several route groups are live in
+`routes/mod.rs` but not yet written up in detail here — including sleep,
+saved medicines, insights, dashboard/summary, telemetry, config, audit
+log, admin (invites/users/feature-flags), and the protocol-runs family.
+Their absence from this document is a documentation gap, not evidence
+they're unimplemented; check `routes/mod.rs` directly for the full current
+route list. The **Planned — not implemented** section below is the
+reliable list of what genuinely doesn't exist yet.
+
 ### Public
 
 | Method | Path | Description | Phase |
@@ -413,8 +422,12 @@ writing a preference via `POST /source-preferences`.
 
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
-| GET | `/integrations` | List connected integrations | 1 |
+| GET | `/integrations` | List connected integrations, each with `last_synced_at` / `last_sync_error` | 1 |
 | DELETE | `/integrations/:source` | Disconnect an integration | 1 |
+| GET | `/auth/garmin/login` | Start the Garmin OAuth 1.0a flow (requires JWT) | 1 |
+| GET | `/auth/garmin/callback` | Garmin OAuth 1.0a callback — exchanges and stores the token (requires JWT) | 1 |
+| GET | `/auth/oura/login` | Start the Oura OAuth 2.0 flow (requires JWT) | 1 |
+| GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 1 |
 | POST | `/integrations/garmin/sync` | Trigger an immediate Garmin fetch | 1 |
 | POST | `/integrations/oura/sync` | Trigger an immediate Oura fetch | 1 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
@@ -426,25 +439,35 @@ Once a Garmin or Oura account is connected (`GET /auth/garmin/login` /
 `GET /auth/oura/login` and their callbacks), the server polls each connected
 account automatically every 15 minutes, fetching data since the last
 successful sync (or the last 7 days, on first sync). No user action is
-required for data to keep flowing in.
+required for data to keep flowing in. Per-user sync is mutually exclusive
+(a Postgres advisory lock, keyed on source + user) — a manual sync, the
+periodic job, and another API replica (`replicaCount: 2`) can never process
+the same user concurrently; a losing attempt is skipped, not queued.
 
 `POST /integrations/garmin/sync` and `POST /integrations/oura/sync` (empty
 body) trigger an immediate fetch for the calling user instead of waiting for
-the next scheduled interval — useful right after connecting an account, or to
-force a refresh. Response `200`:
+the next scheduled interval. There is no web or iOS button for this yet — the
+endpoints exist for future UI and for troubleshooting. Response `200`:
 
 ```json
 { "source": "garmin", "records_inserted": 6 }
 ```
+
+To protect the server's shared Garmin/Oura app quota, manual sync is
+rate-limited per user: `429` with a `Retry-After` header if the user's last
+sync attempt (manual or scheduled, success or failure) completed less than 60
+seconds ago, or if another sync for that user is already in flight. `404` if
+the source isn't connected; `501` if the server operator hasn't configured
+the integration; `502` if the upstream provider (or a transient DB issue)
+failed — the response body never includes raw upstream response content,
+only a short description.
 
 A sync (scheduled or manual) only advances the account's watermark
 (`last_synced_at`) when every fetch for that provider succeeds. If any fetch
 fails, the watermark is left where it was and the error is recorded
 (surfaced via `GET /integrations`), so the failed window is retried on the
 next sync instead of being silently skipped. A subsequent fully-successful
-sync clears the recorded error. Manual sync returns `404` if the source isn't
-connected, and the provider's generic failure message (not raw transport
-details) on error.
+sync clears the recorded error.
 
 #### MyChart / SMART-on-FHIR lab import
 
@@ -1354,15 +1377,287 @@ data: {"source":"health_records","record_type":"heart_rate"}
 
 **Errors:** `401` if the JWT is invalid. `403` if the user is disabled.
 
-## Planned (Phase 2+)
-
-### Auth (Phase 2+)
+### Genetics
 
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
-| GET | `/auth/garmin/callback` | Garmin OAuth callback | 2+ |
-| GET | `/auth/oura/callback` | Oura OAuth callback | 2+ |
-| GET | `/auth/dexcom/callback` | Dexcom OAuth callback | 2+ |
+| POST | `/genetics/upload` | Upload a raw genetic data file (23andMe, AncestryDNA, VCF) | 2 |
+| GET | `/genetics` | List genetic records with pagination, filterable by chromosome/rsid | 2 |
+| GET | `/genetics/summary` | Summary counts (total variants, chromosomes, annotated count) | 2 |
+| GET | `/genetics/interpretations` | User genotypes matched against the SNP annotation database | 2 |
+| DELETE | `/genetics` | Delete all genetic records for the user (requires confirmation) | 2 |
+
+Genetic records are stored in the `genetic_records` table (see
+[data-model.md](data-model.md)) and have dedicated API endpoints, listed
+above. Cooperative aggregation of genetic data still requires a separate
+`sharing_consents` record with `dataset = 'genetics'` — that consent-gated
+aggregation layer is design-only and not implemented (see
+[Cooperative Sharing](#cooperative-sharing-phase-2) below).
+
+#### `POST /genetics/upload`
+
+Upload a genetic data file as `multipart/form-data`. Format (23andMe,
+AncestryDNA, or VCF) is auto-detected from the file contents. Max file size
+50 MB.
+
+**Response:** `201 Created`
+
+```json
+{
+  "total_variants": 638127,
+  "new_variants": 638127,
+  "duplicates_skipped": 0,
+  "format": "23andme",
+  "source": "23andme"
+}
+```
+
+**Errors:** `400` if the file is empty, too large, an unrecognized format,
+or contains no parseable variants.
+
+#### `GET /genetics`
+
+Query params: `page` (default 1), `per_page` (default 50, max 100),
+`chromosome` (optional filter), `rsid` (optional filter).
+
+**Response:** `200 OK`
+
+```json
+{
+  "records": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "source": "23andme",
+      "rsid": "rs4988235",
+      "chromosome": "2",
+      "position": 136608646,
+      "genotype": "AG",
+      "uploaded_file_id": "uuid",
+      "created_at": "2026-03-01T00:00:00Z"
+    }
+  ],
+  "total": 638127,
+  "page": 1,
+  "per_page": 50
+}
+```
+
+#### `GET /genetics/summary`
+
+**Response:** `200 OK`
+
+```json
+{
+  "total_variants": 638127,
+  "source": "23andme",
+  "uploaded_at": "2026-03-01T00:00:00Z",
+  "chromosomes": { "1": 51234, "2": 48901 },
+  "annotated_count": 412
+}
+```
+
+#### `GET /genetics/interpretations`
+
+Query params: `category` (optional filter). Joins the user's genotypes
+against `snp_annotations` (ClinVar, PharmGKB, SNPedia). Every result cites
+its source database and evidence level; the response always includes a
+disclaimer that this is not medical advice.
+
+**Response:** `200 OK`
+
+```json
+{
+  "interpretations": [
+    {
+      "rsid": "rs4988235",
+      "gene": "MCM6",
+      "chromosome": "2",
+      "position": 136608646,
+      "user_genotype": "AG",
+      "category": "metabolism",
+      "title": "Lactase persistence",
+      "summary": "...",
+      "risk_level": "typical",
+      "significance": "likely_benign",
+      "evidence_level": "strong",
+      "source": "SNPedia",
+      "source_id": "rs4988235",
+      "population_frequency": 0.74,
+      "details": {}
+    }
+  ],
+  "disclaimer": "This information is for educational purposes only and should not be used for medical decisions. Consult a healthcare provider or genetic counselor for clinical interpretation."
+}
+```
+
+#### `DELETE /genetics`
+
+**Request body:**
+
+```json
+{ "confirm": true }
+```
+
+**Response:** `204 No Content`. **Errors:** `400` if `confirm` is not `true`.
+
+### Correlation / Stats
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| POST | `/stats/correlate` | Pearson or Spearman correlation between two metrics over a time range | 3 |
+| POST | `/stats/lag-correlate` | Correlation swept across a range of day lags to find the strongest offset | 3 |
+| POST | `/stats/before-after` | Compare a metric's mean before vs. after an intervention's dose window (Welch's t-test) | 3 |
+
+All three endpoints share a `MetricRef` shape for identifying a metric:
+`{ "source": "string", "field": "string" }` (same source/field pairs as
+`/explore/series`). `resolution` is **required** on all three requests (one
+of `daily`, `weekly`, `monthly` — there is no default). `method` (where
+present) is `pearson` (default) or `spearman`.
+
+#### `POST /stats/correlate`
+
+**Request body:**
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "start": "2026-01-01T00:00:00Z",
+  "end": "2026-03-01T00:00:00Z",
+  "resolution": "daily",
+  "method": "pearson"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "r": 0.42,
+  "p_value": 0.01,
+  "n": 58,
+  "significant": true,
+  "method": "pearson",
+  "interpretation": "moderate positive correlation",
+  "scatter": [{ "a": 55.2, "b": 7.0, "t": "2026-01-01T00:00:00Z" }]
+}
+```
+
+Series are aligned by matching timestamp bucket; only buckets present in
+both series are included. `scatter` always contains every aligned point
+regardless of how many there are — it is not gated on the 3-point minimum.
+`r` and `p_value` are `null` (present in the response, not omitted) when
+fewer than 3 aligned points exist; `significant` is `false` in that case.
+
+**Errors:** `400` if `start >= end` or a metric ref does not resolve to a
+known source/field.
+
+#### `POST /stats/lag-correlate`
+
+Same request shape as `/stats/correlate` plus `max_lag_days` (integer,
+1-30). Both series are fetched with an extra `max_lag_days` of margin
+before `start` and after `end`, so a shift at the edge of the requested
+range still has data to pair against. Sweeps lag from `-max_lag_days` to
+`+max_lag_days`; for each lag `L`, metric A's value on day `d` is paired
+with metric B's value on day `d + L`. A positive `L` therefore means A on
+day `d` is compared against B `L` days later (A leads B by `L` days); a
+negative `L` means A is compared against B from `L` days earlier (B leads
+A). Returns one result per lag plus the lag with the strongest `|r|`.
+
+**Request body:**
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "start": "2026-01-01T00:00:00Z",
+  "end": "2026-03-01T00:00:00Z",
+  "resolution": "daily",
+  "max_lag_days": 7,
+  "method": "pearson"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "lags": [{ "lag": -1, "r": 0.31, "p_value": 0.04, "n": 40 }],
+  "best_lag": { "lag": 2, "r": 0.51, "p_value": 0.002 },
+  "method": "pearson"
+}
+```
+
+`best_lag` is omitted from the response entirely (not `null`) when every
+swept lag has fewer than 3 paired points or produces a `NaN` correlation —
+i.e. no lag had a usable `r`.
+
+**Errors:** `400` if `start >= end` or `max_lag_days` is out of range
+(1-30).
+
+#### `POST /stats/before-after`
+
+Finds the first and last logged dose of `intervention_substance`, then
+compares the metric's mean over a `before_days`-day window ending at the
+first dose against an `after_days`-day window starting at the last dose
+(or, if the intervention is still ongoing — last dose within 7 days of
+now — from the first dose through now). Uses Welch's t-test. `first_dose`,
+`last_dose`, `change_pct`, `p_value`, and `warning` are all optional
+fields that are **omitted from the response entirely when absent** (not
+serialized as `null`).
+
+If either window has fewer than 3 points, `p_value` is omitted and
+`significant` is `false`, but `change_pct` is still computed and included
+when both window means exist; `warning` is included with the message
+`"fewer than 3 data points in one or both windows — significance cannot
+be determined"`.
+
+**Request body:**
+
+```json
+{
+  "intervention_substance": "Magnesium Glycinate",
+  "metric": { "source": "checkins", "field": "energy" },
+  "before_days": 14,
+  "after_days": 14,
+  "resolution": "daily"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "intervention_substance": "Magnesium Glycinate",
+  "first_dose": "2026-02-01T08:00:00Z",
+  "last_dose": "2026-02-01T08:00:00Z",
+  "metric": { "source": "checkins", "field": "energy" },
+  "before": { "mean": 6.1, "std_dev": 0.8, "n": 14, "points": [] },
+  "after": { "mean": 7.3, "std_dev": 0.6, "n": 14, "points": [] },
+  "change_pct": 19.7,
+  "p_value": 0.02,
+  "significant": true,
+  "test_used": "welch_t"
+}
+```
+
+If no interventions match `intervention_substance`, `first_dose`,
+`last_dose`, `change_pct`, and `p_value` are all omitted, `before`/`after`
+are both empty windows (`n: 0`), and `warning` is included with the
+message `"no interventions found for this substance"`.
+
+**Errors:** `400` if `intervention_substance` is empty, or `before_days`/
+`after_days` is out of range (1-365).
+
+## Planned — not implemented
+
+The endpoints below do not exist yet — nothing to code against. They're kept
+here as a record of intent, not a contract.
 
 ### Observations (Phase 2+)
 
@@ -1385,13 +1680,10 @@ data: {"source":"health_records","record_type":"heart_rate"}
 | DELETE | `/sharing/consents/:dataset` | Revoke sharing consent (immediate) | 2 |
 | POST | `/processing/restrict/:dataset` | Restrict processing without deletion | 2 |
 
-### Genetic Data (Phase 2+)
-
-Genetic records are stored in the `genetic_records` table but do not yet have dedicated API endpoints. These will be added in Phase 2+ with separate sharing consent requirements.
-
-### Correlation (Phase 3)
-
-| Method | Path | Description | Phase |
-|--------|------|-------------|-------|
-| POST | `/stats/correlate` | Compute correlation between two metrics | 3 |
-| POST | `/stats/lag-correlate` | Compute lag correlation | 3 |
+The `sharing_consents` table exists, but there are no routes or aggregation
+logic built on it yet — see [data-sharing.md](../cooperative/data-sharing.md)
+for the designed-but-not-implemented cooperative aggregation layer. Genetic
+data sharing has always required its own separate `dataset = 'genetics'`
+consent record; that requirement carries over unchanged once this layer is
+built. See [Genetics](#genetics) above for the (implemented) genetic data
+endpoints themselves.

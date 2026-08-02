@@ -167,6 +167,71 @@ struct ProtocolModelsTests {
         #expect(line.doses.first?.status == .completed)
     }
 
+    // MARK: - ActiveRunResponse decode regression tests
+    //
+    // Pins the iOS `ActiveRunResponse` model to the backend's `RunResponse`
+    // shape, which carries the run's notify settings — added so on-device
+    // dose reminders (`DoseReminderCoordinator`) can be built without a new
+    // endpoint.
+
+    @Test("ActiveRunResponse decodes notify settings with notify_times array")
+    func decodeActiveRunWithNotifyTimes() throws {
+        let json = """
+        {
+            "id": "run-1",
+            "protocol_id": "proto-1",
+            "protocol_name": "BPC-157 Protocol",
+            "start_date": "2026-03-28",
+            "duration_days": 28,
+            "status": "active",
+            "notify": true,
+            "notify_time": null,
+            "notify_times": ["08:00", "20:00"],
+            "repeat_reminders": true,
+            "repeat_interval_minutes": 30,
+            "progress_pct": 18.0,
+            "doses_today": 2,
+            "doses_completed_today": 1,
+            "created_at": "2026-03-28T10:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let run = try decoder.decode(ActiveRunResponse.self, from: json)
+        #expect(run.notify == true)
+        #expect(run.notifyTimes == ["08:00", "20:00"])
+        #expect(run.notifyTime == nil)
+        #expect(run.repeatReminders == true)
+        #expect(run.repeatIntervalMinutes == 30)
+    }
+
+    @Test("ActiveRunResponse decodes when notify is false and no times are configured")
+    func decodeActiveRunNotifyDisabled() throws {
+        let json = """
+        {
+            "id": "run-2",
+            "protocol_id": "proto-1",
+            "protocol_name": "BPC-157 Protocol",
+            "start_date": "2026-03-28",
+            "duration_days": 28,
+            "status": "active",
+            "notify": false,
+            "notify_time": null,
+            "notify_times": null,
+            "repeat_reminders": false,
+            "repeat_interval_minutes": null,
+            "progress_pct": 0.0,
+            "doses_today": 1,
+            "doses_completed_today": 0,
+            "created_at": "2026-03-28T10:00:00Z"
+        }
+        """.data(using: .utf8)!
+
+        let run = try decoder.decode(ActiveRunResponse.self, from: json)
+        #expect(run.notify == false)
+        #expect(run.notifyTimes == nil)
+        #expect(run.repeatIntervalMinutes == nil)
+    }
+
     // MARK: - ProtocolListItem decode smoke test
 
     @Test("ProtocolListItem decodes a list entry with a null next_dose")

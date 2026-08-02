@@ -72,16 +72,18 @@ The widget shows a **pending count badge** when you have doses waiting to be log
 
 ## Dose reminders
 
-When starting a run, you can enable push notifications for dose reminders.
+When starting a run, you can enable reminders for its doses.
 
 1. Check **Enable notifications** in the Start Run dialog.
 2. Set one or more notification times (e.g., 08:00 and 20:00 for twice-daily reminders).
-3. Optionally enable **Repeat if not logged (every 30 min)** to get follow-up reminders until you log or skip the dose.
 
 Notification times are configured per run, so different protocols can remind you at different times.
 
+!!! warning "iOS only, and local to the device"
+    Dose reminders are delivered as **local notifications scheduled on your iPhone** -- there is no push-notification backend, and the web app does not send or receive reminders. Enabling notifications on a run only affects the iOS devices where you're signed in; the setting itself is stored on the run so any iOS device can pick it up. See [iOS App -- Notifications](ios-app.md#notifications) for how the iOS app schedules and refreshes them, and for setup details.
+
 !!! note
-    On iOS, make sure notifications are enabled in your device settings. See [iOS App -- Notifications](ios-app.md#notifications) for setup details.
+    "Repeat if not logged" is not implemented. A reminder fires once per configured time and does not follow up if the dose is not logged or skipped.
 
 ## Sharing protocols
 

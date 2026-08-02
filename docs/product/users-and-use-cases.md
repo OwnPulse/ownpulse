@@ -45,10 +45,10 @@ OwnPulse is for people who take health optimization seriously and are frustrated
 
 ### 2. Multi-source health timeline
 
-**User:** Wears an Apple Watch and an Oura Ring, has a Dexcom CGM, gets quarterly blood work, and wants to see it all together.
+**User:** Wears an Apple Watch and an Oura Ring, gets quarterly blood work, and wants to see it all together.
 
 **What they do:**
-- Connect data sources via OAuth (Garmin, Oura, Dexcom) or native sync (HealthKit)
+- Connect data sources via OAuth (Garmin, Oura) or native sync (HealthKit)
 - Resolve deduplication conflicts when multiple sources report the same metric
 - Set source-of-truth preferences per metric type
 - View a unified timeline with all metrics overlaid, toggleable by source
@@ -132,7 +132,6 @@ OwnPulse is for people who take health optimization seriously and are frustrated
 ### Phase 2
 
 All of Phase 1, plus:
-- Connect Dexcom CGM
 - Upload lab PDFs
 - Upload genetic data (23andMe, VCF)
 - Opt into cooperative data sharing

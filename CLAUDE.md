@@ -307,11 +307,9 @@ tests/fixtures/
 ├── garmin/
 │   ├── activities-list.json
 │   └── hrv-summary.json
-├── oura/
-│   ├── readiness.json
-│   └── sleep.json
-└── dexcom/
-    └── egvs.json
+└── oura/
+    ├── readiness.json
+    └── sleep.json
 ```
 
 WireMock stubs are set up in `tests/common/mock_servers.rs`. Never modify fixtures to make a test pass — if the API response format changes, update the fixture and the parsing logic together.
@@ -395,8 +393,6 @@ All jobs idempotent. No shared runner state. iOS failures do not block deploy �
 | `GARMIN_CLIENT_SECRET` | yes | |
 | `OURA_CLIENT_ID` | yes | |
 | `OURA_CLIENT_SECRET` | yes | |
-| `DEXCOM_CLIENT_ID` | yes | Phase 2 |
-| `DEXCOM_CLIENT_SECRET` | yes | Phase 2 |
 | `MYCHART_CLIENT_ID` | no | SMART-on-FHIR public OAuth client id for MyChart lab import. PKCE — no secret. Unset disables MyChart. |
 | `MYCHART_ALLOW_INSECURE_URLS` | no | Default `false`. Allows non-HTTPS / private-host FHIR URLs (disables the MyChart SSRF guard). Localhost/dev/tests only — the server refuses to start with this `true` outside localhost. |
 | `ENCRYPTION_KEY` | yes | 32-byte hex for AES-GCM |
@@ -433,7 +429,7 @@ All jobs idempotent. No shared runner state. iOS failures do not block deploy �
 
 ## Diagnosing crashes
 
-To diagnose iOS crashes a user reports, run `opdev crashes diagnose --since 24h`. It pulls symbolicated crash logs from App Store Connect (and, after Phase 2 of the crash-tooling work, also from our `app_events` table). Requires App Store Connect credentials for whoever publishes the iOS build — self-hosters of just the backend/web stack don't need this. opdev lives in the separate ownpulse-dev repo. See `docs/guides/diagnosing-crashes.md` for setup and flags.
+**Planned tooling — not yet available.** The design is to diagnose iOS crashes via an `opdev crashes diagnose` subcommand pulling symbolicated crash logs from App Store Connect (and, in a later phase, from our `app_events` table). As of now, `opdev` (in the separate ownpulse-dev repo) has no `crashes` subcommand — only `clean`, `e2e`, `list`, `session`, `setup`, `teardown`, and `update`. See `docs/guides/diagnosing-crashes.md` for the design and setup steps once it ships.
 
 ---
 
@@ -496,5 +492,4 @@ maestro test ios/maestro/flows/
 Register early — some have approval delays:
 - **Garmin Connect API** — developer.garmin.com — human review, can take 1-2 weeks
 - **Oura API** — cloud.ouraring.com/personal-access-tokens — personal token, instant
-- **Dexcom Developer** — developer.dexcom.com — approval required, a few days
 - **Google Cloud Console** — instant

@@ -66,7 +66,6 @@ export interface TodaysDose {
   time_of_day: string | null;
   day_number: number;
   status: "completed" | "skipped" | "pending";
-  dose_id: string | null;
 }
 
 export interface CreateProtocolLine {
@@ -196,10 +195,6 @@ export const protocolsApi = {
   update: (id: string, data: Partial<Pick<Protocol, "name" | "description" | "status">>) =>
     api.patch<Protocol>(`/api/v1/protocols/${id}`, data),
   delete: (id: string) => api.delete<void>(`/api/v1/protocols/${id}`),
-  logDose: (protocolId: string, data: LogDoseRequest) =>
-    api.post<ProtocolDose>(`/api/v1/protocols/${protocolId}/doses/log`, data),
-  skipDose: (protocolId: string, data: SkipDoseRequest) =>
-    api.post<ProtocolDose>(`/api/v1/protocols/${protocolId}/doses/skip`, data),
   share: (id: string) => api.post<ShareResponse>(`/api/v1/protocols/${id}/share`, {}),
   getShared: (token: string) => api.get<Protocol>(`/api/v1/protocols/shared/${token}`),
   importProtocol: (token: string) => api.post<Protocol>(`/api/v1/protocols/import/${token}`, {}),

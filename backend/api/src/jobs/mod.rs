@@ -4,7 +4,7 @@
 //! Background sync jobs.
 //!
 //! Tokio background tasks — one file per integration sync job.
-//! Jobs: Google Calendar sync, Garmin sync, Oura sync, Dexcom sync (Phase 2).
+//! Jobs: Google Calendar sync, Garmin sync, Oura sync.
 
 pub mod garmin_sync;
 pub mod insight_generator;
@@ -12,8 +12,10 @@ pub mod mychart_sync;
 pub mod oura_sync;
 
 use sqlx::PgPool;
+use tokio::time::MissedTickBehavior;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
+use uuid::Uuid;
 
 /// Spawn the insight generation background job that runs every 6 hours.
 /// Returns the task handle so callers (and tests) can observe shutdown;
@@ -21,6 +23,11 @@ use tracing::{error, info};
 pub fn spawn_insight_job(pool: PgPool, cancel: CancellationToken) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(6 * 60 * 60));
+        // `Burst` (the default) fires repeated back-to-back ticks to catch up
+        // after a missed tick (e.g. the process was paused/slow) — `Delay`
+        // just resumes the normal cadence from whenever we next poll, which
+        // is what we want for a periodic job, not an at-least-N-times one.
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
         interval.tick().await;
 
         loop {
@@ -43,6 +50,78 @@ pub fn spawn_insight_job(pool: PgPool, cancel: CancellationToken) -> tokio::task
             }
         }
     })
+}
+
+/// Typed outcome of a manual (`sync_user_now`) sync attempt, so route
+/// handlers map to an HTTP status by matching the variant rather than
+/// comparing error strings.
+#[derive(Debug, thiserror::Error)]
+pub enum SyncError {
+    /// The server operator hasn't configured this integration
+    /// (`GARMIN_CLIENT_ID`/`GARMIN_CLIENT_SECRET` or the Oura equivalent are
+    /// unset) — self-hosters need to know this is a deployment gap, not a
+    /// per-user problem.
+    #[error(
+        "this integration is not configured on this server — the operator needs to set the \
+         corresponding client id/secret environment variables"
+    )]
+    NotConfigured,
+    /// The calling user hasn't connected this integration.
+    #[error("integration is not connected")]
+    NotConnected,
+    /// Too soon since the last attempt (manual or scheduled), or another sync
+    /// for this user is already running (advisory lock held elsewhere).
+    #[error("try again in {retry_after_secs}s")]
+    RateLimited { retry_after_secs: u64 },
+    /// The upstream provider (or our own DB layer) failed. The message is a
+    /// short, sanitized description — never a raw upstream response body.
+    #[error("{0}")]
+    Upstream(String),
+}
+
+/// Run `f` while holding a Postgres advisory lock scoped to `(source,
+/// user_id)`, for the lifetime of one Postgres transaction on a dedicated
+/// connection checked out from `pool`. Returns `Ok(None)` without running `f`
+/// if another holder already has the lock — this is a *skip*, not a wait, so
+/// callers should treat it as "someone else is already syncing this user"
+/// rather than an error.
+///
+/// This exists to make per-user sync mutually exclusive:
+/// - a manual sync (`POST /integrations/<source>/sync`) racing the periodic
+///   job for the same user, and
+/// - two replicas (`replicaCount: 2` in the Helm chart) each running their
+///   own periodic job and iterating the same `integration_tokens` rows.
+///
+/// `pg_try_advisory_xact_lock` releases automatically when the transaction
+/// ends (commit or rollback) — we don't write anything through `tx`, so a
+/// plain commit is the release, whether `f` succeeded or not.
+pub async fn try_with_user_sync_lock<F, Fut, T>(
+    pool: &PgPool,
+    source: &str,
+    user_id: Uuid,
+    f: F,
+) -> Result<Option<T>, sqlx::Error>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = T>,
+{
+    let mut tx = pool.begin().await?;
+
+    let (acquired,): (bool,) =
+        sqlx::query_as("SELECT pg_try_advisory_xact_lock(hashtext($1), hashtext($2))")
+            .bind(source)
+            .bind(user_id.to_string())
+            .fetch_one(&mut *tx)
+            .await?;
+
+    if !acquired {
+        tx.rollback().await?;
+        return Ok(None);
+    }
+
+    let result = f().await;
+    tx.commit().await?;
+    Ok(Some(result))
 }
 
 #[cfg(test)]
