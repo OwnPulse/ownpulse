@@ -406,6 +406,8 @@ first, capped at 100:
 ]
 ```
 
+Every field of `value` except `start_time` is nullable — the underlying `health_records.value`/`unit`/`end_time` columns are all optional, and a record posted without them still enqueues, with those keys present and `null` (never omitted). Clients must decode `value`/`unit`/`end_time` as optional and treat a null `value` as a fail-reportable item rather than a decode error.
+
 `POST /healthkit/confirm` accepts:
 
 ```json
@@ -418,10 +420,21 @@ first, capped at 100:
 ```
 
 - `ids` — items the client successfully wrote to HealthKit; their `confirmed_at` is set.
-- `failures` — items the client attempted but could not write; their `failed_at` and `error` are set (`error` is truncated to 500 characters). Optional and defaults to empty — older clients that only ever sent `ids` continue to work unchanged.
+- `failures` — items the client attempted but could not write; their `failed_at` and `error` are set (`error` is truncated to 500 characters, on Unicode scalar boundaries). Optional and defaults to empty — older clients that only ever sent `ids` continue to work unchanged.
 - Both `ids` and `failures` are scoped to the caller's own rows — a user cannot confirm or fail another user's queue items.
-- Marking an item failed also removes it from the pending set returned by `GET /healthkit/write-queue`, same as confirming it — this matters because the 100-row cap orders by `scheduled_at ASC`, so a permanently-unwritable item that is never reported as failed would otherwise block every item behind it indefinitely.
+- Both updates run in a single transaction. If an id appears in both `ids` and `failures` in the same request, **confirm wins** (`confirmed_at` is set, `failed_at` is not). A row already marked failed by an earlier request is **not** re-confirmed by a later request that lists its id in `ids` — `confirm`'s guard excludes rows with `failed_at` already set, so the first terminal state (confirmed or failed) for a given row sticks.
+- Duplicate ids within `failures` in one request are deduplicated before the update — the last occurrence in the array wins deterministically.
+- Marking an item failed also removes it from the pending set returned by `GET /healthkit/write-queue`, same as confirming it — this matters because the 100-row cap orders by `scheduled_at ASC`, so a permanently-unwritable item that is never reported as failed would otherwise block every item behind it indefinitely. Only deterministic failures should be reported this way — a client should keep transient errors (e.g. a momentary `HKHealthStore.save()` failure) pending so they retry on the next poll, rather than retiring them.
 - Responds `204 No Content` on success (whether or not any ids/failures were provided).
+
+**Compatibility matrix:**
+
+| iOS client | Backend | Result |
+|---|---|---|
+| old (sends `{"ids": [...]}` only) | new (this change) | Works unchanged — `failures` defaults to empty. |
+| new (sends `failures`) | old (pre-this-change) | The old server's JSON deserializer silently ignores the unrecognized `failures` field (no `deny_unknown_fields`) — the request still 204s, but nothing is recorded for the failed items. They are neither confirmed nor retired, and stay pending indefinitely. Self-hosters: upgrade the backend before or alongside an iOS build that reports failures. |
+
+The Pact consumer contract (`pact/contracts/ios-backend.json`) is ahead of the currently-shipped iOS client — it documents the `failures` field before the iOS PR that populates it has landed.
 
 ### Source Preferences
 
