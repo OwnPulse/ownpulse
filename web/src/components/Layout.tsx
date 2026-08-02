@@ -74,7 +74,7 @@ export default function Layout() {
             Genetics
           </NavLink>
           <NavLink to="/entry" className={navLinkClass} onClick={closeSidebar}>
-            Data Entry
+            Log
           </NavLink>
           <NavLink to="/protocols" className={navLinkClass} onClick={closeSidebar}>
             Protocols

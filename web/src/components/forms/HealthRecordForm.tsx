@@ -110,7 +110,7 @@ export default function HealthRecordForm() {
       </div>
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Health Record"}
+          {mutation.isPending ? "Saving..." : "Log Health Record"}
         </button>
       </div>
       {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
