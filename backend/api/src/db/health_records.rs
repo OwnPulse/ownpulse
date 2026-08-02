@@ -7,26 +7,83 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-/// WHERE-clause fragment excluding `health_records` rows that have been
-/// deduplicated in favor of a different, user-preferred source (i.e. rows
-/// where `duplicate_of IS NOT NULL` and `source_preferences` names some
-/// *other* source as canonical for this metric type).
+/// WHERE-clause fragment that collapses each dedup pair in `health_records`
+/// down to exactly one canonical row for default aggregate reads.
+///
+/// Two things this deliberately does **not** do, because both are wrong:
+///
+/// 1. Equate "has `duplicate_of`" with "is the non-canonical row". That
+///    column is stamped on whichever row happened to arrive **second** —
+///    arrival order, not preference, decides which row gets it. A check
+///    like `duplicate_of IS NOT NULL AND source <> preferred` is therefore
+///    ordering-dependent: if the preferred source's record happens to
+///    arrive first (`duplicate_of IS NULL`), it hides nothing, and if a
+///    preference names a source absent from the pair (stale/typo — the
+///    preference endpoint historically didn't validate against real data),
+///    it hides the later row with no replacement, silently dropping data
+///    from every chart that reads it.
+/// 2. Only exclude a row when a preference exists. With **no** preference
+///    at all — every user's default state — a naive "only filter when a
+///    preference matches" check leaves both sides of every pair counted:
+///    two sources reporting the same sleep session would double it to ~16h.
+///
+/// So the rule is unconditional: every dedup pair collapses to one row,
+/// preference or not.
+///
+/// - If a row is the **later** arrival (`duplicate_of` points at another row
+///   in the pair, the "original"), it is hidden *unless* a preference
+///   explicitly names its own source — i.e. the default keeps the original,
+///   and a preference can only override that default in the later row's
+///   favor.
+/// - If a row is the **original** (some other row's `duplicate_of` points
+///   back at it), it is hidden only when a preference explicitly names the
+///   *other* row's source — overriding the default in the later row's
+///   favor.
+///
+/// Per-pair this yields exactly one visible row in all three cases (no
+/// preference, preference names the original's source, preference names the
+/// later row's source); a preference naming neither row's source is
+/// correctly a no-op (falls back to the default: original wins).
 ///
 /// This is the "applied at query time" half of the dedup rule described in
 /// `CLAUDE.md` and `docs/architecture/healthkit-sync.md`: both records are
-/// always kept in the table, but the non-preferred one is hidden from
+/// always kept in the table, but only the canonical one is counted in
 /// default aggregate views. It must **never** be applied to `GET
-/// /health-records` or any export path — those stay raw so provenance is
-/// never dropped.
+/// /health-records`, friend-shared views, or any export path — those stay
+/// raw so provenance is never dropped.
 ///
-/// Requires the query to alias `health_records` as `hr`.
+/// Requires the query to alias `health_records` as `hr`. The two branches
+/// are written as separate top-level `EXISTS`es (rather than one `JOIN ...
+/// ON (a OR b)`) so each can use a plain index-friendly equality lookup —
+/// `original.id = hr.duplicate_of` hits the primary key, `later.duplicate_of
+/// = hr.id` hits `idx_health_records_duplicate_of` (migration 0033) — instead
+/// of forcing a sequential scan to evaluate an OR across two columns inside
+/// a correlated subquery.
 pub const SOURCE_PREFERENCE_EXCLUSION: &str = "NOT (
-        hr.duplicate_of IS NOT NULL
-        AND EXISTS (
-            SELECT 1 FROM source_preferences sp
-            WHERE sp.user_id = hr.user_id
-              AND sp.metric_type = hr.record_type
-              AND sp.preferred_source <> hr.source
+        -- hr is the later arrival of a pair; hidden unless a preference
+        -- explicitly keeps it (names hr's own source).
+        EXISTS (
+            SELECT 1 FROM health_records original
+            WHERE original.id = hr.duplicate_of
+              AND NOT EXISTS (
+                  SELECT 1 FROM source_preferences sp
+                  WHERE sp.user_id = hr.user_id
+                    AND sp.metric_type = hr.record_type
+                    AND sp.preferred_source = hr.source
+              )
+        )
+        OR
+        -- hr is the original of a pair; hidden only when a preference
+        -- explicitly promotes the later row's source over it.
+        EXISTS (
+            SELECT 1 FROM health_records later
+            WHERE later.duplicate_of = hr.id
+              AND EXISTS (
+                  SELECT 1 FROM source_preferences sp
+                  WHERE sp.user_id = hr.user_id
+                    AND sp.metric_type = hr.record_type
+                    AND sp.preferred_source = later.source
+              )
         )
     )";
 

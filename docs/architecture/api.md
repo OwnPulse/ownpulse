@@ -507,6 +507,15 @@ sources ordered by descending record count:
 Metrics with only one source are omitted. The user resolves each conflict by
 writing a preference via `POST /source-preferences`.
 
+`preferred_source` is validated against the known set of health-record
+sources (`garmin`, `oura`, `manual`, `healthkit`) — `POST /source-preferences`
+returns `400` for any other value, since a preference naming a source that
+can never appear on a `health_records` row could otherwise sit silently
+inert. Preferences determine which row is canonical in aggregate reads (see
+`GET /explore/series` and `GET /dashboard/summary`); they do not affect
+`GET /health-records`, export, or friend-shared views, which always return
+every row.
+
 ### Integrations
 
 | Method | Path | Description | Phase |
@@ -846,6 +855,8 @@ Fetch a single time series with aggregation.
 ```
 
 Each point contains: `t` (bucket timestamp), `v` (average value), `n` (number of raw records in the bucket).
+
+For `source=health_records`, `n` and `v` reflect one row per dedup pair, not raw row counts: a duplicate pair (see "Source Preferences" below) collapses to whichever row is canonical (the user's preference if one names either side of the pair, otherwise the original/first-arriving row by default) — the other side is excluded from `n` and from the average/sum. `GET /health-records` returns the raw, uncollapsed rows.
 
 **Errors:** `400` if source or field is invalid.
 
@@ -1622,7 +1633,10 @@ All three endpoints share a `MetricRef` shape for identifying a metric:
 `{ "source": "string", "field": "string" }` (same source/field pairs as
 `/explore/series`). `resolution` is **required** on all three requests (one
 of `daily`, `weekly`, `monthly` — there is no default). `method` (where
-present) is `pearson` (default) or `spearman`.
+present) is `pearson` (default) or `spearman`. All three read
+`health_records` through the same `db::explore::query_series` path as
+`GET /explore/series`, so the source-preference dedup collapse described
+above applies here too.
 
 #### `POST /stats/correlate`
 
