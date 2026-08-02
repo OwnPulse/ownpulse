@@ -659,9 +659,20 @@ struct SyncEngineTests {
         // backend mapped to a HealthKit type).
         let item = HealthKitWriteQueueItem(
             id: "wq-1",
+            userId: "user-1",
             hkType: "heart_rate",
-            value: 64.0,
-            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500)
+            value: HealthKitWriteQueuePayload(
+                value: 64.0,
+                unit: "bpm",
+                startTime: Date(timeIntervalSince1970: 1_700_000_000),
+                endTime: Date(timeIntervalSince1970: 1_700_000_001)
+            ),
+            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500),
+            confirmedAt: nil,
+            failedAt: nil,
+            error: nil,
+            sourceRecordId: nil,
+            sourceTable: nil
         )
         network.requestHandler = { method, path, _ in
             if method == "GET" && path == Endpoints.healthKitWriteQueue {
@@ -686,12 +697,231 @@ struct SyncEngineTests {
         #expect(provider.writtenSamples.count == 1,
                 "expected the single write-queue item to be written to HealthKit")
         #expect(provider.writtenSamples.first?.value == 64.0)
+        // Uses the payload's own start/end, not the queue's `scheduledAt`.
+        #expect(provider.writtenSamples.first?.start == Date(timeIntervalSince1970: 1_700_000_000))
+        #expect(provider.writtenSamples.first?.end == Date(timeIntervalSince1970: 1_700_000_001))
         // And confirmed back to the server so it isn't re-served.
         #expect(confirmedIds.all() == ["wq-1"],
                 "the written item must be confirmed so the backend stops serving it")
     }
 
+    // MARK: - Write-back failure reporting
+
+    @MainActor
+    @Test("write-back HealthKit write failure is reported in failures, not confirmed")
+    func testWriteBackWriteFailureReportedNotConfirmed() async throws {
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+        provider.writeSampleError = HealthKitWriteError.unsupportedSampleType("test")
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-fail", hkType: "heart_rate")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "a failed write must not be recorded as written")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.ids.isEmpty == true, "a failed item must never be confirmed")
+        #expect(confirms.first?.failures.map(\.id) == ["wq-fail"])
+    }
+
+    @MainActor
+    @Test("write-back item with a transient HealthKit write failure is neither confirmed nor reported as failed")
+    func testWriteBackTransientFailureLeftPending() async throws {
+        // Reporting via `failures` permanently retires the item server-side
+        // (see `WriteBackFailureClassifier`). A transient condition (device
+        // locked, HealthKit temporarily unavailable, authorization not yet
+        // determined) is expected to clear — the item must stay pending so
+        // the write-queue's natural retry (next sync) picks it up again.
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+        provider.writeSampleError = HKError(.errorHealthDataUnavailable)
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-transient", hkType: "heart_rate")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty)
+        #expect(confirmBodies.all().isEmpty, "a transient failure must never call /healthkit/confirm — the item is left pending, not confirmed or failed")
+    }
+
+    @MainActor
+    @Test("write-back item with an unmapped hk_type is reported in failures, never written or confirmed")
+    func testWriteBackUnmappedTypeReportedAsFailure() async throws {
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-unmapped", hkType: "not_a_real_hk_type")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "an unmapped type must never reach HealthKitProvider.writeSample")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.ids.isEmpty == true)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-unmapped"])
+    }
+
+    @MainActor
+    @Test("write-back item with a null numeric value is reported in failures, never written or confirmed")
+    func testWriteBackNullValueReportedAsFailure() async throws {
+        // The backend's row has no route-level requirement that a numeric
+        // value be present — a record enqueued without one serves
+        // `value.value == nil`. This must never reach `writeSample`.
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = HealthKitWriteQueueItem(
+            id: "wq-null",
+            userId: "user-1",
+            hkType: "body_mass",
+            value: HealthKitWriteQueuePayload(
+                value: nil,
+                unit: nil,
+                startTime: Date(timeIntervalSince1970: 1_700_000_000),
+                endTime: nil
+            ),
+            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500),
+            confirmedAt: nil,
+            failedAt: nil,
+            error: nil,
+            sourceRecordId: nil,
+            sourceTable: nil
+        )
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "a null value must never reach HealthKitProvider.writeSample")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.ids.isEmpty == true)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-null"])
+    }
+
+    @MainActor
+    @Test("empty write-back queue never calls confirm")
+    func testWriteBackEmptyQueueNeverConfirms() async throws {
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty)
+        #expect(confirmBodies.all().isEmpty, "an empty write-queue must never call /healthkit/confirm")
+    }
+
     // MARK: - Helpers
+
+    private func makeWriteQueueItem(
+        id: String,
+        hkType: String,
+        value: Double = 64.0,
+        unit: String? = "bpm"
+    ) -> HealthKitWriteQueueItem {
+        HealthKitWriteQueueItem(
+            id: id,
+            userId: "user-1",
+            hkType: hkType,
+            value: HealthKitWriteQueuePayload(
+                value: value,
+                unit: unit,
+                startTime: Date(timeIntervalSince1970: 1_700_000_000),
+                endTime: Date(timeIntervalSince1970: 1_700_000_001)
+            ),
+            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500),
+            confirmedAt: nil,
+            failedAt: nil,
+            error: nil,
+            sourceRecordId: nil,
+            sourceTable: nil
+        )
+    }
 
     private static func makeSamples(recordType: String, count: Int, startOffset: Int = 0) -> [HealthKitSample] {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
@@ -767,6 +997,24 @@ private final class CapturedConfirmIds: @unchecked Sendable {
     func all() -> [String] {
         lock.lock(); defer { lock.unlock() }
         return ids
+    }
+}
+
+/// Thread-safe collector for every `HealthKitConfirm` body POSTed to
+/// `/healthkit/confirm` — used by write-back failure-reporting tests that
+/// need to inspect both `ids` and `failures` together.
+private final class CapturedConfirmBodies: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bodies: [HealthKitConfirm] = []
+
+    func record(_ body: HealthKitConfirm) {
+        lock.lock(); defer { lock.unlock() }
+        bodies.append(body)
+    }
+
+    func all() -> [HealthKitConfirm] {
+        lock.lock(); defer { lock.unlock() }
+        return bodies
     }
 }
 

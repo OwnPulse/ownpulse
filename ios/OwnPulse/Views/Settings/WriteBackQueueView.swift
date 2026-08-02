@@ -73,27 +73,61 @@ final class WriteBackQueueViewModel {
             return
         }
 
+        // No route-level validation on the backend guarantees a numeric
+        // value — a record enqueued without one serves `value.value == nil`.
+        // There's nothing to write in that case.
+        guard let numericValue = item.value.value else {
+            actionError = "This item has no value to write to Apple Health."
+            return
+        }
+
         actionError = nil
         inFlightIDs.insert(item.id)
         defer { inFlightIDs.remove(item.id) }
 
+        let unit = item.value.unit.flatMap(HealthKitTypeMap.unit(fromUnitString:)) ?? mapping.unit
+        let start = item.value.startTime
+        let end = item.value.endTime ?? item.value.startTime
+
         do {
             try await healthKitProvider.writeSample(
                 type: mapping.hkType,
-                value: item.value,
-                unit: mapping.unit,
-                start: item.scheduledAt,
-                end: item.scheduledAt
+                value: numericValue,
+                unit: unit,
+                start: start,
+                end: end
             )
             try await acknowledge(item.id)
             items.removeAll { $0.id == item.id }
         } catch {
             logger.error("Confirm write-back failed: \(error.localizedDescription, privacy: .public)")
+            // Reporting a failure permanently retires the item server-side
+            // (see `WriteBackFailureClassifier`) — only do that for failures
+            // we're sure won't clear up on their own. A transient one (e.g.
+            // device locked) is left pending; the item stays in `items` and
+            // the user (or the next background sync) can retry it.
+            if WriteBackFailureClassifier.isDeterministic(error) {
+                do {
+                    try await networkClient.requestNoContent(
+                        method: "POST",
+                        path: Endpoints.healthKitConfirm,
+                        body: HealthKitConfirm(ids: [], failures: [HealthKitConfirmFailure(id: item.id, error: error.localizedDescription)])
+                    )
+                    items.removeAll { $0.id == item.id }
+                } catch {
+                    // Best-effort — if reporting the failure also fails, leave
+                    // the item pending so the next load/sync retries it.
+                }
+            }
             actionError = "Couldn't write to Apple Health. Try again."
         }
     }
 
-    /// Acknowledge the item to the server WITHOUT writing it to Apple Health.
+    /// Tell the server the user chose NOT to write this item into Apple
+    /// Health. This reports the item via `failures` (not `ids`) — sending it
+    /// as `ids` would tell the server the write succeeded, which is false: no
+    /// sample was ever written. `failures` still drops the item out of the
+    /// server's pending set, same as a real write failure.
     func deny(_ item: HealthKitWriteQueueItem) async {
         guard !inFlightIDs.contains(item.id) else { return }
         actionError = nil
@@ -101,7 +135,11 @@ final class WriteBackQueueViewModel {
         defer { inFlightIDs.remove(item.id) }
 
         do {
-            try await acknowledge(item.id)
+            try await networkClient.requestNoContent(
+                method: "POST",
+                path: Endpoints.healthKitConfirm,
+                body: HealthKitConfirm(ids: [], failures: [HealthKitConfirmFailure(id: item.id, error: "declined by user")])
+            )
             items.removeAll { $0.id == item.id }
         } catch {
             logger.error("Deny write-back failed: \(error.localizedDescription, privacy: .public)")
@@ -221,7 +259,7 @@ struct WriteBackQueueView: View {
             Text(vm.displayName(for: item))
                 .font(.body)
             HStack(spacing: 8) {
-                Text(Self.formattedValue(item.value))
+                Text(item.value.value.map(Self.formattedValue) ?? "—")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 Text(item.scheduledAt, style: .date)

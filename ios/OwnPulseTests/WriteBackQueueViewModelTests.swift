@@ -14,13 +14,25 @@ struct WriteBackQueueViewModelTests {
     private func makeItem(
         id: String = "wb-1",
         hkType: String = "body_mass",
-        value: Double = 72.5
+        value: Double = 72.5,
+        unit: String? = "kg"
     ) -> HealthKitWriteQueueItem {
         HealthKitWriteQueueItem(
             id: id,
+            userId: "user-1",
             hkType: hkType,
-            value: value,
-            scheduledAt: Date(timeIntervalSince1970: 1_700_000_000)
+            value: HealthKitWriteQueuePayload(
+                value: value,
+                unit: unit,
+                startTime: Date(timeIntervalSince1970: 1_700_000_000),
+                endTime: Date(timeIntervalSince1970: 1_700_000_001)
+            ),
+            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500),
+            confirmedAt: nil,
+            failedAt: nil,
+            error: nil,
+            sourceRecordId: nil,
+            sourceTable: nil
         )
     }
 
@@ -122,11 +134,59 @@ struct WriteBackQueueViewModelTests {
         #expect(vm.actionError == nil)
     }
 
-    @Test("confirm with HealthKit write failure keeps item and surfaces error")
+    @Test("confirm with a deterministic HealthKit write failure reports it in failures (not ids) and removes item")
     func confirmWriteFailure() async {
         let mock = MockNetworkClient()
         let hk = MockHealthKitProvider()
-        hk.writeSampleError = NetworkError.noData
+        // .errorInvalidArgument is deterministic — the sample itself is
+        // malformed, so retrying won't help. See `WriteBackFailureClassifier`.
+        hk.writeSampleError = HKError(.errorInvalidArgument)
+        let item = makeItem()
+        mock.requestHandler = { _, _, _ in [item] }
+        var confirmedBody: HealthKitConfirm?
+        mock.requestNoContentHandler = { _, path, body in
+            #expect(path == Endpoints.healthKitConfirm)
+            confirmedBody = body as? HealthKitConfirm
+        }
+
+        let vm = makeVM(network: mock, healthKit: hk)
+        await vm.load()
+        await vm.confirm(item)
+
+        #expect(hk.writtenSamples.isEmpty)
+        #expect(confirmedBody?.ids.isEmpty == true, "a failed write must never be confirmed as if it succeeded")
+        #expect(confirmedBody?.failures.map(\.id) == ["wb-1"], "the failure must be reported so the server stops re-serving it")
+        #expect(vm.items.isEmpty, "the item is reported as failed so it drops out of the pending queue, same as a confirmed one")
+        #expect(vm.actionError != nil)
+    }
+
+    @Test("confirm with a deterministic HealthKit write failure AND failure-report network failure keeps item for retry")
+    func confirmWriteFailureAndReportFailure() async {
+        let mock = MockNetworkClient()
+        let hk = MockHealthKitProvider()
+        hk.writeSampleError = HKError(.errorInvalidArgument)
+        let item = makeItem()
+        mock.requestHandler = { _, _, _ in [item] }
+        mock.requestNoContentHandler = { _, _, _ in throw NetworkError.serverError(statusCode: 500, body: "boom") }
+
+        let vm = makeVM(network: mock, healthKit: hk)
+        await vm.load()
+        await vm.confirm(item)
+
+        #expect(hk.writtenSamples.isEmpty)
+        #expect(vm.items.count == 1, "if we can't even report the failure, keep the item so a later retry can try again")
+        #expect(vm.actionError != nil)
+    }
+
+    @Test("confirm with a transient HealthKit write failure never reports it and leaves the item pending")
+    func confirmTransientWriteFailureLeavesItemPending() async {
+        let mock = MockNetworkClient()
+        let hk = MockHealthKitProvider()
+        // Reporting a failure permanently retires the item server-side.
+        // A transient condition (e.g. HealthKit temporarily unavailable) is
+        // expected to clear — the item must stay pending for the next
+        // retry, never confirmed and never reported as a permanent failure.
+        hk.writeSampleError = HKError(.errorHealthDataUnavailable)
         let item = makeItem()
         mock.requestHandler = { _, _, _ in [item] }
         var confirmCalled = false
@@ -136,10 +196,9 @@ struct WriteBackQueueViewModelTests {
         await vm.load()
         await vm.confirm(item)
 
-        #expect(hk.writtenSamples.isEmpty)
-        #expect(confirmCalled == false)        // never acknowledge a failed write
-        #expect(vm.items.count == 1)           // item stays for retry
-        #expect(vm.actionError != nil)
+        #expect(confirmCalled == false, "a transient failure must never call /healthkit/confirm")
+        #expect(vm.items.count == 1, "the item must stay pending for a later retry")
+        #expect(vm.actionError != nil, "the user still sees feedback that the write didn't happen")
     }
 
     @Test("confirm with acknowledge network failure keeps item and surfaces error")
@@ -177,6 +236,41 @@ struct WriteBackQueueViewModelTests {
         #expect(vm.actionError != nil)
     }
 
+    @Test("confirm with a null numeric value surfaces error and never writes")
+    func confirmNullValue() async {
+        let mock = MockNetworkClient()
+        let hk = MockHealthKitProvider()
+        let item = HealthKitWriteQueueItem(
+            id: "null-value",
+            userId: "user-1",
+            hkType: "body_mass",
+            value: HealthKitWriteQueuePayload(
+                value: nil,
+                unit: nil,
+                startTime: Date(timeIntervalSince1970: 1_700_000_000),
+                endTime: nil
+            ),
+            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500),
+            confirmedAt: nil,
+            failedAt: nil,
+            error: nil,
+            sourceRecordId: nil,
+            sourceTable: nil
+        )
+        mock.requestHandler = { _, _, _ in [item] }
+        var confirmCalled = false
+        mock.requestNoContentHandler = { _, _, _ in confirmCalled = true }
+
+        let vm = makeVM(network: mock, healthKit: hk)
+        await vm.load()
+        await vm.confirm(item)
+
+        #expect(hk.writtenSamples.isEmpty, "a nil value must never reach HealthKitProvider.writeSample")
+        #expect(confirmCalled == false, "a nil value is rejected up front, before any network call")
+        #expect(vm.items.count == 1)
+        #expect(vm.actionError != nil)
+    }
+
     @Test("confirm with category / non-writable type does not write or acknowledge")
     func confirmNonWritableType() async {
         // sleep_analysis maps to an HKCategoryType with writable: false.
@@ -202,7 +296,7 @@ struct WriteBackQueueViewModelTests {
 
     // MARK: - deny
 
-    @Test("deny acknowledges without writing and removes item")
+    @Test("deny reports the item as a failure (never as a fake success) without writing, and removes it")
     func denySuccess() async {
         let mock = MockNetworkClient()
         let hk = MockHealthKitProvider()
@@ -219,7 +313,10 @@ struct WriteBackQueueViewModelTests {
         await vm.deny(item)
 
         #expect(hk.writtenSamples.isEmpty)     // deny never writes to HealthKit
-        #expect(confirmedBody?.ids == ["wb-1"])
+        // A denied item was never written — it must never be sent as `ids`,
+        // which would falsely tell the server the write succeeded.
+        #expect(confirmedBody?.ids.isEmpty == true)
+        #expect(confirmedBody?.failures.map(\.id) == ["wb-1"])
         #expect(vm.items.isEmpty)
         #expect(vm.actionError == nil)
     }

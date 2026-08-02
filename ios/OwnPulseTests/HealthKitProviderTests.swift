@@ -161,6 +161,88 @@ struct HealthKitProviderPagedQueryTests {
     }
 }
 
+@Suite("HealthKitProvider — writeSample unsupported-type guard")
+struct HealthKitProviderWriteSampleTests {
+    // `writeSample`'s type guard runs BEFORE any call into `HKHealthStore`,
+    // so this is safe to exercise against a real `HealthKitProvider` in a
+    // unit test host without HealthKit entitlements/authorization.
+    @Test("writeSample throws .unsupportedSampleType for a category type instead of silently no-oping")
+    func throwsForCategoryType() async {
+        let provider = HealthKitProvider()
+        let categoryType = HKCategoryType(.sleepAnalysis)
+
+        await #expect(throws: HealthKitWriteError.self) {
+            try await provider.writeSample(
+                type: categoryType,
+                value: 1,
+                unit: .count(),
+                start: Date(),
+                end: Date()
+            )
+        }
+    }
+}
+
+@Suite("WriteBackFailureClassifier — deterministic vs transient write failures")
+struct WriteBackFailureClassifierTests {
+    // Deterministic: retrying with the same data/type will fail the same
+    // way, so these are safe to permanently retire via `failures`.
+    @Test("unsupportedSampleType is deterministic")
+    func unsupportedSampleTypeIsDeterministic() {
+        #expect(WriteBackFailureClassifier.isDeterministic(HealthKitWriteError.unsupportedSampleType("x")))
+    }
+
+    @Test("HKError.errorInvalidArgument is deterministic")
+    func invalidArgumentIsDeterministic() {
+        #expect(WriteBackFailureClassifier.isDeterministic(HKError(.errorInvalidArgument)))
+    }
+
+    // Transient: expected to clear on their own — must never be reported,
+    // since reporting permanently retires the item server-side.
+    @Test("HKError.errorHealthDataUnavailable is transient")
+    func healthDataUnavailableIsTransient() {
+        #expect(!WriteBackFailureClassifier.isDeterministic(HKError(.errorHealthDataUnavailable)))
+    }
+
+    @Test("HKError.errorHealthDataRestricted is transient")
+    func healthDataRestrictedIsTransient() {
+        #expect(!WriteBackFailureClassifier.isDeterministic(HKError(.errorHealthDataRestricted)))
+    }
+
+    @Test("HKError.errorAuthorizationNotDetermined is transient")
+    func authorizationNotDeterminedIsTransient() {
+        #expect(!WriteBackFailureClassifier.isDeterministic(HKError(.errorAuthorizationNotDetermined)))
+    }
+
+    @Test("HKError.errorDatabaseInaccessible is transient")
+    func databaseInaccessibleIsTransient() {
+        #expect(!WriteBackFailureClassifier.isDeterministic(HKError(.errorDatabaseInaccessible)))
+    }
+
+    @Test("an unrecognized HKError code defaults to transient (safer direction)")
+    func unrecognizedHKErrorDefaultsToTransient() {
+        #expect(!WriteBackFailureClassifier.isDeterministic(HKError(.errorUserCanceled)))
+    }
+
+    @Test("a non-HealthKit error (e.g. NetworkError) defaults to transient")
+    func nonHealthKitErrorDefaultsToTransient() {
+        #expect(!WriteBackFailureClassifier.isDeterministic(NetworkError.noData))
+    }
+}
+
+@Suite("HealthKitTypeMap.unit(fromUnitString:)")
+struct HealthKitTypeMapUnitParsingTests {
+    @Test("parses a well-formed UCUM unit string")
+    func parsesValidUnit() {
+        #expect(HealthKitTypeMap.unit(fromUnitString: "kg") == .gramUnit(with: .kilo))
+    }
+
+    @Test("returns nil for a malformed unit string instead of crashing")
+    func returnsNilForMalformedUnit() {
+        #expect(HealthKitTypeMap.unit(fromUnitString: "not a real unit") == nil)
+    }
+}
+
 @Suite("HealthKitProvider — ADR-0008 cycle-prevention read predicate")
 struct HealthKitProviderReadPredicateTests {
     // The unit test host has a real bundle ID, so `HKSource.default()`

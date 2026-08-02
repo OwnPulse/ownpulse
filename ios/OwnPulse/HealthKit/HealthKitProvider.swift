@@ -16,6 +16,78 @@ struct HealthKitSample: Sendable {
     let sourceId: String
 }
 
+/// Errors `HealthKitProvider.writeSample` can throw beyond whatever
+/// `HKHealthStore.save` itself raises.
+enum HealthKitWriteError: Error, Sendable, LocalizedError {
+    /// `type` isn't an `HKQuantityType` — there's no quantity-sample write
+    /// path for it (e.g. category types like sleep analysis).
+    case unsupportedSampleType(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .unsupportedSampleType(let identifier):
+            // Type identifier only — never sample values — so this is safe
+            // to surface in logs and in the write-back failure sent to the
+            // backend.
+            return "Unsupported HealthKit sample type: \(identifier)"
+        }
+    }
+}
+
+/// Classifies a `writeSample` failure as **deterministic** (retrying won't
+/// help — e.g. the sample is malformed, or the type can never be written) or
+/// **transient** (a later retry might succeed — e.g. HealthKit is temporarily
+/// unavailable, the device is locked, or authorization hasn't been decided
+/// yet).
+///
+/// This distinction matters because reporting an item in `/healthkit/confirm`'s
+/// `failures` **permanently retires it** server-side (same as a real
+/// confirmation) — see backend PR healthkit-writeback-failure-reporting. If a
+/// transient write failure were reported as a `failures` entry, the item
+/// would never be retried even though the underlying condition (locked
+/// device, HealthKit temporarily unavailable) was expected to clear on its
+/// own. Transient failures are instead skipped silently: the item stays
+/// pending and the write-queue's natural retry (next sync) picks it up
+/// again. Only deterministic failures — where retrying is pointless — go
+/// into `failures`.
+enum WriteBackFailureClassifier {
+    /// `true` if `error` should be reported to the backend as a permanent
+    /// failure; `false` if it should be left pending for the next sync.
+    /// Unrecognized errors default to `false` (transient) — the safer
+    /// direction, since misclassifying a real permanent failure as
+    /// transient only costs a wasted retry, while misclassifying a
+    /// transient failure as permanent throws away data forever.
+    static func isDeterministic(_ error: Error) -> Bool {
+        // `HealthKitWriteError.unsupportedSampleType` — a category type can
+        // never be written as a quantity sample, no matter how many times
+        // we retry.
+        if error is HealthKitWriteError {
+            return true
+        }
+
+        guard let hkError = error as? HKError else {
+            return false
+        }
+
+        switch hkError.code {
+        case .errorInvalidArgument:
+            // The sample itself is malformed (e.g. bad unit/value combo) —
+            // retrying with the same data will fail the same way.
+            return true
+        case .errorHealthDataUnavailable,
+             .errorHealthDataRestricted,
+             .errorAuthorizationNotDetermined,
+             .errorDatabaseInaccessible:
+            // Store temporarily unavailable, device locked (data
+            // protection), or authorization mid-flow — all expected to
+            // clear on their own.
+            return false
+        default:
+            return false
+        }
+    }
+}
+
 struct AnchoredQueryResult: Sendable {
     let samples: [HealthKitSample]
     let newAnchor: Data?
@@ -314,7 +386,15 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         start: Date,
         end: Date
     ) async throws {
-        guard let quantityType = type as? HKQuantityType else { return }
+        // Category types (e.g. sleep_analysis) can't be represented as an
+        // `HKQuantitySample`. Silently no-op-ing here used to leave the
+        // caller believing the write succeeded — it would go on to confirm
+        // the write-queue item to the backend even though nothing was ever
+        // written to Apple Health. Throw so the caller can report it as a
+        // failure instead.
+        guard let quantityType = type as? HKQuantityType else {
+            throw HealthKitWriteError.unsupportedSampleType(type.identifier)
+        }
         let quantity = HKQuantity(unit: unit, doubleValue: value)
         let sample = HKQuantitySample(
             type: quantityType,

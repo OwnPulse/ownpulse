@@ -579,4 +579,17 @@ enum HealthKitTypeMap {
     static var allWriteTypes: Set<HKSampleType> {
         Set(mappings.filter(\.writable).map(\.hkType))
     }
+
+    /// Parses a UCUM unit string (as served on a write-queue item's payload)
+    /// into an `HKUnit`. `HKUnit(from:)` raises `NSException` — not a Swift
+    /// error — for a malformed string, so we route it through
+    /// `ObjCExceptionCatcher` the same way `requestAuthorization` does.
+    /// Returns `nil` on any malformed input rather than crashing.
+    static func unit(fromUnitString unitString: String) -> HKUnit? {
+        var result: HKUnit?
+        try? ObjCExceptionCatcher.`try` {
+            result = HKUnit(from: unitString)
+        }
+        return result
+    }
 }
