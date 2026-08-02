@@ -10,7 +10,9 @@ use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::db::interventions as db;
 use crate::error::ApiError;
-use crate::models::intervention::{CreateIntervention, InterventionQuery, InterventionRow};
+use crate::models::intervention::{
+    CreateIntervention, InterventionQuery, InterventionRow, UpdateIntervention,
+};
 use crate::routes::events::publish_event;
 
 /// POST /interventions — no substance name validation per project rules.
@@ -41,6 +43,29 @@ pub async fn get(
     Path(id): Path<Uuid>,
 ) -> Result<Json<InterventionRow>, ApiError> {
     let row = db::get_by_id(&state.pool, user_id, id).await?;
+    Ok(Json(row))
+}
+
+/// PATCH /interventions/:id — all fields optional; unset fields are left
+/// unchanged. No substance-name validation per project rules.
+pub async fn update(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateIntervention>,
+) -> Result<Json<InterventionRow>, ApiError> {
+    if let Some(ref substance) = body.substance
+        && substance.trim().is_empty()
+    {
+        return Err(ApiError::BadRequest(
+            "substance must not be empty".to_string(),
+        ));
+    }
+
+    let row = db::update(&state.pool, user_id, id, &body)
+        .await?
+        .ok_or(ApiError::NotFound)?;
+    publish_event(&state.event_tx, user_id, "interventions", None);
     Ok(Json(row))
 }
 

@@ -72,7 +72,7 @@ async fn test_dismiss_unauthenticated() {
 
     let request = http::Request::builder()
         .method("POST")
-        .uri(&format!("/api/v1/insights/{id}/dismiss"))
+        .uri(format!("/api/v1/insights/{id}/dismiss"))
         .body(axum::body::Body::empty())
         .unwrap();
 

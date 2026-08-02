@@ -1087,7 +1087,8 @@
         },
         "body": {
           "protocol_line_id": "22222222-2222-2222-2222-222222222222",
-          "day_number": 0
+          "day_number": 0,
+          "notes": "AM dose, as scheduled"
         }
       },
       "response": {
@@ -1128,7 +1129,8 @@
         },
         "body": {
           "protocol_line_id": "66666666-6666-6666-6666-666666666666",
-          "day_number": 1
+          "day_number": 1,
+          "skip_reason": "felt nauseous, skipped this dose"
         }
       },
       "response": {

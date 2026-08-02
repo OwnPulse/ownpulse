@@ -351,7 +351,35 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 | GET | `/interventions` | List interventions (paginated, filterable) | 1 |
 | POST | `/interventions` | Log an intervention | 1 |
 | GET | `/interventions/:id` | Get a single intervention | 1 |
+| PATCH | `/interventions/:id` | Update an intervention's fields | 1 |
 | DELETE | `/interventions/:id` | Delete an intervention | 1 |
+
+#### `PATCH /interventions/:id`
+
+Updates any subset of an intervention's mutable fields. All fields are
+optional — unset fields are left unchanged. No substance-name validation is
+applied, per project rules.
+
+**Request body:**
+
+```json
+{
+  "substance": "caffeine",
+  "dose": 200.0,
+  "unit": "mg",
+  "route": "oral",
+  "administered_at": "2026-04-03T07:30:00Z",
+  "fasted": true,
+  "timing_relative_to": "pre-workout",
+  "notes": "updated after re-reading the label"
+}
+```
+
+**Response:** `200 OK` — the full updated intervention row, including the
+`updated_at` timestamp.
+
+**Errors:** `400` if `substance` is provided but blank. `404` if the
+intervention doesn't exist or isn't owned by the caller.
 
 ### Daily Check-ins
 
@@ -1175,6 +1203,7 @@ Observer exports all their responses across all polls.
 | POST | `/protocols/:id/doses/skip` | Skip a dose directly on a protocol (legacy; no active run required) | 1 |
 | POST | `/protocols/runs/:run_id/doses/log` | Log a dose on an active run | 1 |
 | POST | `/protocols/runs/:run_id/doses/skip` | Skip a dose on an active run | 1 |
+| DELETE | `/protocols/runs/:run_id/doses/:dose_id` | Undo a logged/skipped dose on a run | 1 |
 | GET | `/protocols/runs/todays-doses` | Today's scheduled doses across all of the user's active runs | 1 |
 | POST | `/protocols/:id/share` | Generate share link | 1 |
 | GET | `/protocols/shared/:token` | View shared protocol (public) | 1 |
@@ -1240,14 +1269,28 @@ an active run and is the one clients should use going forward. Logging a
 dose also creates an `interventions` record for the line's substance/dose/
 route.
 
+The dose grid on `GET /protocols/:id` is scoped to a single run (the active
+one, or the most recently created run if none is active) — a second run of
+the same protocol no longer shows the first run's checkmarks.
+
 **Request body:**
 
 ```json
 {
   "protocol_line_id": "uuid",
-  "day_number": 3
+  "day_number": 3,
+  "administered_at": "2026-04-03T09:15:00Z",
+  "notes": "logged a bit late"
 }
 ```
+
+- `administered_at` — optional, `:run_id` form only. Must fall on the
+  calendar date of `run.start_date + day_number`, otherwise `400`. When
+  omitted, the created intervention's timestamp defaults to a time derived
+  from the line's `time_of_day`: `AM` → `08:00Z`, `PM` → `20:00Z`, anything
+  else → `12:00Z`.
+- `notes` — optional, `:run_id` form only. Stored on the created
+  intervention.
 
 **Response:** `200 OK`
 
@@ -1258,32 +1301,52 @@ route.
   "day_number": 3,
   "status": "completed",
   "intervention_id": "uuid",
-  "logged_at": "2026-04-03T08:30:00Z"
+  "logged_at": "2026-04-03T08:30:00Z",
+  "run_id": "uuid",
+  "skip_reason": null
 }
 ```
 
 **Errors:** `404` if the protocol/run or line is not found or not owned by
 the caller, or if `day_number` is out of range or not scheduled
-(`schedule_pattern[day_number]` is `false`) for the line. `409` if a dose
-has already been logged or skipped for this line and day
-(`UNIQUE(protocol_line_id, day_number)`). `422` if the request body is
-missing `protocol_line_id` or `day_number`.
+(`schedule_pattern[day_number]` is `false`) for the line. `400` (`:run_id`
+form only) if `day_number` falls on a day that hasn't happened yet, or if
+`administered_at` doesn't fall on the calendar date for `day_number`. `409`
+if a dose has already been logged or skipped for this line, run, and day
+(`UNIQUE(protocol_line_id, run_id, day_number)`). `422` if the request body
+is missing `protocol_line_id` or `day_number`.
 
 #### `POST /protocols/:id/doses/skip` and `POST /protocols/runs/:run_id/doses/skip`
 
 Mark a scheduled dose as skipped, without creating an `interventions` record.
-Same request body shape and error semantics as the log endpoints above.
+Same request body shape and error semantics as the log endpoints above,
+except skips are allowed for any in-range day (past, present, or future) —
+planned skips are legitimate.
 
 **Request body:**
 
 ```json
 {
   "protocol_line_id": "uuid",
-  "day_number": 3
+  "day_number": 3,
+  "skip_reason": "traveling, forgot supplies"
 }
 ```
 
+- `skip_reason` — optional free-text reason, stored on the dose row.
+
 **Response:** `204 No Content`
+
+#### `DELETE /protocols/runs/:run_id/doses/:dose_id`
+
+Undo a logged or skipped dose: deletes the `protocol_doses` row and, if
+logging it created one, the linked `interventions` row, in a single
+transaction.
+
+**Response:** `204 No Content`
+
+**Errors:** `404` if the dose doesn't exist or doesn't belong to a run owned
+by the caller.
 
 #### `GET /protocols/runs/todays-doses`
 

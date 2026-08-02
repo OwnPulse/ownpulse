@@ -1235,7 +1235,7 @@ async fn test_explore_metrics_no_observer_polls_when_user_has_none() {
 #[tokio::test]
 async fn test_explore_series_observer_polls() {
     let app = common::setup().await;
-    let (user_id, token) = common::create_test_user(&app).await;
+    let (_user_id, token) = common::create_test_user(&app).await;
 
     // Create a poll
     let body = json!({

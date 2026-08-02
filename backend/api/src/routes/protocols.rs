@@ -266,6 +266,23 @@ pub async fn skip_dose_on_run(
     Ok(StatusCode::NO_CONTENT)
 }
 
+/// DELETE /protocols/runs/:run_id/doses/:dose_id — undo a logged/skipped
+/// dose. Deletes the dose row and its linked intervention (if any) in one
+/// transaction.
+pub async fn delete_dose(
+    State(state): State<AppState>,
+    AuthUser { id: user_id, .. }: AuthUser,
+    Path((run_id, dose_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode, ApiError> {
+    let deleted = db::delete_dose(&state.pool, user_id, run_id, dose_id).await?;
+    if !deleted {
+        return Err(ApiError::NotFound);
+    }
+    publish_event(&state.event_tx, user_id, "protocols", None);
+    publish_event(&state.event_tx, user_id, "interventions", None);
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // --- Existing endpoints ---
 
 /// POST /protocols/:id/share

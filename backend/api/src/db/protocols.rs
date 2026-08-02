@@ -137,8 +137,16 @@ pub async fn get_by_id(
     .fetch_one(pool)
     .await?;
 
-    let lines = fetch_lines_with_doses(pool, protocol_id).await?;
     let runs = list_runs_for_protocol(pool, protocol_id, user_id).await?;
+    // Scope the dose grid to a single run: prefer the active one, otherwise
+    // fall back to the most recently created run. `runs` is already ordered
+    // by created_at DESC, so `runs.first()` is the most recent.
+    let current_run_id = runs
+        .iter()
+        .find(|r| r.status == "active")
+        .or_else(|| runs.first())
+        .map(|r| r.id);
+    let lines = fetch_lines_with_doses(pool, protocol_id, current_run_id).await?;
 
     Ok(build_response(protocol, lines, runs))
 }
@@ -382,6 +390,29 @@ pub async fn update_run(
     Ok(result.rows_affected() > 0)
 }
 
+/// Errors from logging a dose on a run that need a distinct HTTP status
+/// (as opposed to plain [`sqlx::Error`], which mostly maps to 404/409/500).
+#[derive(Debug, thiserror::Error)]
+pub enum DoseLogError {
+    #[error(transparent)]
+    Db(#[from] sqlx::Error),
+    /// Invalid input — maps to 400 Bad Request.
+    #[error("{0}")]
+    Invalid(String),
+}
+
+/// Derive the default `administered_at` time-of-day for a dose logged
+/// without an explicit `administered_at`: "AM" -> 08:00Z, "PM" -> 20:00Z,
+/// anything else (including unset) -> 12:00Z.
+fn default_dose_time(time_of_day: Option<&str>) -> chrono::NaiveTime {
+    let (h, m, s) = match time_of_day {
+        Some(t) if t.eq_ignore_ascii_case("AM") => (8, 0, 0),
+        Some(t) if t.eq_ignore_ascii_case("PM") => (20, 0, 0),
+        _ => (12, 0, 0),
+    };
+    chrono::NaiveTime::from_hms_opt(h, m, s).unwrap_or_default()
+}
+
 /// Log a dose on a run.
 pub async fn log_dose_on_run(
     pool: &PgPool,
@@ -389,7 +420,7 @@ pub async fn log_dose_on_run(
     run_id: Uuid,
     req: &LogDoseRequest,
     _config: &Config,
-) -> Result<ProtocolDoseRow, sqlx::Error> {
+) -> Result<ProtocolDoseRow, DoseLogError> {
     let mut tx = pool.begin().await?;
 
     // 1. Verify user owns the run and get protocol info
@@ -434,7 +465,7 @@ pub async fn log_dose_on_run(
         .ok_or(sqlx::Error::RowNotFound)?;
 
     if req.day_number < 0 || req.day_number >= duration_days {
-        return Err(sqlx::Error::RowNotFound);
+        return Err(sqlx::Error::RowNotFound.into());
     }
 
     let scheduled = pattern
@@ -443,20 +474,42 @@ pub async fn log_dose_on_run(
         .unwrap_or(false);
 
     if !scheduled {
-        return Err(sqlx::Error::RowNotFound);
+        return Err(sqlx::Error::RowNotFound.into());
     }
 
-    // 5. Create an intervention record
-    let administered_at = run.start_date + chrono::Duration::days(i64::from(req.day_number));
-    let administered_at_utc = administered_at
-        .and_hms_opt(12, 0, 0)
-        .unwrap_or_default()
-        .and_utc();
+    // 5. Reject logging for a day that hasn't happened yet.
+    let dose_date = run.start_date + chrono::Duration::days(i64::from(req.day_number));
+    let today = Utc::now().date_naive();
+    if dose_date > today {
+        return Err(DoseLogError::Invalid(format!(
+            "cannot log a dose for day {} ({dose_date}) — that day hasn't happened yet",
+            req.day_number
+        )));
+    }
 
+    // 6. Resolve the intervention timestamp: an explicit `administered_at`
+    // must fall on the calendar date of this dose; otherwise derive a
+    // default from the line's time_of_day.
+    let administered_at_utc = match req.administered_at {
+        Some(ts) => {
+            if ts.with_timezone(&Utc).date_naive() != dose_date {
+                return Err(DoseLogError::Invalid(format!(
+                    "administered_at must fall on {dose_date} (day {} of this run)",
+                    req.day_number
+                )));
+            }
+            ts
+        }
+        None => dose_date
+            .and_time(default_dose_time(line.time_of_day.as_deref()))
+            .and_utc(),
+    };
+
+    // 7. Create an intervention record
     let intervention_id: Uuid = sqlx::query_scalar(
         "INSERT INTO interventions
-            (user_id, substance, dose, unit, route, administered_at)
-         VALUES ($1, $2, $3, $4, $5, $6)
+            (user_id, substance, dose, unit, route, administered_at, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id",
     )
     .bind(user_id)
@@ -465,14 +518,16 @@ pub async fn log_dose_on_run(
     .bind(&line.unit)
     .bind(&line.route)
     .bind(administered_at_utc)
+    .bind(&req.notes)
     .fetch_one(&mut *tx)
     .await?;
 
-    // 6. Insert protocol_dose with run_id
+    // 8. Insert protocol_dose with run_id
     let dose = sqlx::query_as::<_, ProtocolDoseRow>(
         "INSERT INTO protocol_doses (protocol_line_id, day_number, status, intervention_id, run_id)
          VALUES ($1, $2, 'completed', $3, $4)
-         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
+         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at,
+                   run_id, skip_reason",
     )
     .bind(req.protocol_line_id)
     .bind(req.day_number)
@@ -483,6 +538,56 @@ pub async fn log_dose_on_run(
 
     tx.commit().await?;
     Ok(dose)
+}
+
+/// Delete a logged dose (undo): removes the `protocol_doses` row and, if it
+/// created one, the linked `interventions` row, in a single transaction.
+/// User-scoped through the dose's run. Returns `false` if the dose doesn't
+/// exist or doesn't belong to a run owned by `user_id`.
+pub async fn delete_dose(
+    pool: &PgPool,
+    user_id: Uuid,
+    run_id: Uuid,
+    dose_id: Uuid,
+) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    #[derive(sqlx::FromRow)]
+    struct DoseInfo {
+        intervention_id: Option<Uuid>,
+    }
+
+    let dose = sqlx::query_as::<_, DoseInfo>(
+        "SELECT pd.intervention_id
+         FROM protocol_doses pd
+         JOIN protocol_runs r ON r.id = pd.run_id
+         WHERE pd.id = $1 AND pd.run_id = $2 AND r.user_id = $3",
+    )
+    .bind(dose_id)
+    .bind(run_id)
+    .bind(user_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(dose) = dose else {
+        return Ok(false);
+    };
+
+    sqlx::query("DELETE FROM protocol_doses WHERE id = $1")
+        .bind(dose_id)
+        .execute(&mut *tx)
+        .await?;
+
+    if let Some(intervention_id) = dose.intervention_id {
+        sqlx::query("DELETE FROM interventions WHERE id = $1 AND user_id = $2")
+            .bind(intervention_id)
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+    }
+
+    tx.commit().await?;
+    Ok(true)
 }
 
 /// Skip a dose on a run.
@@ -510,13 +615,15 @@ pub async fn skip_dose_on_run(
     .await?;
 
     sqlx::query_as::<_, ProtocolDoseRow>(
-        "INSERT INTO protocol_doses (protocol_line_id, day_number, status, run_id)
-         VALUES ($1, $2, 'skipped', $3)
-         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
+        "INSERT INTO protocol_doses (protocol_line_id, day_number, status, run_id, skip_reason)
+         VALUES ($1, $2, 'skipped', $3, $4)
+         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at,
+                   run_id, skip_reason",
     )
     .bind(req.protocol_line_id)
     .bind(req.day_number)
     .bind(run_id)
+    .bind(&req.skip_reason)
     .fetch_one(pool)
     .await
 }
@@ -603,7 +710,8 @@ pub async fn log_dose(
     let dose = sqlx::query_as::<_, ProtocolDoseRow>(
         "INSERT INTO protocol_doses (protocol_line_id, day_number, status, intervention_id)
          VALUES ($1, $2, 'completed', $3)
-         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
+         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at,
+                   run_id, skip_reason",
     )
     .bind(req.protocol_line_id)
     .bind(req.day_number)
@@ -639,12 +747,14 @@ pub async fn skip_dose(
     .await?;
 
     sqlx::query_as::<_, ProtocolDoseRow>(
-        "INSERT INTO protocol_doses (protocol_line_id, day_number, status)
-         VALUES ($1, $2, 'skipped')
-         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at",
+        "INSERT INTO protocol_doses (protocol_line_id, day_number, status, skip_reason)
+         VALUES ($1, $2, 'skipped', $3)
+         RETURNING id, protocol_line_id, day_number, status, intervention_id, logged_at,
+                   run_id, skip_reason",
     )
     .bind(req.protocol_line_id)
     .bind(req.day_number)
+    .bind(&req.skip_reason)
     .fetch_one(pool)
     .await
 }
@@ -690,7 +800,7 @@ pub async fn get_shared(pool: &PgPool, token: &str) -> Result<ProtocolResponse, 
     .fetch_one(pool)
     .await?;
 
-    let lines = fetch_lines_with_doses(pool, protocol.id).await?;
+    let lines = fetch_lines_with_doses(pool, protocol.id, None).await?;
 
     Ok(build_response(protocol, lines, vec![]))
 }
@@ -1198,7 +1308,7 @@ pub async fn get_by_id_unscoped(
     .fetch_one(pool)
     .await?;
 
-    let lines = fetch_lines_with_doses(pool, protocol_id).await?;
+    let lines = fetch_lines_with_doses(pool, protocol_id, None).await?;
 
     Ok(build_response(protocol, lines, vec![]))
 }
@@ -1290,9 +1400,18 @@ fn expand_pattern(pattern: &serde_json::Value, duration_days: i32) -> Vec<bool> 
 
 // --- Helpers ---
 
+/// Fetch a protocol's lines together with their logged doses.
+///
+/// `run_id` scopes which run's doses are attached to each line: pass the id
+/// of the run currently being viewed (e.g. the active run), or `None` to see
+/// only legacy protocol-level doses (`run_id IS NULL`, from before runs
+/// existed / the deprecated `/protocols/:id/doses/*` endpoints). Without this
+/// scoping, a second run of the same protocol would show the first run's
+/// checkmarks on its dose grid.
 async fn fetch_lines_with_doses(
     pool: &PgPool,
     protocol_id: Uuid,
+    run_id: Option<Uuid>,
 ) -> Result<Vec<ProtocolLineResponse>, sqlx::Error> {
     let lines = sqlx::query_as::<_, ProtocolLineRow>(
         "SELECT id, protocol_id, substance, dose, unit, route, time_of_day,
@@ -1308,12 +1427,14 @@ async fn fetch_lines_with_doses(
     let mut result = Vec::with_capacity(lines.len());
     for line in lines {
         let doses = sqlx::query_as::<_, ProtocolDoseRow>(
-            "SELECT id, protocol_line_id, day_number, status, intervention_id, logged_at
+            "SELECT id, protocol_line_id, day_number, status, intervention_id, logged_at,
+                    run_id, skip_reason
              FROM protocol_doses
-             WHERE protocol_line_id = $1
+             WHERE protocol_line_id = $1 AND run_id IS NOT DISTINCT FROM $2
              ORDER BY day_number",
         )
         .bind(line.id)
+        .bind(run_id)
         .fetch_all(pool)
         .await?;
 
