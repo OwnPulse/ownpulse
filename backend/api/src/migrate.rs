@@ -133,8 +133,8 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!("../../../db/migrations/0031_lab_results_source_dedup.sql"),
     ),
     (
-        "0032_observations_source_dedup.sql",
-        include_str!("../../../db/migrations/0032_observations_source_dedup.sql"),
+        "0033_observations_source_dedup.sql",
+        include_str!("../../../db/migrations/0033_observations_source_dedup.sql"),
     ),
 ];
 
