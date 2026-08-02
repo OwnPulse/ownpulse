@@ -64,6 +64,8 @@ Marking an item failed removes it from `GET /write-queue`'s pending set (`WHERE 
 
 **This retirement path is for deterministic failures only** — an item that can never succeed (no matching HealthKit type, permanently revoked authorization). The iOS client is expected to keep genuinely transient errors (e.g. a momentary `HKHealthStore.save()` failure, device locked) pending rather than reporting them as `failures`, so they're retried on the next poll instead of being retired. A UI surface for reviewing/retrying failed items is a tracked follow-up, not part of this change — today `failed_at`/`error` are queryable in the DB but have no client-facing affordance.
 
+The iOS app's write-back queue screen (Settings) lets the user explicitly decline to write a pending item into Apple Health; a decline is also reported through `failures` (with a `"declined by user"` error), not `ids` — it permanently retires the item the same way a deterministic HealthKit write error does, since no sample was ever written either way.
+
 ## Deduplication on New Integration Connect
 
 When a user connects a new integration (e.g., Garmin) that also syncs to HealthKit, the same data may arrive via two paths:

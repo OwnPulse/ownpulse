@@ -29,10 +29,13 @@ struct HealthKitWriteQueueDecodeTests {
     }
     """
 
+    // Uses `NetworkClient.makeDecoder()` — the actual decoder every
+    // `request(...)` call site uses in production — rather than a fresh
+    // `JSONDecoder()`. A fresh decoder would be vacuous here: the whole
+    // point of this suite is to catch drift between what the wire sends and
+    // what the app's real decoder config accepts.
     private static func makeDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        return decoder
+        NetworkClient.makeDecoder()
     }
 
     @Test("decodes the exact pact-pinned write-queue item shape")
@@ -114,5 +117,40 @@ struct HealthKitWriteQueueDecodeTests {
         #expect(item.value.unit == nil)
         #expect(item.value.startTime == ISO8601DateFormatter().date(from: "2026-03-20T10:00:00Z"))
         #expect(item.value.endTime == nil)
+    }
+
+    /// The pact fixtures above happen to use whole-second timestamps, but
+    /// real backend rows (chrono/Postgres `TIMESTAMPTZ`) serialize with
+    /// fractional seconds on essentially every row, and anything written by
+    /// the web client does too. `JSONDecoder`'s built-in `.iso8601` strategy
+    /// rejects fractional seconds outright — this is the actual bug that
+    /// would still break decoding in production even after the payload
+    /// shape fix, which is why `NetworkClient.makeDecoder()` (not `.iso8601`)
+    /// is what every test in this suite exercises.
+    @Test("decodes fractional-second timestamps (real backend/web rows, not just the whole-second pact fixture)")
+    func decodesFractionalSeconds() throws {
+        let json = """
+        {
+          "id": "77777777-7777-7777-7777-777777777777",
+          "user_id": "some-uuid",
+          "hk_type": "body_mass",
+          "value": { "value": 82.5, "unit": "kg", "start_time": "2026-03-20T10:00:00.123456Z", "end_time": "2026-03-20T10:00:00.123456Z" },
+          "scheduled_at": "2026-03-20T10:00:00.123456Z",
+          "confirmed_at": null,
+          "failed_at": null,
+          "error": null,
+          "source_record_id": null,
+          "source_table": null
+        }
+        """
+        let item = try Self.makeDecoder().decode(HealthKitWriteQueueItem.self, from: Data(json.utf8))
+
+        let fractionalFormatter = ISO8601DateFormatter()
+        fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let expected = fractionalFormatter.date(from: "2026-03-20T10:00:00.123456Z")
+
+        #expect(item.value.startTime == expected)
+        #expect(item.value.endTime == expected)
+        #expect(item.scheduledAt == expected)
     }
 }

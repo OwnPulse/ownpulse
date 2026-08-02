@@ -626,16 +626,24 @@ actor SyncEngine {
                 continue
             }
 
-            // The payload carries the sample's own unit/start/end — that's
-            // what was actually measured. `scheduledAt` is only the queue's
-            // scheduling timestamp; it's used as a last-resort fallback only
-            // for `endTime`, which the payload allows to be nil (instantaneous
-            // samples). Fall back to the mapping's canonical unit only when
-            // the payload omits one, or when the payload's string fails to
-            // parse as an `HKUnit`.
-            let unit = item.value.unit.flatMap(HealthKitTypeMap.unit(fromUnitString:)) ?? mapping.unit
-            let start = item.value.startTime
-            let end = item.value.endTime ?? item.value.startTime
+            // Validates writability, unit parseability/compatibility, and
+            // start/end ordering WITHOUT touching HealthKit — see
+            // `HealthKitWriteBackValidator` for why each check exists (in
+            // particular: an incompatible-but-parseable unit would otherwise
+            // crash `HKQuantity`'s initializer with an uncatchable
+            // `NSInvalidArgumentException`).
+            let unit: HKUnit
+            let start: Date
+            let end: Date
+            switch HealthKitWriteBackValidator.resolve(payload: item.value, mapping: mapping) {
+            case .invalid(let reason):
+                failures.append(HealthKitConfirmFailure(id: item.id, error: reason))
+                continue
+            case .ready(let resolvedUnit, let resolvedStart, let resolvedEnd):
+                unit = resolvedUnit
+                start = resolvedStart
+                end = resolvedEnd
+            }
 
             do {
                 try await healthKitProvider.writeSample(
@@ -643,7 +651,8 @@ actor SyncEngine {
                     value: numericValue,
                     unit: unit,
                     start: start,
-                    end: end
+                    end: end,
+                    syncIdentifier: item.id
                 )
                 confirmedIDs.append(item.id)
             } catch {

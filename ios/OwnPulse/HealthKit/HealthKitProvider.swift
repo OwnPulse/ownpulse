@@ -74,12 +74,22 @@ enum WriteBackFailureClassifier {
             // The sample itself is malformed (e.g. bad unit/value combo) —
             // retrying with the same data will fail the same way.
             return true
+        case .errorAuthorizationDenied, .errorRequiredAuthorizationDenied:
+            // The user has explicitly denied share authorization for this
+            // type — this is the motivating head-of-line case (the pact
+            // example failure string is literally
+            // "HealthKit authorization denied for Body Mass"). Nothing about
+            // retrying changes this outcome; it needs a user action
+            // (re-granting in Settings), which re-enqueues a fresh item
+            // rather than un-sticking this one.
+            return true
         case .errorHealthDataUnavailable,
              .errorHealthDataRestricted,
              .errorAuthorizationNotDetermined,
              .errorDatabaseInaccessible:
             // Store temporarily unavailable, device locked (data
-            // protection), or authorization mid-flow — all expected to
+            // protection), or authorization mid-flow (the user hasn't been
+            // asked yet, as opposed to having said no) — all expected to
             // clear on their own.
             return false
         default:
@@ -123,12 +133,20 @@ protocol HealthKitProviderProtocol: Sendable {
         anchor: Data?,
         limit: Int
     ) async throws -> AnchoredQueryResult
+    /// Writes a quantity sample, tagged with `syncIdentifier` (HealthKit's
+    /// `HKMetadataKeySyncIdentifier`/`HKMetadataKeySyncVersion` pair) so a
+    /// re-write of the same write-queue item — e.g. if the confirm POST
+    /// fails after the HealthKit write already succeeded, leaving the item
+    /// pending for the next sync — replaces the existing sample in place
+    /// instead of creating a duplicate. HealthKit has no other de-dup
+    /// mechanism for writes.
     func writeSample(
         type: HKSampleType,
         value: Double,
         unit: HKUnit,
         start: Date,
-        end: Date
+        end: Date,
+        syncIdentifier: String
     ) async throws
 
     /// Emits a `Void` each time HealthKit notifies the app of new samples for
@@ -384,7 +402,8 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
         value: Double,
         unit: HKUnit,
         start: Date,
-        end: Date
+        end: Date,
+        syncIdentifier: String
     ) async throws {
         // Category types (e.g. sleep_analysis) can't be represented as an
         // `HKQuantitySample`. Silently no-op-ing here used to leave the
@@ -396,11 +415,22 @@ final class HealthKitProvider: HealthKitProviderProtocol, @unchecked Sendable {
             throw HealthKitWriteError.unsupportedSampleType(type.identifier)
         }
         let quantity = HKQuantity(unit: unit, doubleValue: value)
+        // `HKMetadataKeySyncIdentifier`/`HKMetadataKeySyncVersion` make this
+        // write idempotent from HealthKit's point of view: if the same
+        // write-queue item is written again (confirm POST failed after a
+        // successful write, item stayed pending, next sync re-attempts it),
+        // HealthKit replaces the existing sample sharing this identifier
+        // instead of inserting a duplicate.
+        let metadata: [String: Any] = [
+            HKMetadataKeySyncIdentifier: syncIdentifier,
+            HKMetadataKeySyncVersion: 1,
+        ]
         let sample = HKQuantitySample(
             type: quantityType,
             quantity: quantity,
             start: start,
-            end: end
+            end: end,
+            metadata: metadata
         )
         try await store.save(sample)
     }

@@ -62,14 +62,12 @@ final class WriteBackQueueViewModel {
     /// Write the sample into Apple Health, then acknowledge it to the server.
     func confirm(_ item: HealthKitWriteQueueItem) async {
         guard !inFlightIDs.contains(item.id) else { return }
-        // Only quantity types flagged `writable` can actually round-trip into
-        // Apple Health. Category/read-only mappings (e.g. sleep_analysis) make
-        // `HealthKitProvider.writeSample` no-op silently, so acknowledging
-        // would falsely tell the server the write succeeded. Reject up front.
-        guard let mapping = HealthKitTypeMap.mapping(forRecordType: item.hkType),
-              mapping.writable,
-              mapping.hkType is HKQuantityType else {
-            actionError = "Unsupported data type — can't write to Apple Health."
+        inFlightIDs.insert(item.id)
+        defer { inFlightIDs.remove(item.id) }
+        actionError = nil
+
+        guard let mapping = HealthKitTypeMap.mapping(forRecordType: item.hkType) else {
+            await reportDeterministicFailure(item, reason: "Unknown HealthKit type: \(item.hkType)")
             return
         }
 
@@ -77,17 +75,27 @@ final class WriteBackQueueViewModel {
         // value — a record enqueued without one serves `value.value == nil`.
         // There's nothing to write in that case.
         guard let numericValue = item.value.value else {
-            actionError = "This item has no value to write to Apple Health."
+            await reportDeterministicFailure(item, reason: "Write-queue item has no numeric value")
             return
         }
 
-        actionError = nil
-        inFlightIDs.insert(item.id)
-        defer { inFlightIDs.remove(item.id) }
-
-        let unit = item.value.unit.flatMap(HealthKitTypeMap.unit(fromUnitString:)) ?? mapping.unit
-        let start = item.value.startTime
-        let end = item.value.endTime ?? item.value.startTime
+        // Validates writability, unit parseability/compatibility, and
+        // start/end ordering WITHOUT touching HealthKit — see
+        // `HealthKitWriteBackValidator`. Category/read-only mappings (e.g.
+        // sleep_analysis) and unwritable quantity types resolve `.invalid`
+        // here rather than reaching `writeSample`.
+        let unit: HKUnit
+        let start: Date
+        let end: Date
+        switch HealthKitWriteBackValidator.resolve(payload: item.value, mapping: mapping) {
+        case .invalid(let reason):
+            await reportDeterministicFailure(item, reason: reason)
+            return
+        case .ready(let resolvedUnit, let resolvedStart, let resolvedEnd):
+            unit = resolvedUnit
+            start = resolvedStart
+            end = resolvedEnd
+        }
 
         do {
             try await healthKitProvider.writeSample(
@@ -95,7 +103,8 @@ final class WriteBackQueueViewModel {
                 value: numericValue,
                 unit: unit,
                 start: start,
-                end: end
+                end: end,
+                syncIdentifier: item.id
             )
             try await acknowledge(item.id)
             items.removeAll { $0.id == item.id }
@@ -107,19 +116,31 @@ final class WriteBackQueueViewModel {
             // device locked) is left pending; the item stays in `items` and
             // the user (or the next background sync) can retry it.
             if WriteBackFailureClassifier.isDeterministic(error) {
-                do {
-                    try await networkClient.requestNoContent(
-                        method: "POST",
-                        path: Endpoints.healthKitConfirm,
-                        body: HealthKitConfirm(ids: [], failures: [HealthKitConfirmFailure(id: item.id, error: error.localizedDescription)])
-                    )
-                    items.removeAll { $0.id == item.id }
-                } catch {
-                    // Best-effort — if reporting the failure also fails, leave
-                    // the item pending so the next load/sync retries it.
-                }
+                await reportDeterministicFailure(item, reason: error.localizedDescription)
+            } else {
+                actionError = "Couldn't write to Apple Health right now. Try again."
             }
-            actionError = "Couldn't write to Apple Health. Try again."
+        }
+    }
+
+    /// Reports `item` as permanently failed (`failures`, not `ids`) and, on
+    /// success, drops it from `items` — the server has already retired it,
+    /// so leaving it in the list would be stale. The user-facing message is
+    /// deliberately different from a transient failure: this item will
+    /// never be retried, so "try again" would be misleading.
+    private func reportDeterministicFailure(_ item: HealthKitWriteQueueItem, reason: String) async {
+        do {
+            try await networkClient.requestNoContent(
+                method: "POST",
+                path: Endpoints.healthKitConfirm,
+                body: HealthKitConfirm(ids: [], failures: [HealthKitConfirmFailure(id: item.id, error: reason)])
+            )
+            items.removeAll { $0.id == item.id }
+            actionError = "This item couldn't be written to Apple Health and won't be retried."
+        } catch {
+            // Best-effort — if reporting the failure also fails, leave the
+            // item pending so the next load/sync retries reporting it.
+            actionError = "Couldn't update the queue. Try again."
         }
     }
 
@@ -262,7 +283,10 @@ struct WriteBackQueueView: View {
                 Text(item.value.value.map(Self.formattedValue) ?? "—")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Text(item.scheduledAt, style: .date)
+                // The measurement time (`value.startTime`), not the queue's
+                // `scheduledAt` — those can differ, and what the user cares
+                // about is when the sample was actually taken.
+                Text(item.value.startTime, style: .date)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

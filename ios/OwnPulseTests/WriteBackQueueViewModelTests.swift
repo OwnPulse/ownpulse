@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import Foundation
+import HealthKit
 import SwiftUI
 import Testing
 @testable import OwnPulse
@@ -129,6 +130,8 @@ struct WriteBackQueueViewModelTests {
 
         #expect(hk.writtenSamples.count == 1)
         #expect(hk.writtenSamples[0].value == 72.5)
+        #expect(hk.writtenSamples[0].unit == HKUnit.gramUnit(with: .kilo))
+        #expect(hk.writtenSamples[0].syncIdentifier == "wb-1", "tagged with the item's own id so a re-write replaces rather than duplicates")
         #expect(confirmedBody?.ids == ["wb-1"])
         #expect(vm.items.isEmpty)
         #expect(vm.actionError == nil)
@@ -220,23 +223,30 @@ struct WriteBackQueueViewModelTests {
         #expect(vm.actionError != nil)
     }
 
-    @Test("confirm with unmapped type surfaces error and does not write")
+    @Test("confirm with unmapped type reports it as a permanent failure (not ids), never writes, removes item")
     func confirmUnmappedType() async {
         let mock = MockNetworkClient()
         let hk = MockHealthKitProvider()
         let item = makeItem(id: "x", hkType: "not_a_real_type")
         mock.requestHandler = { _, _, _ in [item] }
+        var confirmedBody: HealthKitConfirm?
+        mock.requestNoContentHandler = { _, path, body in
+            #expect(path == Endpoints.healthKitConfirm)
+            confirmedBody = body as? HealthKitConfirm
+        }
 
         let vm = makeVM(network: mock, healthKit: hk)
         await vm.load()
         await vm.confirm(item)
 
         #expect(hk.writtenSamples.isEmpty)
-        #expect(vm.items.count == 1)
+        #expect(confirmedBody?.ids.isEmpty == true)
+        #expect(confirmedBody?.failures.map(\.id) == ["x"])
+        #expect(vm.items.isEmpty, "an unmapped type is a permanent failure — it's retired, not left pending")
         #expect(vm.actionError != nil)
     }
 
-    @Test("confirm with a null numeric value surfaces error and never writes")
+    @Test("confirm with a null numeric value reports it as a permanent failure and never writes")
     func confirmNullValue() async {
         let mock = MockNetworkClient()
         let hk = MockHealthKitProvider()
@@ -258,40 +268,102 @@ struct WriteBackQueueViewModelTests {
             sourceTable: nil
         )
         mock.requestHandler = { _, _, _ in [item] }
-        var confirmCalled = false
-        mock.requestNoContentHandler = { _, _, _ in confirmCalled = true }
+        var confirmedBody: HealthKitConfirm?
+        mock.requestNoContentHandler = { _, path, body in
+            #expect(path == Endpoints.healthKitConfirm)
+            confirmedBody = body as? HealthKitConfirm
+        }
 
         let vm = makeVM(network: mock, healthKit: hk)
         await vm.load()
         await vm.confirm(item)
 
         #expect(hk.writtenSamples.isEmpty, "a nil value must never reach HealthKitProvider.writeSample")
-        #expect(confirmCalled == false, "a nil value is rejected up front, before any network call")
-        #expect(vm.items.count == 1)
+        #expect(confirmedBody?.ids.isEmpty == true)
+        #expect(confirmedBody?.failures.map(\.id) == ["null-value"])
+        #expect(vm.items.isEmpty)
         #expect(vm.actionError != nil)
     }
 
-    @Test("confirm with category / non-writable type does not write or acknowledge")
+    @Test("confirm with category / non-writable type reports a permanent failure, never writes or falsely acknowledges")
     func confirmNonWritableType() async {
         // sleep_analysis maps to an HKCategoryType with writable: false.
-        // HealthKitProvider.writeSample would no-op silently for it, so the VM
-        // must reject it up front rather than acknowledge a write that never
-        // reached HealthKit.
+        // `HealthKitWriteBackValidator.resolve` rejects it before ever
+        // touching HealthKit; the VM reports the rejection as a permanent
+        // failure rather than acknowledging a write that never happened.
         let mock = MockNetworkClient()
         let hk = MockHealthKitProvider()
         let item = makeItem(id: "sleep-1", hkType: "sleep_analysis", value: 8)
         mock.requestHandler = { _, _, _ in [item] }
-        var confirmCalled = false
-        mock.requestNoContentHandler = { _, _, _ in confirmCalled = true }
+        var confirmedBody: HealthKitConfirm?
+        mock.requestNoContentHandler = { _, path, body in
+            #expect(path == Endpoints.healthKitConfirm)
+            confirmedBody = body as? HealthKitConfirm
+        }
 
         let vm = makeVM(network: mock, healthKit: hk)
         await vm.load()
         await vm.confirm(item)
 
         #expect(hk.writtenSamples.isEmpty)     // nothing written to HealthKit
-        #expect(confirmCalled == false)        // server never told it succeeded
-        #expect(vm.items.count == 1)           // row stays
+        #expect(confirmedBody?.ids.isEmpty == true, "must never send this id in `ids` — no write ever happened")
+        #expect(confirmedBody?.failures.map(\.id) == ["sleep-1"])
+        #expect(vm.items.isEmpty)
         #expect(vm.actionError != nil)         // user sees feedback
+    }
+
+    // A parseable-but-dimensionally-incompatible unit (e.g. from the web
+    // client's free-text unit field) would otherwise crash
+    // HKQuantity's initializer with an uncatchable NSInvalidArgumentException.
+    @Test("confirm with an incompatible unit reports a permanent failure instead of crashing")
+    func confirmIncompatibleUnit() async {
+        let mock = MockNetworkClient()
+        let hk = MockHealthKitProvider()
+        let item = makeItem(id: "bad-unit-1", hkType: "body_mass", value: 82.5, unit: "count")
+        mock.requestHandler = { _, _, _ in [item] }
+        var confirmedBody: HealthKitConfirm?
+        mock.requestNoContentHandler = { _, path, body in
+            #expect(path == Endpoints.healthKitConfirm)
+            confirmedBody = body as? HealthKitConfirm
+        }
+
+        let vm = makeVM(network: mock, healthKit: hk)
+        await vm.load()
+        await vm.confirm(item)
+
+        #expect(hk.writtenSamples.isEmpty, "must never construct an HKQuantity with an incompatible unit")
+        #expect(confirmedBody?.ids.isEmpty == true)
+        #expect(confirmedBody?.failures.map(\.id) == ["bad-unit-1"])
+        #expect(vm.items.isEmpty)
+        #expect(vm.actionError != nil)
+    }
+
+    // A `writable: false` QUANTITY type (as opposed to a category type like
+    // sleep_analysis above) — share authorization was never requested for
+    // it, so a real `HKHealthStore.save` would throw
+    // `.errorAuthorizationDenied`. The validator must catch this before ever
+    // reaching `writeSample`.
+    @Test("confirm with a writable: false quantity type reports a permanent failure without touching writeSample")
+    func confirmNotWritableQuantityType() async {
+        let mock = MockNetworkClient()
+        let hk = MockHealthKitProvider()
+        let item = makeItem(id: "wristtemp-1", hkType: "walking_heart_rate", value: 90)
+        mock.requestHandler = { _, _, _ in [item] }
+        var confirmedBody: HealthKitConfirm?
+        mock.requestNoContentHandler = { _, path, body in
+            #expect(path == Endpoints.healthKitConfirm)
+            confirmedBody = body as? HealthKitConfirm
+        }
+
+        let vm = makeVM(network: mock, healthKit: hk)
+        await vm.load()
+        await vm.confirm(item)
+
+        #expect(hk.writtenSamples.isEmpty)
+        #expect(confirmedBody?.ids.isEmpty == true)
+        #expect(confirmedBody?.failures.map(\.id) == ["wristtemp-1"])
+        #expect(vm.items.isEmpty)
+        #expect(vm.actionError != nil)
     }
 
     // MARK: - deny

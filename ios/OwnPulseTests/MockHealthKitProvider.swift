@@ -19,7 +19,7 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
     var isAuthorizedResult = true
     var mockSamples: [HealthKitSample] = []
     var mockAnchor: Data?
-    var writtenSamples: [(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date)] = []
+    var writtenSamples: [(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date, syncIdentifier: String)] = []
 
     /// When set, `writeSample` throws this error instead of recording the
     /// write. Used to exercise write-back failure paths.
@@ -136,12 +136,13 @@ final class MockHealthKitProvider: HealthKitProviderProtocol, @unchecked Sendabl
         value: Double,
         unit: HKUnit,
         start: Date,
-        end: Date
+        end: Date,
+        syncIdentifier: String
     ) async throws {
         if let writeSampleError {
             throw writeSampleError
         }
-        writtenSamples.append((type: type, value: value, unit: unit, start: start, end: end))
+        writtenSamples.append((type: type, value: value, unit: unit, start: start, end: end, syncIdentifier: syncIdentifier))
     }
 
     func observeSampleUpdates() -> AsyncStream<Void> {

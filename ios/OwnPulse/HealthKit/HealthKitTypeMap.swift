@@ -593,3 +593,73 @@ enum HealthKitTypeMap {
         return result
     }
 }
+
+/// Result of validating a write-queue payload against its resolved type
+/// mapping, before attempting the actual HealthKit write. Centralized here
+/// (rather than duplicated in `SyncEngine` and `WriteBackQueueViewModel`) so
+/// both write-back call sites apply the exact same safety checks.
+enum WriteBackPayloadResolution {
+    case ready(unit: HKUnit, start: Date, end: Date)
+    /// A deterministic problem with the payload/mapping — retrying with the
+    /// same data will fail the same way. `reason` never includes the sample
+    /// value, so it's safe to log and to send to the backend as a
+    /// `/healthkit/confirm` failure.
+    case invalid(reason: String)
+}
+
+enum HealthKitWriteBackValidator {
+    /// Validates a write-queue payload can actually be written to
+    /// HealthKit as `mapping` describes, WITHOUT touching `HKHealthStore`.
+    /// Guards against three real crash/corruption vectors:
+    ///  - a `writable: false` mapping (share authorization was never
+    ///    requested for it — `HKHealthStore.save` would throw
+    ///    `.errorAuthorizationDenied` forever, looping "transient" if not
+    ///    caught here first);
+    ///  - a payload unit that's syntactically valid but dimensionally
+    ///    incompatible with the type (e.g. `body_mass` + `"count"`, reachable
+    ///    from the web client's free-text unit field) — constructing an
+    ///    `HKQuantity`/`HKQuantitySample` with an incompatible unit raises an
+    ///    **uncatchable** `NSInvalidArgumentException`, which would crash
+    ///    every sync forever;
+    ///  - `end_time` before `start_time`.
+    ///
+    /// A payload unit that fails to *parse* is never silently replaced with
+    /// `mapping.unit` — that would write the sample under a different
+    /// magnitude than what was actually measured. Falling back to
+    /// `mapping.unit` is only correct when the payload omits a unit
+    /// entirely (`unit == nil`).
+    static func resolve(
+        payload: HealthKitWriteQueuePayload,
+        mapping: HealthKitTypeMap.Mapping
+    ) -> WriteBackPayloadResolution {
+        guard mapping.writable else {
+            return .invalid(reason: "\(mapping.recordType) is not writable (share authorization was never requested for it)")
+        }
+        guard let quantityType = mapping.hkType as? HKQuantityType else {
+            return .invalid(reason: "\(mapping.recordType) has no quantity-sample write path")
+        }
+
+        let unit: HKUnit
+        if let unitString = payload.unit {
+            guard let parsed = HealthKitTypeMap.unit(fromUnitString: unitString) else {
+                return .invalid(reason: "Unparseable unit for \(mapping.recordType): \(unitString)")
+            }
+            guard quantityType.is(compatibleWith: parsed) else {
+                return .invalid(reason: "Unit \(unitString) is incompatible with \(mapping.recordType)")
+            }
+            unit = parsed
+        } else {
+            // No unit on the payload — `mapping.unit` is always compatible
+            // with `quantityType` by construction (see `HealthKitTypeMap.mappings`).
+            unit = mapping.unit
+        }
+
+        let start = payload.startTime
+        let end = payload.endTime ?? payload.startTime
+        guard end >= start else {
+            return .invalid(reason: "end_time is before start_time for \(mapping.recordType)")
+        }
+
+        return .ready(unit: unit, start: start, end: end)
+    }
+}

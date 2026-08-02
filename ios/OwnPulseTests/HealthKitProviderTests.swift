@@ -177,7 +177,8 @@ struct HealthKitProviderWriteSampleTests {
                 value: 1,
                 unit: .count(),
                 start: Date(),
-                end: Date()
+                end: Date(),
+                syncIdentifier: "test-sync-id"
             )
         }
     }
@@ -195,6 +196,21 @@ struct WriteBackFailureClassifierTests {
     @Test("HKError.errorInvalidArgument is deterministic")
     func invalidArgumentIsDeterministic() {
         #expect(WriteBackFailureClassifier.isDeterministic(HKError(.errorInvalidArgument)))
+    }
+
+    // The motivating head-of-line case: the pact example failure string is
+    // literally "HealthKit authorization denied for Body Mass" — an explicit
+    // user denial, not a temporary condition. Retrying changes nothing until
+    // the user re-grants access in Settings, which produces a fresh
+    // write-queue item rather than un-sticking this one.
+    @Test("HKError.errorAuthorizationDenied is deterministic")
+    func authorizationDeniedIsDeterministic() {
+        #expect(WriteBackFailureClassifier.isDeterministic(HKError(.errorAuthorizationDenied)))
+    }
+
+    @Test("HKError.errorRequiredAuthorizationDenied is deterministic")
+    func requiredAuthorizationDeniedIsDeterministic() {
+        #expect(WriteBackFailureClassifier.isDeterministic(HKError(.errorRequiredAuthorizationDenied)))
     }
 
     // Transient: expected to clear on their own — must never be reported,
@@ -234,12 +250,114 @@ struct WriteBackFailureClassifierTests {
 struct HealthKitTypeMapUnitParsingTests {
     @Test("parses a well-formed UCUM unit string")
     func parsesValidUnit() {
-        #expect(HealthKitTypeMap.unit(fromUnitString: "kg") == .gramUnit(with: .kilo))
+        let parsed: HKUnit? = HealthKitTypeMap.unit(fromUnitString: "kg")
+        #expect(parsed == HKUnit.gramUnit(with: .kilo))
     }
 
     @Test("returns nil for a malformed unit string instead of crashing")
     func returnsNilForMalformedUnit() {
-        #expect(HealthKitTypeMap.unit(fromUnitString: "not a real unit") == nil)
+        let parsed: HKUnit? = HealthKitTypeMap.unit(fromUnitString: "not a real unit")
+        #expect(parsed == nil)
+    }
+}
+
+@Suite("HealthKitWriteBackValidator.resolve")
+struct HealthKitWriteBackValidatorTests {
+    private func bodyMassMapping() -> HealthKitTypeMap.Mapping {
+        HealthKitTypeMap.mapping(forRecordType: "body_mass")!
+    }
+
+    private func payload(
+        unit: String? = "kg",
+        start: Date = Date(timeIntervalSince1970: 1_700_000_000),
+        end: Date? = Date(timeIntervalSince1970: 1_700_000_001)
+    ) -> HealthKitWriteQueuePayload {
+        HealthKitWriteQueuePayload(value: 82.5, unit: unit, startTime: start, endTime: end)
+    }
+
+    @Test("a valid payload with a matching unit resolves .ready with the parsed unit")
+    func validPayloadResolvesReady() {
+        let result = HealthKitWriteBackValidator.resolve(payload: payload(unit: "kg"), mapping: bodyMassMapping())
+        guard case .ready(let unit, _, _) = result else {
+            Issue.record("expected .ready, got \(result)")
+            return
+        }
+        #expect(unit == HKUnit.gramUnit(with: .kilo))
+    }
+
+    @Test("a nil payload unit falls back to the mapping's canonical unit")
+    func nilUnitFallsBackToMappingUnit() {
+        let result = HealthKitWriteBackValidator.resolve(payload: payload(unit: nil), mapping: bodyMassMapping())
+        guard case .ready(let unit, _, _) = result else {
+            Issue.record("expected .ready, got \(result)")
+            return
+        }
+        #expect(unit == HKUnit.gramUnit(with: .kilo))
+    }
+
+    @Test("an unparseable payload unit is .invalid — never silently falls back to the mapping's unit")
+    func unparseableUnitIsInvalid() {
+        let result = HealthKitWriteBackValidator.resolve(payload: payload(unit: "not a real unit"), mapping: bodyMassMapping())
+        guard case .invalid(let reason) = result else {
+            Issue.record("expected .invalid, got \(result)")
+            return
+        }
+        #expect(reason.contains("Unparseable"))
+    }
+
+    // A valid-but-dimensionally-incompatible unit (reachable from the web
+    // client's free-text unit field) would otherwise raise an uncatchable
+    // NSInvalidArgumentException from HKQuantity's initializer — crashing
+    // every sync forever. This must be caught here, before ever
+    // constructing an HKQuantity.
+    @Test("a parseable-but-incompatible unit (body_mass + count) is .invalid")
+    func incompatibleUnitIsInvalid() {
+        let result = HealthKitWriteBackValidator.resolve(payload: payload(unit: "count"), mapping: bodyMassMapping())
+        guard case .invalid(let reason) = result else {
+            Issue.record("expected .invalid, got \(result)")
+            return
+        }
+        #expect(reason.contains("incompatible"))
+    }
+
+    @Test("end_time before start_time is .invalid")
+    func endBeforeStartIsInvalid() {
+        let start = Date(timeIntervalSince1970: 1_700_000_100)
+        let end = Date(timeIntervalSince1970: 1_700_000_000)
+        let result = HealthKitWriteBackValidator.resolve(payload: payload(start: start, end: end), mapping: bodyMassMapping())
+        guard case .invalid(let reason) = result else {
+            Issue.record("expected .invalid, got \(result)")
+            return
+        }
+        #expect(reason.contains("end_time"))
+    }
+
+    @Test("a nil end_time is fine — falls back to start_time, not invalid")
+    func nilEndTimeIsValid() {
+        let result = HealthKitWriteBackValidator.resolve(payload: payload(end: nil), mapping: bodyMassMapping())
+        guard case .ready(_, let start, let end) = result else {
+            Issue.record("expected .ready, got \(result)")
+            return
+        }
+        #expect(start == end)
+    }
+
+    // The 26 `writable: false` quantity-type mappings (share authorization
+    // was never requested for them) must never reach `writeSample` — that
+    // would throw `.errorAuthorizationDenied`/similar every single sync,
+    // looping forever if misclassified as transient.
+    @Test("a writable: false mapping is .invalid, regardless of unit validity")
+    func notWritableIsInvalid() {
+        let nonWritable = HealthKitTypeMap.mappings.first { !$0.writable }!
+        let result = HealthKitWriteBackValidator.resolve(
+            payload: HealthKitWriteQueuePayload(value: 1, unit: nil, startTime: Date(), endTime: nil),
+            mapping: nonWritable
+        )
+        guard case .invalid(let reason) = result else {
+            Issue.record("expected .invalid, got \(result)")
+            return
+        }
+        #expect(reason.contains("not writable"))
     }
 }
 

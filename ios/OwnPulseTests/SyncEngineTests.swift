@@ -525,7 +525,7 @@ struct SyncEngineTests {
             func querySamples(type: HKSampleType, anchor: Data?, limit: Int) async throws -> AnchoredQueryResult {
                 throw NSError(domain: "test.healthkit", code: 42, userInfo: nil)
             }
-            func writeSample(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date) async throws {}
+            func writeSample(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date, syncIdentifier: String) async throws {}
             func observeSampleUpdates() -> AsyncStream<Void> { AsyncStream { _ in } }
             func enableBackgroundDelivery() async throws {}
             func disableAllBackgroundDelivery() async throws {}
@@ -663,7 +663,13 @@ struct SyncEngineTests {
             hkType: "heart_rate",
             value: HealthKitWriteQueuePayload(
                 value: 64.0,
-                unit: "bpm",
+                // A real, parseable-by-HKUnit(from:) UCUM string — NOT the
+                // app's own display label ("bpm" in `HealthKitTypeMap`'s
+                // `unitString`, which HKUnit(from:) can't parse). Using a
+                // genuinely parseable unit exercises the actual
+                // payload-unit path rather than silently falling back to
+                // `mapping.unit` and passing for the wrong reason.
+                unit: "count/min",
                 startTime: Date(timeIntervalSince1970: 1_700_000_000),
                 endTime: Date(timeIntervalSince1970: 1_700_000_001)
             ),
@@ -697,9 +703,16 @@ struct SyncEngineTests {
         #expect(provider.writtenSamples.count == 1,
                 "expected the single write-queue item to be written to HealthKit")
         #expect(provider.writtenSamples.first?.value == 64.0)
+        // Resolved the payload's own (parseable) unit — not just the
+        // mapping fallback.
+        #expect(provider.writtenSamples.first?.unit == HKUnit.count().unitDivided(by: .minute()))
         // Uses the payload's own start/end, not the queue's `scheduledAt`.
         #expect(provider.writtenSamples.first?.start == Date(timeIntervalSince1970: 1_700_000_000))
         #expect(provider.writtenSamples.first?.end == Date(timeIntervalSince1970: 1_700_000_001))
+        // Tagged with the write-queue item's own id, so a re-write (e.g.
+        // confirm POST fails after this write succeeds) replaces the
+        // existing sample instead of duplicating it.
+        #expect(provider.writtenSamples.first?.syncIdentifier == "wq-1")
         // And confirmed back to the server so it isn't re-served.
         #expect(confirmedIds.all() == ["wq-1"],
                 "the written item must be confirmed so the backend stops serving it")
@@ -777,6 +790,121 @@ struct SyncEngineTests {
 
         #expect(provider.writtenSamples.isEmpty)
         #expect(confirmBodies.all().isEmpty, "a transient failure must never call /healthkit/confirm — the item is left pending, not confirmed or failed")
+        // Even though nothing was reported to the backend, the user should
+        // still see that something went wrong this sync — not a silently
+        // "clean" sync with a write quietly dropped.
+        let lastError = await engine.lastError
+        #expect(lastError != nil, "a transient write-back failure must still surface via lastError, not be silently swallowed")
+    }
+
+    @MainActor
+    @Test("write-back item with a writable: false hk_type is reported in failures, never reaching HealthKitProvider.writeSample")
+    func testWriteBackNotWritableTypeReportedAsFailure() async throws {
+        // walking_heart_rate is a real HKQuantityType mapping with
+        // `writable: false` — share authorization was never requested for
+        // it. Without the upfront `mapping.writable` check, this would loop
+        // "transient" (HKError.errorAuthorizationDenied) forever instead of
+        // ever being reported.
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-not-writable", hkType: "walking_heart_rate")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "a writable:false type must never reach HealthKitProvider.writeSample")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.ids.isEmpty == true)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-not-writable"])
+    }
+
+    @MainActor
+    @Test("write-back item with a parseable-but-incompatible unit is reported in failures, never crashing")
+    func testWriteBackIncompatibleUnitReportedAsFailure() async throws {
+        // "count" is a syntactically valid UCUM string but dimensionally
+        // incompatible with body_mass's kilogram unit. Constructing an
+        // HKQuantity with an incompatible unit raises an uncatchable
+        // NSInvalidArgumentException — this must be caught before ever
+        // reaching HealthKitProvider.writeSample.
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-bad-unit", hkType: "body_mass", value: 82.5, unit: "count")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "must never construct an HKQuantity with an incompatible unit")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-bad-unit"])
+    }
+
+    @MainActor
+    @Test("write-back item with an unparseable unit is reported in failures — never silently falls back to the mapping's unit")
+    func testWriteBackUnparseableUnitReportedAsFailure() async throws {
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-unparseable-unit", hkType: "body_mass", value: 82.5, unit: "not a real unit")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "an unparseable unit must never fall back to the mapping's unit and write anyway")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-unparseable-unit"])
     }
 
     @MainActor
@@ -902,7 +1030,11 @@ struct SyncEngineTests {
         id: String,
         hkType: String,
         value: Double = 64.0,
-        unit: String? = "bpm"
+        // A real, parseable-by-HKUnit(from:) UCUM string. "bpm" (the app's
+        // own `HealthKitTypeMap` display label, not a UCUM string) would
+        // fail to parse and silently exercise only the nil-unit fallback
+        // path, not the actual payload-unit resolution.
+        unit: String? = "count/min"
     ) -> HealthKitWriteQueueItem {
         HealthKitWriteQueueItem(
             id: id,
