@@ -14,7 +14,6 @@ This document describes the OwnPulse open data export format. Any application ca
 | `schema_url` | `string` | URL to the canonical schema definition in the repository. |
 | `description` | `string` | Human-readable description of this export. |
 | `exported_at` | `string \| null` | ISO 8601 timestamp of when the export was generated. `null` in the skeleton. |
-| `user` | `object` | User profile metadata (display name, data region, account creation date). No PII beyond what the user explicitly entered. |
 | `health_records` | `array` | All wearable and device measurements. Each record has a `record_type`, `value`, `unit`, `source`, and `recorded_at` timestamp. Covers heart rate, HRV, weight, blood glucose, sleep, steps, and other HealthKit-mapped metrics. |
 | `interventions` | `array` | Substance, medication, and supplement logs. Each entry has a `name` (freeform text, no validation), `dosage`, `unit`, `route`, `taken_at` timestamp, and an `updated_at` timestamp (added in `0032_protocol_dose_tracking.sql`) reflecting the last edit via `PATCH /interventions/:id`. |
 | `daily_checkins` | `array` | Five 1-10 subjective scores per day: energy, mood, focus, stress, sleep quality. Each entry has a `date` and the five scores. |
@@ -24,13 +23,12 @@ This document describes the OwnPulse open data export format. Any application ca
 | `protocol_lines` | `array` | Per-substance schedule lines belonging to a `protocols` entry (via `protocol_id`): substance, dose, unit, route, time of day, and schedule pattern. Added in `0.2.0`. |
 | `protocol_runs` | `array` | Executions of a protocol: start date, status, and notification preferences for that run. Added in `0.2.0`. |
 | `protocol_doses` | `array` | Logged or skipped doses for a `protocol_lines` entry, optionally scoped to a `protocol_runs` entry via `run_id` (`null` for legacy pre-run dose logs). Includes `skip_reason` when skipped. Logged doses reference the created record via `intervention_id`, which points into `interventions`. Added in `0.2.0`. |
-| `calendar_days` | `array` | Meeting and schedule aggregates per day. Each entry has a `date`, `meeting_count`, and `meeting_hours`. |
-| `sharing_consents` | `array` | Records of cooperative data sharing consent. Each entry has a `dataset`, `consented_at`, and `revoked_at` (null if active). |
+| `genetic_records` | `array` | SNP variants from 23andMe/AncestryDNA/VCF uploads. Present only if the user has uploaded genetic data (omitted, not an empty array, otherwise). This is the user exporting their own data for portability, unrelated to the `sharing_consents`-gated *cooperative* genetics dataset. |
 
 ## Notes
 
 - All timestamps are ISO 8601 with timezone (TIMESTAMPTZ in the database).
 - All IDs are UUIDs.
 - The schema is additive: new keys may be added in future versions but existing keys will not be removed or renamed.
-- `genetic_records` are excluded from the default export and require separate consent.
-- This schema matches the structure in `db/migrations/0001_init.sql`. When the database schema changes, this file is updated to match.
+- This file's keys are the exhaustive set of top-level keys the export can produce; a test (`export::test_export_json_keys_match_open_schema` in `backend/api/tests/integration/export.rs`) asserts `GET /export/json`'s keys never drift from this file. Many other tables in this repository (`users`, `calendar_days`, `sharing_consents`, `user_auth_methods`, `explore_charts`, `observer_polls` and related, `export_jobs`, etc.) are **not yet** part of the export — see [data-model.md](../docs/architecture/data-model.md#export-coverage) for the full picture.
+- This schema matches the structure in `db/migrations/0001_init.sql` plus subsequent additive migrations. When the database schema changes, this file is updated to match.

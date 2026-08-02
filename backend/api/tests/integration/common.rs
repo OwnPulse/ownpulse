@@ -340,6 +340,38 @@ pub async fn body_string(response: axum::response::Response) -> String {
     String::from_utf8(bytes.to_vec()).unwrap()
 }
 
+/// Build a multipart request with a single file field — shared by any test
+/// that exercises a file-upload endpoint (e.g. `POST /genetics/upload`).
+pub fn multipart_upload_request(
+    uri: &str,
+    token: &str,
+    filename: &str,
+    content: &[u8],
+) -> Request<Body> {
+    let boundary = "----TestBoundary123456";
+    let mut body_bytes = Vec::new();
+
+    body_bytes.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+    body_bytes.extend_from_slice(
+        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n")
+            .as_bytes(),
+    );
+    body_bytes.extend_from_slice(b"Content-Type: application/octet-stream\r\n\r\n");
+    body_bytes.extend_from_slice(content);
+    body_bytes.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
+
+    Request::builder()
+        .method("POST")
+        .uri(uri)
+        .header("authorization", format!("Bearer {token}"))
+        .header(
+            "content-type",
+            format!("multipart/form-data; boundary={boundary}"),
+        )
+        .body(Body::from(body_bytes))
+        .unwrap()
+}
+
 /// Read every SQL migration file from `db/migrations/` and execute them in
 /// filename order. Uses raw_sql to support multi-statement migrations.
 async fn run_migrations(pool: &PgPool) {
