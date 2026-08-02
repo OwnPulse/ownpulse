@@ -81,14 +81,18 @@ On new integration connect, the backend runs a one-time overlap scan:
 
 ### Source Preferences
 
-The user selects the preferred source per metric type. Preferences are stored in `source_preferences` and applied at query time (not at ingest). Both records are kept; the non-preferred source is deprioritized in the default view.
+The user selects the preferred source per metric type. Preferences are stored in `source_preferences` and applied at query time (not at ingest): rows are never mutated or deleted, so no other read path needs to change. Both records are always kept.
+
+Applied to: `GET /explore/series`, `POST /explore/series` (batch), `POST /explore/batch-series`, `GET /dashboard/summary`, and the `/stats/*` correlation endpoints (they all read through `db::explore::query_series`) — any `health_records` row with `duplicate_of IS NOT NULL` whose source isn't the preferred one for that metric is excluded from these aggregates.
+
+**Not applied to:** `GET /health-records` and every export path (`GET /export/json`, `GET /export/csv`) always return every row, preferred or not — provenance is never dropped from a user's own data or their export.
 
 ### Deduplication Rules
 
 - Duplicate detection window: 60 seconds and 2% value tolerance.
 - Duplicates are never silently dropped.
 - When a duplicate is detected: log a structured warning with both record IDs and sources, insert the record with a `duplicate_of` reference.
-- `source_preferences` determines which record is shown by default.
+- `source_preferences` determines which record is shown by default (see "Source Preferences" above for the exact read paths this applies to).
 
 On the `POST /healthkit/sync` bulk path, this rule is enforced via **batched cross-source dedup**: one preflight `UNNEST`-driven `SELECT` looks up the closest existing non-`healthkit` record for every row in the batch, followed by one `INSERT ... SELECT FROM UNNEST(...)` that writes the whole batch with each row's `duplicate_of` set from the preflight result. Two DB round trips per batch, regardless of batch size — the rule holds for 100-record batches at the same fidelity as the previous per-record path.
 

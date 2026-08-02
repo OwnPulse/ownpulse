@@ -7,6 +7,7 @@ use serde::Serialize;
 
 use crate::AppState;
 use crate::auth::extractor::AuthUser;
+use crate::db::health_records::SOURCE_PREFERENCE_EXCLUSION;
 use crate::db::protocols as protocols_db;
 use crate::error::ApiError;
 use crate::models::protocol::TodaysDoseItem;
@@ -54,10 +55,15 @@ pub async fn summary(
     .fetch_one(&state.pool)
     .await?;
 
-    let (health_record_count_7d,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM health_records \
-         WHERE user_id = $1 AND start_time >= now() - INTERVAL '7 days'",
-    )
+    // Excludes rows deduped in favor of a different, user-preferred source
+    // (see `SOURCE_PREFERENCE_EXCLUSION`) so the 7-day count reflects
+    // distinct measurements rather than double-counting the same reading
+    // synced from two devices.
+    let (health_record_count_7d,): (i64,) = sqlx::query_as(&format!(
+        "SELECT COUNT(*) FROM health_records hr \
+         WHERE hr.user_id = $1 AND hr.start_time >= now() - INTERVAL '7 days' \
+           AND {SOURCE_PREFERENCE_EXCLUSION}"
+    ))
     .bind(user_id)
     .fetch_one(&state.pool)
     .await?;
