@@ -1,5 +1,13 @@
 # Cooperative Data Sharing
 
+> **Status: designed, not implemented.** Everything below describes the
+> target design. The `sharing_consents` table exists in the schema, but
+> there are no API routes, consent-checking logic, anonymization pipeline,
+> or aggregate query layer built on it yet — a user cannot currently grant,
+> view, or revoke sharing consent through the product, and no cooperative
+> aggregation happens anywhere in the codebase. Treat this document as a
+> spec for future work, not a description of current behavior.
+
 OwnPulse enables users to contribute anonymized health data to a research marketplace. Participation is voluntary, granular, and revocable.
 
 See [ADR-0010](../decisions/0010-data-cooperative.md) for the full rationale.

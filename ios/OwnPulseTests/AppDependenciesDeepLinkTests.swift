@@ -14,7 +14,8 @@ struct AppDependenciesDeepLinkTests {
         return AppDependencies(
             keychainService: MockKeychainService(),
             networkClient: network,
-            healthKitProvider: MockHealthKitProvider()
+            healthKitProvider: MockHealthKitProvider(),
+            databaseManager: DatabaseManager(inMemory: true)
         )
     }
 

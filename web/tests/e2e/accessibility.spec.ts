@@ -169,7 +169,6 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
           time_of_day: "morning",
           day_number: 3,
           status: "pending",
-          dose_id: null,
         },
         {
           protocol_id: "p1",
@@ -183,7 +182,6 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
           time_of_day: "morning",
           day_number: 3,
           status: "completed",
-          dose_id: "d2",
         },
         {
           protocol_id: "p1",
@@ -197,7 +195,6 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
           time_of_day: "evening",
           day_number: 3,
           status: "skipped",
-          dose_id: "d3",
         },
       ]),
     }),

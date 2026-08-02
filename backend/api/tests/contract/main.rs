@@ -174,6 +174,15 @@ impl ProviderStateExecutor for StateExecutor {
                 let mut store = self.tokens.lock().expect("token store lock");
                 store.user_token = Some(token);
             }
+            "a pending healthkit write-queue item exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_healthkit_write_queue_item(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
             "sleep records exist" => {
                 let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
                 seed_sleep_record(&self.pool, user_id).await;
@@ -342,6 +351,42 @@ async fn seed_dose_protocol(pool: &sqlx::PgPool, user_id: Uuid, protocol_id: &st
     .expect("seed contract-test protocol line");
 }
 
+/// Seed a HealthKit write-queue row with the fixed id the ios-backend
+/// contract references directly (`77777777-…`), so both the write-queue-list
+/// and confirm-with-failures interactions can pin the same real item. Reruns
+/// `DELETE` first because the `write-queue` and `confirm` interactions each
+/// invoke this provider state independently, creating a *new* test user per
+/// interaction — rebinding the fixed id to whichever user is running keeps
+/// the row owned by the request that's about to read/mutate it.
+async fn seed_healthkit_write_queue_item(pool: &sqlx::PgPool, user_id: Uuid) {
+    let queue_id: Uuid = "77777777-7777-7777-7777-777777777777"
+        .parse()
+        .expect("valid UUID");
+    let value = serde_json::json!({
+        "value": 82.5,
+        "unit": "kg",
+        "start_time": "2026-03-20T10:00:00Z",
+        "end_time": "2026-03-20T10:00:00Z",
+    });
+
+    sqlx::query("DELETE FROM healthkit_write_queue WHERE id = $1")
+        .bind(queue_id)
+        .execute(pool)
+        .await
+        .expect("clear existing contract-test write-queue row");
+
+    sqlx::query(
+        "INSERT INTO healthkit_write_queue (id, user_id, hk_type, value) \
+         VALUES ($1, $2, 'body_mass', $3)",
+    )
+    .bind(queue_id)
+    .bind(user_id)
+    .bind(&value)
+    .execute(pool)
+    .await
+    .expect("seed contract-test write-queue item");
+}
+
 /// Seed a sleep observation so the web contract's `GET /api/v1/sleep` returns
 /// a non-empty array.  Sleep records are stored in the `observations` table
 /// with `type = 'sleep'`.
@@ -470,11 +515,14 @@ async fn verify_contract(
 
 /// Regex matching the iOS HealthKit-sync interactions in `ios-backend.json`.
 ///
-/// These three interactions are deterministic — their responses are fixed
-/// status codes and fixed bodies (e.g. `{"received":1,"inserted":1,...}`, `[]`,
-/// and an empty 204) — so they can be verified against the live provider without
-/// matching rules or elaborate provider-state seeding. They form the active,
-/// CI-enforced slice of the iOS Pact gate: if a change to `/healthkit/sync`,
+/// The sync and confirm interactions are fully deterministic (fixed status
+/// codes and bodies, e.g. `{"received":1,"inserted":1,...}` and an empty 204).
+/// The write-queue interaction seeds one real pending item at a fixed id
+/// (`seed_healthkit_write_queue_item`) and uses `type` matchers for the two
+/// fields the provider necessarily generates dynamically (`user_id`,
+/// `scheduled_at`) — everything else, including the full `value` JSONB shape,
+/// is matched by exact equality. Together these form the active, CI-enforced
+/// slice of the iOS Pact gate: if a change to `/healthkit/sync`,
 /// `/healthkit/write-queue`, or `/healthkit/confirm` alters the status code or
 /// response shape away from what iOS expects, this test fails.
 const IOS_HEALTHKIT_INTERACTIONS: &str = "^a request to (bulk sync HealthKit records|\

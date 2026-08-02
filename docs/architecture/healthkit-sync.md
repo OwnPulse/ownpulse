@@ -28,30 +28,41 @@ User enters data        Third-party sync
        │
        ├── source = 'healthkit'?  ──> NO queue entry (unconditional)
        │
-       └── source != 'healthkit' AND has HealthKit mapping?
-               │
+       └── source != 'healthkit'  ──> ALWAYS enqueued (no HealthKit-mapping
+               │                       check on the backend — see note below)
                ▼
-       healthkit_write_queue (status: pending)
+       healthkit_write_queue (pending: confirmed_at IS NULL AND failed_at IS NULL)
                │
                ▼
        iOS app polls GET /api/v1/healthkit/write-queue
                │
                ▼
-       iOS writes to HealthKit via HKHealthStore.save()
+       iOS writes each item to HealthKit via HKHealthStore.save()
                │
-               ▼
-       iOS calls POST /api/v1/healthkit/write-queue/:id/confirm
-               │
-               ▼
-       Queue entry updated (status: written, confirmed_at set)
+       ┌───────┴────────┐
+       ▼                ▼
+   write succeeds    write fails
+       │                │
+       ▼                ▼
+POST /api/v1/healthkit/confirm       POST /api/v1/healthkit/confirm
+  {"ids": [queue_id, ...]}             {"ids": [], "failures": [{"id": queue_id, "error": "..."}]}
+       │                │
+       ▼                ▼
+confirmed_at = now()   failed_at = now(), error = <client message, truncated to 500 chars>
 ```
+
+There is a single endpoint, `POST /api/v1/healthkit/confirm` — there is no per-item `/write-queue/:id/confirm` route. A single request body carries both outcomes: successfully-written item ids in `ids`, and failed items (with the client's error text) in `failures`. Both fields are scoped to the caller's own queue rows — a request can only confirm or fail items belonging to the authenticated user.
+
+`failures` is `#[serde(default)]` on the backend — clients built before this flow existed can omit it entirely and keep working; they simply never report failures, so permanently-unwritable items stay pending forever (see below).
 
 The iOS app polls the write-back queue on:
 - App foreground
 - Background refresh
 - Manual sync trigger
 
-Failed writes are retried on the next poll. Errors are logged with the queue entry.
+Marking an item failed removes it from `GET /write-queue`'s pending set (`WHERE confirmed_at IS NULL AND failed_at IS NULL`) just like confirming it does. This matters because `get_pending` caps results at 100 rows ordered by `scheduled_at ASC`: before failure reporting existed, a permanently-unwritable item (e.g. a HealthKit type whose authorization was revoked, or a `record_type` with no HealthKit mapping at all — see below) sat at the head of the queue forever and starved every item behind it. Reporting the failure retires the item instead.
+
+**This retirement path is for deterministic failures only** — an item that can never succeed (no matching HealthKit type, permanently revoked authorization). The iOS client is expected to keep genuinely transient errors (e.g. a momentary `HKHealthStore.save()` failure, device locked) pending rather than reporting them as `failures`, so they're retried on the next poll instead of being retired. A UI surface for reviewing/retrying failed items is a tracked follow-up, not part of this change — today `failed_at`/`error` are queryable in the DB but have no client-facing affordance.
 
 ## Deduplication on New Integration Connect
 
@@ -81,7 +92,7 @@ On the `POST /healthkit/sync` bulk path, this rule is enforced via **batched cro
 
 ### Batch Size Cap
 
-`POST /healthkit/sync` accepts at most **500 records per call** (`MAX_HEALTHKIT_BATCH`). Larger batches are rejected with `400 Bad Request` before reaching the DB. iOS chunks by 100 records, so the cap leaves ~5x headroom. Raising the limit requires a load test at the new ceiling.
+`POST /healthkit/sync` accepts at most **500 records per call** (`MAX_HEALTHKIT_BATCH`). Larger batches are rejected with `400 Bad Request` before reaching the DB. iOS's own batch size (`SyncEngine.batchSize`) is also 500 — the two constants are meant to track each other and currently leave **zero headroom**: raising either one without the other either silently under-utilizes the client's chunking or starts rejecting the client's own batches with 400s. Change them together, and add a load test at the new ceiling before raising the backend cap.
 
 ### Response Shape
 
@@ -97,9 +108,37 @@ On success, returns `201 Created` with a JSON body:
 
 iOS currently consumes the endpoint with `requestNoContent` and discards the body; the ack shape exists so the HTTP contract is honest and so a future sync-status UI can read the counts without a wire change.
 
+### Write-Queue Item Wire Shape
+
+`GET /api/v1/healthkit/write-queue` returns an array of pending items:
+
+```json
+{
+  "id": "77777777-7777-7777-7777-777777777777",
+  "user_id": "550e8400-e29b-41d4-a716-446655440001",
+  "hk_type": "body_mass",
+  "value": {
+    "value": 82.5,
+    "unit": "kg",
+    "start_time": "2026-03-20T10:00:00Z",
+    "end_time": "2026-03-20T10:00:00Z"
+  },
+  "scheduled_at": "2026-03-20T10:00:00Z",
+  "confirmed_at": null,
+  "failed_at": null,
+  "error": null,
+  "source_record_id": "550e8400-e29b-41d4-a716-446655440010",
+  "source_table": "health_records"
+}
+```
+
+`value` is JSONB and its shape is exactly `{value, unit, start_time, end_time}`, no more, no fewer keys. Every field except `start_time` is nullable — `HealthRecordRow.value`/`unit`/`end_time` are all `Option` in the DB model, and a record posted without them still enqueues, with those keys present and `null` (never omitted). This is the iOS decode contract: iOS must decode `value`/`unit`/`end_time` as optional and treat a null `value` as a fail-reportable item, not a decode crash.
+
+This shape is pinned by two integration tests (`test_write_queue_shape_after_manual_record_insert`, `test_write_queue_shape_with_null_value_fields`), asserted key-by-key. The `ios-backend.json` Pact contract's write-queue interaction round-trips the same hardcoded JSONB via its provider-state seeder, but Pact v2 object matching is non-strict equality-of-example, not a schema check — it would not fail if a producer sub-key were renamed in `routes/health_records.rs` while the seeder's literal JSON stayed unchanged. The integration tests are the actual enforcement for this shape; the Pact contract is a consumer-facing example, not a second independent gate.
+
 ## HealthKit Type Mappings
 
-Each structured `health_records.record_type` maps to a HealthKit type identifier. The mapping is maintained in the iOS `HealthKitProvider` implementation. Only record types with a known HealthKit mapping are eligible for write-back.
+Each structured `health_records.record_type` maps to a HealthKit type identifier. The mapping is maintained in the iOS `HealthKitProvider` implementation — **the backend has no knowledge of it** and enqueues every non-`healthkit`-sourced record for write-back unconditionally (see the Write-Back Queue Flow diagram above). A record type iOS can't map to a HealthKit identifier is retired client-side via the `failures` mechanism (report it as a deterministic failure on first encounter) rather than being filtered server-side.
 
 ## References
 

@@ -22,7 +22,7 @@ OwnPulse is a data cooperative that provides an open source health data platform
 
 ### Data From Connected Services
 
-When you connect third-party integrations (Garmin, Oura, Dexcom, Apple HealthKit), we receive the data those services provide via their APIs. We store OAuth tokens encrypted with AES-256-GCM.
+When you connect third-party integrations (Garmin, Oura, Apple HealthKit), we receive the data those services provide via their APIs. We store OAuth tokens encrypted with AES-256-GCM.
 
 ### Data We Do Not Collect
 
