@@ -20,7 +20,7 @@ This document describes the OwnPulse open data export format. Any application ca
 | `daily_checkins` | `array` | Five 1-10 subjective scores per day: energy, mood, focus, stress, sleep quality. Each entry has a `date` and the five scores. |
 | `lab_results` | `array` | Blood panel and laboratory data. Each result has a `test_name`, `value`, `unit`, `reference_range`, and `collected_at` timestamp. Externally-sourced rows also carry `source`, `source_id`, and (for FHIR/MyChart imports) the standard `loinc_code`. |
 | `observations` | `array` | User-defined flexible data. Each observation has a `type` (`event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental`), a `name`, and a JSONB `value` whose shape depends on the type. |
-| `calendar_days` | `array` | Meeting and schedule aggregates per day. Each entry has a `date`, `meeting_count`, and `meeting_hours`. |
+| `calendar_days` | `array` | Meeting aggregates per day from the Google Calendar sync job -- counts and minutes only, never event titles/attendees/content. Each entry has a `date`, `meeting_count`, and `meeting_minutes`. Not yet included in `POST /export` output. |
 | `sharing_consents` | `array` | Records of cooperative data sharing consent. Each entry has a `dataset`, `consented_at`, and `revoked_at` (null if active). |
 
 ## Notes

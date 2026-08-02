@@ -1,0 +1,31 @@
+{
+  "kind": "calendar#events",
+  "items": [
+    {
+      "id": "event-1",
+      "summary": "1:1 with manager",
+      "description": "Discuss Q3 roadmap and compensation",
+      "attendees": [{ "email": "manager@example.com" }],
+      "start": { "dateTime": "2026-06-01T09:00:00Z" },
+      "end": { "dateTime": "2026-06-01T09:30:00Z" }
+    },
+    {
+      "id": "event-2",
+      "summary": "Team standup",
+      "start": { "dateTime": "2026-06-01T10:00:00Z" },
+      "end": { "dateTime": "2026-06-01T10:15:00Z" }
+    },
+    {
+      "id": "event-3",
+      "summary": "Company holiday",
+      "start": { "date": "2026-06-01" },
+      "end": { "date": "2026-06-02" }
+    },
+    {
+      "id": "event-4",
+      "summary": "Therapy appointment",
+      "start": { "dateTime": "2026-06-02T14:00:00Z" },
+      "end": { "dateTime": "2026-06-02T15:00:00Z" }
+    }
+  ]
+}

@@ -389,6 +389,7 @@ All jobs idempotent. No shared runner state. iOS failures do not block deploy â€
 | `GOOGLE_CLIENT_ID` | yes | |
 | `GOOGLE_CLIENT_SECRET` | yes | |
 | `GOOGLE_REDIRECT_URI` | yes | |
+| `GOOGLE_CALENDAR_REDIRECT_URI` | no | Redirect URI for the separate Google Calendar *connect* flow (not login). Defaults to `<WEB_ORIGIN>/api/v1/auth/google-calendar/callback`. Reuses `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. |
 | `GARMIN_CLIENT_ID` | yes | |
 | `GARMIN_CLIENT_SECRET` | yes | |
 | `OURA_CLIENT_ID` | yes | |

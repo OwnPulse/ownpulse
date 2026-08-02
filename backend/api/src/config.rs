@@ -58,6 +58,18 @@ pub struct Config {
     #[serde(default)]
     pub oura_auth_base_url: Option<String>,
 
+    /// Redirect URI for the Google Calendar *connect* flow — deliberately
+    /// separate from `google_redirect_uri` (login/signup). Reuses
+    /// `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, but Google requires an
+    /// exact registered redirect URI per flow, and this flow requires an
+    /// authenticated user + `calendar.readonly` scope rather than login.
+    #[serde(default)]
+    pub google_calendar_redirect_uri: Option<String>,
+    /// Override the Google Calendar API base URL for testing. Defaults to
+    /// `https://www.googleapis.com`.
+    #[serde(default)]
+    pub google_calendar_api_base_url: Option<String>,
+
     /// MyChart / SMART-on-FHIR public OAuth client id. SMART public clients use
     /// PKCE rather than a client secret, so no secret is configured. The FHIR
     /// base URL and token endpoint are per-provider and supplied by the client
@@ -197,6 +209,8 @@ pub mod test_helpers {
             oura_client_secret: None,
             oura_api_base_url: None,
             oura_auth_base_url: None,
+            google_calendar_redirect_uri: None,
+            google_calendar_api_base_url: None,
             mychart_client_id: None,
             mychart_allow_insecure_urls: true,
             encryption_key: default_encryption_key(),
@@ -228,6 +242,15 @@ impl Config {
         self.google_redirect_uri
             .clone()
             .unwrap_or_else(|| format!("{}/api/v1/auth/google/callback", self.web_origin))
+    }
+
+    /// Return the Google Calendar connect-flow redirect URI. Same override
+    /// pattern as [`Config::google_redirect_uri`], but a distinct path since
+    /// this is a separate OAuth flow (linking, not login).
+    pub fn google_calendar_redirect_uri(&self) -> String {
+        self.google_calendar_redirect_uri
+            .clone()
+            .unwrap_or_else(|| format!("{}/api/v1/auth/google-calendar/callback", self.web_origin))
     }
 
     /// Load configuration from environment variables.
@@ -290,6 +313,8 @@ mod tests {
             oura_client_secret: None,
             oura_api_base_url: None,
             oura_auth_base_url: None,
+            google_calendar_redirect_uri: None,
+            google_calendar_api_base_url: None,
             mychart_client_id: None,
             mychart_allow_insecure_urls: true,
             encryption_key: default_encryption_key(),
@@ -365,6 +390,26 @@ mod tests {
         assert_eq!(
             config.google_redirect_uri(),
             "https://custom.example.com/callback"
+        );
+    }
+
+    #[test]
+    fn google_calendar_redirect_uri_derived_from_web_origin() {
+        let config = test_config();
+        assert_eq!(
+            config.google_calendar_redirect_uri(),
+            "http://localhost:5173/api/v1/auth/google-calendar/callback"
+        );
+    }
+
+    #[test]
+    fn google_calendar_redirect_uri_explicit_override() {
+        let mut config = test_config();
+        config.google_calendar_redirect_uri =
+            Some("https://custom.example.com/gcal-callback".to_string());
+        assert_eq!(
+            config.google_calendar_redirect_uri(),
+            "https://custom.example.com/gcal-callback"
         );
     }
 }
