@@ -6,6 +6,7 @@
 //! SQLx query functions live here. No business logic — just data access.
 
 pub mod audit;
+pub mod calendar_days;
 pub mod checkins;
 pub mod explore;
 pub mod explore_charts;

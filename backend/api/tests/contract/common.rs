@@ -41,6 +41,8 @@ fn test_config(database_url: &str) -> api::config::Config {
         oura_client_secret: None,
         oura_api_base_url: None,
         oura_auth_base_url: None,
+        google_calendar_redirect_uri: None,
+        google_calendar_api_base_url: None,
         mychart_client_id: None,
         mychart_allow_insecure_urls: true,
         encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
