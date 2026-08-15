@@ -56,7 +56,7 @@ use uuid::Uuid;
 /// are written as separate top-level `EXISTS`es (rather than one `JOIN ...
 /// ON (a OR b)`) so each can use a plain index-friendly equality lookup —
 /// `original.id = hr.duplicate_of` hits the primary key, `later.duplicate_of
-/// = hr.id` hits `idx_health_records_duplicate_of` (migration 0033) — instead
+/// = hr.id` hits `idx_health_records_duplicate_of` (migration 0035) — instead
 /// of forcing a sequential scan to evaluate an OR across two columns inside
 /// a correlated subquery.
 pub const SOURCE_PREFERENCE_EXCLUSION: &str = "NOT (
@@ -343,6 +343,51 @@ pub async fn insert(
     .bind(None::<String>) // source_instance — not on CreateHealthRecord, nullable in DB
     .bind(duplicate_of)
     .fetch_one(pool)
+    .await
+}
+
+/// Insert a health record, skipping the write if a row with the same
+/// `(user_id, source, record_type, start_time, source_id)` already exists.
+///
+/// Used exclusively by background sync jobs (Garmin/Oura), which re-fetch the
+/// same window of data on every cycle and always set a deterministic
+/// `source_id` (e.g. `garmin-steps-2026-03-28`). Without `ON CONFLICT`, a
+/// re-synced row hits the existing unique constraint and surfaces as a
+/// generic "failed to insert" warning on every cycle; this makes the replay
+/// case an explicit, silent no-op instead. Returns `None` when the row
+/// already existed, `Some` when a new row was actually written, so callers
+/// can report a truthful insert count instead of counting every *attempt*.
+/// `duplicate_of` is threaded through unchanged so a re-sync of a
+/// cross-source duplicate (a different day's find_duplicate match) doesn't
+/// hit the same unique-violation noise this function exists to avoid.
+pub async fn insert_synced(
+    pool: &PgPool,
+    user_id: Uuid,
+    record: &CreateHealthRecord,
+    duplicate_of: Option<Uuid>,
+) -> Result<Option<HealthRecordRow>, sqlx::Error> {
+    sqlx::query_as::<_, HealthRecordRow>(
+        "INSERT INTO health_records
+            (user_id, source, record_type, value, unit, start_time, end_time,
+             metadata, source_id, duplicate_of)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (user_id, source, record_type, start_time, source_id)
+             DO NOTHING
+         RETURNING id, user_id, source, record_type, value, unit,
+                   start_time, end_time, metadata, source_id, source_instance,
+                   duplicate_of, healthkit_written, created_at",
+    )
+    .bind(user_id)
+    .bind(&record.source)
+    .bind(&record.record_type)
+    .bind(record.value)
+    .bind(&record.unit)
+    .bind(record.start_time)
+    .bind(record.end_time)
+    .bind(&record.metadata)
+    .bind(&record.source_id)
+    .bind(duplicate_of)
+    .fetch_optional(pool)
     .await
 }
 

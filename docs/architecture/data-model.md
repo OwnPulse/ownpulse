@@ -138,9 +138,17 @@ Flexible extensibility layer for user-defined data. See [ADR-0002](../decisions/
 | `type` | TEXT | `event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental` |
 | `name` | TEXT | User-defined freeform name |
 | `value` | JSONB | Shape depends on `type` (validated in API layer) |
+| `source` | TEXT | `manual` (default) or an integration name (e.g. `garmin`, `oura`) |
+| `source_id` | TEXT nullable | Deterministic per-source id (e.g. `garmin-sleep-2026-03-28`) used to dedupe re-synced rows. Always `NULL` for manual entries. |
 | `started_at` | TIMESTAMPTZ | |
 | `ended_at` | TIMESTAMPTZ nullable | For `event_duration` only |
 | `created_at` | TIMESTAMPTZ | |
+
+`UNIQUE (user_id, source, source_id) WHERE source_id IS NOT NULL` — a partial
+unique index so re-syncing a wearable observation (e.g. a Garmin sleep record
+re-fetched every 15 minutes) is a no-op rather than a fresh duplicate row.
+Manual entries never set `source_id`, so they're never constrained by it and
+may legitimately repeat.
 
 **JSONB `value` shapes by type:**
 

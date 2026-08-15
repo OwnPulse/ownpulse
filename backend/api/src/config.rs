@@ -164,6 +164,61 @@ fn default_smtp_port() -> u16 {
     2587
 }
 
+/// Minimal `Config` construction for unit tests that need *a* config value
+/// but don't exercise any of its fields (e.g. background-job spawn/shutdown
+/// smoke tests). Integration tests that actually hit config-dependent
+/// behavior should use `tests/integration/common.rs::test_config` instead.
+#[cfg(test)]
+pub mod test_helpers {
+    use super::{
+        Config, default_apple_jwks_url, default_data_region, default_encryption_key,
+        default_google_token_url, default_google_userinfo_url, default_jwt_expiry,
+        default_jwt_secret, default_refresh_expiry, default_rust_log, default_smtp_port,
+        default_web_origin,
+    };
+
+    pub fn minimal_config() -> Config {
+        Config {
+            database_url: "postgres://user:pass@localhost/db".to_string(),
+            jwt_secret: default_jwt_secret(),
+            jwt_expiry_seconds: default_jwt_expiry(),
+            refresh_token_expiry_seconds: default_refresh_expiry(),
+            google_client_id: None,
+            google_client_secret: None,
+            google_redirect_uri: None,
+            google_token_url: default_google_token_url(),
+            google_userinfo_url: default_google_userinfo_url(),
+            apple_client_id: None,
+            apple_jwks_url: default_apple_jwks_url(),
+            garmin_client_id: None,
+            garmin_client_secret: None,
+            garmin_base_url: None,
+            oura_client_id: None,
+            oura_client_secret: None,
+            oura_api_base_url: None,
+            oura_auth_base_url: None,
+            mychart_client_id: None,
+            mychart_allow_insecure_urls: true,
+            encryption_key: default_encryption_key(),
+            encryption_key_previous: None,
+            storage_path: None,
+            app_user: None,
+            app_password_hash: None,
+            data_region: default_data_region(),
+            web_origin: default_web_origin(),
+            rust_log: default_rust_log(),
+            require_invite: false,
+            ios_min_version: None,
+            ios_force_upgrade_below: None,
+            smtp_host: None,
+            smtp_port: default_smtp_port(),
+            smtp_username: None,
+            smtp_password: None,
+            smtp_from: None,
+        }
+    }
+}
+
 impl Config {
     /// Return the Google OAuth redirect URI.
     ///

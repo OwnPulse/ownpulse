@@ -35,6 +35,7 @@ mod sleep;
 mod source_preference_reads;
 mod sources;
 mod stats;
+mod sync_jobs;
 mod telemetry;
 mod versioning;
 mod waitlist;
