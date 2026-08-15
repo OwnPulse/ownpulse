@@ -511,14 +511,52 @@ writing a preference via `POST /source-preferences`.
 
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
-| GET | `/integrations` | List connected integrations | 1 |
+| GET | `/integrations` | List connected integrations, each with `last_synced_at` / `last_sync_error` | 1 |
 | DELETE | `/integrations/:source` | Disconnect an integration | 1 |
 | GET | `/auth/garmin/login` | Start the Garmin OAuth 1.0a flow (requires JWT) | 1 |
 | GET | `/auth/garmin/callback` | Garmin OAuth 1.0a callback — exchanges and stores the token (requires JWT) | 1 |
 | GET | `/auth/oura/login` | Start the Oura OAuth 2.0 flow (requires JWT) | 1 |
 | GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 1 |
+| POST | `/integrations/garmin/sync` | Trigger an immediate Garmin fetch | 1 |
+| POST | `/integrations/oura/sync` | Trigger an immediate Oura fetch | 1 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
 | POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
+
+#### Garmin / Oura background sync
+
+Once a Garmin or Oura account is connected (`GET /auth/garmin/login` /
+`GET /auth/oura/login` and their callbacks), the server polls each connected
+account automatically every 15 minutes, fetching data since the last
+successful sync (or the last 7 days, on first sync). No user action is
+required for data to keep flowing in. Per-user sync is mutually exclusive
+(a Postgres advisory lock, keyed on source + user) — a manual sync, the
+periodic job, and another API replica (`replicaCount: 2`) can never process
+the same user concurrently; a losing attempt is skipped, not queued.
+
+`POST /integrations/garmin/sync` and `POST /integrations/oura/sync` (empty
+body) trigger an immediate fetch for the calling user instead of waiting for
+the next scheduled interval. There is no web or iOS button for this yet — the
+endpoints exist for future UI and for troubleshooting. Response `200`:
+
+```json
+{ "source": "garmin", "records_inserted": 6 }
+```
+
+To protect the server's shared Garmin/Oura app quota, manual sync is
+rate-limited per user: `429` with a `Retry-After` header if the user's last
+sync attempt (manual or scheduled, success or failure) completed less than 60
+seconds ago, or if another sync for that user is already in flight. `404` if
+the source isn't connected; `501` if the server operator hasn't configured
+the integration; `502` if the upstream provider (or a transient DB issue)
+failed — the response body never includes raw upstream response content,
+only a short description.
+
+A sync (scheduled or manual) only advances the account's watermark
+(`last_synced_at`) when every fetch for that provider succeeds. If any fetch
+fails, the watermark is left where it was and the error is recorded
+(surfaced via `GET /integrations`), so the failed window is retried on the
+next sync instead of being silently skipped. A subsequent fully-successful
+sync clears the recorded error.
 
 #### MyChart / SMART-on-FHIR lab import
 
@@ -591,6 +629,8 @@ localhost.
 |--------|------|-------------|-------|
 | GET | `/export/json` | Full JSON export (streaming) | 1 |
 | GET | `/export/csv` | Full CSV export (streaming) | 1 |
+
+`/export/json` covers `health_records`, `interventions`, `daily_checkins`, `lab_results`, `observations` (which includes sleep and all other user-defined data), `protocols`, `protocol_lines`, `protocol_runs`, `protocol_doses`, and (only if present) `genetic_records`. **`/export/csv` covers `health_records` only** — it does not include interventions, checkins, labs, observations, protocols, or genetics; use `/export/json` for a complete export.
 
 ### Account
 

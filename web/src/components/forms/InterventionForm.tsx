@@ -22,6 +22,23 @@ function savedMedicineLabel(m: SavedMedicine): string {
   return parts.join(" ");
 }
 
+// Free text is always allowed — these are suggestions only, matching iOS's
+// unit/route pickers, not a whitelist. Never validate substance/unit/route
+// input; the platform is non-judgmental by design.
+const UNIT_SUGGESTIONS = ["mg", "mcg", "mL", "IU", "g", "drops", "puffs"];
+const ROUTE_SUGGESTIONS = [
+  "oral",
+  "sublingual",
+  "subq",
+  "IM",
+  "IV",
+  "topical",
+  "inhaled",
+  "nasal",
+  "rectal",
+  "transdermal",
+];
+
 export default function InterventionForm() {
   const queryClient = useQueryClient();
   const [substance, setSubstance] = useState("");
@@ -136,11 +153,13 @@ export default function InterventionForm() {
                 </button>
                 <button
                   type="button"
-                  className={styles.deleteChipBtn}
+                  className={`${styles.deleteChipBtn}${
+                    deletingId === m.id ? ` ${styles.deleteChipBtnConfirming}` : ""
+                  }`}
                   aria-label={`Delete ${m.substance}`}
                   onClick={() => handleDeleteMedicine(m.id)}
                 >
-                  {deletingId === m.id ? "?" : "\u00d7"}
+                  {deletingId === m.id ? "Delete?" : "\u00d7"}
                 </button>
               </span>
             ))}
@@ -224,7 +243,13 @@ export default function InterventionForm() {
           onChange={(e) => setUnit(e.target.value)}
           required
           className={forms.input}
+          list="intervention-unit-suggestions"
         />
+        <datalist id="intervention-unit-suggestions">
+          {UNIT_SUGGESTIONS.map((u) => (
+            <option key={u} value={u} />
+          ))}
+        </datalist>
       </div>
       <div className={forms.field}>
         <label className={forms.label} htmlFor="intervention-route">
@@ -236,7 +261,13 @@ export default function InterventionForm() {
           onChange={(e) => setRoute(e.target.value)}
           required
           className={forms.input}
+          list="intervention-route-suggestions"
         />
+        <datalist id="intervention-route-suggestions">
+          {ROUTE_SUGGESTIONS.map((r) => (
+            <option key={r} value={r} />
+          ))}
+        </datalist>
       </div>
       <div className={forms.field}>
         <label className={forms.label} htmlFor="intervention-time">

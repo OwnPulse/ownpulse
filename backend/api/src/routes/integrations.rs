@@ -4,6 +4,7 @@
 use axum::Json;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use chrono::{DateTime, Utc};
 use serde::Serialize;
 
 use crate::AppState;
@@ -16,6 +17,8 @@ use crate::error::ApiError;
 pub struct IntegrationStatus {
     pub source: String,
     pub connected: bool,
+    pub last_synced_at: Option<DateTime<Utc>>,
+    pub last_sync_error: Option<String>,
 }
 
 /// GET /integrations — list all integrations and their connection status.
@@ -38,6 +41,8 @@ pub async fn list(
         .map(|t| IntegrationStatus {
             source: t.source,
             connected: true,
+            last_synced_at: t.last_synced_at,
+            last_sync_error: t.last_sync_error,
         })
         .collect();
     Ok(Json(statuses))
