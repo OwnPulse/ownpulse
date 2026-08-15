@@ -125,6 +125,35 @@ describe("InterventionForm", () => {
     expect(screen.getByRole("button", { name: /log intervention/i })).toBeDefined();
   });
 
+  it("renders unit and route suggestion datalists", () => {
+    renderForm();
+
+    const unitInput = screen.getByLabelText(/unit/i);
+    expect(unitInput.getAttribute("list")).toBe("intervention-unit-suggestions");
+    const unitOptions = Array.from(
+      document.getElementById("intervention-unit-suggestions")?.querySelectorAll("option") ?? [],
+    ).map((o) => o.getAttribute("value"));
+    expect(unitOptions).toEqual(["mg", "mcg", "mL", "IU", "g", "drops", "puffs"]);
+
+    const routeInput = screen.getByLabelText(/route/i);
+    expect(routeInput.getAttribute("list")).toBe("intervention-route-suggestions");
+    const routeOptions = Array.from(
+      document.getElementById("intervention-route-suggestions")?.querySelectorAll("option") ?? [],
+    ).map((o) => o.getAttribute("value"));
+    expect(routeOptions).toEqual([
+      "oral",
+      "sublingual",
+      "subq",
+      "IM",
+      "IV",
+      "topical",
+      "inhaled",
+      "nasal",
+      "rectal",
+      "transdermal",
+    ]);
+  });
+
   it("renders quick-pick chips when active substances exist", async () => {
     renderForm();
     await waitFor(() => {

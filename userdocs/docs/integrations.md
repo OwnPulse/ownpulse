@@ -29,7 +29,9 @@ When multiple sources report the same metric (for example, heart rate from both 
 
 ## Sync schedule
 
-Once connected, an integration's data is pulled in via manual or periodic sync depending on the source -- exact scheduling behavior varies by integration and is evolving.
+Connected Garmin and Oura integrations sync automatically every 15 minutes, fetching data since your last successful sync (or the last 7 days, on first connect). You do not need to manually trigger syncs. A `POST /integrations/garmin/sync` / `POST /integrations/oura/sync` endpoint exists for triggering a sync immediately instead of waiting for the next scheduled run, but there is no web or iOS button for it yet.
+
+If a sync attempt fails (for example, the third-party service is temporarily unavailable), OwnPulse leaves your last-synced timestamp where it was, so nothing from that time window is lost -- the next scheduled sync picks up from the same point and retries automatically.
 
 ## Google Calendar
 
@@ -38,4 +40,3 @@ Google Calendar integration syncs your meeting data in read-only mode. OwnPulse 
 ## MyChart and other patient portals
 
 OwnPulse can import lab results from MyChart (Epic) and other patient portals that support the SMART-on-FHIR standard. This is currently an **iOS-only** feature: open **Settings > Lab Results** in the iOS app to connect a provider. You'll be sent through your provider's own authorization page, then returned to the app. Imported labs appear alongside any you entered manually or uploaded as a PDF, and re-syncing skips results you've already imported. Requires the server operator to have configured MyChart support (`MYCHART_CLIENT_ID`) -- it may not be available on every self-hosted instance.
-

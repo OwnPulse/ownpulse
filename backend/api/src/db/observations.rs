@@ -7,7 +7,9 @@ use crate::models::observation::{CreateObservation, ObservationRow};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Insert a new observation.
+/// Insert a new observation. Used by manual-entry routes (`source_id` always
+/// `NULL`, so the partial unique index on `(user_id, source, source_id)`
+/// never applies here — manual entries may legitimately repeat).
 pub async fn insert(
     pool: &PgPool,
     user_id: Uuid,
@@ -18,7 +20,7 @@ pub async fn insert(
             (user_id, type, name, start_time, end_time, value, source, metadata)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING id, user_id, type, name, start_time, end_time,
-                   value, source, metadata, created_at"#,
+                   value, source, source_id, metadata, created_at"#,
     )
     .bind(user_id)
     .bind(&obs.obs_type)
@@ -32,6 +34,43 @@ pub async fn insert(
     .await
 }
 
+/// Insert an observation with a deterministic `source_id`, skipping the write
+/// if a row with the same `(user_id, source, source_id)` already exists.
+///
+/// Used exclusively by background sync jobs (Garmin/Oura), which re-fetch the
+/// same wearable data on every cycle — without this, re-syncing a sleep
+/// observation would insert a fresh duplicate row every time. Returns `None`
+/// when the row already existed (conflict skipped), `Some` when a new row was
+/// actually written, so callers can report a truthful insert count instead of
+/// counting every *attempt*.
+pub async fn insert_synced(
+    pool: &PgPool,
+    user_id: Uuid,
+    obs: &CreateObservation,
+    source_id: &str,
+) -> Result<Option<ObservationRow>, sqlx::Error> {
+    sqlx::query_as::<_, ObservationRow>(
+        r#"INSERT INTO observations
+            (user_id, type, name, start_time, end_time, value, source, metadata, source_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (user_id, source, source_id) WHERE source_id IS NOT NULL
+             DO NOTHING
+         RETURNING id, user_id, type, name, start_time, end_time,
+                   value, source, source_id, metadata, created_at"#,
+    )
+    .bind(user_id)
+    .bind(&obs.obs_type)
+    .bind(&obs.name)
+    .bind(obs.start_time)
+    .bind(obs.end_time)
+    .bind(&obs.value)
+    .bind(&obs.source)
+    .bind(&obs.metadata)
+    .bind(source_id)
+    .fetch_optional(pool)
+    .await
+}
+
 /// List observations for a user, optionally filtered by type.
 pub async fn list(
     pool: &PgPool,
@@ -40,7 +79,7 @@ pub async fn list(
 ) -> Result<Vec<ObservationRow>, sqlx::Error> {
     sqlx::query_as::<_, ObservationRow>(
         r#"SELECT id, user_id, type, name, start_time, end_time,
-                  value, source, metadata, created_at
+                  value, source, source_id, metadata, created_at
            FROM observations
            WHERE user_id = $1
              AND ($2::text IS NULL OR type = $2)
@@ -63,7 +102,7 @@ pub async fn list_by_type_with_date_range(
 ) -> Result<Vec<ObservationRow>, sqlx::Error> {
     sqlx::query_as::<_, ObservationRow>(
         r#"SELECT id, user_id, type, name, start_time, end_time,
-                  value, source, metadata, created_at
+                  value, source, source_id, metadata, created_at
            FROM observations
            WHERE user_id = $1
              AND type = $2
@@ -88,7 +127,7 @@ pub async fn get_by_id(
 ) -> Result<ObservationRow, sqlx::Error> {
     sqlx::query_as::<_, ObservationRow>(
         r#"SELECT id, user_id, type, name, start_time, end_time,
-                  value, source, metadata, created_at
+                  value, source, source_id, metadata, created_at
            FROM observations
            WHERE id = $1 AND user_id = $2"#,
     )

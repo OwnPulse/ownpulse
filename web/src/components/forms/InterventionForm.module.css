@@ -79,6 +79,18 @@
   color: #ffffff;
 }
 
+/* "Delete?" is 7 characters — too wide for the 1.25rem circle used for the
+   "×" glyph, so the confirming state switches to a pill shape. */
+.deleteChipBtnConfirming {
+  width: auto;
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  background: var(--color-error, #d32f2f);
+  color: #ffffff;
+  font-size: var(--text-xs);
+}
+
 .addBtn {
   display: inline-flex;
   align-items: center;

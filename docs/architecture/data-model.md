@@ -4,6 +4,10 @@
 
 When the database schema changes, this document and `schema/open-schema.json` must be updated in the same PR.
 
+## Export coverage
+
+`GET /export/json` (`export/json.rs`) streams a flat top-level array per key, scoped to the requesting user. As of schema `0.2.0` the exported keys are exactly: `health_records`, `interventions`, `daily_checkins`, `lab_results`, `observations` (covers sleep and all other user-defined data — see the `observations` section below), `protocols` (templates, i.e. rows with `user_id = NULL`, are excluded), `protocol_lines`, `protocol_runs`, `protocol_doses`, and — only if the user has any — `genetic_records`. This is **not** every table in this document: tables not listed above (e.g. `users`, `user_auth_methods`, `calendar_days`, `source_preferences`, `sharing_consents`, `explore_charts`, `observer_polls`/`observer_poll_members`/`observer_responses`, `export_jobs`) are not part of the export today. See [`schema/open-schema.md`](../../schema/open-schema.md) for the schema-file view of the same key list — the two are kept in sync by a test (`export::test_export_json_keys_match_open_schema`) that asserts the export's top-level keys equal the schema's declared keys. `GET /export/csv` covers `health_records` only — see [api.md](api.md#export).
+
 ## Tables
 
 ### `users`
@@ -135,12 +139,20 @@ Flexible extensibility layer for user-defined data. See [ADR-0002](../decisions/
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `type` | TEXT | `event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental` |
+| `type` | TEXT | `event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental`, `sleep`. Sleep has no dedicated table — `POST/GET /sleep` (`routes/sleep.rs`) read and write `observations` rows with `type = 'sleep'`; duration/stage/score fields live in `value`. |
 | `name` | TEXT | User-defined freeform name |
 | `value` | JSONB | Shape depends on `type` (validated in API layer) |
+| `source` | TEXT | `manual` (default) or an integration name (e.g. `garmin`, `oura`) |
+| `source_id` | TEXT nullable | Deterministic per-source id (e.g. `garmin-sleep-2026-03-28`) used to dedupe re-synced rows. Always `NULL` for manual entries. |
 | `started_at` | TIMESTAMPTZ | |
 | `ended_at` | TIMESTAMPTZ nullable | For `event_duration` only |
 | `created_at` | TIMESTAMPTZ | |
+
+`UNIQUE (user_id, source, source_id) WHERE source_id IS NOT NULL` — a partial
+unique index so re-syncing a wearable observation (e.g. a Garmin sleep record
+re-fetched every 15 minutes) is a no-op rather than a fresh duplicate row.
+Manual entries never set `source_id`, so they're never constrained by it and
+may legitimately repeat.
 
 **JSONB `value` shapes by type:**
 
