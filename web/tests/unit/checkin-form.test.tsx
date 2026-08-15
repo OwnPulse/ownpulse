@@ -75,7 +75,7 @@ describe("CheckinForm", () => {
     const status = screen.getByRole("status");
     expect(status.textContent).toBe("");
 
-    await user.click(screen.getByRole("button", { name: /save check-in/i }));
+    await user.click(screen.getByRole("button", { name: /log check-in/i }));
 
     await waitFor(() => {
       expect(status.textContent).toMatch(/saved/i);
