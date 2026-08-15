@@ -76,6 +76,27 @@ impl KeyExtractor for JwtSubjectKeyExtractor {
     }
 }
 
+/// Read a named cookie from the request headers. Shared by every OAuth
+/// connect-flow module (garmin, oura, google_calendar) that stores CSRF
+/// state / request-token secrets in short-lived httpOnly cookies.
+pub(crate) fn read_cookie(headers: &http::HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(http::header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookies| {
+            cookies
+                .split(';')
+                .filter_map(|c| {
+                    let trimmed = c.trim();
+                    trimmed
+                        .strip_prefix(name)
+                        .and_then(|rest| rest.strip_prefix('='))
+                        .map(|v| v.to_string())
+                })
+                .next()
+        })
+}
+
 /// Try to pull the JWT `sub` claim out of the `Authorization: Bearer <token>`
 /// header. Returns `None` on any failure so the caller can fall back to a
 /// stable default key.

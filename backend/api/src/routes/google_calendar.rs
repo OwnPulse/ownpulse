@@ -22,6 +22,7 @@ use crate::db::integration_tokens;
 use crate::error::ApiError;
 use crate::integrations::google;
 use crate::jobs::google_calendar_sync;
+use crate::routes::read_cookie;
 
 /// GET /auth/google-calendar/login — start the OAuth 2.0 connect flow.
 ///
@@ -138,12 +139,47 @@ pub async fn google_calendar_callback(
         .expires_in
         .map(|secs| Utc::now() + chrono::Duration::seconds(secs));
 
+    // Google only reliably reissues a refresh_token on a user's *first*
+    // authorization for this scope (`prompt=consent` in `google_calendar_login`
+    // makes a subsequent one likely too, but isn't guaranteed for every
+    // provider edge case) — if this exchange didn't return one, keep
+    // whatever was already stored from a prior connect rather than nulling
+    // it out and silently breaking the background sync job's ability to
+    // refresh later.
+    let prev_key = state
+        .config
+        .encryption_key_previous
+        .as_ref()
+        .map(|k| crypto::parse_encryption_key(k))
+        .transpose()?;
+
+    let existing_refresh_token = integration_tokens::list_for_user(
+        &state.pool,
+        auth_user.id,
+        &encryption_key,
+        prev_key.as_ref(),
+    )
+    .await
+    .map_err(|e| {
+        ApiError::Internal(format!(
+            "failed to load existing Google Calendar token: {e}"
+        ))
+    })?
+    .into_iter()
+    .find(|t| t.source == "google_calendar")
+    .and_then(|t| t.refresh_token);
+
+    let refresh_to_store = tokens
+        .refresh_token
+        .as_deref()
+        .or(existing_refresh_token.as_deref());
+
     integration_tokens::upsert(
         &state.pool,
         auth_user.id,
         "google_calendar",
         &tokens.access_token,
-        tokens.refresh_token.as_deref(),
+        refresh_to_store,
         expires_at,
         &encryption_key,
     )
@@ -207,23 +243,4 @@ pub async fn sync(
         source: "google_calendar".to_string(),
         records_inserted,
     }))
-}
-
-/// Read a named cookie from the request headers.
-fn read_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies
-                .split(';')
-                .filter_map(|c| {
-                    let trimmed = c.trim();
-                    trimmed
-                        .strip_prefix(name)
-                        .and_then(|rest| rest.strip_prefix('='))
-                        .map(|v| v.to_string())
-                })
-                .next()
-        })
 }

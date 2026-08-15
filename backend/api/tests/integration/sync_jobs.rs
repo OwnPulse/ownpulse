@@ -13,7 +13,7 @@ use http::Request;
 use http_body_util::BodyExt;
 use serde_json::Value;
 use tower::ServiceExt;
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use crate::common;
@@ -972,19 +972,91 @@ async fn garmin_manual_sync_without_server_config_returns_501() {
 }
 
 // ── Google Calendar manual sync ───────────────────────────────────────────
+//
+// The sync job's fetch window is always anchored on "now" (a rolling
+// ROLLING_WINDOW_DAYS-back / LOOKAHEAD_DAYS-forward window — see
+// jobs::google_calendar_sync), not on a fixed calendar date, so these tests
+// build event bodies with dates relative to `Utc::now()` rather than a
+// static fixture.
 
-async fn mount_google_calendar(mock: &MockServer) {
+const GCAL_ROLLING_WINDOW_DAYS: i64 = 7;
+const GCAL_LOOKAHEAD_DAYS: i64 = 1;
+/// Number of `calendar_days` rows a full sync always writes: the window is
+/// inclusive of both endpoints (7 days back, today, 1 day ahead).
+const GCAL_WINDOW_SIZE: u64 = (GCAL_ROLLING_WINDOW_DAYS + GCAL_LOOKAHEAD_DAYS + 1) as u64;
+
+fn gcal_day_offset(offset_days: i64) -> chrono::NaiveDate {
+    (Utc::now() + chrono::Duration::days(offset_days)).date_naive()
+}
+
+/// Build a synthetic Google Calendar `events.list` response body. Each tuple
+/// is `(days_offset_from_today, start_hour_utc, duration_minutes)` — dates
+/// are relative to "now" since the sync window always is too.
+fn gcal_events_body(events: &[(i64, u32, i64)]) -> String {
+    let items: Vec<serde_json::Value> = events
+        .iter()
+        .map(|(offset, start_hour, duration_minutes)| {
+            let day = gcal_day_offset(*offset);
+            let start = day.and_hms_opt(*start_hour, 0, 0).unwrap();
+            let end = start + chrono::Duration::minutes(*duration_minutes);
+            serde_json::json!({
+                "start": {"dateTime": format!("{}Z", start.format("%Y-%m-%dT%H:%M:%S"))},
+                "end": {"dateTime": format!("{}Z", end.format("%Y-%m-%dT%H:%M:%S"))}
+            })
+        })
+        .collect();
+    serde_json::json!({ "items": items }).to_string()
+}
+
+/// Mount a mock for the Google Calendar events endpoint that also asserts
+/// the exact `fields`/`eventTypes`/`singleEvents` query params the privacy
+/// fix requires — if the request ever regresses to fetching unrestricted
+/// event bodies, or drops the `eventTypes=default` server-side filter, this
+/// mock stops matching and every test using it fails loudly instead of
+/// silently accepting a wider request.
+async fn mount_google_calendar_body(mock: &MockServer, body: String) {
     Mock::given(method("GET"))
         .and(path("/calendar/v3/calendars/primary/events"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_string(include_str!("../fixtures/google_calendar/events-list.json")),
-        )
+        .and(query_param("singleEvents", "true"))
+        .and(query_param("eventTypes", "default"))
+        .and(query_param(
+            "fields",
+            "items(start(dateTime),end(dateTime),attendees(self,responseStatus)),nextPageToken",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_string(body))
         .mount(mock)
         .await;
 }
 
+async fn mount_google_calendar(mock: &MockServer) {
+    // Two days of timed meetings; every other day in the window implicitly
+    // gets a zero row since there are no events for it.
+    mount_google_calendar_body(
+        mock,
+        gcal_events_body(&[(-2, 9, 30), (-2, 10, 60), (-1, 14, 60)]),
+    )
+    .await;
+}
+
+/// Connect Google Calendar with an access token that won't trigger a
+/// proactive refresh (`expires_at` an hour out) — most tests below aren't
+/// exercising refresh behavior, and a `None`/near-expiry `expires_at` would
+/// make the sync job call `google_token_url`, which defaults to the real
+/// `https://oauth2.googleapis.com/token` unless a test overrides it.
 async fn connect_google_calendar(app: &common::TestApp, user_id: uuid::Uuid) {
+    connect_google_calendar_with_expiry(
+        app,
+        user_id,
+        Some(Utc::now() + chrono::Duration::hours(1)),
+    )
+    .await;
+}
+
+async fn connect_google_calendar_with_expiry(
+    app: &common::TestApp,
+    user_id: uuid::Uuid,
+    expires_at: Option<DateTime<Utc>>,
+) {
     let key = test_encryption_key();
     api::db::integration_tokens::upsert(
         &app.pool,
@@ -992,7 +1064,7 @@ async fn connect_google_calendar(app: &common::TestApp, user_id: uuid::Uuid) {
         "google_calendar",
         "gcal-access",
         Some("gcal-refresh"),
-        None,
+        expires_at,
         &key,
     )
     .await
@@ -1006,6 +1078,21 @@ async fn calendar_days_count(pool: &sqlx::PgPool, user_id: uuid::Uuid) -> i64 {
         .await
         .unwrap();
     count
+}
+
+async fn calendar_day_row(
+    pool: &sqlx::PgPool,
+    user_id: uuid::Uuid,
+    date: chrono::NaiveDate,
+) -> (i32, i32) {
+    sqlx::query_as(
+        "SELECT meeting_count, meeting_minutes FROM calendar_days WHERE user_id = $1 AND date = $2",
+    )
+    .bind(user_id)
+    .bind(date)
+    .fetch_one(pool)
+    .await
+    .unwrap()
 }
 
 #[tokio::test]
@@ -1097,31 +1184,28 @@ async fn google_calendar_manual_sync_writes_aggregates_and_advances_watermark() 
     assert_eq!(response.status(), 200);
     let body = body_json(response).await;
     assert_eq!(body["source"], "google_calendar");
-    // Fixture has two days of timed events (2026-06-01, 2026-06-02); the
-    // all-day "holiday" entry on 2026-06-01 must not count as a meeting.
-    assert_eq!(body["records_inserted"].as_u64().unwrap(), 2);
+    // Every day in the rolling window is written, not just days with
+    // meetings — see the CRITICAL windowing fix.
+    assert_eq!(body["records_inserted"].as_u64().unwrap(), GCAL_WINDOW_SIZE);
+    assert_eq!(
+        calendar_days_count(&app.pool, user_id).await as u64,
+        GCAL_WINDOW_SIZE
+    );
 
-    assert_eq!(calendar_days_count(&app.pool, user_id).await, 2);
-
-    let day1: (i32, i32) = sqlx::query_as(
-        "SELECT meeting_count, meeting_minutes FROM calendar_days \
-         WHERE user_id = $1 AND date = '2026-06-01'",
-    )
-    .bind(user_id)
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
-    assert_eq!(day1, (2, 45), "30min + 15min meetings, holiday excluded");
-
-    let day2: (i32, i32) = sqlx::query_as(
-        "SELECT meeting_count, meeting_minutes FROM calendar_days \
-         WHERE user_id = $1 AND date = '2026-06-02'",
-    )
-    .bind(user_id)
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
-    assert_eq!(day2, (1, 60));
+    assert_eq!(
+        calendar_day_row(&app.pool, user_id, gcal_day_offset(-2)).await,
+        (2, 90),
+        "30min + 60min meetings"
+    );
+    assert_eq!(
+        calendar_day_row(&app.pool, user_id, gcal_day_offset(-1)).await,
+        (1, 60)
+    );
+    assert_eq!(
+        calendar_day_row(&app.pool, user_id, gcal_day_offset(0)).await,
+        (0, 0),
+        "a day with no meetings must still get an explicit zero row, not be omitted"
+    );
 
     let (last_synced_at, last_sync_error) =
         sync_status(&app.pool, user_id, "google_calendar").await;
@@ -1140,15 +1224,7 @@ async fn google_calendar_manual_sync_failure_leaves_watermark_then_clears_on_suc
         .with_priority(1)
         .mount(&mock)
         .await;
-    Mock::given(method("GET"))
-        .and(path("/calendar/v3/calendars/primary/events"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_string(include_str!("../fixtures/google_calendar/events-list.json")),
-        )
-        .with_priority(2)
-        .mount(&mock)
-        .await;
+    mount_google_calendar(&mock).await;
 
     let app = common::setup_with_config(|cfg| {
         cfg.google_client_id = Some("test-google-id".to_string());
@@ -1204,7 +1280,10 @@ async fn google_calendar_manual_sync_failure_leaves_watermark_then_clears_on_suc
         sync_status(&app.pool, user_id, "google_calendar").await;
     assert!(after_success_synced_at.is_some());
     assert!(after_success_error.is_none());
-    assert_eq!(calendar_days_count(&app.pool, user_id).await, 2);
+    assert_eq!(
+        calendar_days_count(&app.pool, user_id).await as u64,
+        GCAL_WINDOW_SIZE
+    );
 }
 
 #[tokio::test]
@@ -1232,19 +1311,14 @@ async fn google_calendar_re_sync_overwrites_rather_than_duplicates() {
         .await
         .unwrap();
     assert_eq!(first.status(), 200);
-    assert_eq!(calendar_days_count(&app.pool, user_id).await, 2);
+    assert_eq!(
+        calendar_days_count(&app.pool, user_id).await as u64,
+        GCAL_WINDOW_SIZE
+    );
 
-    // Roll the watermark back and re-sync so WireMock re-serves the exact
-    // same fixture — this is the scenario that would double-insert without
-    // the `ON CONFLICT (user_id, date) DO UPDATE` upsert.
-    sqlx::query(
-        "UPDATE integration_tokens SET last_synced_at = now() - interval '7 days' \
-         WHERE user_id = $1 AND source = 'google_calendar'",
-    )
-    .bind(user_id)
-    .execute(&app.pool)
-    .await
-    .unwrap();
+    // No watermark rollback needed — the window is always anchored on "now",
+    // never on `last_synced_at` (that's the CRITICAL fix), so a second sync
+    // re-covers the exact same days regardless of when the first ran.
     backdate_last_attempt(&app.pool, user_id, "google_calendar").await;
 
     let second = app
@@ -1259,23 +1333,87 @@ async fn google_calendar_re_sync_overwrites_rather_than_duplicates() {
     assert_eq!(second.status(), 200);
 
     assert_eq!(
-        calendar_days_count(&app.pool, user_id).await,
-        2,
+        calendar_days_count(&app.pool, user_id).await as u64,
+        GCAL_WINDOW_SIZE,
         "re-syncing identical data must overwrite existing rows, not add new ones"
     );
-
-    let day1: (i32, i32) = sqlx::query_as(
-        "SELECT meeting_count, meeting_minutes FROM calendar_days \
-         WHERE user_id = $1 AND date = '2026-06-01'",
-    )
-    .bind(user_id)
-    .fetch_one(&app.pool)
-    .await
-    .unwrap();
     assert_eq!(
-        day1,
-        (2, 45),
+        calendar_day_row(&app.pool, user_id, gcal_day_offset(-2)).await,
+        (2, 90),
         "values must be recomputed from source data, not accumulated"
+    );
+}
+
+/// The regression this fix targets: a day already in the past must be
+/// corrected if a meeting on it is later cancelled — not stuck at whatever
+/// the first sync saw, which is what happened when the fetch window was
+/// anchored on `last_synced_at` instead of always rolling.
+#[tokio::test]
+async fn google_calendar_re_sync_corrects_day_when_meeting_cancelled() {
+    let mock = MockServer::start().await;
+    // First sync: two meetings on day -2.
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .and(query_param("singleEvents", "true"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(gcal_events_body(&[(-2, 9, 30), (-2, 10, 60)])),
+        )
+        .up_to_n_times(1)
+        .with_priority(1)
+        .mount(&mock)
+        .await;
+    // Second sync: one of those meetings was cancelled upstream.
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .and(query_param("singleEvents", "true"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(gcal_events_body(&[(-2, 9, 30)])))
+        .with_priority(2)
+        .mount(&mock)
+        .await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    connect_google_calendar(&app, user_id).await;
+
+    let first = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 200);
+    assert_eq!(
+        calendar_day_row(&app.pool, user_id, gcal_day_offset(-2)).await,
+        (2, 90)
+    );
+
+    backdate_last_attempt(&app.pool, user_id, "google_calendar").await;
+
+    let second = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), 200);
+    assert_eq!(
+        calendar_day_row(&app.pool, user_id, gcal_day_offset(-2)).await,
+        (1, 30),
+        "the day must correct down to reflect the cancelled meeting, not stay \
+         stuck at the first sync's count"
     );
 }
 
@@ -1326,7 +1464,7 @@ async fn google_calendar_concurrent_manual_syncs_only_one_runs() {
         .and(path("/calendar/v3/calendars/primary/events"))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_string(include_str!("../fixtures/google_calendar/events-list.json"))
+                .set_body_string(gcal_events_body(&[(-2, 9, 30), (-2, 10, 60), (-1, 14, 60)]))
                 .set_delay(delay),
         )
         .mount(&mock)
@@ -1370,7 +1508,10 @@ async fn google_calendar_concurrent_manual_syncs_only_one_runs() {
         "the loser of the advisory lock race should be told to retry, got {statuses:?}"
     );
 
-    assert_eq!(calendar_days_count(&app.pool, user_id).await, 2);
+    assert_eq!(
+        calendar_days_count(&app.pool, user_id).await as u64,
+        GCAL_WINDOW_SIZE
+    );
 }
 
 #[tokio::test]
@@ -1423,4 +1564,224 @@ async fn google_calendar_run_sync_is_interrupted_by_cancellation_mid_flight() {
         last_synced_at.is_none(),
         "a cancelled-mid-flight sync must not advance the watermark"
     );
+}
+
+#[tokio::test]
+async fn google_calendar_refreshes_when_expires_at_is_none() {
+    let mock = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "refreshed-access-token",
+            "expires_in": 3600
+        })))
+        .mount(&mock)
+        .await;
+
+    // Only a request bearing the *refreshed* token succeeds — proves the
+    // job refreshed before fetching rather than using the stale token.
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .and(header("authorization", "Bearer refreshed-access-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(gcal_events_body(&[])))
+        .mount(&mock)
+        .await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+        cfg.google_token_url = format!("{}/token", mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    connect_google_calendar_with_expiry(&app, user_id, None).await;
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        200,
+        "a token with no expires_at must be treated as due for refresh, not never refreshed"
+    );
+
+    let key = test_encryption_key();
+    let stored = api::db::integration_tokens::list_for_user(&app.pool, user_id, &key, None)
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|t| t.source == "google_calendar")
+        .unwrap();
+    assert_eq!(stored.access_token, "refreshed-access-token");
+}
+
+#[tokio::test]
+async fn google_calendar_retries_once_after_401() {
+    let mock = MockServer::start().await;
+
+    Mock::given(method("POST"))
+        .and(path("/token"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "access_token": "recovered-access-token",
+            "expires_in": 3600
+        })))
+        .mount(&mock)
+        .await;
+
+    // The original (not-yet-expired, per `expires_at`) token is rejected...
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .and(header("authorization", "Bearer gcal-access"))
+        .respond_with(ResponseTemplate::new(401))
+        .mount(&mock)
+        .await;
+    // ...but a retry with the refreshed token succeeds.
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .and(header("authorization", "Bearer recovered-access-token"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(gcal_events_body(&[])))
+        .mount(&mock)
+        .await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+        cfg.google_token_url = format!("{}/token", mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    // expires_at far in the future — only the reactive 401 handler should
+    // trigger a refresh here, not the proactive expiry check.
+    connect_google_calendar_with_expiry(
+        &app,
+        user_id,
+        Some(Utc::now() + chrono::Duration::hours(1)),
+    )
+    .await;
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        200,
+        "a 401 despite a not-yet-expired token must trigger exactly one refresh-and-retry"
+    );
+}
+
+#[tokio::test]
+async fn google_calendar_excludes_declined_meetings_end_to_end() {
+    let mock = MockServer::start().await;
+    let day = gcal_day_offset(-1);
+    let body = serde_json::json!({
+        "items": [
+            {
+                "start": {"dateTime": format!("{day}T09:00:00Z")},
+                "end": {"dateTime": format!("{day}T09:30:00Z")},
+                "attendees": [{"self": true, "responseStatus": "declined"}]
+            },
+            {
+                "start": {"dateTime": format!("{day}T10:00:00Z")},
+                "end": {"dateTime": format!("{day}T10:30:00Z")}
+            }
+        ]
+    })
+    .to_string();
+    mount_google_calendar_body(&mock, body).await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    connect_google_calendar(&app, user_id).await;
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+
+    assert_eq!(
+        calendar_day_row(&app.pool, user_id, day).await,
+        (1, 30),
+        "the declined meeting must not count, only the accepted one"
+    );
+}
+
+#[tokio::test]
+async fn google_calendar_uses_rolling_window_anchored_on_now_not_last_synced_at() {
+    let mock = MockServer::start().await;
+    let expected_time_min = gcal_day_offset(-GCAL_ROLLING_WINDOW_DAYS)
+        .and_hms_opt(0, 0, 0)
+        .unwrap()
+        .and_utc()
+        .to_rfc3339();
+
+    // Only matches if `timeMin` is the fixed 7-day-back day boundary — if
+    // the window were still anchored on `last_synced_at` (an instant, not a
+    // day boundary), this request wouldn't match and the sync would fail
+    // upstream with an unmatched-mock 404.
+    Mock::given(method("GET"))
+        .and(path("/calendar/v3/calendars/primary/events"))
+        .and(query_param("timeMin", expected_time_min.as_str()))
+        .respond_with(ResponseTemplate::new(200).set_body_string(gcal_events_body(&[])))
+        .mount(&mock)
+        .await;
+
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+        cfg.google_calendar_api_base_url = Some(mock.uri());
+    })
+    .await;
+
+    let (user_id, token) = common::create_test_user(&app).await;
+    connect_google_calendar(&app, user_id).await;
+    // Simulate "already synced a moment ago" — under the old (buggy)
+    // behavior this would anchor `timeMin` on this recent instant instead of
+    // the fixed 7-day-back boundary, and the mock above wouldn't match.
+    api::db::integration_tokens::update_last_synced(&app.pool, user_id, "google_calendar")
+        .await
+        .unwrap();
+    backdate_last_attempt(&app.pool, user_id, "google_calendar").await;
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google-calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), 200);
 }
