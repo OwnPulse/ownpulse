@@ -251,9 +251,13 @@ async fn list_runs_for_protocol(
             .fetch_optional(pool)
             .await?;
 
+    let today: NaiveDate = sqlx::query_scalar("SELECT CURRENT_DATE")
+        .fetch_one(pool)
+        .await?;
+
     Ok(runs
         .into_iter()
-        .map(|r| run_to_response(r, None, duration))
+        .map(|r| run_to_response(r, None, duration, today))
         .collect())
 }
 
@@ -293,6 +297,10 @@ pub async fn list_active_runs(
         completed_so_far: i64,
         skipped_so_far: i64,
         doses_missed: i64,
+        /// `CURRENT_DATE`, selected alongside everything else so
+        /// `run_to_response`'s `progress_pct` shares the same clock as the
+        /// adherence columns above (identical value on every row).
+        today: NaiveDate,
     }
 
     // `scheduled_so_far` / `completed_so_far` / `skipped_so_far` /
@@ -313,11 +321,16 @@ pub async fn list_active_runs(
                     (rp.resumed_on - pr.start_date)::int AS end_day
              FROM run_pauses rp
              JOIN protocol_runs pr ON pr.id = rp.run_id
+             -- Scoped to this user's active runs (same filter as the outer
+             -- query) so Postgres doesn't materialize every pause interval
+             -- for every user on every call.
+             WHERE pr.user_id = $1 AND pr.status = 'active'
          )
          SELECT r.id, r.protocol_id, r.user_id, r.start_date, r.status,
                 r.notify, r.notify_time, r.notify_times,
                 r.repeat_reminders, r.repeat_interval_minutes, r.created_at,
                 p.name AS protocol_name, p.duration_days,
+                CURRENT_DATE AS today,
                 COALESCE((
                     SELECT COUNT(*)
                     FROM protocol_lines pl
@@ -432,7 +445,8 @@ pub async fn list_active_runs(
                 repeat_interval_minutes: r.repeat_interval_minutes,
                 created_at: r.created_at,
             };
-            let mut resp = run_to_response(run, Some(r.protocol_name), Some(r.duration_days));
+            let mut resp =
+                run_to_response(run, Some(r.protocol_name), Some(r.duration_days), r.today);
             resp.doses_today = r.doses_today;
             resp.doses_completed_today = r.doses_completed_today;
             resp.doses_missed = Some(r.doses_missed);
@@ -448,11 +462,12 @@ pub async fn list_active_runs(
 
 /// Update a run's status and/or notification settings.
 ///
-/// When `status` transitions `active` -> `paused` or `paused` -> `active`,
-/// this also records the transition in `run_pauses` (see
-/// [`record_pause_transition`]) so adherence math can exclude paused days
-/// from scheduling entirely — pausing stops the adherence clock rather than
-/// silently accruing missed doses against a schedule the user put on hold.
+/// When `status` transitions into or out of `paused` — from or to *any*
+/// other status (`active`, `completed`, `archived`) — this also records the
+/// transition in `run_pauses` (see [`record_pause_transition`]) so
+/// adherence math can exclude paused days from scheduling entirely: pausing
+/// stops the adherence clock rather than silently accruing missed doses
+/// against a schedule the user put on hold.
 pub async fn update_run(
     pool: &PgPool,
     run_id: Uuid,
@@ -467,14 +482,18 @@ pub async fn update_run(
     let mut tx = pool.begin().await?;
 
     // Read the pre-update status so the pause transition reacts to the
-    // active<->paused edge, not just the target state (e.g. a no-op
+    // paused<->not-paused edge, not just the target state (e.g. a no-op
     // "paused" -> "paused" request must not open a second interval).
-    let previous_status: Option<String> =
-        sqlx::query_scalar("SELECT status FROM protocol_runs WHERE id = $1 AND user_id = $2")
-            .bind(run_id)
-            .bind(user_id)
-            .fetch_optional(&mut *tx)
-            .await?;
+    // `FOR UPDATE` locks the row for the rest of this transaction: without
+    // it, two concurrent active->paused PATCHes on the same run could both
+    // read "active" before either commits, and both open a pause interval.
+    let previous_status: Option<String> = sqlx::query_scalar(
+        "SELECT status FROM protocol_runs WHERE id = $1 AND user_id = $2 FOR UPDATE",
+    )
+    .bind(run_id)
+    .bind(user_id)
+    .fetch_optional(&mut *tx)
+    .await?;
 
     let result = sqlx::query(
         "UPDATE protocol_runs
@@ -526,35 +545,46 @@ async fn record_pause_transition(
         return Ok(());
     };
 
-    match (previous_status, new_status) {
-        (Some("active"), "paused") => {
-            sqlx::query("INSERT INTO run_pauses (run_id, paused_on) VALUES ($1, CURRENT_DATE)")
-                .bind(run_id)
-                .execute(&mut **tx)
-                .await?;
-        }
-        (Some("paused"), "active") => {
-            // Close the most recent open interval. Multiple pause/resume
-            // cycles are supported — each is its own row — so this must
-            // target the latest one, not "any" open row (there should only
-            // ever be at most one open row per run, but ORDER BY + LIMIT 1
-            // is defensive against that invariant ever being violated).
-            sqlx::query(
-                "UPDATE run_pauses
-                 SET resumed_on = CURRENT_DATE
-                 WHERE id = (
-                     SELECT id FROM run_pauses
-                     WHERE run_id = $1 AND resumed_on IS NULL
-                     ORDER BY paused_on DESC
-                     LIMIT 1
-                 )",
-            )
+    // Driven by the paused<->not-paused edge, not by specific status pairs:
+    // `paused -> completed` and `paused -> archived` reach this function
+    // through the exact same PATCH as `paused -> active` and must close the
+    // open interval too — the original `(Some("paused"), "active")`-only
+    // match left it open forever for any other transition out of "paused",
+    // permanently excluding every day from `paused_on` onward.
+    let was_paused = previous_status == Some("paused");
+    let now_paused = new_status == "paused";
+
+    if !was_paused && now_paused {
+        sqlx::query("INSERT INTO run_pauses (run_id, paused_on) VALUES ($1, CURRENT_DATE)")
             .bind(run_id)
             .execute(&mut **tx)
             .await?;
-        }
-        _ => {}
+    } else if was_paused && !now_paused {
+        // Close the most recent open interval. Multiple pause/resume cycles
+        // are supported — each is its own row — so this must target the
+        // latest one, not "any" open row (there should only ever be at most
+        // one open row per run, but ORDER BY + LIMIT 1 is defensive against
+        // that invariant ever being violated). If there is no open interval
+        // at all (e.g. `status` was "paused" without a corresponding
+        // `run_pauses` row — shouldn't happen, but not this function's job
+        // to enforce), the subquery returns no id and this is a no-op.
+        sqlx::query(
+            "UPDATE run_pauses
+             SET resumed_on = CURRENT_DATE
+             WHERE id = (
+                 SELECT id FROM run_pauses
+                 WHERE run_id = $1 AND resumed_on IS NULL
+                 ORDER BY paused_on DESC
+                 LIMIT 1
+             )",
+        )
+        .bind(run_id)
+        .execute(&mut **tx)
+        .await?;
     }
+    // else: was_paused == now_paused (including a no-op "paused" -> "paused"
+    // double-pause, or any transition that doesn't touch pause state at
+    // all) — nothing to record.
 
     Ok(())
 }
@@ -1356,6 +1386,10 @@ pub async fn missed_doses(
                     (rp.resumed_on - pr.start_date)::int AS end_day
              FROM run_pauses rp
              JOIN protocol_runs pr ON pr.id = rp.run_id
+             -- Scoped to this user's active runs (same filter as the outer
+             -- query) so Postgres doesn't materialize every pause interval
+             -- for every user on every call.
+             WHERE pr.user_id = $1 AND pr.status = 'active'
          )
          SELECT
             p.id AS protocol_id,
@@ -2086,12 +2120,15 @@ async fn fetch_lines_with_doses(
     Ok(result)
 }
 
+/// `today` must come from Postgres's `CURRENT_DATE` (see callers), not the
+/// application server's clock — the same "one clock" rule as the rest of
+/// the adherence math in this module.
 fn run_to_response(
     run: ProtocolRunRow,
     protocol_name: Option<String>,
     duration_days: Option<i32>,
+    today: NaiveDate,
 ) -> RunResponse {
-    let today = Utc::now().date_naive();
     let progress_pct = if let Some(dur) = duration_days {
         if run.status == "completed" {
             100.0

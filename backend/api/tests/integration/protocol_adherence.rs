@@ -236,6 +236,18 @@ async fn fetch_active_runs(app: &common::TestApp, token: &str) -> Vec<Value> {
     common::body_json(resp).await.as_array().unwrap().clone()
 }
 
+/// Read "today" from Postgres directly — the same clock the server-side
+/// pause bookkeeping (`record_pause_transition`) and adherence math use.
+/// Tests that need to assert against a `CURRENT_DATE`-derived value must
+/// use this rather than `chrono::Utc::now()`, which can disagree with the
+/// database right around a midnight boundary.
+async fn pg_today(pool: &sqlx::PgPool) -> chrono::NaiveDate {
+    sqlx::query_scalar("SELECT CURRENT_DATE")
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
 /// Independently recompute closed-day adherence totals from `/doses`'
 /// per-day statuses (a second implementation of the same rule, cross-checked
 /// against `/adherence`'s own SQL-side computation). `today_day` mirrors
@@ -1185,7 +1197,11 @@ async fn test_patch_run_paused_then_resumed_records_pause_interval() {
         .unwrap();
     assert_eq!(resp.status(), 204);
 
-    let today = chrono::Utc::now().date_naive();
+    // Read "today" from Postgres, not chrono::Utc::now() — the same clock
+    // record_pause_transition itself uses (CURRENT_DATE). Comparing against
+    // the app server's clock would flake around a UTC-midnight boundary if
+    // the two disagreed for even a moment (same class of issue as #29).
+    let today = pg_today(&app.pool).await;
     let row: (chrono::NaiveDate, Option<chrono::NaiveDate>) =
         sqlx::query_as("SELECT paused_on, resumed_on FROM run_pauses WHERE run_id = $1")
             .bind(run_id)
@@ -1211,6 +1227,7 @@ async fn test_patch_run_paused_then_resumed_records_pause_interval() {
         .unwrap();
     assert_eq!(resp.status(), 204);
 
+    let today = pg_today(&app.pool).await;
     let row: (chrono::NaiveDate, Option<chrono::NaiveDate>) =
         sqlx::query_as("SELECT paused_on, resumed_on FROM run_pauses WHERE run_id = $1")
             .bind(run_id)
@@ -1222,6 +1239,191 @@ async fn test_patch_run_paused_then_resumed_records_pause_interval() {
         Some(today),
         "resumed_on should be set after resuming"
     );
+}
+
+#[tokio::test]
+async fn test_patch_run_paused_to_completed_closes_pause_interval() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_one_line_recipe(&app, &token, 10).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let run = start_run(&app, &token, protocol_id, 0).await;
+    let run_id_str = run["id"].as_str().unwrap().to_string();
+    let run_id: uuid::Uuid = run_id_str.parse().unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/protocols/runs/{run_id_str}"),
+            &token,
+            Some(&json!({"status": "paused"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 204);
+
+    // Regression test: the original match only closed the interval on
+    // paused -> active. paused -> completed (and paused -> archived) reach
+    // this same PATCH and must close it too, or every day from paused_on
+    // onward stays permanently "not scheduled".
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/protocols/runs/{run_id_str}"),
+            &token,
+            Some(&json!({"status": "completed"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 204);
+
+    let today = pg_today(&app.pool).await;
+    let row: (chrono::NaiveDate, Option<chrono::NaiveDate>) =
+        sqlx::query_as("SELECT paused_on, resumed_on FROM run_pauses WHERE run_id = $1")
+            .bind(run_id)
+            .fetch_one(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        row.1,
+        Some(today),
+        "paused -> completed must close the open interval"
+    );
+}
+
+#[tokio::test]
+async fn test_patch_run_double_pause_is_a_noop() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_one_line_recipe(&app, &token, 10).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let run = start_run(&app, &token, protocol_id, 0).await;
+    let run_id_str = run["id"].as_str().unwrap().to_string();
+    let run_id: uuid::Uuid = run_id_str.parse().unwrap();
+
+    for _ in 0..2 {
+        let resp = app
+            .app
+            .clone()
+            .oneshot(common::auth_request(
+                "PATCH",
+                &format!("/api/v1/protocols/runs/{run_id_str}"),
+                &token,
+                Some(&json!({"status": "paused"})),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 204);
+    }
+
+    // Exactly one interval, still open — a repeated "paused" -> "paused"
+    // request must not open a second one.
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM run_pauses WHERE run_id = $1")
+        .bind(run_id)
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
+    assert_eq!(count.0, 1);
+}
+
+#[tokio::test]
+async fn test_patch_run_resume_without_open_interval_is_safe() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let protocol = create_one_line_recipe(&app, &token, 10).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let run = start_run(&app, &token, protocol_id, 0).await;
+    let run_id_str = run["id"].as_str().unwrap().to_string();
+    let run_id: uuid::Uuid = run_id_str.parse().unwrap();
+
+    // Force the run into "paused" without ever going through the PATCH
+    // endpoint, so no run_pauses row exists — simulates any drift between
+    // `status` and `run_pauses` (e.g. pre-existing data). Resuming from
+    // this state must not error even though there's no open interval to
+    // close.
+    sqlx::query("UPDATE protocol_runs SET status = 'paused' WHERE id = $1")
+        .bind(run_id)
+        .execute(&app.pool)
+        .await
+        .unwrap();
+
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/protocols/runs/{run_id_str}"),
+            &token,
+            Some(&json!({"status": "active"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 204);
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM run_pauses WHERE run_id = $1")
+        .bind(run_id)
+        .fetch_one(&app.pool)
+        .await
+        .unwrap();
+    assert_eq!(count.0, 0, "nothing to close and nothing to open");
+}
+
+#[tokio::test]
+async fn test_patch_run_same_day_pause_and_resume_excludes_no_days() {
+    let app = common::setup().await;
+    let (_uid, token) = common::create_test_user(&app).await;
+
+    let duration_days = 10;
+    let protocol = create_one_line_recipe(&app, &token, duration_days).await;
+    let protocol_id = protocol["id"].as_str().unwrap();
+    let line_id = protocol["lines"][0]["id"].as_str().unwrap().to_string();
+
+    // 5 days ago -> today_day=5, closed days 0..4.
+    let run = start_run(&app, &token, protocol_id, 5).await;
+    let run_id_str = run["id"].as_str().unwrap().to_string();
+
+    log_dose(&app, &token, &run_id_str, &line_id, 0).await;
+
+    // Pause and resume in the same request pair, same day — paused_on ==
+    // resumed_on, a zero-length interval that must exclude nothing.
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/protocols/runs/{run_id_str}"),
+            &token,
+            Some(&json!({"status": "paused"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 204);
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/protocols/runs/{run_id_str}"),
+            &token,
+            Some(&json!({"status": "active"})),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 204);
+
+    // Closed days 0..4, all scheduled (daily): completed=1 (day0),
+    // missed=4 (days1-4). Same as if the pause/resume never happened.
+    let adherence = fetch_adherence(&app, &token, &run_id_str).await;
+    assert_eq!(adherence["scheduled_so_far"], 5);
+    assert_eq!(adherence["completed"], 1);
+    assert_eq!(adherence["missed"], 4);
 }
 
 #[tokio::test]
