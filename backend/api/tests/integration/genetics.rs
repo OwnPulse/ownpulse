@@ -6,37 +6,7 @@ use http::Request;
 use tower::ServiceExt;
 
 use crate::common;
-
-/// Build a multipart request with a file field.
-fn multipart_upload_request(
-    uri: &str,
-    token: &str,
-    filename: &str,
-    content: &[u8],
-) -> Request<Body> {
-    let boundary = "----TestBoundary123456";
-    let mut body_bytes = Vec::new();
-
-    body_bytes.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
-    body_bytes.extend_from_slice(
-        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n")
-            .as_bytes(),
-    );
-    body_bytes.extend_from_slice(b"Content-Type: application/octet-stream\r\n\r\n");
-    body_bytes.extend_from_slice(content);
-    body_bytes.extend_from_slice(format!("\r\n--{boundary}--\r\n").as_bytes());
-
-    Request::builder()
-        .method("POST")
-        .uri(uri)
-        .header("authorization", format!("Bearer {token}"))
-        .header(
-            "content-type",
-            format!("multipart/form-data; boundary={boundary}"),
-        )
-        .body(Body::from(body_bytes))
-        .unwrap()
-}
+use crate::common::multipart_upload_request;
 
 /// Helper to seed snp_annotations for tests that need interpretations.
 async fn seed_annotations(app: &common::TestApp) {
