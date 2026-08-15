@@ -8,6 +8,7 @@ import { type InviteClaim, invitesApi } from "../api/invites";
 import type { ProtocolExport, TemplateListItem } from "../api/protocols";
 import { protocolsApi } from "../api/protocols";
 import { FeatureFlagsSection } from "../components/admin/FeatureFlags";
+import { QueryState } from "../components/QueryState";
 import { useAuthStore } from "../store/auth";
 import styles from "./Admin.module.css";
 
@@ -48,7 +49,9 @@ function UsersSection() {
   const {
     data: users,
     isLoading,
+    isFetching,
     isError,
+    refetch,
   } = useQuery({ queryKey: ["admin-users"], queryFn: adminApi.listUsers });
   const roleMutation = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: string }) =>
@@ -65,67 +68,73 @@ function UsersSection() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
   });
 
-  if (isLoading) return <p>Loading users...</p>;
-  if (isError) return <p>Error loading users.</p>;
-
   return (
-    <div className={styles.userGrid}>
-      {users?.map((u: AdminUser) => {
-        const isSelf = u.id === currentUserId;
-        return (
-          <div key={u.id} className={styles.userCard}>
-            <div className={styles.userCardHeader}>
-              <div className={styles.userCardEmail}>
-                {u.email}
-                {u.username && <span className={styles.username}>{u.username}</span>}
+    <QueryState
+      isLoading={isLoading}
+      isFetching={isFetching}
+      isError={isError}
+      onRetry={() => refetch()}
+      loadingText="Loading users..."
+      errorText="Error loading users."
+    >
+      <div className={styles.userGrid}>
+        {users?.map((u: AdminUser) => {
+          const isSelf = u.id === currentUserId;
+          return (
+            <div key={u.id} className={styles.userCard}>
+              <div className={styles.userCardHeader}>
+                <div className={styles.userCardEmail}>
+                  {u.email}
+                  {u.username && <span className={styles.username}>{u.username}</span>}
+                </div>
+                {statusBadge(u.status)}
               </div>
-              {statusBadge(u.status)}
+              <div className={styles.userCardMeta}>
+                <span>{u.auth_provider}</span>
+                <span>Joined {new Date(u.created_at).toLocaleDateString()}</span>
+              </div>
+              <div className={styles.userCardFooter}>
+                <select
+                  value={u.role}
+                  disabled={isSelf}
+                  onChange={(e) => roleMutation.mutate({ userId: u.id, role: e.target.value })}
+                  className={styles.roleSelect}
+                >
+                  <option value="admin">admin</option>
+                  <option value="user">user</option>
+                </select>
+                {!isSelf && (
+                  <span className={styles.actions}>
+                    <button
+                      type="button"
+                      className="op-btn op-btn-ghost op-btn-sm"
+                      onClick={() =>
+                        statusMutation.mutate({
+                          userId: u.id,
+                          status: u.status === "active" ? "disabled" : "active",
+                        })
+                      }
+                    >
+                      {u.status === "active" ? "Disable" : "Enable"}
+                    </button>
+                    <button
+                      type="button"
+                      className="op-btn op-btn-danger op-btn-sm"
+                      onClick={() => {
+                        if (window.confirm(`Delete user ${u.email}? This cannot be undone.`))
+                          deleteMutation.mutate(u.id);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </span>
+                )}
+              </div>
             </div>
-            <div className={styles.userCardMeta}>
-              <span>{u.auth_provider}</span>
-              <span>Joined {new Date(u.created_at).toLocaleDateString()}</span>
-            </div>
-            <div className={styles.userCardFooter}>
-              <select
-                value={u.role}
-                disabled={isSelf}
-                onChange={(e) => roleMutation.mutate({ userId: u.id, role: e.target.value })}
-                className={styles.roleSelect}
-              >
-                <option value="admin">admin</option>
-                <option value="user">user</option>
-              </select>
-              {!isSelf && (
-                <span className={styles.actions}>
-                  <button
-                    type="button"
-                    className="op-btn op-btn-ghost op-btn-sm"
-                    onClick={() =>
-                      statusMutation.mutate({
-                        userId: u.id,
-                        status: u.status === "active" ? "disabled" : "active",
-                      })
-                    }
-                  >
-                    {u.status === "active" ? "Disable" : "Enable"}
-                  </button>
-                  <button
-                    type="button"
-                    className="op-btn op-btn-danger op-btn-sm"
-                    onClick={() => {
-                      if (window.confirm(`Delete user ${u.email}? This cannot be undone.`))
-                        deleteMutation.mutate(u.id);
-                    }}
-                  >
-                    Delete
-                  </button>
-                </span>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </QueryState>
   );
 }
 
