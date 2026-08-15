@@ -219,7 +219,7 @@ export default function ObservationForm() {
       )}
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Observation"}
+          {mutation.isPending ? "Saving..." : "Log Observation"}
         </button>
       </div>
       {/* Always mounted (only the text is conditional) so assistive tech

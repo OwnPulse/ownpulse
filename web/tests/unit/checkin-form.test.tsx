@@ -40,7 +40,7 @@ describe("CheckinForm", () => {
     expect(screen.getByLabelText(/recovery/i)).toBeDefined();
     expect(screen.getByLabelText(/libido/i)).toBeDefined();
     expect(screen.getByLabelText(/notes/i)).toBeDefined();
-    expect(screen.getByRole("button", { name: /save check-in/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /log check-in/i })).toBeDefined();
   });
 
   it("exposes slider values as accessible valuetext", () => {
@@ -75,7 +75,7 @@ describe("CheckinForm", () => {
     const status = screen.getByRole("status");
     expect(status.textContent).toBe("");
 
-    await user.click(screen.getByRole("button", { name: /save check-in/i }));
+    await user.click(screen.getByRole("button", { name: /log check-in/i }));
 
     await waitFor(() => {
       expect(status.textContent).toMatch(/saved/i);
@@ -118,7 +118,7 @@ describe("CheckinForm", () => {
     fireInputChange(focusSlider, "6");
 
     // Submit
-    await user.click(screen.getByRole("button", { name: /save check-in/i }));
+    await user.click(screen.getByRole("button", { name: /log check-in/i }));
 
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalledOnce();

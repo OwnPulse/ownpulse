@@ -24,7 +24,7 @@ Open your OwnPulse web dashboard in a browser. If you have an invite link, open 
 
 ## Step 3: Enter your first check-in
 
-On the web dashboard, go to the **Data Entry** page and open the **Check-ins** tab. Rate your energy, mood, focus, recovery, and libido on a scale of 1 to 10, then submit. You now have your first data point.
+On the web dashboard, go to the **Log** page and open the **Check-in** tab. Rate your energy, mood, focus, recovery, and libido on a scale of 1 to 10, then submit. You now have your first data point.
 
 ## Step 4: View your timeline
 
@@ -42,7 +42,7 @@ Both platforms use the same API and authentication. Data entered on the web is v
 
 ## Next steps
 
-- [Manual Data Entry](data-entry.md) -- learn about all the data types you can log
+- [Log](data-entry.md) -- learn about all the data types you can log
 - [Apple Health](apple-health.md) -- detailed HealthKit setup and sync behavior
 - [Dashboard & Timeline](timeline.md) -- understand the charts and visualizations
 - [Privacy & Security](privacy.md) -- how your data is protected

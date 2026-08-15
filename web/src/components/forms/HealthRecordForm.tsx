@@ -110,7 +110,7 @@ export default function HealthRecordForm() {
       </div>
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Health Record"}
+          {mutation.isPending ? "Saving..." : "Log Health Record"}
         </button>
       </div>
       {/* Always mounted (only the text is conditional) so assistive tech

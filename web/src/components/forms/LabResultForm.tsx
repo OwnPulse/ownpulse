@@ -137,7 +137,7 @@ export default function LabResultForm() {
       </div>
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Lab Result"}
+          {mutation.isPending ? "Saving..." : "Log Lab Result"}
         </button>
       </div>
       {/* Always mounted (only the text is conditional) so assistive tech
