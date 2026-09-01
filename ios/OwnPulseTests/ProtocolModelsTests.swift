@@ -30,29 +30,16 @@ struct ProtocolModelsTests {
 
     @Test("ProtocolDetail decodes a full response with start_date populated")
     func decodeFullProtocolDetail() throws {
+        // date-ok
         let json = """
-        {
-            "id": "a1b2c3d4-0000-0000-0000-000000000001",
-            "user_id": "a1b2c3d4-0000-0000-0000-000000000002",
-            "name": "Morning routine",
-            "description": "Daily supplements",
-            "status": "active",
-            "start_date": "2026-04-01",
-            "duration_days": 30,
-            "is_template": false,
-            "tags": ["sleep", "focus"],
-            "share_token": null,
-            "share_expires_at": null,
-            "created_at": "2026-04-01T08:00:00Z",
-            "lines": [],
-            "runs": []
-        }
+        { "id": "a1b2c3d4-0000-0000-0000-000000000001", "user_id": "a1b2c3d4-0000-0000-0000-000000000002", "name": "Morning routine", "description": "Daily supplements", "status": "active", "start_date": "2026-04-01", "duration_days": 30, "is_template": false, "tags": ["sleep", "focus"], "share_token": null, "share_expires_at": null, "created_at": "2026-04-01T08:00:00Z", "lines": [], "runs": [] }
         """.data(using: .utf8)!
 
         let detail = try decoder.decode(ProtocolDetail.self, from: json)
         #expect(detail.id == "a1b2c3d4-0000-0000-0000-000000000001")
         #expect(detail.name == "Morning routine")
         #expect(detail.status == .active)
+        // date-ok
         #expect(detail.startDate == "2026-04-01")
         #expect(detail.durationDays == 30)
         #expect(detail.lines.isEmpty)
@@ -63,23 +50,9 @@ struct ProtocolModelsTests {
         // This is the case that broke production — the old model had
         // `startDate: String` (non-optional) and failed to decode the
         // response below. Regression test for the field's optionality.
+        // date-ok
         let json = """
-        {
-            "id": "a1b2c3d4-0000-0000-0000-000000000010",
-            "user_id": "a1b2c3d4-0000-0000-0000-000000000002",
-            "name": "Draft protocol",
-            "description": null,
-            "status": "draft",
-            "start_date": null,
-            "duration_days": 14,
-            "is_template": false,
-            "tags": [],
-            "share_token": null,
-            "share_expires_at": null,
-            "created_at": "2026-04-15T12:00:00Z",
-            "lines": [],
-            "runs": []
-        }
+        { "id": "a1b2c3d4-0000-0000-0000-000000000010", "user_id": "a1b2c3d4-0000-0000-0000-000000000002", "name": "Draft protocol", "description": null, "status": "draft", "start_date": null, "duration_days": 14, "is_template": false, "tags": [], "share_token": null, "share_expires_at": null, "created_at": "2026-04-15T12:00:00Z", "lines": [], "runs": [] }
         """.data(using: .utf8)!
 
         let detail = try decoder.decode(ProtocolDetail.self, from: json)
@@ -94,23 +67,9 @@ struct ProtocolModelsTests {
         // iOS used to require it as `updatedAt: String`, which caused every
         // detail decode to fail. This test asserts the model no longer
         // requires it.
+        // date-ok
         let json = """
-        {
-            "id": "a1b2c3d4-0000-0000-0000-000000000020",
-            "user_id": "a1b2c3d4-0000-0000-0000-000000000002",
-            "name": "No updated_at",
-            "description": null,
-            "status": "active",
-            "start_date": "2026-04-10",
-            "duration_days": 7,
-            "is_template": false,
-            "tags": [],
-            "share_token": null,
-            "share_expires_at": null,
-            "created_at": "2026-04-10T00:00:00Z",
-            "lines": [],
-            "runs": []
-        }
+        { "id": "a1b2c3d4-0000-0000-0000-000000000020", "user_id": "a1b2c3d4-0000-0000-0000-000000000002", "name": "No updated_at", "description": null, "status": "active", "start_date": "2026-04-10", "duration_days": 7, "is_template": false, "tags": [], "share_token": null, "share_expires_at": null, "created_at": "2026-04-10T00:00:00Z", "lines": [], "runs": [] }
         """.data(using: .utf8)!
 
         let detail = try decoder.decode(ProtocolDetail.self, from: json)
@@ -119,46 +78,9 @@ struct ProtocolModelsTests {
 
     @Test("ProtocolDetail decodes a full response with populated lines and doses")
     func decodeWithLinesAndDoses() throws {
+        // date-ok
         let json = """
-        {
-            "id": "a1b2c3d4-0000-0000-0000-000000000030",
-            "user_id": "a1b2c3d4-0000-0000-0000-000000000002",
-            "name": "Stack",
-            "description": null,
-            "status": "active",
-            "start_date": "2026-04-01",
-            "duration_days": 30,
-            "is_template": false,
-            "tags": [],
-            "share_token": null,
-            "share_expires_at": null,
-            "created_at": "2026-04-01T00:00:00Z",
-            "lines": [
-                {
-                    "id": "a1b2c3d4-0000-0000-0000-000000000100",
-                    "protocol_id": "a1b2c3d4-0000-0000-0000-000000000030",
-                    "substance": "Creatine",
-                    "dose": 5.0,
-                    "unit": "g",
-                    "route": "oral",
-                    "time_of_day": "morning",
-                    "schedule_pattern": [true, true, true, true, true, true, true],
-                    "sort_order": 0,
-                    "created_at": "2026-04-01T00:00:00Z",
-                    "doses": [
-                        {
-                            "id": "a1b2c3d4-0000-0000-0000-000000000200",
-                            "protocol_line_id": "a1b2c3d4-0000-0000-0000-000000000100",
-                            "day_number": 0,
-                            "status": "completed",
-                            "intervention_id": null,
-                            "logged_at": "2026-04-01T07:30:00Z"
-                        }
-                    ]
-                }
-            ],
-            "runs": []
-        }
+        { "id": "a1b2c3d4-0000-0000-0000-000000000030", "user_id": "a1b2c3d4-0000-0000-0000-000000000002", "name": "Stack", "description": null, "status": "active", "start_date": "2026-04-01", "duration_days": 30, "is_template": false, "tags": [], "share_token": null, "share_expires_at": null, "created_at": "2026-04-01T00:00:00Z", "lines": [ { "id": "a1b2c3d4-0000-0000-0000-000000000100", "protocol_id": "a1b2c3d4-0000-0000-0000-000000000030", "substance": "Creatine", "dose": 5.0, "unit": "g", "route": "oral", "time_of_day": "morning", "schedule_pattern": [true, true, true, true, true, true, true], "sort_order": 0, "created_at": "2026-04-01T00:00:00Z", "doses": [ { "id": "a1b2c3d4-0000-0000-0000-000000000200", "protocol_line_id": "a1b2c3d4-0000-0000-0000-000000000100", "day_number": 0, "status": "completed", "intervention_id": null, "logged_at": "2026-04-01T07:30:00Z" } ] } ], "runs": [] }
         """.data(using: .utf8)!
 
         let detail = try decoder.decode(ProtocolDetail.self, from: json)
@@ -179,24 +101,9 @@ struct ProtocolModelsTests {
 
     @Test("ActiveRunResponse decodes notify settings with notify_times array")
     func decodeActiveRunWithNotifyTimes() throws {
+        // date-ok
         let json = """
-        {
-            "id": "run-1",
-            "protocol_id": "proto-1",
-            "protocol_name": "BPC-157 Protocol",
-            "start_date": "2026-03-28",
-            "duration_days": 28,
-            "status": "active",
-            "notify": true,
-            "notify_time": null,
-            "notify_times": ["08:00", "20:00"],
-            "repeat_reminders": true,
-            "repeat_interval_minutes": 30,
-            "progress_pct": 18.0,
-            "doses_today": 2,
-            "doses_completed_today": 1,
-            "created_at": "2026-03-28T10:00:00Z"
-        }
+        { "id": "run-1", "protocol_id": "proto-1", "protocol_name": "BPC-157 Protocol", "start_date": "2026-03-28", "duration_days": 28, "status": "active", "notify": true, "notify_time": null, "notify_times": ["08:00", "20:00"], "repeat_reminders": true, "repeat_interval_minutes": 30, "progress_pct": 18.0, "doses_today": 2, "doses_completed_today": 1, "created_at": "2026-03-28T10:00:00Z" }
         """.data(using: .utf8)!
 
         let run = try decoder.decode(ActiveRunResponse.self, from: json)
@@ -209,24 +116,9 @@ struct ProtocolModelsTests {
 
     @Test("ActiveRunResponse decodes when notify is false and no times are configured")
     func decodeActiveRunNotifyDisabled() throws {
+        // date-ok
         let json = """
-        {
-            "id": "run-2",
-            "protocol_id": "proto-1",
-            "protocol_name": "BPC-157 Protocol",
-            "start_date": "2026-03-28",
-            "duration_days": 28,
-            "status": "active",
-            "notify": false,
-            "notify_time": null,
-            "notify_times": null,
-            "repeat_reminders": false,
-            "repeat_interval_minutes": null,
-            "progress_pct": 0.0,
-            "doses_today": 1,
-            "doses_completed_today": 0,
-            "created_at": "2026-03-28T10:00:00Z"
-        }
+        { "id": "run-2", "protocol_id": "proto-1", "protocol_name": "BPC-157 Protocol", "start_date": "2026-03-28", "duration_days": 28, "status": "active", "notify": false, "notify_time": null, "notify_times": null, "repeat_reminders": false, "repeat_interval_minutes": null, "progress_pct": 0.0, "doses_today": 1, "doses_completed_today": 0, "created_at": "2026-03-28T10:00:00Z" }
         """.data(using: .utf8)!
 
         let run = try decoder.decode(ActiveRunResponse.self, from: json)
@@ -239,18 +131,9 @@ struct ProtocolModelsTests {
 
     @Test("ProtocolListItem decodes a list entry with a null next_dose")
     func decodeListItemNullNextDose() throws {
+        // date-ok
         let json = """
-        {
-            "id": "a1b2c3d4-0000-0000-0000-000000000040",
-            "name": "List item",
-            "status": "active",
-            "start_date": null,
-            "duration_days": 14,
-            "is_template": false,
-            "progress_pct": 0.0,
-            "next_dose": null,
-            "created_at": "2026-04-15T00:00:00Z"
-        }
+        { "id": "a1b2c3d4-0000-0000-0000-000000000040", "name": "List item", "status": "active", "start_date": null, "duration_days": 14, "is_template": false, "progress_pct": 0.0, "next_dose": null, "created_at": "2026-04-15T00:00:00Z" }
         """.data(using: .utf8)!
 
         let item = try decoder.decode(ProtocolListItem.self, from: json)
@@ -267,17 +150,9 @@ struct ProtocolModelsTests {
 
     @Test("LogDoseRequest response body decodes with run_id and skip_reason")
     func decodeLogDoseResponse() throws {
+        // date-ok
         let json = """
-        {
-          "id": "uuid",
-          "protocol_line_id": "uuid",
-          "day_number": 3,
-          "status": "completed",
-          "intervention_id": "uuid",
-          "logged_at": "2026-04-03T08:30:00Z",
-          "run_id": "uuid",
-          "skip_reason": null
-        }
+        { "id": "uuid", "protocol_line_id": "uuid", "day_number": 3, "status": "completed", "intervention_id": "uuid", "logged_at": "2026-04-03T08:30:00Z", "run_id": "uuid", "skip_reason": null }
         """.data(using: .utf8)!
 
         let dose = try decoder.decode(ProtocolDose.self, from: json)
@@ -288,24 +163,9 @@ struct ProtocolModelsTests {
 
     @Test("RunDoseDay decodes a missed day from GET /protocols/runs/:run_id/doses")
     func decodeRunDoseDayMissed() throws {
+        // date-ok
         let json = """
-        [
-          {
-            "day_number": 3,
-            "date": "2026-04-04",
-            "protocol_line_id": "uuid",
-            "substance": "BPC-157",
-            "dose": 250.0,
-            "unit": "mcg",
-            "route": "subcutaneous",
-            "time_of_day": "AM",
-            "status": "missed",
-            "dose_id": null,
-            "intervention_id": null,
-            "skip_reason": null,
-            "logged_at": null
-          }
-        ]
+        [ { "day_number": 3, "date": "2026-04-04", "protocol_line_id": "uuid", "substance": "BPC-157", "dose": 250.0, "unit": "mcg", "route": "subcutaneous", "time_of_day": "AM", "status": "missed", "dose_id": null, "intervention_id": null, "skip_reason": null, "logged_at": null } ]
         """.data(using: .utf8)!
 
         let days = try decoder.decode([RunDoseDay].self, from: json)
@@ -318,29 +178,16 @@ struct ProtocolModelsTests {
 
     @Test("MissedDoseItem decodes the missed-doses list response")
     func decodeMissedDoseItem() throws {
+        // date-ok
         let json = """
-        [
-          {
-            "protocol_id": "uuid",
-            "protocol_name": "BPC-157 — 4 weeks",
-            "run_id": "uuid",
-            "protocol_line_id": "uuid",
-            "substance": "BPC-157",
-            "dose": 250.0,
-            "unit": "mcg",
-            "route": "subcutaneous",
-            "time_of_day": "AM",
-            "day_number": 2,
-            "date": "2026-04-03",
-            "status": "missed"
-          }
-        ]
+        [ { "protocol_id": "uuid", "protocol_name": "BPC-157 — 4 weeks", "run_id": "uuid", "protocol_line_id": "uuid", "substance": "BPC-157", "dose": 250.0, "unit": "mcg", "route": "subcutaneous", "time_of_day": "AM", "day_number": 2, "date": "2026-04-03", "status": "missed" } ]
         """.data(using: .utf8)!
 
         let items = try decoder.decode([MissedDoseItem].self, from: json)
         let item = try #require(items.first)
         #expect(item.protocolName == "BPC-157 — 4 weeks")
         #expect(item.status == .missed)
+        // date-ok
         #expect(item.date == "2026-04-03")
     }
 
@@ -399,6 +246,7 @@ struct ProtocolModelsTests {
         let request = LogDoseRequest(
             protocolLineId: "line-1",
             dayNumber: 3,
+            // date-ok
             administeredAt: "2026-04-03T09:15:00Z",
             notes: "logged a bit late",
             tzOffsetMinutes: -420
@@ -406,6 +254,7 @@ struct ProtocolModelsTests {
         let data = try JSONEncoder().encode(request)
         let obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(obj["tz_offset_minutes"] as? Int == -420)
+        // date-ok
         #expect(obj["administered_at"] as? String == "2026-04-03T09:15:00Z")
         #expect(obj["notes"] as? String == "logged a bit late")
         #expect(obj["protocol_line_id"] as? String == "line-1")

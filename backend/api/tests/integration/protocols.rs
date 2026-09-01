@@ -90,6 +90,7 @@ async fn test_create_protocol_empty_name_returns_400() {
 
     let body = json!({
         "name": "",
+        // date-ok
         "start_date": "2026-04-01",
         "duration_days": 7,
         "lines": [{
@@ -123,6 +124,7 @@ async fn test_create_protocol_bad_duration_returns_400() {
     // duration_days = 0
     let body_zero = json!({
         "name": "Bad Duration",
+        // date-ok
         "start_date": "2026-04-01",
         "duration_days": 0,
         "lines": [{
@@ -151,6 +153,7 @@ async fn test_create_protocol_bad_duration_returns_400() {
     let pattern_400: Vec<bool> = vec![true; 400];
     let body_400 = json!({
         "name": "Too Long",
+        // date-ok
         "start_date": "2026-04-01",
         "duration_days": 400,
         "lines": [{
@@ -183,6 +186,7 @@ async fn test_create_protocol_pattern_length_mismatch_returns_400() {
     // duration_days=7 but pattern has 5 elements
     let body = json!({
         "name": "Mismatch",
+        // date-ok
         "start_date": "2026-04-01",
         "duration_days": 7,
         "lines": [{
@@ -214,6 +218,7 @@ async fn test_create_protocol_empty_substance_returns_400() {
 
     let body = json!({
         "name": "Empty Sub",
+        // date-ok
         "start_date": "2026-04-01",
         "duration_days": 3,
         "lines": [{
@@ -248,6 +253,7 @@ async fn test_list_protocols() {
 
     let body2 = json!({
         "name": "Second Protocol",
+        // date-ok
         "start_date": "2026-04-01",
         "duration_days": 3,
         "lines": [{

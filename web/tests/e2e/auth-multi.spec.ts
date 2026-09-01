@@ -57,8 +57,10 @@ test.describe("Linked Accounts", () => {
             id: "1",
             provider: "google",
             email: "user@example.com",
+            // date-ok
             created_at: "2026-01-01T00:00:00Z",
           },
+          // date-ok
           { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
         ]),
       }),
@@ -83,8 +85,10 @@ test.describe("Linked Accounts", () => {
             id: "1",
             provider: "google",
             email: "user@example.com",
+            // date-ok
             created_at: "2026-01-01T00:00:00Z",
           },
+          // date-ok
           { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
         ]),
       }),
@@ -96,6 +100,7 @@ test.describe("Linked Accounts", () => {
           status: 200,
           contentType: "application/json",
           body: JSON.stringify([
+            // date-ok
             { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
           ]),
         });
@@ -128,8 +133,10 @@ test.describe("Linked Accounts", () => {
             id: "1",
             provider: "google",
             email: "user@example.com",
+            // date-ok
             created_at: "2026-01-01T00:00:00Z",
           },
+          // date-ok
           { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
         ]),
       }),
@@ -161,6 +168,7 @@ test.describe("Linked Accounts", () => {
             id: "1",
             provider: "google",
             email: "user@example.com",
+            // date-ok
             created_at: "2026-01-01T00:00:00Z",
           },
         ]),

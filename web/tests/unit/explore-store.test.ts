@@ -44,8 +44,10 @@ describe("dateRangeToParams", () => {
     expect(Math.round(diff)).toBeLessThanOrEqual(367);
   });
 
+  // date-ok
   it("returns 2020-01-01 to today for all preset", () => {
     const { start, end } = dateRangeToParams({ type: "preset", preset: "all" });
+    // date-ok
     expect(start).toBe("2020-01-01T00:00:00Z");
     expect(end).toBe(`${new Date().toISOString().slice(0, 10)}T23:59:59Z`);
   });
@@ -53,10 +55,14 @@ describe("dateRangeToParams", () => {
   it("returns custom dates for custom range", () => {
     const { start, end } = dateRangeToParams({
       type: "custom",
+      // date-ok
       start: "2025-01-01",
+      // date-ok
       end: "2025-06-01",
     });
+    // date-ok
     expect(start).toBe("2025-01-01T00:00:00Z");
+    // date-ok
     expect(end).toBe("2025-06-01T23:59:59Z");
   });
 });
@@ -152,7 +158,9 @@ describe("useExploreStore", () => {
     it("sets daily for custom range", () => {
       useExploreStore.getState().setDateRange({
         type: "custom",
+        // date-ok
         start: "2025-01-01",
+        // date-ok
         end: "2025-03-01",
       });
       expect(useExploreStore.getState().resolution).toBe("daily");
@@ -204,6 +212,7 @@ describe("useExploreStore", () => {
     it("loads a saved chart config with custom range", () => {
       useExploreStore.getState().loadConfig({
         metrics: [{ source: "health_records", field: "weight" }],
+        // date-ok
         range: { start: "2025-01-01", end: "2025-06-01" },
         resolution: "weekly",
       });
@@ -212,7 +221,9 @@ describe("useExploreStore", () => {
       expect(state.selectedMetrics).toHaveLength(1);
       expect(state.dateRange).toEqual({
         type: "custom",
+        // date-ok
         start: "2025-01-01",
+        // date-ok
         end: "2025-06-01",
       });
       expect(state.resolution).toBe("weekly");

@@ -27,12 +27,19 @@ const sparklineResponse = {
       field: "energy",
       unit: "score",
       points: [
+        // date-ok
         { t: "2026-03-21T00:00:00Z", v: 5, n: 1 },
+        // date-ok
         { t: "2026-03-22T00:00:00Z", v: 6, n: 1 },
+        // date-ok
         { t: "2026-03-23T00:00:00Z", v: 7, n: 1 },
+        // date-ok
         { t: "2026-03-24T00:00:00Z", v: 7, n: 1 },
+        // date-ok
         { t: "2026-03-25T00:00:00Z", v: 8, n: 1 },
+        // date-ok
         { t: "2026-03-26T00:00:00Z", v: 8, n: 1 },
+        // date-ok
         { t: "2026-03-27T00:00:00Z", v: 9, n: 1 },
       ],
     },
@@ -41,12 +48,19 @@ const sparklineResponse = {
       field: "mood",
       unit: "score",
       points: [
+        // date-ok
         { t: "2026-03-21T00:00:00Z", v: 8, n: 1 },
+        // date-ok
         { t: "2026-03-22T00:00:00Z", v: 7, n: 1 },
+        // date-ok
         { t: "2026-03-23T00:00:00Z", v: 6, n: 1 },
+        // date-ok
         { t: "2026-03-24T00:00:00Z", v: 5, n: 1 },
+        // date-ok
         { t: "2026-03-25T00:00:00Z", v: 5, n: 1 },
+        // date-ok
         { t: "2026-03-26T00:00:00Z", v: 4, n: 1 },
+        // date-ok
         { t: "2026-03-27T00:00:00Z", v: 4, n: 1 },
       ],
     },
@@ -54,6 +68,7 @@ const sparklineResponse = {
       source: "checkins",
       field: "focus",
       unit: "score",
+      // date-ok
       points: [{ t: "2026-03-27T00:00:00Z", v: 6, n: 1 }],
     },
     {
@@ -67,7 +82,9 @@ const sparklineResponse = {
       field: "libido",
       unit: "score",
       points: [
+        // date-ok
         { t: "2026-03-21T00:00:00Z", v: 5, n: 1 },
+        // date-ok
         { t: "2026-03-27T00:00:00Z", v: 5, n: 1 },
       ],
     },

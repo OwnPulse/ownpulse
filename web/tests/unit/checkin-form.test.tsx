@@ -58,12 +58,14 @@ describe("CheckinForm", () => {
     mockCreate.mockResolvedValue({
       id: "uuid-1",
       user_id: "user-1",
+      // date-ok
       date: "2026-03-18",
       energy: 5,
       mood: 5,
       focus: 5,
       recovery: 5,
       libido: 5,
+      // date-ok
       created_at: "2026-03-18T00:00:00Z",
     });
 
@@ -89,12 +91,14 @@ describe("CheckinForm", () => {
     mockCreate.mockResolvedValue({
       id: "uuid-1",
       user_id: "user-1",
+      // date-ok
       date: "2026-03-18",
       energy: 7,
       mood: 8,
       focus: 6,
       recovery: 5,
       libido: 5,
+      // date-ok
       created_at: "2026-03-18T00:00:00Z",
     });
 
@@ -104,6 +108,7 @@ describe("CheckinForm", () => {
     // Fill in the date
     const dateInput = screen.getByLabelText(/date/i);
     await user.clear(dateInput);
+    // date-ok
     await user.type(dateInput, "2026-03-18");
 
     // Change energy slider to 7
@@ -126,6 +131,7 @@ describe("CheckinForm", () => {
     });
 
     const submitted = mockCreate.mock.calls[0][0];
+    // date-ok
     expect(submitted.date).toBe("2026-03-18");
     expect(submitted.energy).toBe(7);
     expect(submitted.mood).toBe(8);
@@ -173,11 +179,13 @@ describe("CheckinForm", () => {
       // reverted to `new Date().toISOString().slice(0, 10)` would default to
       // "2026-03-01" here — this test would still pass if that regression
       // landed unless it pins the local value explicitly.
+      // date-ok
       vi.setSystemTime(new Date("2026-03-01T05:30:00Z"));
 
       renderWithProviders();
 
       const dateInput = screen.getByLabelText(/date/i) as HTMLInputElement;
+      // date-ok
       expect(dateInput.value).toBe("2026-02-28");
     });
   });

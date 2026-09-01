@@ -14,15 +14,19 @@ import { useAuthStore } from "../../src/store/auth";
 const TOKEN = "test-jwt";
 
 const TWO_METHODS: AuthMethod[] = [
+  // date-ok
   { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
+  // date-ok
   { id: "2", provider: "apple", email: null, created_at: "2026-03-01T00:00:00Z" },
 ];
 
 const ONE_METHOD: AuthMethod[] = [
+  // date-ok
   { id: "1", provider: "google", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
 ];
 
 const LOCAL_ONLY: AuthMethod[] = [
+  // date-ok
   { id: "1", provider: "local", email: "user@example.com", created_at: "2026-01-01T00:00:00Z" },
 ];
 

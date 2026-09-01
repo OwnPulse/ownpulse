@@ -22,6 +22,7 @@ const SAMPLE_INSIGHTS: Insight[] = [
     headline: "Energy trending up 15%",
     detail: "Average went from 5.2 to 6.0",
     metadata: { explore_params: { source: "checkins", field: "energy", preset: "30d" } },
+    // date-ok
     created_at: "2026-03-28T06:00:00Z",
   },
   {
@@ -30,6 +31,7 @@ const SAMPLE_INSIGHTS: Insight[] = [
     headline: "14-day check-in streak!",
     detail: null,
     metadata: {},
+    // date-ok
     created_at: "2026-03-28T06:00:00Z",
   },
   {
@@ -38,6 +40,7 @@ const SAMPLE_INSIGHTS: Insight[] = [
     headline: "Sleep score dropped sharply",
     detail: "Last night was 42, your average is 78",
     metadata: { explore_params: { source: "sleep", field: "score" } },
+    // date-ok
     created_at: "2026-03-28T06:00:00Z",
   },
   {
@@ -46,6 +49,7 @@ const SAMPLE_INSIGHTS: Insight[] = [
     headline: "No check-in for 3 days",
     detail: null,
     metadata: {},
+    // date-ok
     created_at: "2026-03-28T06:00:00Z",
   },
   {
@@ -54,6 +58,7 @@ const SAMPLE_INSIGHTS: Insight[] = [
     headline: "Mood correlates with sleep duration",
     detail: "r=0.72 over 30 days",
     metadata: { explore_params: { source: "checkins", field: "mood", preset: "30d" } },
+    // date-ok
     created_at: "2026-03-28T06:00:00Z",
   },
 ];

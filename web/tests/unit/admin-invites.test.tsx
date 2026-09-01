@@ -17,6 +17,7 @@ const mockUsers = [
     role: "admin",
     status: "active",
     data_region: "us",
+    // date-ok
     created_at: "2025-01-01T00:00:00Z",
   },
   {
@@ -26,6 +27,7 @@ const mockUsers = [
     role: "user",
     status: "disabled",
     data_region: "us",
+    // date-ok
     created_at: "2025-06-01T00:00:00Z",
   },
 ];
@@ -39,6 +41,7 @@ const mockInvites = [
     use_count: 3,
     expires_at: null,
     revoked_at: null,
+    // date-ok
     created_at: "2025-01-01T00:00:00Z",
   },
   {
@@ -47,8 +50,10 @@ const mockInvites = [
     label: null,
     max_uses: null,
     use_count: 5,
+    // date-ok
     expires_at: "2024-01-01T00:00:00Z",
     revoked_at: null,
+    // date-ok
     created_at: "2025-01-01T00:00:00Z",
   },
 ];
@@ -245,6 +250,7 @@ describe("Admin page", () => {
       label: "Test label",
       max_uses: 5,
       use_count: 0,
+      // date-ok
       created_at: "2026-03-22T00:00:00Z",
     });
 
@@ -286,6 +292,7 @@ describe("Admin page", () => {
       code: "INVITE-NEW",
       label: "No email",
       use_count: 0,
+      // date-ok
       created_at: "2026-03-22T00:00:00Z",
     });
 
@@ -320,6 +327,7 @@ describe("Admin page", () => {
       code: "INVITE-NEW",
       label: "Test",
       use_count: 0,
+      // date-ok
       created_at: "2026-03-22T00:00:00Z",
     });
 
@@ -372,6 +380,7 @@ describe("Admin page", () => {
     const mockRevoke = vi.mocked(adminApi.revokeInvite);
     mockRevoke.mockResolvedValue({
       ...mockInvites[0],
+      // date-ok
       revoked_at: "2026-03-22T00:00:00Z",
     });
 

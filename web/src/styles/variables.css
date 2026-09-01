@@ -1,13 +1,11 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Brand tokens — change this file to rebrand.
 
-   The light-mode palette, typography, spacing, radii, and shadows live in
-   ./_tokens.css, which is GENERATED from docs/design/tokens.json. To change a
-   brand token, edit that source and run `npm run build:tokens` in
-   tools/design-tokens — do not hand-edit generated values.
-
-   The dark-mode overrides below are hand-written: they are not modeled in the
-   token source yet, so they stay here. */
+   The palette (light AND dark), typography, spacing, radii, and shadows live
+   in ./_tokens.css, which is GENERATED from docs/design/tokens.json (the
+   dark-mode blocks come from the `dark.*` token group). To change a brand
+   token — light or dark — edit that source and run `npm run build:tokens` in
+   tools/design-tokens; do not hand-edit generated values. */
 
 @import "./_tokens.css";
 
@@ -17,70 +15,13 @@
    hues are also used as *foreground* text/links on a surface, where dark mode
    needs a LIGHTER value to clear WCAG AA against the dark surface (~#1a1a18).
    These -fg tokens give foreground uses a theme-aware color without disturbing
-   the solid-background tokens. In light mode they equal the base token, so the
-   palette is visually unchanged. */
+   the solid-background tokens. In light mode they equal the base token — the
+   generated dark-mode blocks in _tokens.css override them to the lighter
+   dark-mode-only values (dark.color.link / .link-hover / .success-fg), so the
+   palette is visually unchanged here and only the light-mode default lives in
+   this file. */
 :root {
   --color-link: var(--color-primary);
   --color-link-hover: var(--color-primary-hover);
   --color-success-fg: var(--color-success);
-}
-
-/* Explicit dark mode */
-[data-theme="dark"] {
-  /* Lighter foreground accents — AA (>= 4.5:1) on the dark surfaces below.
-     base primary #b2573c is 3.16:1 on #252523; #d98a6e is 5.71:1.
-     base success #007555 is 2.69:1 on #252523; #3cb88a is 6.15:1. */
-  --color-link: #d98a6e;
-  --color-link-hover: #e0a18a;
-  --color-success-fg: #3cb88a;
-
-  --color-bg: #1a1a18;
-  --color-bg-warm: #1a1a1e;
-  --color-surface: #1a1a18;
-  --color-surface-elevated: #252523;
-
-  --color-text: #eeeeea;
-  --color-text-secondary: #c2c2b9;
-  --color-text-muted: #9c9c93;
-
-  --color-border: #44443f;
-  --color-border-strong: #5e5e57;
-
-  --color-error-light: #3d2020;
-
-  --color-primary-light: rgba(194, 101, 74, 0.15);
-
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-}
-
-/* System preference auto-detection (when no explicit theme set) */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme]) {
-    /* Mirror the dark-mode foreground accents above. */
-    --color-link: #d98a6e;
-    --color-link-hover: #e0a18a;
-    --color-success-fg: #3cb88a;
-
-    --color-bg: #1a1a18;
-    --color-bg-warm: #1a1a1e;
-    --color-surface: #1a1a18;
-    --color-surface-elevated: #252523;
-
-    --color-text: #eeeeea;
-    --color-text-secondary: #c2c2b9;
-    --color-text-muted: #9c9c93;
-
-    --color-border: #44443f;
-    --color-border-strong: #5e5e57;
-
-    --color-error-light: #3d2020;
-
-    --color-primary-light: rgba(194, 101, 74, 0.15);
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
-  }
 }

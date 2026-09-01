@@ -28,7 +28,9 @@ const batchSeriesResponse = {
       field: "energy",
       unit: "score",
       points: [
+        // date-ok
         { t: "2026-03-01T00:00:00Z", v: 7, n: 1 },
+        // date-ok
         { t: "2026-03-02T00:00:00Z", v: 6, n: 1 },
       ],
     },
@@ -44,7 +46,9 @@ const savedChart = {
     range: { preset: "30d" },
     resolution: "daily",
   },
+  // date-ok
   created_at: "2026-03-01T00:00:00Z",
+  // date-ok
   updated_at: "2026-03-01T00:00:00Z",
 };
 
@@ -117,7 +121,9 @@ describe("exploreApi", () => {
     it("fetches batch series successfully", async () => {
       const result = await exploreApi.batchSeries({
         metrics: [{ source: "checkins", field: "energy" }],
+        // date-ok
         start: "2026-03-01",
+        // date-ok
         end: "2026-03-07",
         resolution: "daily",
       });
@@ -134,7 +140,9 @@ describe("exploreApi", () => {
       await expect(
         exploreApi.batchSeries({
           metrics: [{ source: "checkins", field: "energy" }],
+          // date-ok
           start: "2026-03-01",
+          // date-ok
           end: "2026-03-07",
           resolution: "daily",
         }),
@@ -254,6 +262,7 @@ describe("exploreApi", () => {
             source: "checkins",
             field: "energy",
             unit: "score",
+            // date-ok
             points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
           });
         }),
@@ -262,7 +271,9 @@ describe("exploreApi", () => {
       const result = await exploreApi.getSeries({
         source: "checkins",
         field: "energy",
+        // date-ok
         start: "2026-03-01",
+        // date-ok
         end: "2026-03-07",
         resolution: "daily",
       });

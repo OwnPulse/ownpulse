@@ -40,6 +40,15 @@ jobs:
               - 'pact/**'
               - '.github/workflows/backend.yml'
 
+  test_date_lint:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - run: scripts/check-test-dates.sh
+
   fmt:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
@@ -235,16 +244,18 @@ jobs:
   result:
     name: Backend / result
     if: always()
-    needs: [changes, fmt, clippy, test, test_timezone]
+    needs: [changes, test_date_lint, fmt, clippy, test, test_timezone]
     runs-on: ubuntu-latest
     steps:
       - name: Check result
         run: |
-          if [[ "${{ needs.fmt.result }}" == "failure" || \
+          if [[ "${{ needs.test_date_lint.result }}" == "failure" || \
+                "${{ needs.fmt.result }}" == "failure" || \
                 "${{ needs.clippy.result }}" == "failure" || \
                 "${{ needs.test.result }}" == "failure" || \
                 "${{ needs.test_timezone.result }}" == "failure" ]]; then
             echo "Backend CI failed"
+            echo "  test_date_lint: ${{ needs.test_date_lint.result }}"
             echo "  fmt: ${{ needs.fmt.result }}"
             echo "  clippy: ${{ needs.clippy.result }}"
             echo "  test: ${{ needs.test.result }}"

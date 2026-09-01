@@ -21,11 +21,13 @@ struct ProtocolsViewModelTests {
             id: id,
             name: name,
             status: status,
+            // date-ok
             startDate: "2026-03-01",
             durationDays: durationDays,
             isTemplate: false,
             progressPct: progressPct,
             nextDose: nil,
+            // date-ok
             createdAt: "2026-03-01T00:00:00Z"
         )
     }
@@ -38,12 +40,14 @@ struct ProtocolsViewModelTests {
         dosesToday: Int = 2,
         dosesCompletedToday: Int = 0,
         notify: Bool = false,
+        // date-ok
         createdAt: String = "2026-03-28T10:00:00Z"
     ) -> ActiveRunResponse {
         ActiveRunResponse(
             id: id,
             protocolId: protocolId,
             protocolName: protocolName,
+            // date-ok
             startDate: "2026-03-28",
             durationDays: 28,
             status: "active",
@@ -73,9 +77,11 @@ struct ProtocolsViewModelTests {
             name: name,
             description: "Test description",
             status: status,
+            // date-ok
             startDate: "2026-03-01",
             durationDays: durationDays,
             shareToken: nil,
+            // date-ok
             createdAt: "2026-03-01T00:00:00Z",
             lines: lines,
             runs: runs
@@ -118,6 +124,7 @@ struct ProtocolsViewModelTests {
             dayNumber: dayNumber,
             status: status,
             interventionId: nil,
+            // date-ok
             loggedAt: "2026-03-01T08:00:00Z",
             runId: nil,
             skipReason: nil
@@ -609,6 +616,7 @@ struct ProtocolsViewModelTests {
     func loadRunDosesSuccess() async {
         let mock = MockNetworkClient()
         let days = [
+            // date-ok
             RunDoseDay(
                 dayNumber: 3, date: "2026-04-04", protocolLineId: "line-1", substance: "BPC-157",
                 dose: 250.0, unit: "mcg", route: "subq", timeOfDay: "AM", status: .missed,
@@ -643,6 +651,7 @@ struct ProtocolsViewModelTests {
     @Test("loadRunDoses clears stale doses when switching to a different run")
     func loadRunDosesClearsOnDifferentRun() async {
         let mock = MockNetworkClient()
+        // date-ok
         let runOneDay = RunDoseDay(
             dayNumber: 0, date: "2026-04-01", protocolLineId: "line-1", substance: "Run One",
             dose: nil, unit: nil, route: nil, timeOfDay: nil, status: .missed,
@@ -674,6 +683,7 @@ struct ProtocolsViewModelTests {
     @Test("loadRunDoses does not clear doses when refreshing the same run")
     func loadRunDosesKeepsDataOnSameRunRefresh() async {
         let mock = MockNetworkClient()
+        // date-ok
         let day = RunDoseDay(
             dayNumber: 0, date: "2026-04-01", protocolLineId: "line-1", substance: "Creatine",
             dose: nil, unit: nil, route: nil, timeOfDay: nil, status: .missed,
@@ -699,8 +709,10 @@ struct ProtocolsViewModelTests {
     func currentRunPrefersActive() async {
         let mock = MockNetworkClient()
         let vm = ProtocolsViewModel(networkClient: mock)
+        // date-ok
         let active = Self.makeActiveRun(id: "run-active", createdAt: "2026-03-01T00:00:00Z")
         vm.activeRuns = [active]
+        // date-ok
         let detail = Self.makeDetail(runs: [
             Self.makeActiveRun(id: "run-old", createdAt: "2026-01-01T00:00:00Z")
         ])
@@ -713,6 +725,7 @@ struct ProtocolsViewModelTests {
         let mock = MockNetworkClient()
         let vm = ProtocolsViewModel(networkClient: mock)
         vm.activeRuns = []
+        // date-ok
         let detail = Self.makeDetail(runs: [
             Self.makeActiveRun(id: "run-older", createdAt: "2026-01-01T00:00:00Z"),
             Self.makeActiveRun(id: "run-newer", createdAt: "2026-02-01T00:00:00Z")
@@ -766,6 +779,7 @@ struct ProtocolsViewModelTests {
             MissedDoseItem(
                 protocolId: "proto-1", protocolName: "Stack", runId: "run-1", protocolLineId: "line-1",
                 substance: "Creatine", dose: 5.0, unit: "g", route: "oral", timeOfDay: nil,
+                // date-ok
                 dayNumber: 2, date: "2026-04-03", status: .missed
             )
         ]

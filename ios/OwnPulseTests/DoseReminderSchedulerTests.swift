@@ -55,6 +55,7 @@ struct DoseReminderSchedulerTests {
     func schedulesPerNotifyTimePerDay() {
         let run = Self.makeRun(
             protocolName: "BPC-157 Protocol",
+            // date-ok
             startDate: Self.date("2026-06-01"),
             notifyTimes: ["08:00", "20:00"],
             lines: [
@@ -62,6 +63,7 @@ struct DoseReminderSchedulerTests {
             ]
         )
         // "now" is before the first reminder each day, so nothing is dropped as past.
+        // date-ok
         let now = Self.date("2026-06-01", hour: 0, minute: 0)
 
         let (specs, truncated) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
@@ -75,18 +77,23 @@ struct DoseReminderSchedulerTests {
 
     @Test("identifiers are deterministic: dose-<runId>-<time>-<date>")
     func deterministicIdentifiers() {
+        // date-ok
         let run = Self.makeRun(runId: "run-42", startDate: Self.date("2026-06-01"))
+        // date-ok
         let now = Self.date("2026-06-01", hour: 0, minute: 0)
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
 
         let first = try! #require(specs.first)
+        // date-ok
         #expect(first.identifier == "dose-run-42-09:00-2026-06-01")
     }
 
     @Test("recomputing for the same inputs produces identical identifiers (replace, not duplicate)")
     func rebuildIsIdempotent() {
+        // date-ok
         let run = Self.makeRun(startDate: Self.date("2026-06-01"))
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (first, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
@@ -99,7 +106,9 @@ struct DoseReminderSchedulerTests {
 
     @Test("runs with notify disabled produce no specs")
     func notifyDisabledSkipped() {
+        // date-ok
         let run = Self.makeRun(startDate: Self.date("2026-06-01"), notify: false)
+        // date-ok
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: Self.date("2026-06-01"), calendar: Self.utcCalendar)
         #expect(specs.isEmpty)
     }
@@ -111,9 +120,11 @@ struct DoseReminderSchedulerTests {
         // Every-other-day pattern: on, off, on, off...
         let pattern = (0..<30).map { $0 % 2 == 0 }
         let run = Self.makeRun(
+            // date-ok
             startDate: Self.date("2026-06-01"),
             lines: [DoseReminderLine(substance: "Creatine", dose: 5, unit: "g", schedulePattern: pattern)]
         )
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
@@ -121,13 +132,17 @@ struct DoseReminderSchedulerTests {
         // Days 0,2,4,6 are "on" within the 7-day horizon (0...6) = 4 reminders.
         #expect(specs.count == 4)
         let dates = Set(specs.map { $0.identifier.suffix(10) })
+        // date-ok
         #expect(dates.contains("2026-06-01"))
+        // date-ok
         #expect(!dates.contains("2026-06-02"))
     }
 
     @Test("falls back to a daily reminder with generic copy when no line data is available")
     func fallsBackToDailyWithoutLineData() {
+        // date-ok
         let run = Self.makeRun(protocolName: "Fallback Protocol", startDate: Self.date("2026-06-01"))
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
@@ -142,15 +157,18 @@ struct DoseReminderSchedulerTests {
         // treated as scheduled — otherwise a line whose pattern array is
         // shorter than the run's remaining days would nag forever.
         let run = Self.makeRun(
+            // date-ok
             startDate: Self.date("2026-06-01"),
             lines: [DoseReminderLine(substance: "X", dose: nil, unit: nil, schedulePattern: [true, false])]
         )
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
 
         // Day 0: on. Days 1-6: off/unknown -> not scheduled. Total = 1.
         #expect(specs.count == 1)
+        // date-ok
         #expect(specs.first?.identifier.hasSuffix("2026-06-01") == true)
     }
 
@@ -162,10 +180,12 @@ struct DoseReminderSchedulerTests {
         // whole horizon, but the run itself is only a 3-day protocol that
         // started 5 days ago — it finished 2 days ago and must not remind.
         let run = Self.makeRun(
+            // date-ok
             startDate: Self.date("2026-05-27"), // 5 days before "now"
             lines: [DoseReminderLine(substance: "X", dose: nil, unit: nil, schedulePattern: Array(repeating: true, count: 30))],
             durationDays: 3
         )
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
@@ -178,25 +198,30 @@ struct DoseReminderSchedulerTests {
         // Started 2 days ago, 4-day protocol (days 0-3): today (day 2) and
         // tomorrow (day 3) are still within the run; day 4+ is not.
         let run = Self.makeRun(
+            // date-ok
             startDate: Self.date("2026-05-30"),
             durationDays: 4
         )
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
 
         #expect(specs.count == 2)
         let dates = Set(specs.map { String($0.identifier.suffix(10)) })
+        // date-ok
         #expect(dates == ["2026-06-01", "2026-06-02"])
     }
 
     @Test("duration cutoff also applies to the daily fallback when line data is missing")
     func durationCutoffAppliesToFallback() {
         let run = Self.makeRun(
+            // date-ok
             startDate: Self.date("2026-05-30"),
             lines: [], // fallback path
             durationDays: 4
         )
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
@@ -208,7 +233,9 @@ struct DoseReminderSchedulerTests {
 
     @Test("a run whose start date is in the future produces no reminders for pre-start days")
     func futureStartDateSkipsEarlyDays() {
+        // date-ok
         let run = Self.makeRun(startDate: Self.date("2026-06-05"))
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
@@ -221,14 +248,17 @@ struct DoseReminderSchedulerTests {
 
     @Test("does not schedule a reminder time that has already passed today")
     func skipsPastTimeToday() {
+        // date-ok
         let run = Self.makeRun(startDate: Self.date("2026-06-01"), notifyTimes: ["08:00"])
         // "now" is 10:00, after the 08:00 reminder for today.
+        // date-ok
         let now = Self.date("2026-06-01", hour: 10, minute: 0)
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
 
         // 7 candidate days, minus today's already-passed 08:00 = 6.
         #expect(specs.count == 6)
+        // date-ok
         #expect(!specs.contains { $0.identifier.hasSuffix("2026-06-01") })
     }
 
@@ -236,7 +266,9 @@ struct DoseReminderSchedulerTests {
 
     @Test("empty notifyTimes falls back to a single default reminder")
     func emptyNotifyTimesDefaults() {
+        // date-ok
         let run = Self.makeRun(startDate: Self.date("2026-06-01"), notifyTimes: [])
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [run], now: now, calendar: Self.utcCalendar)
@@ -255,10 +287,12 @@ struct DoseReminderSchedulerTests {
                 runId: "run-\(i)",
                 protocolId: "proto-\(i)",
                 protocolName: "Protocol \(i)",
+                // date-ok
                 startDate: Self.date("2026-06-01"),
                 notifyTimes: ["08:00", "20:00"]
             )
         }
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, truncatedCount) = DoseReminderScheduler.computeSpecs(runs: runs, now: now, calendar: Self.utcCalendar)
@@ -285,12 +319,16 @@ struct DoseReminderSchedulerTests {
         // with identical fireDate but different identifiers (different
         // runId). The result must not depend on input order or on Swift's
         // (unstable) sort — it must always come out identifier-ascending.
+        // date-ok
         let runA = Self.makeRun(runId: "run-b", startDate: Self.date("2026-06-01"))
+        // date-ok
         let runB = Self.makeRun(runId: "run-a", startDate: Self.date("2026-06-01"))
+        // date-ok
         let now = Self.date("2026-06-01")
 
         let (specs, _) = DoseReminderScheduler.computeSpecs(runs: [runA, runB], now: now, calendar: Self.utcCalendar)
 
+        // date-ok
         let firstDaySpecs = specs.filter { $0.identifier.hasSuffix("2026-06-01") }
         #expect(firstDaySpecs.count == 2)
         #expect(firstDaySpecs.map(\.identifier) == firstDaySpecs.map(\.identifier).sorted())
@@ -299,8 +337,10 @@ struct DoseReminderSchedulerTests {
 
     @Test("does not truncate when under the cap")
     func noTruncationUnderCap() {
+        // date-ok
         let run = Self.makeRun(startDate: Self.date("2026-06-01"))
         let (specs, truncatedCount) = DoseReminderScheduler.computeSpecs(
+            // date-ok
             runs: [run], now: Self.date("2026-06-01"), calendar: Self.utcCalendar
         )
         #expect(specs.count == 7)
@@ -313,6 +353,7 @@ struct DoseReminderSchedulerTests {
     func aggregatesMultipleSubstances() {
         let run = Self.makeRun(
             protocolName: "Stack",
+            // date-ok
             startDate: Self.date("2026-06-01"),
             notifyTimes: ["08:00"],
             lines: [
@@ -321,6 +362,7 @@ struct DoseReminderSchedulerTests {
             ]
         )
         let (specs, _) = DoseReminderScheduler.computeSpecs(
+            // date-ok
             runs: [run], now: Self.date("2026-06-01"), calendar: Self.utcCalendar
         )
 

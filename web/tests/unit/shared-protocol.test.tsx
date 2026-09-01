@@ -23,6 +23,7 @@ const sharedProtocol = {
   description: "Healing protocol",
   status: "active",
   duration_days: 14,
+  // date-ok
   created_at: "2026-03-01T00:00:00Z",
   lines: [
     {

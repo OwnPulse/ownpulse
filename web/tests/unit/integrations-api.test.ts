@@ -23,6 +23,7 @@ describe("integrationsApi", () => {
       server.use(
         http.get("/api/v1/integrations", () =>
           HttpResponse.json([
+            // date-ok
             { source: "google_calendar", connected: true, last_synced_at: "2026-08-01T00:00:00Z" },
           ]),
         ),
@@ -30,6 +31,7 @@ describe("integrationsApi", () => {
 
       const result = await integrationsApi.list();
       expect(result).toEqual([
+        // date-ok
         { source: "google_calendar", connected: true, last_synced_at: "2026-08-01T00:00:00Z" },
       ]);
     });
