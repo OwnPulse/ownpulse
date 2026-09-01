@@ -13,13 +13,105 @@ use sqlx::postgres::PgPoolOptions;
 use testcontainers::ImageExt;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
+use tokio::sync::OnceCell;
 
-/// Holds the running server address, database pool, and the container handle.
+/// Holds the running server address and database pool for one contract test.
 pub struct ContractTestApp {
     pub port: u16,
     pub pool: PgPool,
-    // Kept alive so the container isn't dropped.
-    pub _container: testcontainers::ContainerAsync<Postgres>,
+}
+
+/// One Postgres container is shared by every contract test in this binary —
+/// see the matching doc comment in `tests/integration/common.rs` for the
+/// rationale (container-per-test caused `PortNotExposed` flakes and Docker
+/// resource exhaustion). Each test clones its own database from
+/// `template_ownpulse` instead of getting its own container.
+struct SharedContainer {
+    _container: testcontainers::ContainerAsync<Postgres>,
+    host_port: u16,
+}
+
+static SHARED_CONTAINER: OnceCell<SharedContainer> = OnceCell::const_new();
+
+async fn shared_container() -> &'static SharedContainer {
+    SHARED_CONTAINER
+        .get_or_init(|| async {
+            let container = Postgres::default()
+                .with_tag("17-alpine")
+                .with_cmd(["-c", "max_connections=500"])
+                .start()
+                .await
+                .expect("failed to start postgres container");
+
+            let host_port = container
+                .get_host_port_ipv4(5432)
+                .await
+                .expect("failed to get mapped port");
+
+            let admin_url = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+            let admin_pool = PgPoolOptions::new()
+                .max_connections(2)
+                .connect(&admin_url)
+                .await
+                .expect("failed to connect to testcontainers postgres");
+
+            sqlx::query("CREATE DATABASE template_ownpulse")
+                .execute(&admin_pool)
+                .await
+                .expect("failed to create template_ownpulse database");
+            admin_pool.close().await;
+
+            let template_url =
+                format!("postgres://postgres:postgres@127.0.0.1:{host_port}/template_ownpulse");
+            let template_pool = PgPoolOptions::new()
+                .max_connections(2)
+                .connect(&template_url)
+                .await
+                .expect("failed to connect to template_ownpulse database");
+
+            run_migrations(&template_pool).await;
+
+            // `CREATE DATABASE ... TEMPLATE` requires zero active connections
+            // to the template.
+            template_pool.close().await;
+
+            SharedContainer {
+                _container: container,
+                host_port,
+            }
+        })
+        .await
+}
+
+/// Clone a fresh, uniquely-named database from `template_ownpulse` and
+/// return its connection URL. Not dropped afterwards — see the matching
+/// comment in `tests/integration/common.rs`.
+async fn provision_test_database() -> String {
+    let shared = shared_container().await;
+    let admin_url = format!(
+        "postgres://postgres:postgres@127.0.0.1:{}/postgres",
+        shared.host_port
+    );
+    let db_name = format!("test_{}", uuid::Uuid::new_v4().simple());
+
+    let admin_pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&admin_url)
+        .await
+        .expect("failed to connect to testcontainers postgres");
+
+    sqlx::query(&format!(
+        "CREATE DATABASE \"{db_name}\" TEMPLATE template_ownpulse"
+    ))
+    .execute(&admin_pool)
+    .await
+    .expect("failed to clone test database from template");
+    admin_pool.close().await;
+
+    format!(
+        "postgres://postgres:postgres@127.0.0.1:{}/{db_name}",
+        shared.host_port
+    )
 }
 
 /// Build a test-friendly config.
@@ -67,28 +159,16 @@ fn test_config(database_url: &str) -> api::config::Config {
     }
 }
 
-/// Spin up Postgres, run migrations, start the Axum server on a random port.
+/// Clone a fresh database from the shared container's migrated template and
+/// start the Axum server on a random port.
 pub async fn setup() -> ContractTestApp {
-    let container = Postgres::default()
-        .with_tag("17-alpine")
-        .start()
-        .await
-        .expect("failed to start postgres container");
-
-    let host_port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("failed to get mapped port");
-
-    let database_url = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+    let database_url = provision_test_database().await;
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(2)
         .connect(&database_url)
         .await
-        .expect("failed to connect to testcontainers postgres");
-
-    run_migrations(&pool).await;
+        .expect("failed to connect to test database");
 
     let config = test_config(&database_url);
     let (event_tx, _) = tokio::sync::broadcast::channel(256);
@@ -113,11 +193,7 @@ pub async fn setup() -> ContractTestApp {
         axum::serve(listener, app).await.expect("server error");
     });
 
-    ContractTestApp {
-        port,
-        pool,
-        _container: container,
-    }
+    ContractTestApp { port, pool }
 }
 
 /// Read every SQL migration file from `db/migrations/` and execute them in
