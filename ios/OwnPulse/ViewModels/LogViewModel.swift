@@ -78,6 +78,15 @@ final class LogViewModel {
     /// Substances from the user's currently active protocol runs, offered as
     /// quick-pick chips above "My Medicines" on the intervention form.
     var activeSubstances: [ActiveSubstance] = []
+    /// Today's scheduled doses across active runs — used to detect when the
+    /// entered substance+dose matches a still-pending scheduled dose (see
+    /// `matchingTodaysDose`), so the form can offer counting the entry
+    /// toward the protocol instead of logging a free-floating intervention.
+    var todaysDoses: [TodaysDose] = []
+    /// Whether a successful intervention submit should also count toward a
+    /// matching pending protocol dose. Defaults on; only consulted when
+    /// `matchingTodaysDose` is non-nil.
+    var countTowardProtocol = true
 
     static let doseUnits = ["mg", "mcg", "mL", "IU", "g", "drops", "puffs"]
     static let routes = ["oral", "sublingual", "subq", "IM", "IV", "topical", "inhaled", "nasal", "rectal", "transdermal"]
@@ -164,6 +173,25 @@ final class LogViewModel {
         !substance.trimmingCharacters(in: .whitespaces).isEmpty &&
             Double(dose) != nil &&
             Double(dose)! > 0
+    }
+
+    /// A still-pending scheduled dose *today* whose substance/dose/unit
+    /// exactly matches what's currently entered on the form. When present,
+    /// the form offers "Count toward <protocol>" — logging via the
+    /// run-scoped dose-log endpoint instead of a free-floating
+    /// `POST /interventions`, so the protocol's dose grid and adherence
+    /// reflect the entry. Today-only: `todaysDoses` is already scoped to
+    /// today by the backend query, so no client-side date check is needed.
+    var matchingTodaysDose: TodaysDose? {
+        let trimmedSubstance = substance.trimmingCharacters(in: .whitespaces)
+        guard !trimmedSubstance.isEmpty, let enteredDose = Double(dose) else { return nil }
+        return todaysDoses.first { item in
+            guard item.status == nil || item.status == .pending else { return false }
+            guard item.substance.caseInsensitiveCompare(trimmedSubstance) == .orderedSame else { return false }
+            guard let itemDose = item.dose, abs(itemDose - enteredDose) < 0.0001 else { return false }
+            guard (item.unit ?? "") == doseUnit else { return false }
+            return true
+        }
     }
 
     var observationIsValid: Bool {
@@ -264,6 +292,36 @@ final class LogViewModel {
         submitState = .submitting
 
         let formatter = ISO8601DateFormatter()
+
+        // Attribution parity: if the entered substance+dose matches a
+        // pending scheduled dose today and the user left "Count toward
+        // <protocol>" on, log via the run-scoped dose endpoint instead of
+        // creating a free-floating intervention — otherwise the protocol's
+        // dose stays "missed" even though the substance was taken.
+        if let match = matchingTodaysDose, countTowardProtocol {
+            let body = LogDoseRequest(
+                protocolLineId: match.protocolLineId,
+                dayNumber: match.dayNumber,
+                administeredAt: formatter.string(from: interventionDate),
+                notes: interventionNotes.isEmpty ? nil : interventionNotes,
+                tzOffsetMinutes: TimeZone.current.secondsFromGMT() / 60
+            )
+            do {
+                let _: ProtocolDose = try await networkClient.request(
+                    method: "POST",
+                    path: Endpoints.runLogDose(match.runId),
+                    body: body
+                )
+                submitState = .success("Intervention logged")
+                resetIntervention()
+                await loadTodaysDoses()
+            } catch {
+                logger.error("Failed to log dose: \(error.localizedDescription, privacy: .public)")
+                submitState = .error("Failed to log intervention: \(error.localizedDescription)")
+            }
+            return
+        }
+
         let body = CreateIntervention(
             substance: substance.trimmingCharacters(in: .whitespaces),
             dose: Double(dose) ?? 0,
@@ -557,6 +615,22 @@ final class LogViewModel {
         if let r = item.route { route = r }
     }
 
+    /// Loads today's scheduled doses across active runs, used to detect a
+    /// quick-pick/manual entry that matches a pending dose (see
+    /// `matchingTodaysDose`).
+    func loadTodaysDoses() async {
+        do {
+            let doses: [TodaysDose] = try await networkClient.request(
+                method: "GET",
+                path: Endpoints.todaysDoses,
+                body: nil as String?
+            )
+            todaysDoses = doses
+        } catch {
+            logger.error("Failed to load today's doses: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     // MARK: - Reset
 
     private func resetCheckin() {
@@ -575,6 +649,7 @@ final class LogViewModel {
         interventionNotes = ""
         interventionDate = Date()
         fasted = false
+        countTowardProtocol = true
     }
 
     private func resetObservation() {

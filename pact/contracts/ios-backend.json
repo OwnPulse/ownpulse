@@ -1512,6 +1512,87 @@
           }
         ]
       }
+    },
+    {
+      "description": "a request to list today's scheduled doses across active runs",
+      "providerState": "an active protocol run with a dose scheduled today exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/todays-doses",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "protocol_id": "aaaaaaaa-1111-1111-1111-111111111111",
+            "protocol_name": "Recovery Stack",
+            "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
+            "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+            "substance": "BPC-157",
+            "dose": 250.0,
+            "unit": "mcg",
+            "route": "subcutaneous",
+            "time_of_day": "morning",
+            "day_number": 3,
+            "status": null
+          }
+        ],
+        "matchingRules": {
+          "$.body[0].day_number": {
+            "match": "type"
+          }
+        }
+      }
+    },
+    {
+      "description": "a request to log a run-scoped protocol dose from a quick-picked intervention",
+      "providerState": "an active run with a pending dose today matching a quick-picked substance exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/protocols/runs/aaaaaaaa-3333-3333-3333-333333333333/doses/log",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+          "day_number": 3,
+          "administered_at": "2026-03-28T08:00:00Z",
+          "notes": "took it with breakfast",
+          "tz_offset_minutes": -420
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "cccccccc-3333-3333-3333-333333333333",
+          "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+          "day_number": 3,
+          "status": "completed",
+          "intervention_id": "dddddddd-4444-4444-4444-444444444444",
+          "logged_at": "2026-03-28T08:00:00Z"
+        },
+        "matchingRules": {
+          "$.body.id": {
+            "match": "type"
+          },
+          "$.body.intervention_id": {
+            "match": "type"
+          },
+          "$.body.logged_at": {
+            "match": "type"
+          }
+        }
+      }
     }
   ],
   "metadata": {

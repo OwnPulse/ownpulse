@@ -75,9 +75,13 @@ struct InterventionForm: View {
                 .accessibilityIdentifier("doseUnitPicker")
             }
 
-            // Route
+            // Route — includes the current value even when it isn't one of
+            // the fixed options (e.g. applied from a saved-medicine/quick-pick
+            // chip with a route like "subcutaneous" that isn't in `routes`),
+            // otherwise the picker renders blank while the unmatched value is
+            // still what gets submitted.
             Picker("Route", selection: $viewModel.route) {
-                ForEach(LogViewModel.routes, id: \.self) { route in
+                ForEach(routeOptions, id: \.self) { route in
                     Text(route.capitalized).tag(route)
                 }
             }
@@ -103,6 +107,14 @@ struct InterventionForm: View {
                 .lineLimit(2...4)
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("interventionNotesField")
+
+            // Attribution parity: the entered substance+dose matches a
+            // pending scheduled dose today — offer counting it toward the
+            // protocol instead of logging a free-floating intervention.
+            if let match = viewModel.matchingTodaysDose {
+                Toggle("Count toward \(match.protocolName)", isOn: $viewModel.countTowardProtocol)
+                    .accessibilityIdentifier("countTowardProtocolToggle")
+            }
 
             // Submit
             Button {
@@ -130,7 +142,17 @@ struct InterventionForm: View {
         .task {
             await viewModel.loadSavedMedicines()
             await viewModel.loadActiveSubstances()
+            await viewModel.loadTodaysDoses()
         }
+    }
+
+    /// The fixed route list, plus the currently-selected value if it isn't
+    /// already one of them — see the picker's comment above.
+    private var routeOptions: [String] {
+        guard !viewModel.route.isEmpty, !LogViewModel.routes.contains(viewModel.route) else {
+            return LogViewModel.routes
+        }
+        return LogViewModel.routes + [viewModel.route]
     }
 
     private func quickPickChip(_ item: ActiveSubstance) -> some View {

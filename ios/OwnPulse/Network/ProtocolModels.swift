@@ -159,10 +159,22 @@ struct CreateProtocolLineRequest: Codable, Sendable {
 struct LogDoseRequest: Codable, Sendable {
     let protocolLineId: String
     let dayNumber: Int
+    /// Optional explicit timestamp — used when quick-picking a substance
+    /// that matches today's pending dose, so the log reflects the form's
+    /// chosen date/time rather than the server's default.
+    let administeredAt: String?
+    let notes: String?
+    /// Always sent — the caller's local UTC offset in minutes, so the
+    /// server evaluates "today" in the user's own calendar day rather than
+    /// UTC's. See docs/architecture/api.md.
+    let tzOffsetMinutes: Int
 
     enum CodingKeys: String, CodingKey {
         case protocolLineId = "protocol_line_id"
         case dayNumber = "day_number"
+        case administeredAt = "administered_at"
+        case notes
+        case tzOffsetMinutes = "tz_offset_minutes"
     }
 }
 
@@ -274,12 +286,47 @@ struct ActiveSubstance: Codable, Sendable, Identifiable {
     }
 }
 
+// MARK: - Today's Doses (attribution parity for quick-pick)
+
+/// One entry per scheduled line across the user's active runs for *today*
+/// only. Used to detect when a quick-picked substance+dose matches a
+/// still-pending scheduled dose, so `InterventionForm` can offer counting
+/// the entry toward the protocol instead of creating a free-floating
+/// intervention. Modeled on the backend's `TodaysDoseItem`
+/// (`backend/api/src/models/protocol.rs`).
+struct TodaysDose: Codable, Sendable, Identifiable {
+    var id: String { protocolLineId }
+    let protocolId: String
+    let protocolName: String
+    let runId: String
+    let protocolLineId: String
+    let substance: String
+    let dose: Double?
+    let unit: String?
+    let route: String?
+    let timeOfDay: String?
+    let dayNumber: Int
+    let status: DoseStatus?
+
+    enum CodingKeys: String, CodingKey {
+        case protocolId = "protocol_id"
+        case protocolName = "protocol_name"
+        case runId = "run_id"
+        case protocolLineId = "protocol_line_id"
+        case substance, dose, unit, route
+        case timeOfDay = "time_of_day"
+        case dayNumber = "day_number"
+        case status
+    }
+}
+
 // MARK: - Endpoint Extensions
 
 extension Endpoints {
     static let protocols = "/api/v1/protocols"
     static let activeRuns = "/api/v1/protocols/runs/active"
     static let activeSubstances = "/api/v1/protocols/active-substances"
+    static let todaysDoses = "/api/v1/protocols/runs/todays-doses"
 
     static func protocolDetail(_ id: String) -> String {
         "/api/v1/protocols/\(id)"
