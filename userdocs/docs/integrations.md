@@ -4,13 +4,15 @@ OwnPulse can pull data from external services to complement your manual entries 
 
 ## Viewing connected sources
 
-The web **Sources** page lists the integrations you've connected, each shown as **Connected** with a **Disconnect** button and, if a sync has ever failed, the error from that attempt. Garmin, Oura, and Google Calendar also get a **Sync now** button there to trigger a fetch immediately instead of waiting for the next scheduled run. It only lists sources you've already authorized -- it does not show a full catalog of available-but-not-yet-connected integrations, except for Google Calendar, which always gets a row with a **Connect** button when it isn't connected yet (see below).
+The web **Sources** page lists the integrations you've connected, each shown as **Connected** with a **Disconnect** button and, if a sync has ever failed, the error from that attempt. Garmin, Oura, and Google Calendar also get a **Sync now** button there to trigger a fetch immediately instead of waiting for the next scheduled run. It only lists sources you've already authorized -- it does not show a full catalog of available-but-not-yet-connected integrations, except for Google Calendar, which always gets a row (with connecting from the web not available yet -- see below).
 
 ## Connecting a new source
 
-- **Garmin and Oura:** connections are initiated from the iOS app, not the web Sources page. Open **Settings > Wearables** in the iOS app to connect either wearable. The authorization page opens in a secure in-app browser; once you finish, the app shows the source as **Connected**. The first time you connect a wearable, OwnPulse offers to resolve any metrics that overlap with Apple Health so you can pick a source of truth.
-- **Google Calendar:** the web Sources page has a **Connect** button. See [Google Calendar](#google-calendar) below.
-- **MyChart:** connections are initiated from the iOS app. See [MyChart and other patient portals](#mychart-and-other-patient-portals) below.
+Connections are initiated from the iOS app, not the web Sources page:
+
+- **Garmin and Oura:** open **Settings > Wearables** in the iOS app to connect either wearable. The authorization page opens in a secure in-app browser; once you finish, the app shows the source as **Connected**. The first time you connect a wearable, OwnPulse offers to resolve any metrics that overlap with Apple Health so you can pick a source of truth.
+- **Google Calendar:** see [Google Calendar](#google-calendar) below.
+- **MyChart:** see [MyChart and other patient portals](#mychart-and-other-patient-portals) below.
 
 Once connected, the source appears on the web Sources page, where you can disconnect it.
 
@@ -35,10 +37,10 @@ If a sync attempt fails (for example, the third-party service is temporarily una
 
 Google Calendar integration reads your meeting schedule to compute two numbers per day -- **meeting count** and **total meeting minutes** -- so you can correlate schedule load with your health metrics. It is strictly read-only (OwnPulse never modifies your calendar) and strictly aggregate: event titles, descriptions, attendees, and locations are never read into or stored by OwnPulse -- OwnPulse asks Google to not even send them, rather than fetching and discarding them. All-day entries (holidays, out-of-office blocks), out-of-office/focus-time/working-location events, and meetings you declined aren't counted. Days are grouped by UTC date, which may occasionally shift a late-evening meeting onto the next day if you're west of UTC.
 
-This is separate from linking your Google account for sign-in (**Settings > Linked Accounts**) -- Google Calendar access is authorized independently, since it requires its own permission scope. The web Sources page has a **Connect** button that starts this flow. Once connected, Google Calendar syncs automatically every 15 minutes (same schedule as Garmin/Oura) and the integration appears on the Sources page like any other connected source.
+This is separate from linking your Google account for sign-in (**Settings > Linked Accounts**) -- Google Calendar access is authorized independently, since it requires its own permission scope. Once connected, Google Calendar syncs automatically every 15 minutes (same schedule as Garmin/Oura) and the integration appears on the Sources page like any other connected source.
 
-!!! note "Connect currently requires a recent Google sign-in"
-    The **Connect** button is a plain link -- clicking it navigates your browser away from OwnPulse, which can't carry your session token the way the app's own API calls do. It only works right now if you're signed in to OwnPulse via Google (**Settings > Linked Accounts**) and that sign-in was recent enough that the browser still holds the short-lived session cookie it set. If you're signed in with a password instead, or your session cookie has expired, clicking **Connect** will show an authorization error. This is a known gap -- tracked for a fix that makes Connect work for any signed-in session, matching how other authenticated redirect flows in OwnPulse already do.
+!!! note "Connecting from the web isn't available yet"
+    The Sources page shows Google Calendar's Connect button as disabled with a "coming soon" label. Web browser navigation can't carry your session token the way the app's own API calls do, and the backend's connect route currently requires one on both the initial request and the return leg -- there's no working path today, regardless of how or when you signed in. This is tracked for a fix; once it lands, Connect will work from the web for any signed-in session.
 
 ## MyChart and other patient portals
 

@@ -101,9 +101,7 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
 
   if (!response.ok) {
     const body = await response.text();
-    // `?.` guards a couple of existing unit tests that stub a bare object in
-    // place of a real `Response` and don't set `headers`.
-    const retryAfterHeader = response.headers?.get("retry-after");
+    const retryAfterHeader = response.headers.get("retry-after");
     const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
     throw new ApiError(
       response.status,

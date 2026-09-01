@@ -46,4 +46,26 @@ describe("api client — Retry-After capture", () => {
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).retryAfterSeconds).toBeUndefined();
   });
+
+  it("leaves retryAfterSeconds undefined for an HTTP-date form Retry-After (Number.isFinite guard)", async () => {
+    // Retry-After is also legal as an HTTP-date (RFC 9110 10.2.3), not just
+    // delay-seconds. `Number("Wed, 21 Oct 2026 07:28:00 GMT")` is `NaN`, and
+    // the client should treat that as "no usable retry hint" rather than
+    // surfacing NaN to callers.
+    server.use(
+      http.post(
+        "/api/v1/protected/sync",
+        () =>
+          new HttpResponse(JSON.stringify({ error: "rate limited" }), {
+            status: 429,
+            headers: { "retry-after": "Wed, 21 Oct 2026 07:28:00 GMT" },
+          }),
+      ),
+    );
+
+    const error = await api.post("/api/v1/protected/sync", {}).catch((e) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(429);
+    expect((error as ApiError).retryAfterSeconds).toBeUndefined();
+  });
 });

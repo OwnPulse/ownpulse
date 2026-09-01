@@ -4,7 +4,6 @@
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { ApiError } from "../../src/api/client";
 import { integrationsApi } from "../../src/api/integrations";
 import { useAuthStore } from "../../src/store/auth";
 
@@ -35,12 +34,20 @@ describe("integrationsApi", () => {
       ]);
     });
 
-    it("rejects with an ApiError on 401", async () => {
+    it("rejects with a 401 ApiError and logs out an authenticated session when the refresh also 401s", async () => {
+      // Exercises the real authenticated path (see client-401-refresh.test.ts):
+      // a 401 from an in-session call triggers the client's refresh-and-retry,
+      // and only logs out if the refresh itself confirms the session is dead.
       server.use(
         http.get("/api/v1/integrations", () => new HttpResponse("Unauthorized", { status: 401 })),
+        http.post("/api/v1/auth/refresh", () => new HttpResponse("Unauthorized", { status: 401 })),
       );
-      useAuthStore.setState({ token: null, isAuthenticated: false, role: null });
-      await expect(integrationsApi.list()).rejects.toBeInstanceOf(ApiError);
+      await expect(integrationsApi.list()).rejects.toMatchObject({
+        name: "ApiError",
+        status: 401,
+      });
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().token).toBeNull();
     });
 
     it("rejects with an ApiError on 500", async () => {
@@ -98,15 +105,20 @@ describe("integrationsApi", () => {
       expect(result).toEqual({ source: "google_calendar", records_inserted: 5 });
     });
 
-    it("rejects with an ApiError on 401", async () => {
+    it("rejects with a 401 ApiError and logs out an authenticated session when the refresh also 401s", async () => {
       server.use(
         http.post(
           "/api/v1/integrations/google-calendar/sync",
           () => new HttpResponse("Unauthorized", { status: 401 }),
         ),
+        http.post("/api/v1/auth/refresh", () => new HttpResponse("Unauthorized", { status: 401 })),
       );
-      useAuthStore.setState({ token: null, isAuthenticated: false, role: null });
-      await expect(integrationsApi.sync("google_calendar")).rejects.toBeInstanceOf(ApiError);
+      await expect(integrationsApi.sync("google_calendar")).rejects.toMatchObject({
+        name: "ApiError",
+        status: 401,
+      });
+      expect(useAuthStore.getState().isAuthenticated).toBe(false);
+      expect(useAuthStore.getState().token).toBeNull();
     });
 
     it("rejects with an ApiError carrying retryAfterSeconds on 429", async () => {

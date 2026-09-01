@@ -41,7 +41,7 @@ describe("Sources page", () => {
     });
   });
 
-  it("shows a Connect link for Google Calendar when it isn't connected", async () => {
+  it("shows a disabled Connect control with a 'coming soon' message for Google Calendar when it isn't connected", async () => {
     server.use(http.get("/api/v1/integrations", () => HttpResponse.json([])));
     renderPage();
 
@@ -49,8 +49,12 @@ describe("Sources page", () => {
       expect(screen.getByText("google_calendar")).toBeDefined();
     });
     expect(screen.getAllByText("Disconnected").length).toBeGreaterThanOrEqual(1);
-    const connectLink = screen.getByRole("link", { name: "Connect" });
-    expect(connectLink.getAttribute("href")).toBe("/api/v1/auth/google-calendar/login");
+    // No live link to the (currently broken for everyone) login route — a
+    // disabled control that doesn't burn the shared login rate limit.
+    expect(screen.queryByRole("link", { name: "Connect" })).toBeNull();
+    const connectBtn = screen.getByRole("button", { name: "Connect" });
+    expect(connectBtn).toBeDisabled();
+    expect(screen.getByText("Connecting from the web is coming soon")).toBeDefined();
   });
 
   it("shows Connected status, last sync time, and a Disconnect button for a connected source", async () => {
@@ -72,8 +76,8 @@ describe("Sources page", () => {
     });
     expect(screen.getByText(/Last sync: 2026-08-01T12:00:00Z/)).toBeDefined();
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeDefined();
-    // Already connected, so no separate Connect link should render for it.
-    expect(screen.queryByRole("link", { name: "Connect" })).toBeNull();
+    // Already connected, so no disabled Connect placeholder row for it.
+    expect(screen.queryByText("Connecting from the web is coming soon")).toBeNull();
   });
 
   it("surfaces last_sync_error when present", async () => {
@@ -116,7 +120,7 @@ describe("Sources page", () => {
     await user.click(screen.getByRole("button", { name: "Disconnect" }));
 
     await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Connect" })).toBeDefined();
+      expect(screen.getByText("Connecting from the web is coming soon")).toBeDefined();
     });
   });
 
@@ -171,6 +175,40 @@ describe("Sources page", () => {
     await waitFor(() => {
       expect(screen.getByText("Rate limited — try again in 30s.")).toBeDefined();
     });
+  });
+
+  it("clears a stale sync error once the source is disconnected", async () => {
+    let connected = true;
+    server.use(
+      http.get("/api/v1/integrations", () =>
+        HttpResponse.json(connected ? [{ source: "google_calendar", connected: true }] : []),
+      ),
+      http.post(
+        "/api/v1/integrations/google-calendar/sync",
+        () => new HttpResponse("Error", { status: 500 }),
+      ),
+      http.delete("/api/v1/integrations/google_calendar", () => {
+        connected = false;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderPage();
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Sync now" })).toBeDefined();
+    });
+    await user.click(screen.getByRole("button", { name: "Sync now" }));
+    await waitFor(() => {
+      expect(screen.getByText("Sync failed.")).toBeDefined();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Disconnect" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Connecting from the web is coming soon")).toBeDefined();
+    });
+    expect(screen.queryByText("Sync failed.")).toBeNull();
   });
 
   it("shows a generic error message when sync fails with a 500", async () => {
