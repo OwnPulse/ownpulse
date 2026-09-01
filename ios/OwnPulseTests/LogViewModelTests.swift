@@ -475,6 +475,13 @@ struct LogViewModelTests {
         var capturedPath = ""
         var capturedBody: LogDoseRequest?
         mock.requestHandler = { _, path, body in
+            // A successful attribution log also triggers a
+            // `loadTodaysDoses()` refresh — that GET must return
+            // `[TodaysDose]`, not the dose-log POST's `ProtocolDose`, or
+            // `MockNetworkClient`'s type cast fatally crashes the process.
+            if path == Endpoints.todaysDoses {
+                return [TodaysDose]()
+            }
             capturedPath = path
             capturedBody = body as? LogDoseRequest
             return Self.makeDose()
