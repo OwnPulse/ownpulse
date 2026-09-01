@@ -11,6 +11,7 @@ use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::health_records::SOURCE_PREFERENCE_EXCLUSION;
 use crate::db::insights;
 use crate::models::insight::InsightRow;
 
@@ -147,14 +148,17 @@ async fn generate_anomaly_insights(
 ) -> Result<Vec<InsightRow>, sqlx::Error> {
     let mut results = Vec::new();
 
-    // Get distinct record types the user tracks
-    let record_types: Vec<(String, Option<String>)> = sqlx::query_as(
-        "SELECT DISTINCT record_type, unit
-         FROM health_records
-         WHERE user_id = $1
-           AND value IS NOT NULL
-           AND start_time >= now() - INTERVAL '30 days'",
-    )
+    // Get distinct record types the user tracks. Excludes rows deduped in
+    // favor of a different preferred source (SOURCE_PREFERENCE_EXCLUSION) so
+    // an insight never gets generated purely off the non-canonical duplicate.
+    let record_types: Vec<(String, Option<String>)> = sqlx::query_as(&format!(
+        "SELECT DISTINCT hr.record_type, hr.unit
+         FROM health_records hr
+         WHERE hr.user_id = $1
+           AND hr.value IS NOT NULL
+           AND hr.start_time >= now() - INTERVAL '30 days'
+           AND {SOURCE_PREFERENCE_EXCLUSION}"
+    ))
     .bind(user_id)
     .fetch_all(pool)
     .await?;
@@ -166,30 +170,32 @@ async fn generate_anomaly_insights(
             continue;
         }
 
-        let stats = sqlx::query_as::<_, AnomalyRow>(
+        let stats = sqlx::query_as::<_, AnomalyRow>(&format!(
             "WITH stats AS (
                 SELECT
-                    AVG(value) AS mean,
-                    STDDEV_POP(value) AS stddev,
+                    AVG(hr.value) AS mean,
+                    STDDEV_POP(hr.value) AS stddev,
                     COUNT(*) AS cnt
-                FROM health_records
-                WHERE user_id = $1
-                  AND record_type = $2
-                  AND value IS NOT NULL
-                  AND start_time >= now() - INTERVAL '30 days'
+                FROM health_records hr
+                WHERE hr.user_id = $1
+                  AND hr.record_type = $2
+                  AND hr.value IS NOT NULL
+                  AND hr.start_time >= now() - INTERVAL '30 days'
+                  AND {SOURCE_PREFERENCE_EXCLUSION}
             ),
             latest AS (
-                SELECT value
-                FROM health_records
-                WHERE user_id = $1
-                  AND record_type = $2
-                  AND value IS NOT NULL
-                ORDER BY start_time DESC
+                SELECT hr.value
+                FROM health_records hr
+                WHERE hr.user_id = $1
+                  AND hr.record_type = $2
+                  AND hr.value IS NOT NULL
+                  AND {SOURCE_PREFERENCE_EXCLUSION}
+                ORDER BY hr.start_time DESC
                 LIMIT 1
             )
             SELECT stats.mean, stats.stddev, stats.cnt, latest.value AS latest_value
-            FROM stats, latest",
-        )
+            FROM stats, latest"
+        ))
         .bind(user_id)
         .bind(record_type)
         .fetch_optional(pool)

@@ -79,22 +79,68 @@ struct HealthRecordResponse: Codable, Sendable {
     }
 }
 
+/// The write-queue item's `value` is not a bare number — the backend stores
+/// the full sample shape it needs to reconstruct on write-back (the queued
+/// scheduling timestamp and the sample's own start/end and unit can differ).
+/// Pinned by the `ios-backend.json` pact contract; see `HealthKitWriteQueueDecodeTests`.
+struct HealthKitWriteQueuePayload: Codable, Sendable {
+    /// Optional: the backend's `HealthRecordRow` has no route-level
+    /// validation requiring a numeric value, so a record enqueued without
+    /// one serves `null` here. A quantity sample can't be written to
+    /// HealthKit without a value — callers must treat `nil` as a failure,
+    /// never as 0 or any other placeholder.
+    let value: Double?
+    let unit: String?
+    /// Always present — every write-queue row has a start time.
+    let startTime: Date
+    let endTime: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case value, unit
+        case startTime = "start_time"
+        case endTime = "end_time"
+    }
+}
+
 struct HealthKitWriteQueueItem: Codable, Sendable, Identifiable {
     let id: String
+    let userId: String?
     let hkType: String
-    let value: Double
+    let value: HealthKitWriteQueuePayload
     let scheduledAt: Date
+    let confirmedAt: Date?
+    let failedAt: Date?
+    let error: String?
+    let sourceRecordId: String?
+    let sourceTable: String?
 
     enum CodingKeys: String, CodingKey {
         case id
+        case userId = "user_id"
         case hkType = "hk_type"
         case value
         case scheduledAt = "scheduled_at"
+        case confirmedAt = "confirmed_at"
+        case failedAt = "failed_at"
+        case error
+        case sourceRecordId = "source_record_id"
+        case sourceTable = "source_table"
     }
+}
+
+struct HealthKitConfirmFailure: Codable, Sendable {
+    let id: String
+    let error: String
 }
 
 struct HealthKitConfirm: Codable, Sendable {
     let ids: [String]
+    let failures: [HealthKitConfirmFailure]
+
+    init(ids: [String], failures: [HealthKitConfirmFailure] = []) {
+        self.ids = ids
+        self.failures = failures
+    }
 }
 
 struct AppleCallbackRequest: Codable, Sendable {

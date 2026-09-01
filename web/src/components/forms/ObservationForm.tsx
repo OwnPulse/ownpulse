@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CreateObservation, observationsApi } from "../../api/observations";
+import { localNow } from "../../utils/datetime";
 import forms from "./forms.module.css";
 
 const OBSERVATION_TYPES = [
@@ -16,15 +17,11 @@ const OBSERVATION_TYPES = [
   "environmental",
 ] as const;
 
-function nowLocal() {
-  return new Date().toISOString().slice(0, 16);
-}
-
 export default function ObservationForm() {
   const queryClient = useQueryClient();
   const [type, setType] = useState<string>("event_instant");
   const [name, setName] = useState("");
-  const [startTime, setStartTime] = useState(nowLocal);
+  const [startTime, setStartTime] = useState(localNow);
   const [endTime, setEndTime] = useState("");
   const [notesText, setNotesText] = useState("");
   const [numeric, setNumeric] = useState("");
@@ -37,7 +34,7 @@ export default function ObservationForm() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["observations"] });
       setName("");
-      setStartTime(nowLocal());
+      setStartTime(localNow());
       setEndTime("");
       setNotesText("");
       setNumeric("");
@@ -75,8 +72,10 @@ export default function ObservationForm() {
     mutation.mutate({
       type,
       name,
-      start_time: startTime,
-      end_time: endTime || undefined,
+      // The datetime-local inputs' values have no UTC offset; the backend's
+      // DateTime<Utc> requires one.
+      start_time: new Date(startTime).toISOString(),
+      end_time: endTime ? new Date(endTime).toISOString() : undefined,
       value: buildValue(),
     });
   };
@@ -220,11 +219,23 @@ export default function ObservationForm() {
       )}
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Observation"}
+          {mutation.isPending ? "Saving..." : "Log Observation"}
         </button>
       </div>
-      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
+      {/* Always mounted (only the text is conditional) so assistive tech
+          reliably announces the result — a role="status" node that's
+          inserted fresh into the DOM each time is not guaranteed to be
+          picked up by screen readers. */}
+      <p
+        className={
+          mutation.isError ? forms.errorMsg : mutation.isSuccess ? forms.successMsg : undefined
+        }
+        role="status"
+        aria-live="polite"
+      >
+        {mutation.isError && `Error: ${mutation.error.message}`}
+        {mutation.isSuccess && "Saved!"}
+      </p>
     </form>
   );
 }

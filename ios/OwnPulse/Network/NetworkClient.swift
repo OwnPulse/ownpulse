@@ -58,6 +58,47 @@ final class NetworkClient: NetworkClientProtocol, @unchecked Sendable {
     private let encoder: JSONEncoder
     private let refreshCoordinator = RefreshCoordinator()
 
+    /// Backend timestamps (`chrono`/Postgres `TIMESTAMPTZ`) are serialized
+    /// with fractional seconds on essentially every real row —
+    /// `...T10:00:00.123456Z` — while `JSONDecoder`'s built-in `.iso8601`
+    /// strategy only accepts the whole-second form and throws on anything
+    /// with a fractional component. Every response type that carries a
+    /// `Date` (write-queue items, `AuthMethod.createdAt`,
+    /// `HealthRecordResponse.startTime`, etc.) was silently vulnerable to
+    /// this — pact/hand-written fixtures happen to use whole seconds, but
+    /// real backend rows (and anything the web client wrote) do not.
+    ///
+    /// Same fractional-first-then-plain fallback used by
+    /// `CheckinSummaryCard.formattedTime` and
+    /// `ClinicalRecordProvider`'s date parsing — kept here as the single
+    /// shared decoder config so every `request(...)` call site benefits,
+    /// rather than patching each date field individually.
+    static func makeDecoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+
+            let fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = fractional.date(from: dateString) {
+                return date
+            }
+
+            let plain = ISO8601DateFormatter()
+            plain.formatOptions = [.withInternetDateTime]
+            if let date = plain.date(from: dateString) {
+                return date
+            }
+
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Expected an ISO8601 date string (with or without fractional seconds), got \(dateString)"
+            )
+        }
+        return decoder
+    }
+
     init(
         keychainService: KeychainServiceProtocol,
         session: URLSession = .shared
@@ -65,8 +106,7 @@ final class NetworkClient: NetworkClientProtocol, @unchecked Sendable {
         self.keychainService = keychainService
         self.session = session
 
-        self.decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        self.decoder = Self.makeDecoder()
 
         self.encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

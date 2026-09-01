@@ -10,6 +10,7 @@ use opentelemetry_otlp::{WithExportConfig, WithTonicConfig};
 use opentelemetry_sdk::Resource;
 use sqlx::postgres::PgPoolOptions;
 use tokio::signal;
+use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -254,13 +255,55 @@ async fn run_server() -> anyhow::Result<()> {
 
     let (event_tx, _) = tokio::sync::broadcast::channel(256);
 
+    // Shared outbound client for every integration (Google OAuth, Garmin,
+    // Oura). Without a timeout, one hung/slow provider blocks the request
+    // indefinitely — for the background sync jobs that means every other
+    // user's sync stalls behind it, and for manual-sync routes it pins the
+    // HTTP handler task. 10s to establish a connection, 30s total per request.
+    let http_client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .context("failed to build HTTP client")?;
+
     let state = api::AppState {
         pool: pool.clone(),
         config,
-        http_client: reqwest::Client::new(),
+        http_client,
         migrations_ready,
         event_tx,
     };
+
+    // Background sync/insight jobs. One shared token so they all stop
+    // draining/querying the pool during the shutdown cleanup below, before we
+    // close the pool out from under them. Handles are kept so shutdown can
+    // actually wait for them (see below) instead of just requesting
+    // cancellation and hoping.
+    let jobs_cancel = CancellationToken::new();
+    let jobs_handles = vec![
+        api::jobs::garmin_sync::spawn(
+            state.pool.clone(),
+            state.config.clone(),
+            state.http_client.clone(),
+            jobs_cancel.clone(),
+            state.event_tx.clone(),
+        ),
+        api::jobs::oura_sync::spawn(
+            state.pool.clone(),
+            state.config.clone(),
+            state.http_client.clone(),
+            jobs_cancel.clone(),
+            state.event_tx.clone(),
+        ),
+        api::jobs::google_calendar_sync::spawn(
+            state.pool.clone(),
+            state.config.clone(),
+            state.http_client.clone(),
+            jobs_cancel.clone(),
+            state.event_tx.clone(),
+        ),
+        api::jobs::spawn_insight_job(state.pool.clone(), jobs_cancel.clone()),
+    ];
 
     let app = api::build_app(state);
 
@@ -277,9 +320,32 @@ async fn run_server() -> anyhow::Result<()> {
 
     // Server has stopped accepting new connections and drained in-flight requests.
     // Clean up resources with a hard deadline so Kubernetes doesn't have to SIGKILL us.
-    // The total budget here must fit within terminationGracePeriodSeconds (15s) minus
-    // the time already spent draining HTTP connections.
+    // The total budget here (jobs: 10s, OTel flush: 5s, pool close: 5s = 20s) must
+    // fit within terminationGracePeriodSeconds (30s in helm/api/templates/deployment.yaml)
+    // minus the time already spent draining HTTP connections.
     info!("HTTP server stopped, cleaning up resources");
+
+    // Stop background sync/insight jobs, then actually wait for them to exit
+    // (bounded) instead of just requesting cancellation and moving on — a job
+    // mid-write when the pool closes underneath it is exactly the kind of
+    // thing this wait prevents.
+    jobs_cancel.cancel();
+    match tokio::time::timeout(
+        Duration::from_secs(10),
+        futures::future::join_all(jobs_handles),
+    )
+    .await
+    {
+        Ok(results) => {
+            for result in results {
+                if let Err(err) = result {
+                    warn!(error = %err, "background job task panicked during shutdown");
+                }
+            }
+            info!("background jobs shut down cleanly");
+        }
+        Err(_) => warn!("background jobs did not shut down within 10s, proceeding anyway"),
+    }
 
     // Flush pending OTel spans (5s max)
     if let Some(provider) = TRACER_PROVIDER.get() {
@@ -300,9 +366,16 @@ async fn run_server() -> anyhow::Result<()> {
         }
     }
 
-    // Close DB pool (5s max for in-flight queries to finish)
+    // Close DB pool (5s max for in-flight queries to finish). `PgPool::close`
+    // has no built-in deadline, so wrap it — we're exiting either way, this
+    // just bounds how long we wait for it to happen cleanly.
     info!("closing database connections");
-    pool.close().await;
+    if tokio::time::timeout(Duration::from_secs(5), pool.close())
+        .await
+        .is_err()
+    {
+        warn!("database pool did not close within 5s, proceeding anyway");
+    }
 
     info!("shutdown complete");
     Ok(())

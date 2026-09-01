@@ -41,8 +41,8 @@ export default function Sources() {
               >
                 {integration.connected ? "Connected" : "Disconnected"}
               </span>
-              {integration.last_sync && (
-                <span className={styles.syncTime}>Last sync: {integration.last_sync}</span>
+              {integration.last_synced_at && (
+                <span className={styles.syncTime}>Last sync: {integration.last_synced_at}</span>
               )}
               {integration.connected && (
                 <button

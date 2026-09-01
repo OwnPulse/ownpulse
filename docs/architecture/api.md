@@ -41,6 +41,15 @@ by additive changes within it.
 
 ## Implemented
 
+This section is not exhaustive. Several route groups are live in
+`routes/mod.rs` but not yet written up in detail here — including sleep,
+saved medicines, insights, dashboard/summary, telemetry, config, audit
+log, admin (invites/users/feature-flags), and the protocol-runs family.
+Their absence from this document is a documentation gap, not evidence
+they're unimplemented; check `routes/mod.rs` directly for the full current
+route list. The **Planned — not implemented** section below is the
+reliable list of what genuinely doesn't exist yet.
+
 ### Public
 
 | Method | Path | Description | Phase |
@@ -342,7 +351,40 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 | GET | `/interventions` | List interventions (paginated, filterable) | 1 |
 | POST | `/interventions` | Log an intervention | 1 |
 | GET | `/interventions/:id` | Get a single intervention | 1 |
+| PATCH | `/interventions/:id` | Update an intervention's fields | 1 |
 | DELETE | `/interventions/:id` | Delete an intervention | 1 |
+
+#### `PATCH /interventions/:id`
+
+Updates any subset of an intervention's mutable fields. All fields are
+optional — unset fields are left unchanged (`COALESCE` semantics), and
+**there is no way to clear a field back to `null` via this endpoint** — an
+explicit `null` in the request body is indistinguishable from an omitted
+key. No substance-name validation is applied, per project rules.
+
+`updated_at` is bumped on every call, including a no-op `{}` body — the
+response and stored row always reflect "last called", not "last changed".
+
+**Request body:**
+
+```json
+{
+  "substance": "caffeine",
+  "dose": 200.0,
+  "unit": "mg",
+  "route": "oral",
+  "administered_at": "2026-04-03T07:30:00Z",
+  "fasted": true,
+  "timing_relative_to": "pre-workout",
+  "notes": "updated after re-reading the label"
+}
+```
+
+**Response:** `200 OK` — the full updated intervention row, including the
+`updated_at` timestamp.
+
+**Errors:** `400` if `substance` is provided but blank. `404` if the
+intervention doesn't exist or isn't owned by the caller.
 
 ### Daily Check-ins
 
@@ -378,7 +420,63 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 |--------|------|-------------|-------|
 | POST | `/healthkit/sync` | Bulk insert HealthKit records from iOS | 1 |
 | GET | `/healthkit/write-queue` | Get pending HealthKit write-back items for iOS | 1 |
-| POST | `/healthkit/confirm` | Confirm HealthKit write-backs were completed | 1 |
+| POST | `/healthkit/confirm` | Confirm HealthKit write-backs were completed, and/or report failed writes | 1 |
+
+`GET /healthkit/write-queue` returns the caller's pending items — rows in
+`healthkit_write_queue` with `confirmed_at IS NULL AND failed_at IS NULL`, oldest
+first, capped at 100:
+
+```json
+[
+  {
+    "id": "77777777-7777-7777-7777-777777777777",
+    "user_id": "550e8400-e29b-41d4-a716-446655440001",
+    "hk_type": "body_mass",
+    "value": {
+      "value": 82.5,
+      "unit": "kg",
+      "start_time": "2026-03-20T10:00:00Z",
+      "end_time": "2026-03-20T10:00:00Z"
+    },
+    "scheduled_at": "2026-03-20T10:00:00Z",
+    "confirmed_at": null,
+    "failed_at": null,
+    "error": null,
+    "source_record_id": "550e8400-e29b-41d4-a716-446655440010",
+    "source_table": "health_records"
+  }
+]
+```
+
+Every field of `value` except `start_time` is nullable — the underlying `health_records.value`/`unit`/`end_time` columns are all optional, and a record posted without them still enqueues, with those keys present and `null` (never omitted). Clients must decode `value`/`unit`/`end_time` as optional and treat a null `value` as a fail-reportable item rather than a decode error.
+
+`POST /healthkit/confirm` accepts:
+
+```json
+{
+  "ids": ["77777777-7777-7777-7777-777777777777"],
+  "failures": [
+    { "id": "88888888-8888-8888-8888-888888888888", "error": "HealthKit authorization denied" }
+  ]
+}
+```
+
+- `ids` — items the client successfully wrote to HealthKit; their `confirmed_at` is set.
+- `failures` — items the client attempted but could not write; their `failed_at` and `error` are set (`error` is truncated to 500 characters, on Unicode scalar boundaries). Optional and defaults to empty — older clients that only ever sent `ids` continue to work unchanged.
+- Both `ids` and `failures` are scoped to the caller's own rows — a user cannot confirm or fail another user's queue items.
+- Both updates run in a single transaction. If an id appears in both `ids` and `failures` in the same request, **confirm wins** (`confirmed_at` is set, `failed_at` is not). A row already marked failed by an earlier request is **not** re-confirmed by a later request that lists its id in `ids` — `confirm`'s guard excludes rows with `failed_at` already set, so the first terminal state (confirmed or failed) for a given row sticks.
+- Duplicate ids within `failures` in one request are deduplicated before the update — the last occurrence in the array wins deterministically.
+- Marking an item failed also removes it from the pending set returned by `GET /healthkit/write-queue`, same as confirming it — this matters because the 100-row cap orders by `scheduled_at ASC`, so a permanently-unwritable item that is never reported as failed would otherwise block every item behind it indefinitely. Only deterministic failures should be reported this way — a client should keep transient errors (e.g. a momentary `HKHealthStore.save()` failure) pending so they retry on the next poll, rather than retiring them.
+- Responds `204 No Content` on success (whether or not any ids/failures were provided).
+
+**Compatibility matrix:**
+
+| iOS client | Backend | Result |
+|---|---|---|
+| old (sends `{"ids": [...]}` only) | new (this change) | Works unchanged — `failures` defaults to empty. |
+| new (sends `failures`) | old (pre-this-change) | The old server's JSON deserializer silently ignores the unrecognized `failures` field (no `deny_unknown_fields`) — the request still 204s, but nothing is recorded for the failed items. They are neither confirmed nor retired, and stay pending indefinitely. Self-hosters: upgrade the backend before or alongside an iOS build that reports failures. |
+
+The Pact consumer contract (`pact/contracts/ios-backend.json`) is ahead of the currently-shipped iOS client — it documents the `failures` field before the iOS PR that populates it has landed.
 
 ### Source Preferences
 
@@ -409,14 +507,121 @@ sources ordered by descending record count:
 Metrics with only one source are omitted. The user resolves each conflict by
 writing a preference via `POST /source-preferences`.
 
+`preferred_source` is validated against the known set of health-record
+sources (`garmin`, `oura`, `manual`, `healthkit`) — `POST /source-preferences`
+returns `400` for any other value, since a preference naming a source that
+can never appear on a `health_records` row could otherwise sit silently
+inert. Preferences determine which row is canonical in aggregate reads (see
+`GET /explore/series` and `GET /dashboard/summary`); they do not affect
+`GET /health-records`, export, or friend-shared views, which always return
+every row.
+
 ### Integrations
 
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
-| GET | `/integrations` | List connected integrations | 1 |
+| GET | `/integrations` | List connected integrations, each with `last_synced_at` / `last_sync_error` | 1 |
 | DELETE | `/integrations/:source` | Disconnect an integration | 1 |
+| GET | `/auth/garmin/login` | Start the Garmin OAuth 1.0a flow (requires JWT) | 1 |
+| GET | `/auth/garmin/callback` | Garmin OAuth 1.0a callback — exchanges and stores the token (requires JWT) | 1 |
+| GET | `/auth/oura/login` | Start the Oura OAuth 2.0 flow (requires JWT) | 1 |
+| GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 1 |
+| POST | `/integrations/garmin/sync` | Trigger an immediate Garmin fetch | 1 |
+| POST | `/integrations/oura/sync` | Trigger an immediate Oura fetch | 1 |
+| GET | `/auth/google-calendar/login` | Start the Google Calendar OAuth 2.0 connect flow (requires JWT) | 2 |
+| GET | `/auth/google-calendar/callback` | Google Calendar OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 2 |
+| POST | `/integrations/google-calendar/sync` | Trigger an immediate Google Calendar fetch | 2 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
 | POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
+
+#### Garmin / Oura background sync
+
+Once a Garmin or Oura account is connected (`GET /auth/garmin/login` /
+`GET /auth/oura/login` and their callbacks), the server polls each connected
+account automatically every 15 minutes, fetching data since the last
+successful sync (or the last 7 days, on first sync). No user action is
+required for data to keep flowing in. Per-user sync is mutually exclusive
+(a Postgres advisory lock, keyed on source + user) — a manual sync, the
+periodic job, and another API replica (`replicaCount: 2`) can never process
+the same user concurrently; a losing attempt is skipped, not queued.
+
+`POST /integrations/garmin/sync` and `POST /integrations/oura/sync` (empty
+body) trigger an immediate fetch for the calling user instead of waiting for
+the next scheduled interval. There is no web or iOS button for this yet — the
+endpoints exist for future UI and for troubleshooting. Response `200`:
+
+```json
+{ "source": "garmin", "records_inserted": 6 }
+```
+
+To protect the server's shared Garmin/Oura app quota, manual sync is
+rate-limited per user: `429` with a `Retry-After` header if the user's last
+sync attempt (manual or scheduled, success or failure) completed less than 60
+seconds ago, or if another sync for that user is already in flight. `404` if
+the source isn't connected; `501` if the server operator hasn't configured
+the integration; `502` if the upstream provider (or a transient DB issue)
+failed — the response body never includes raw upstream response content,
+only a short description.
+
+A sync (scheduled or manual) only advances the account's watermark
+(`last_synced_at`) when every fetch for that provider succeeds. If any fetch
+fails, the watermark is left where it was and the error is recorded
+(surfaced via `GET /integrations`), so the failed window is retried on the
+next sync instead of being silently skipped. A subsequent fully-successful
+sync clears the recorded error.
+
+#### Google Calendar background sync
+
+Separate from `/auth/google/login` (account login/signup — see Auth above):
+`/auth/google-calendar/login` requires an already-authenticated user and
+requests the read-only `calendar.readonly` scope with `access_type=offline` +
+`prompt=consent`, so a refresh token is issued for the background job to use.
+It reuses `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` but has its own redirect
+URI (`GOOGLE_CALENDAR_REDIRECT_URI`, defaulting to
+`<WEB_ORIGIN>/api/v1/auth/google-calendar/callback`) since Google requires an
+exact registered redirect per OAuth client/flow combination.
+
+**Aggregates only — never event content.** The Calendar API request sends
+`fields=items(start(dateTime),end(dateTime),attendees(self,responseStatus)),nextPageToken`
+and `eventTypes=default` — Google's response is restricted server-side to
+exactly what the sync job needs, so titles, descriptions, and locations
+never cross the wire into this process at all (not merely fetched and
+ignored). `attendees` is requested only to check whether the calendar owner
+declined the meeting; it is never stored, logged, or returned, and exists
+only transiently while parsing one page of results — pages are folded into
+the per-day aggregate and dropped immediately, so no full event list is ever
+held in memory regardless of calendar size. There is no code path through
+which meeting content reaches the database, logs, or an error message.
+
+Every sync recomputes a rolling window — 7 days back through 1 day ahead of
+"now", **always**, not anchored on `last_synced_at` — and writes every day in
+that window into `calendar_days` (`meeting_count`, `meeting_minutes`),
+*including* days with zero meetings. Days are bucketed by UTC calendar date
+of the event's start time, not the user's local timezone. All-day entries,
+out-of-office/focus-time/working-location events (excluded server-side via
+`eventTypes=default`), and meetings the owner declined don't count. Every
+sync fully **overwrites** (`ON CONFLICT ... DO UPDATE`) each day's row from
+scratch rather than accumulating — a day whose meetings were later
+cancelled or rescheduled is corrected to the true current count on the next
+sync, not left at a stale higher value. (An earlier version of this job
+anchored the fetch window on `last_synced_at`, which meant a day already in
+the past could never be revisited to correct it — the always-rolling window
+fixes that.)
+
+If Google rejects the access token (401), the job refreshes once and
+retries the fetch exactly once before giving up — covers a token
+revoked/expired out of band from what its stored `expires_at` predicted.
+
+`POST /integrations/google-calendar/sync` follows the same manual-sync,
+cooldown, advisory-lock, and honest-watermark semantics described above for
+Garmin/Oura. Response `200`:
+
+```json
+{ "source": "google_calendar", "records_inserted": 9 }
+```
+
+(`records_inserted` here counts every `calendar_days` row written this sync
+— the full window, not just days with meetings.)
 
 #### MyChart / SMART-on-FHIR lab import
 
@@ -489,6 +694,8 @@ localhost.
 |--------|------|-------------|-------|
 | GET | `/export/json` | Full JSON export (streaming) | 1 |
 | GET | `/export/csv` | Full CSV export (streaming) | 1 |
+
+`/export/json` covers `health_records`, `interventions`, `daily_checkins`, `lab_results`, `observations` (which includes sleep and all other user-defined data), `protocols`, `protocol_lines`, `protocol_runs`, `protocol_doses`, and (only if present) `genetic_records`. **`/export/csv` covers `health_records` only** — it does not include interventions, checkins, labs, observations, protocols, or genetics; use `/export/json` for a complete export.
 
 ### Account
 
@@ -744,6 +951,8 @@ Fetch a single time series with aggregation.
 ```
 
 Each point contains: `t` (bucket timestamp), `v` (average value), `n` (number of raw records in the bucket).
+
+For `source=health_records`, `n` and `v` reflect one row per dedup pair, not raw row counts: a duplicate pair (see "Source Preferences" below) collapses to whichever row is canonical (the user's preference if one names either side of the pair, otherwise the original/first-arriving row by default) — the other side is excluded from `n` and from the average/sum. `GET /health-records` returns the raw, uncollapsed rows.
 
 **Errors:** `400` if source or field is invalid.
 
@@ -1158,8 +1367,15 @@ Observer exports all their responses across all polls.
 | GET | `/protocols/:id` | Get protocol with lines + dose status | 1 |
 | PATCH | `/protocols/:id` | Update protocol | 1 |
 | DELETE | `/protocols/:id` | Delete protocol | 1 |
-| POST | `/protocols/:id/log` | Log a dose | 1 |
-| POST | `/protocols/:id/skip` | Skip a dose | 1 |
+| POST | `/protocols/:id/doses/log` | Log a dose directly on a protocol (legacy; resolves the protocol's current run) | 1 |
+| POST | `/protocols/:id/doses/skip` | Skip a dose directly on a protocol (legacy; resolves the protocol's current run) | 1 |
+| POST | `/protocols/runs/:run_id/doses/log` | Log a dose on an active run | 1 |
+| POST | `/protocols/runs/:run_id/doses/skip` | Skip a dose on an active run | 1 |
+| DELETE | `/protocols/runs/:run_id/doses/:dose_id` | Undo a logged/skipped dose on a run | 1 |
+| GET | `/protocols/runs/todays-doses` | Today's scheduled doses across all of the user's active runs | 1 |
+| GET | `/protocols/runs/:run_id/doses` | Dose status for every scheduled day of a run, in a `from_day..to_day` range | 1 |
+| GET | `/protocols/runs/missed-doses` | Scheduled-but-missed days across all of the user's active runs | 1 |
+| GET | `/protocols/runs/:run_id/adherence` | Adherence summary (scheduled/completed/skipped/missed) for a run, overall + per line | 1 |
 | POST | `/protocols/:id/share` | Generate share link | 1 |
 | GET | `/protocols/shared/:token` | View shared protocol (public) | 1 |
 | POST | `/protocols/import/:token` | Copy shared protocol | 1 |
@@ -1214,34 +1430,357 @@ Create a new protocol with one or more lines and a day schedule.
 
 **Errors:** `400` if name is empty, duration is zero, or lines array is empty.
 
-#### `POST /protocols/:id/log`
+#### `POST /protocols/:id/doses/log` and `POST /protocols/runs/:run_id/doses/log`
 
-Log a completed dose for a protocol line on a specific day.
+Log a completed dose for a protocol line on a specific day of the protocol's
+schedule (`day_number` is 0-indexed from the run's `start_date`). The
+`:id` (protocol-level) form is the legacy path; the `:run_id` form operates
+on a specific active run and is the one clients should use going forward.
+Logging a dose also creates an `interventions` record for the line's
+substance/dose/route.
+
+The legacy `:id` form resolves the protocol's *current* run — its active
+run, or its most recently created run if none is active — and writes to
+that run (only a protocol with no runs at all writes a `NULL` run_id). This
+means a dose logged through the legacy endpoint shows up correctly on the
+run-scoped dose grid instead of being invisible on it, and a retry conflicts
+(`409`) like it would on the `:run_id` form, rather than silently writing a
+second, invisible row.
+
+The dose grid on `GET /protocols/:id` (and on `GET /protocols/shared/:token`)
+is scoped to that same single run — a second run of the same protocol no
+longer shows the first run's checkmarks, and starts with an empty grid of
+its own.
+
+`administered_at` and `notes` are accepted and behave identically on both
+the `:id` and `:run_id` forms (the legacy form delegates to the same
+validation and timestamp logic as the run-scoped one).
 
 **Request body:**
 
 ```json
 {
-  "line_id": "uuid",
-  "day": 3,
-  "logged_at": "2026-04-03T08:30:00Z"
+  "protocol_line_id": "uuid",
+  "day_number": 3,
+  "administered_at": "2026-04-03T09:15:00Z",
+  "notes": "logged a bit late",
+  "tz_offset_minutes": -420
 }
 ```
 
-**Response:** `201 Created`
+- `administered_at` — optional. Must fall within one calendar day of
+  `start_date + day_number` (evaluated in `tz_offset_minutes` if given),
+  otherwise `400`. When omitted, the created intervention's timestamp
+  defaults to a time derived from the line's `time_of_day` — `AM` → `08:00`,
+  `PM` → `20:00`, anything else → `12:00` — interpreted in
+  `tz_offset_minutes` (UTC if omitted).
+- `notes` — optional. Stored on the created intervention.
+- `tz_offset_minutes` — optional, `-840`..`840` (UTC-14:00..UTC+14:00),
+  otherwise `400`. The caller's local UTC offset, used both to resolve the
+  default `administered_at` above and to evaluate date comparisons in the
+  caller's own calendar day rather than UTC's. Defaults to UTC (`0`).
+
+**Response:** `200 OK`
 
 ```json
 {
   "id": "uuid",
-  "protocol_id": "uuid",
-  "line_id": "uuid",
-  "day": 3,
+  "protocol_line_id": "uuid",
+  "day_number": 3,
   "status": "completed",
-  "logged_at": "2026-04-03T08:30:00Z"
+  "intervention_id": "uuid",
+  "logged_at": "2026-04-03T08:30:00Z",
+  "run_id": "uuid",
+  "skip_reason": null
 }
 ```
 
-**Errors:** `400` if the day is not an active day for the line. `404` if protocol or line not found.
+**Errors:** `404` if the protocol/run or line is not found or not owned by
+the caller, or if `day_number` is out of range or not scheduled
+(`schedule_pattern[day_number]` is `false`) for the line. `400` if
+`day_number` is more than one day ahead of today (a single day of tolerance
+absorbs timezone skew — a user east of UTC may legitimately be logging
+"their today" while it's still tomorrow in UTC), if `administered_at` falls
+more than a day from the calendar date for `day_number`, or if
+`tz_offset_minutes` is out of range. `409` if a dose has already been logged
+or skipped for this line, run, and day
+(`UNIQUE(protocol_line_id, run_id, day_number)`). `422` if the request body
+is missing `protocol_line_id` or `day_number`.
+
+#### `POST /protocols/:id/doses/skip` and `POST /protocols/runs/:run_id/doses/skip`
+
+Mark a scheduled dose as skipped, without creating an `interventions` record.
+Same request body shape and error semantics as the log endpoints above,
+except skips are allowed for any in-range day (past, present, or future) —
+planned skips are legitimate — and there is no `administered_at`/`notes`/
+`tz_offset_minutes` handling since no intervention is created. The legacy
+`:id` form resolves the protocol's current run the same way the legacy log
+endpoint does (see above).
+
+**Request body:**
+
+```json
+{
+  "protocol_line_id": "uuid",
+  "day_number": 3,
+  "skip_reason": "traveling, forgot supplies"
+}
+```
+
+- `skip_reason` — optional free-text reason, stored on the dose row.
+
+**Response:** `204 No Content`
+
+#### `DELETE /protocols/runs/:run_id/doses/:dose_id`
+
+Undo a logged or skipped dose: deletes the `protocol_doses` row and, if
+logging it created one, the linked `interventions` row, in a single
+transaction.
+
+**Response:** `204 No Content`
+
+**Errors:** `404` if the dose doesn't exist or doesn't belong to a run owned
+by the caller.
+
+#### `GET /protocols/runs/todays-doses`
+
+Returns today's scheduled doses across all of the user's currently active
+runs (paused or completed runs are excluded), one entry per protocol line
+whose `schedule_pattern` marks today's day number as active.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "protocol_id": "uuid",
+    "protocol_name": "BPC-157 — 4 weeks",
+    "run_id": "uuid",
+    "protocol_line_id": "uuid",
+    "substance": "BPC-157",
+    "dose": 250.0,
+    "unit": "mcg",
+    "route": "subcutaneous",
+    "time_of_day": "AM",
+    "day_number": 3,
+    "status": null
+  }
+]
+```
+
+`status` is `null` until a dose is logged or skipped for that line today, then
+`"completed"` or `"skipped"`. `protocol_line_id` is the id to send back to the
+log/skip endpoints above.
+
+#### Canonical dose-status rule
+
+The `doses`, `missed-doses`, and `adherence` endpoints below all derive a
+per-day dose status from the same rule (implemented once, in
+`crate::dose_status::compute_dose_status`, and unit-tested there — both the
+web and iOS clients should treat this as the single source of truth rather
+than re-deriving it). The three SQL paths that also implement pieces of this
+rule (`fetch_line_adherence`, `missed_doses`, `list_active_runs`) must stay
+in lockstep with it and with each other.
+
+For run day `d` (0-based; calendar date = `run.start_date + d`) and a line
+with `schedule_pattern` (a bool array):
+
+- **not scheduled** if `d >= duration_days`, `d >= schedule_pattern.length`,
+  `schedule_pattern[d] == false`, or `d` falls inside a **pause interval**
+  (see "Pausing a run" below). Not-scheduled days are omitted from
+  `doses`/`adherence` entirely — "not scheduled" is not itself a dose status.
+- else if a `protocol_doses` row exists for `(line, run, d)`: its status,
+  `"completed"` or `"skipped"` — **regardless** of how `d` compares to
+  today. (The dose-log write path tolerates a dose landing on
+  `today_day + 1`, for a user logging near local midnight while the
+  database's calendar day hasn't rolled over yet; a day with a dose row is
+  always reported as that row's status, never clamped as invalid or
+  out-of-range.)
+- else if `d < today_day`: `"missed"`
+- else: `"pending"`
+
+where `today_day = (CURRENT_DATE - run.start_date)`, computed **by the
+server, from Postgres's `CURRENT_DATE`** — one clock, never the
+application server's local clock. `CURRENT_DATE` reflects the Postgres
+session's configured `TimeZone` (UTC by default; a self-hosted deployment
+could configure Postgres differently) — "the database's calendar day," not
+necessarily UTC and never the application server's local clock. Clients
+send `day_number`, not a date; the day-boundary is a database-server
+concern. If your local calendar day doesn't line up with the database's
+calendar day near midnight, a dose you log "today" may be recorded a day
+off from your wall clock — this is an accepted, documented boundary case,
+not a bug to work around client-side.
+
+#### Adherence math: closed days only, and pausing a run
+
+`GET .../adherence`, `GET .../missed-doses`, and the `adherence_pct`/
+`doses_missed` fields on `RunResponse` all compute their numbers over
+**closed** days only: scheduled days strictly before today
+(`day_number < today_day`), i.e. `[0, closed_bound]` where
+`closed_bound = min(today_day - 1, duration_days - 1)`
+(`crate::dose_status::closed_bound`). Today itself — and any dose logged on
+the write path's `today_day + 1` tolerance day — is not yet closed: it
+still appears via `/doses` with its real status (`"completed"`,
+`"skipped"`, or `"pending"`), but does not count toward `scheduled_so_far`,
+`completed`, `skipped`, or `missed` until its day closes. This is also why
+a run created today starts with `adherence_pct: null` rather than `0%` — it
+hasn't had a closed day yet, so there is nothing to compute a percentage
+over.
+
+`adherence_pct = completed_closed / (scheduled_closed - skipped_closed) *
+100`, rounded to 1 decimal place server-side (`crate::dose_status::
+adherence_pct` — clients should not re-round). A skip is a deliberate
+decision, not a failure: it is removed from the denominator entirely,
+displayed separately, and never counted against adherence, per the
+non-judgmental principle. The result is `null` when the denominator
+(`scheduled_closed - skipped_closed`) is `<= 0` — nothing scheduled yet
+(the run hasn't started, or was just created), or every closed day was
+skipped.
+
+**Pausing a run** (`PATCH .../runs/:run_id` with `status: "paused"`, then
+later `status: "active"` to resume) records a `[paused_on, resumed_on)`
+interval. Any day inside a pause interval is **not scheduled at all** —
+excluded from `scheduled_so_far`/`completed`/`skipped`/`missed` (and
+therefore the adherence denominator) on every path, the same as a day
+outside `schedule_pattern`. Pausing stops the adherence clock: a run paused
+for a week does not accrue a week of missed doses, and does not have its
+adherence percentage dragged down by days the user explicitly put on hold.
+A run can be paused and resumed multiple times; each cycle is its own
+interval. `GET .../missed-doses` only considers active runs (a currently
+paused run has nothing actionable to surface there), but `GET .../
+adherence` and `RunResponse` work for a run in any status, excluding its
+paused days from the numbers regardless of whether it's currently paused,
+active, or completed.
+
+#### `GET /protocols/runs/:run_id/doses?from_day=&to_day=`
+
+Dose status for every *scheduled* (line, day) pair in a run, within
+`[from_day, to_day]`. Defaults: `from_day=0`,
+`to_day=min(today_day, duration_days - 1)`. If neither query param is
+given and the run hasn't started yet (nothing scheduled so far), returns
+an empty array rather than an error.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "day_number": 3,
+    "date": "2026-04-04",
+    "protocol_line_id": "uuid",
+    "substance": "BPC-157",
+    "dose": 250.0,
+    "unit": "mcg",
+    "route": "subcutaneous",
+    "time_of_day": "AM",
+    "status": "missed",
+    "dose_id": null,
+    "intervention_id": null,
+    "skip_reason": null,
+    "logged_at": null
+  }
+]
+```
+
+`status` is one of `"completed"`, `"skipped"`, `"missed"`, `"pending"` (see
+the canonical rule above) — a day logged today, or on the tolerance day,
+shows `"completed"`/`"skipped"` here even though it doesn't yet count
+toward `/adherence` (see above). `dose_id`/`intervention_id`/`skip_reason`/
+`logged_at` are populated only when a `protocol_doses` row exists for that
+day (`status` is `"completed"` or `"skipped"`).
+
+**Errors:** `404` if the run doesn't exist or isn't owned by the caller.
+`400` if `from_day`/`to_day` are outside `[0, duration_days)`, or an
+explicit `from_day > to_day`.
+
+#### `GET /protocols/runs/missed-doses`
+
+Scheduled (and not paused) days, in the past, with no dose row, across
+**all** of the caller's active runs (paused/completed runs are excluded —
+see "Pausing a run" above). Ordered by date descending, with a
+`(run_id, protocol_line_id)` tiebreak for deterministic ordering among same-
+date rows, and capped at 200 rows — this is meant to surface a manageable
+"you're behind" list, not a full history. **The cap is silent**: the
+response has no total count or "has more" indicator, so a client cannot
+distinguish "exactly 200 missed doses" from "more than 200, truncated." Use
+`GET /protocols/runs/:run_id/doses` for a complete per-run view when that
+distinction matters.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "protocol_id": "uuid",
+    "protocol_name": "BPC-157 — 4 weeks",
+    "run_id": "uuid",
+    "protocol_line_id": "uuid",
+    "substance": "BPC-157",
+    "dose": 250.0,
+    "unit": "mcg",
+    "route": "subcutaneous",
+    "time_of_day": "AM",
+    "day_number": 2,
+    "date": "2026-04-03",
+    "status": "missed"
+  }
+]
+```
+
+#### `GET /protocols/runs/:run_id/adherence`
+
+Adherence summary for a run: overall totals plus a per-line breakdown, all
+computed over **closed days only** — see "Adherence math" above.
+`scheduled_so_far`/`completed`/`skipped`/`missed` are all bounded to the
+identical closed-day range and exclude any paused day.
+`adherence_pct = completed / (scheduled_so_far - skipped) * 100`, rounded
+to 1 decimal place, `null` when the denominator is `<= 0`.
+
+**Response:** `200 OK`
+
+```json
+{
+  "run_id": "uuid",
+  "scheduled_so_far": 8,
+  "completed": 3,
+  "skipped": 2,
+  "missed": 3,
+  "adherence_pct": 50.0,
+  "lines": [
+    {
+      "protocol_line_id": "uuid",
+      "substance": "BPC-157",
+      "scheduled_so_far": 5,
+      "completed": 2,
+      "skipped": 1,
+      "missed": 2,
+      "adherence_pct": 50.0
+    }
+  ]
+}
+```
+
+**Errors:** `404` if the run doesn't exist or isn't owned by the caller.
+
+#### `RunResponse` adherence fields
+
+Every run object returned by `POST /protocols/:id/runs`,
+`GET /protocols/runs/active`, and `GET /protocols/:id/runs` now includes:
+
+- `adherence_pct` (`number | null`) — same definition as above.
+- `doses_missed` (`integer | null`) — same `missed` definition as above.
+
+Both are `Option`-typed (nullable) everywhere, including on the two paths
+that always compute a real value, rather than defaulting the "not computed"
+case to `0` — a placeholder `0` would be indistinguishable from a genuine
+"zero missed doses."
+
+`GET /protocols/runs/active` and `POST /protocols/:id/runs` compute real
+values (a single query per call, no N+1 across runs). `GET
+/protocols/:id/runs` (and the run list embedded in `GET /protocols/:id`)
+currently return `adherence_pct: null` / `doses_missed: null` placeholders
+— they aren't in the "today" hot path; computing real per-run values there
+is tracked as follow-up work, not implemented in this change.
 
 ### Server-Sent Events (SSE)
 
@@ -1267,15 +1806,290 @@ data: {"source":"health_records","record_type":"heart_rate"}
 
 **Errors:** `401` if the JWT is invalid. `403` if the user is disabled.
 
-## Planned (Phase 2+)
-
-### Auth (Phase 2+)
+### Genetics
 
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
-| GET | `/auth/garmin/callback` | Garmin OAuth callback | 2+ |
-| GET | `/auth/oura/callback` | Oura OAuth callback | 2+ |
-| GET | `/auth/dexcom/callback` | Dexcom OAuth callback | 2+ |
+| POST | `/genetics/upload` | Upload a raw genetic data file (23andMe, AncestryDNA, VCF) | 2 |
+| GET | `/genetics` | List genetic records with pagination, filterable by chromosome/rsid | 2 |
+| GET | `/genetics/summary` | Summary counts (total variants, chromosomes, annotated count) | 2 |
+| GET | `/genetics/interpretations` | User genotypes matched against the SNP annotation database | 2 |
+| DELETE | `/genetics` | Delete all genetic records for the user (requires confirmation) | 2 |
+
+Genetic records are stored in the `genetic_records` table (see
+[data-model.md](data-model.md)) and have dedicated API endpoints, listed
+above. Cooperative aggregation of genetic data still requires a separate
+`sharing_consents` record with `dataset = 'genetics'` — that consent-gated
+aggregation layer is design-only and not implemented (see
+[Cooperative Sharing](#cooperative-sharing-phase-2) below).
+
+#### `POST /genetics/upload`
+
+Upload a genetic data file as `multipart/form-data`. Format (23andMe,
+AncestryDNA, or VCF) is auto-detected from the file contents. Max file size
+50 MB.
+
+**Response:** `201 Created`
+
+```json
+{
+  "total_variants": 638127,
+  "new_variants": 638127,
+  "duplicates_skipped": 0,
+  "format": "23andme",
+  "source": "23andme"
+}
+```
+
+**Errors:** `400` if the file is empty, too large, an unrecognized format,
+or contains no parseable variants.
+
+#### `GET /genetics`
+
+Query params: `page` (default 1), `per_page` (default 50, max 100),
+`chromosome` (optional filter), `rsid` (optional filter).
+
+**Response:** `200 OK`
+
+```json
+{
+  "records": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "source": "23andme",
+      "rsid": "rs4988235",
+      "chromosome": "2",
+      "position": 136608646,
+      "genotype": "AG",
+      "uploaded_file_id": "uuid",
+      "created_at": "2026-03-01T00:00:00Z"
+    }
+  ],
+  "total": 638127,
+  "page": 1,
+  "per_page": 50
+}
+```
+
+#### `GET /genetics/summary`
+
+**Response:** `200 OK`
+
+```json
+{
+  "total_variants": 638127,
+  "source": "23andme",
+  "uploaded_at": "2026-03-01T00:00:00Z",
+  "chromosomes": { "1": 51234, "2": 48901 },
+  "annotated_count": 412
+}
+```
+
+#### `GET /genetics/interpretations`
+
+Query params: `category` (optional filter). Joins the user's genotypes
+against `snp_annotations` (ClinVar, PharmGKB, SNPedia). Every result cites
+its source database and evidence level; the response always includes a
+disclaimer that this is not medical advice.
+
+**Response:** `200 OK`
+
+```json
+{
+  "interpretations": [
+    {
+      "rsid": "rs4988235",
+      "gene": "MCM6",
+      "chromosome": "2",
+      "position": 136608646,
+      "user_genotype": "AG",
+      "category": "metabolism",
+      "title": "Lactase persistence",
+      "summary": "...",
+      "risk_level": "typical",
+      "significance": "likely_benign",
+      "evidence_level": "strong",
+      "source": "SNPedia",
+      "source_id": "rs4988235",
+      "population_frequency": 0.74,
+      "details": {}
+    }
+  ],
+  "disclaimer": "This information is for educational purposes only and should not be used for medical decisions. Consult a healthcare provider or genetic counselor for clinical interpretation."
+}
+```
+
+#### `DELETE /genetics`
+
+**Request body:**
+
+```json
+{ "confirm": true }
+```
+
+**Response:** `204 No Content`. **Errors:** `400` if `confirm` is not `true`.
+
+### Correlation / Stats
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| POST | `/stats/correlate` | Pearson or Spearman correlation between two metrics over a time range | 3 |
+| POST | `/stats/lag-correlate` | Correlation swept across a range of day lags to find the strongest offset | 3 |
+| POST | `/stats/before-after` | Compare a metric's mean before vs. after an intervention's dose window (Welch's t-test) | 3 |
+
+All three endpoints share a `MetricRef` shape for identifying a metric:
+`{ "source": "string", "field": "string" }` (same source/field pairs as
+`/explore/series`). `resolution` is **required** on all three requests (one
+of `daily`, `weekly`, `monthly` — there is no default). `method` (where
+present) is `pearson` (default) or `spearman`. All three read
+`health_records` through the same `db::explore::query_series` path as
+`GET /explore/series`, so the source-preference dedup collapse described
+above applies here too.
+
+#### `POST /stats/correlate`
+
+**Request body:**
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "start": "2026-01-01T00:00:00Z",
+  "end": "2026-03-01T00:00:00Z",
+  "resolution": "daily",
+  "method": "pearson"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "r": 0.42,
+  "p_value": 0.01,
+  "n": 58,
+  "significant": true,
+  "method": "pearson",
+  "interpretation": "moderate positive correlation",
+  "scatter": [{ "a": 55.2, "b": 7.0, "t": "2026-01-01T00:00:00Z" }]
+}
+```
+
+Series are aligned by matching timestamp bucket; only buckets present in
+both series are included. `scatter` always contains every aligned point
+regardless of how many there are — it is not gated on the 3-point minimum.
+`r` and `p_value` are `null` (present in the response, not omitted) when
+fewer than 3 aligned points exist; `significant` is `false` in that case.
+
+**Errors:** `400` if `start >= end` or a metric ref does not resolve to a
+known source/field.
+
+#### `POST /stats/lag-correlate`
+
+Same request shape as `/stats/correlate` plus `max_lag_days` (integer,
+1-30). Both series are fetched with an extra `max_lag_days` of margin
+before `start` and after `end`, so a shift at the edge of the requested
+range still has data to pair against. Sweeps lag from `-max_lag_days` to
+`+max_lag_days`; for each lag `L`, metric A's value on day `d` is paired
+with metric B's value on day `d + L`. A positive `L` therefore means A on
+day `d` is compared against B `L` days later (A leads B by `L` days); a
+negative `L` means A is compared against B from `L` days earlier (B leads
+A). Returns one result per lag plus the lag with the strongest `|r|`.
+
+**Request body:**
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "start": "2026-01-01T00:00:00Z",
+  "end": "2026-03-01T00:00:00Z",
+  "resolution": "daily",
+  "max_lag_days": 7,
+  "method": "pearson"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "metric_a": { "source": "health_records", "field": "heart_rate_variability" },
+  "metric_b": { "source": "checkins", "field": "energy" },
+  "lags": [{ "lag": -1, "r": 0.31, "p_value": 0.04, "n": 40 }],
+  "best_lag": { "lag": 2, "r": 0.51, "p_value": 0.002 },
+  "method": "pearson"
+}
+```
+
+`best_lag` is omitted from the response entirely (not `null`) when every
+swept lag has fewer than 3 paired points or produces a `NaN` correlation —
+i.e. no lag had a usable `r`.
+
+**Errors:** `400` if `start >= end` or `max_lag_days` is out of range
+(1-30).
+
+#### `POST /stats/before-after`
+
+Finds the first and last logged dose of `intervention_substance`, then
+compares the metric's mean over a `before_days`-day window ending at the
+first dose against an `after_days`-day window starting at the last dose
+(or, if the intervention is still ongoing — last dose within 7 days of
+now — from the first dose through now). Uses Welch's t-test. `first_dose`,
+`last_dose`, `change_pct`, `p_value`, and `warning` are all optional
+fields that are **omitted from the response entirely when absent** (not
+serialized as `null`).
+
+If either window has fewer than 3 points, `p_value` is omitted and
+`significant` is `false`, but `change_pct` is still computed and included
+when both window means exist; `warning` is included with the message
+`"fewer than 3 data points in one or both windows — significance cannot
+be determined"`.
+
+**Request body:**
+
+```json
+{
+  "intervention_substance": "Magnesium Glycinate",
+  "metric": { "source": "checkins", "field": "energy" },
+  "before_days": 14,
+  "after_days": 14,
+  "resolution": "daily"
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "intervention_substance": "Magnesium Glycinate",
+  "first_dose": "2026-02-01T08:00:00Z",
+  "last_dose": "2026-02-01T08:00:00Z",
+  "metric": { "source": "checkins", "field": "energy" },
+  "before": { "mean": 6.1, "std_dev": 0.8, "n": 14, "points": [] },
+  "after": { "mean": 7.3, "std_dev": 0.6, "n": 14, "points": [] },
+  "change_pct": 19.7,
+  "p_value": 0.02,
+  "significant": true,
+  "test_used": "welch_t"
+}
+```
+
+If no interventions match `intervention_substance`, `first_dose`,
+`last_dose`, `change_pct`, and `p_value` are all omitted, `before`/`after`
+are both empty windows (`n: 0`), and `warning` is included with the
+message `"no interventions found for this substance"`.
+
+**Errors:** `400` if `intervention_substance` is empty, or `before_days`/
+`after_days` is out of range (1-365).
+
+## Planned — not implemented
+
+The endpoints below do not exist yet — nothing to code against. They're kept
+here as a record of intent, not a contract.
 
 ### Observations (Phase 2+)
 
@@ -1298,13 +2112,10 @@ data: {"source":"health_records","record_type":"heart_rate"}
 | DELETE | `/sharing/consents/:dataset` | Revoke sharing consent (immediate) | 2 |
 | POST | `/processing/restrict/:dataset` | Restrict processing without deletion | 2 |
 
-### Genetic Data (Phase 2+)
-
-Genetic records are stored in the `genetic_records` table but do not yet have dedicated API endpoints. These will be added in Phase 2+ with separate sharing consent requirements.
-
-### Correlation (Phase 3)
-
-| Method | Path | Description | Phase |
-|--------|------|-------------|-------|
-| POST | `/stats/correlate` | Compute correlation between two metrics | 3 |
-| POST | `/stats/lag-correlate` | Compute lag correlation | 3 |
+The `sharing_consents` table exists, but there are no routes or aggregation
+logic built on it yet — see [data-sharing.md](../cooperative/data-sharing.md)
+for the designed-but-not-implemented cooperative aggregation layer. Genetic
+data sharing has always required its own separate `dataset = 'genetics'`
+consent record; that requirement carries over unchanged once this layer is
+built. See [Genetics](#genetics) above for the (implemented) genetic data
+endpoints themselves.

@@ -75,9 +75,14 @@ final class ProtocolsViewModel {
     // MARK: - Dependencies
 
     private let networkClient: NetworkClientProtocol
+    /// Rebuilds local dose reminders whenever active runs are refreshed.
+    /// Optional so existing call sites/tests that don't care about
+    /// notifications don't need to supply one.
+    private let doseReminderRebuilder: DoseReminderRebuilding?
 
-    init(networkClient: NetworkClientProtocol) {
+    init(networkClient: NetworkClientProtocol, doseReminderRebuilder: DoseReminderRebuilding? = nil) {
         self.networkClient = networkClient
+        self.doseReminderRebuilder = doseReminderRebuilder
     }
 
     // MARK: - List
@@ -100,6 +105,13 @@ final class ProtocolsViewModel {
             protocols = items
             activeRuns = runs
             listState = .loaded
+
+            // iOS has no notify-settings UI or run pause/complete controls
+            // (those are web-only); the only run mutation iOS itself performs
+            // is startRun/deleteProtocol, and both already call loadProtocols()
+            // afterward. Rebuilding here also picks up settings changed on the
+            // web the next time this list is refreshed.
+            await doseReminderRebuilder?.rebuildReminders()
         } catch {
             logger.error("Failed to load protocols: \(error.localizedDescription, privacy: .public)")
             listState = .error("Failed to load protocols")

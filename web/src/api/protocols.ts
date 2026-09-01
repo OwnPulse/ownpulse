@@ -36,7 +36,6 @@ export interface Protocol {
   duration_days: number;
   share_token: string | null;
   created_at: string;
-  updated_at: string;
   lines: ProtocolLine[];
 }
 
@@ -67,7 +66,6 @@ export interface TodaysDose {
   time_of_day: string | null;
   day_number: number;
   status: "completed" | "skipped" | "pending";
-  dose_id: string | null;
 }
 
 export interface CreateProtocolLine {
@@ -147,8 +145,8 @@ export interface ActiveRunResponse {
 }
 
 export interface ShareResponse {
-  share_token: string;
-  share_url: string;
+  token: string;
+  expires_at: string;
 }
 
 export interface ProtocolLineExport {
@@ -197,17 +195,11 @@ export const protocolsApi = {
   update: (id: string, data: Partial<Pick<Protocol, "name" | "description" | "status">>) =>
     api.patch<Protocol>(`/api/v1/protocols/${id}`, data),
   delete: (id: string) => api.delete<void>(`/api/v1/protocols/${id}`),
-  logDose: (protocolId: string, data: LogDoseRequest) =>
-    api.post<ProtocolDose>(`/api/v1/protocols/${protocolId}/doses/log`, data),
-  skipDose: (protocolId: string, data: SkipDoseRequest) =>
-    api.post<ProtocolDose>(`/api/v1/protocols/${protocolId}/doses/skip`, data),
   share: (id: string) => api.post<ShareResponse>(`/api/v1/protocols/${id}/share`, {}),
   getShared: (token: string) => api.get<Protocol>(`/api/v1/protocols/shared/${token}`),
-  importProtocol: (token: string) =>
-    api.post<Protocol>("/api/v1/protocols/import", { share_token: token }),
+  importProtocol: (token: string) => api.post<Protocol>(`/api/v1/protocols/import/${token}`, {}),
   exportProtocol: (id: string) => api.get<ProtocolExport>(`/api/v1/protocols/${id}/export`),
-  importFromFile: (data: ProtocolExport) =>
-    api.post<Protocol>("/api/v1/protocols/import-file", data),
+  importFromFile: (data: ProtocolExport) => api.post<Protocol>("/api/v1/protocols/import", data),
   activeSubstances: () => api.get<ActiveSubstance[]>("/api/v1/protocols/active-substances"),
   listTemplates: () => api.get<TemplateListItem[]>("/api/v1/protocols/templates"),
   copyTemplate: (id: string, startDate: string) =>

@@ -197,7 +197,7 @@
     },
     {
       "description": "a request to get the HealthKit write-back queue",
-      "providerState": "an authenticated user exists",
+      "providerState": "a pending healthkit write-queue item exists",
       "request": {
         "method": "GET",
         "path": "/api/v1/healthkit/write-queue",
@@ -210,12 +210,38 @@
         "headers": {
           "Content-Type": "application/json"
         },
-        "body": []
+        "body": [
+          {
+            "id": "77777777-7777-7777-7777-777777777777",
+            "user_id": "some-uuid",
+            "hk_type": "body_mass",
+            "value": {
+              "value": 82.5,
+              "unit": "kg",
+              "start_time": "2026-03-20T10:00:00Z",
+              "end_time": "2026-03-20T10:00:00Z"
+            },
+            "scheduled_at": "2026-03-20T10:00:00Z",
+            "confirmed_at": null,
+            "failed_at": null,
+            "error": null,
+            "source_record_id": null,
+            "source_table": null
+          }
+        ],
+        "matchingRules": {
+          "$.body[0].user_id": {
+            "match": "type"
+          },
+          "$.body[0].scheduled_at": {
+            "match": "type"
+          }
+        }
       }
     },
     {
       "description": "a request to confirm HealthKit write-back items",
-      "providerState": "an authenticated user exists",
+      "providerState": "a pending healthkit write-queue item exists",
       "request": {
         "method": "POST",
         "path": "/api/v1/healthkit/confirm",
@@ -224,7 +250,13 @@
           "Content-Type": "application/json"
         },
         "body": {
-          "ids": []
+          "ids": [],
+          "failures": [
+            {
+              "id": "77777777-7777-7777-7777-777777777777",
+              "error": "HealthKit authorization denied for Body Mass"
+            }
+          ]
         }
       },
       "response": {
@@ -880,6 +912,60 @@
       }
     },
     {
+      "description": "a request to list active protocol runs",
+      "providerState": "a protocol with an active, notify-enabled run exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/active",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "id": "77777777-7777-7777-7777-777777777777",
+            "protocol_id": "88888888-8888-8888-8888-888888888888",
+            "protocol_name": "BPC-157 Protocol",
+            "user_id": "99999999-9999-9999-9999-999999999999",
+            "start_date": "2026-03-28",
+            "duration_days": 28,
+            "status": "active",
+            "notify": true,
+            "notify_time": null,
+            "notify_times": [
+              "08:00",
+              "20:00"
+            ],
+            "repeat_reminders": false,
+            "repeat_interval_minutes": null,
+            "progress_pct": 18.0,
+            "doses_today": 1,
+            "doses_completed_today": 0,
+            "created_at": "2026-03-28T10:00:00Z"
+          }
+        ],
+        "matchingRules": {
+          "$.body[0].progress_pct": {
+            "match": "type"
+          },
+          "$.body[0].doses_today": {
+            "match": "type"
+          },
+          "$.body[0].doses_completed_today": {
+            "match": "type"
+          },
+          "$.body[0].created_at": {
+            "match": "type"
+          }
+        }
+      }
+    },
+    {
       "description": "a request to get a protocol by id",
       "providerState": "an authenticated user exists",
       "request": {
@@ -1023,17 +1109,19 @@
     },
     {
       "description": "a request to log a protocol dose",
-      "providerState": "an authenticated user exists",
+      "providerState": "a protocol with a loggable dose exists",
       "request": {
         "method": "POST",
-        "path": "/api/v1/protocols/proto-1/doses/log",
+        "path": "/api/v1/protocols/11111111-1111-1111-1111-111111111111/doses/log",
         "headers": {
           "Authorization": "Bearer some-jwt-token",
           "Content-Type": "application/json"
         },
         "body": {
-          "protocol_line_id": "line-1",
-          "day_number": 0
+          "protocol_line_id": "22222222-2222-2222-2222-222222222222",
+          "day_number": 0,
+          "notes": "AM dose, as scheduled",
+          "tz_offset_minutes": -420
         }
       },
       "response": {
@@ -1042,29 +1130,40 @@
           "Content-Type": "application/json"
         },
         "body": {
-          "id": "dose-1",
-          "protocol_line_id": "line-1",
+          "id": "33333333-3333-3333-3333-333333333333",
+          "protocol_line_id": "22222222-2222-2222-2222-222222222222",
           "day_number": 0,
           "status": "completed",
-          "intervention_id": null,
-          "logged_at": "2026-03-28T08:00:00Z",
-          "created_at": "2026-03-28T08:00:00Z"
+          "intervention_id": "44444444-4444-4444-4444-444444444444",
+          "logged_at": "2026-03-28T08:00:00Z"
+        },
+        "matchingRules": {
+          "$.body.id": {
+            "match": "type"
+          },
+          "$.body.intervention_id": {
+            "match": "type"
+          },
+          "$.body.logged_at": {
+            "match": "type"
+          }
         }
       }
     },
     {
       "description": "a request to skip a protocol dose",
-      "providerState": "an authenticated user exists",
+      "providerState": "a protocol with a skippable dose exists",
       "request": {
         "method": "POST",
-        "path": "/api/v1/protocols/proto-1/doses/skip",
+        "path": "/api/v1/protocols/55555555-5555-5555-5555-555555555555/doses/skip",
         "headers": {
           "Authorization": "Bearer some-jwt-token",
           "Content-Type": "application/json"
         },
         "body": {
-          "protocol_line_id": "line-1",
-          "day_number": 1
+          "protocol_line_id": "66666666-6666-6666-6666-666666666666",
+          "day_number": 1,
+          "skip_reason": "felt nauseous, skipped this dose"
         }
       },
       "response": {
@@ -1278,6 +1377,114 @@
       },
       "response": {
         "status": 204
+      }
+    },
+    {
+      "description": "a request to get run adherence",
+      "providerState": "a protocol run with adherence data exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/aaaaaaaa-3333-3333-3333-333333333333/adherence",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
+          "scheduled_so_far": 3,
+          "completed": 0,
+          "skipped": 0,
+          "missed": 3,
+          "adherence_pct": 0.0,
+          "lines": [
+            {
+              "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+              "substance": "Creatine",
+              "scheduled_so_far": 3,
+              "completed": 0,
+              "skipped": 0,
+              "missed": 3,
+              "adherence_pct": 0.0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "description": "a request to list missed doses",
+      "providerState": "a protocol run with adherence data exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/missed-doses",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "protocol_id": "aaaaaaaa-1111-1111-1111-111111111111",
+            "protocol_name": "Contract Adherence Protocol",
+            "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
+            "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+            "substance": "Creatine",
+            "dose": 5.0,
+            "unit": "g",
+            "route": "oral",
+            "time_of_day": null,
+            "day_number": 2,
+            "date": "2026-03-28",
+            "status": "missed"
+          },
+          {
+            "protocol_id": "aaaaaaaa-1111-1111-1111-111111111111",
+            "protocol_name": "Contract Adherence Protocol",
+            "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
+            "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+            "substance": "Creatine",
+            "dose": 5.0,
+            "unit": "g",
+            "route": "oral",
+            "time_of_day": null,
+            "day_number": 1,
+            "date": "2026-03-27",
+            "status": "missed"
+          },
+          {
+            "protocol_id": "aaaaaaaa-1111-1111-1111-111111111111",
+            "protocol_name": "Contract Adherence Protocol",
+            "run_id": "aaaaaaaa-3333-3333-3333-333333333333",
+            "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+            "substance": "Creatine",
+            "dose": 5.0,
+            "unit": "g",
+            "route": "oral",
+            "time_of_day": null,
+            "day_number": 0,
+            "date": "2026-03-26",
+            "status": "missed"
+          }
+        ],
+        "matchingRules": {
+          "$.body[0].date": {
+            "match": "type"
+          },
+          "$.body[1].date": {
+            "match": "type"
+          },
+          "$.body[2].date": {
+            "match": "type"
+          }
+        }
       }
     }
   ],

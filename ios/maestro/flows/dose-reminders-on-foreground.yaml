@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: local dose reminders survive foregrounding and normal
+# protocol navigation.
+#
+# Dose reminders are scheduled entirely on-device (UNCalendarNotificationTrigger)
+# from each active run's notify settings — there is no push backend, so this
+# flow can't assert a notification actually fires. What it *can* verify is
+# that the rebuild hooks added for this feature — on app foreground
+# (AppDependencies.handleScenePhase) and whenever the Protocols tab refreshes
+# its active-run list (ProtocolsViewModel.loadProtocols) — don't crash or
+# wedge the UI, and that the Protocols list still renders correctly
+# afterwards.
+appId: health.ownpulse.app
+---
+- launchApp
+
+- assertVisible:
+    id: "mainTabView"
+
+- tapOn: "Protocols"
+- assertVisible:
+    id: "protocolFilterPicker"
+
+# Pull to refresh — this re-fetches active runs and triggers a dose-reminder
+# rebuild (ProtocolsViewModel.loadProtocols -> DoseReminderCoordinator).
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 60%"
+- assertVisible:
+    id: "protocolFilterPicker"
+
+# Background the app, then bring it back to foreground. AppDependencies'
+# ScenePhase handler rebuilds pending dose reminders on `.active`; this is a
+# smoke test that the handler doesn't crash or leave the UI wedged.
+- pressKey: Home
+- launchApp
+
+- assertVisible:
+    id: "mainTabView"
+- tapOn: "Protocols"
+- assertVisible:
+    id: "protocolFilterPicker"

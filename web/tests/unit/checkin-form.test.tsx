@@ -4,7 +4,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DIMENSION_COLORS } from "../../src/components/dimensionColors.generated";
 import CheckinForm from "../../src/components/forms/CheckinForm";
 
@@ -41,7 +41,48 @@ describe("CheckinForm", () => {
     expect(screen.getByLabelText(/recovery/i)).toBeDefined();
     expect(screen.getByLabelText(/libido/i)).toBeDefined();
     expect(screen.getByLabelText(/notes/i)).toBeDefined();
-    expect(screen.getByRole("button", { name: /save check-in/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /log check-in/i })).toBeDefined();
+  });
+
+  it("exposes slider values as accessible valuetext", () => {
+    renderWithProviders();
+
+    const energySlider = screen.getByRole("slider", { name: /energy/i });
+    expect(energySlider.getAttribute("aria-valuetext")).toBe("5 out of 10");
+
+    fireInputChange(energySlider, "8");
+    expect(energySlider.getAttribute("aria-valuetext")).toBe("8 out of 10");
+  });
+
+  it("mounts an accessible status region before submit, and updates its text (rather than mounting a new node) on success", async () => {
+    mockCreate.mockResolvedValue({
+      id: "uuid-1",
+      user_id: "user-1",
+      date: "2026-03-18",
+      energy: 5,
+      mood: 5,
+      focus: 5,
+      recovery: 5,
+      libido: 5,
+      created_at: "2026-03-18T00:00:00Z",
+    });
+
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    // The status container must already exist (and be empty) before submit —
+    // a role="status" node that only mounts once the mutation settles isn't
+    // reliably announced by screen readers.
+    const status = screen.getByRole("status");
+    expect(status.textContent).toBe("");
+
+    await user.click(screen.getByRole("button", { name: /log check-in/i }));
+
+    await waitFor(() => {
+      expect(status.textContent).toMatch(/saved/i);
+    });
+    // Same node throughout — confirms the container wasn't unmounted/remounted.
+    expect(screen.getByRole("status")).toBe(status);
   });
 
   it("submits correct data", async () => {
@@ -78,7 +119,7 @@ describe("CheckinForm", () => {
     fireInputChange(focusSlider, "6");
 
     // Submit
-    await user.click(screen.getByRole("button", { name: /save check-in/i }));
+    await user.click(screen.getByRole("button", { name: /log check-in/i }));
 
     await waitFor(() => {
       expect(mockCreate).toHaveBeenCalledOnce();
@@ -109,6 +150,36 @@ describe("CheckinForm", () => {
       const slider = screen.getByLabelText(new RegExp(label, "i"));
       expect(slider.style.background).toContain(DIMENSION_COLORS[key]);
     }
+  });
+
+  describe("default date at a UTC-offset-sensitive instant", () => {
+    const originalTz = process.env.TZ;
+
+    beforeEach(() => {
+      process.env.TZ = "Pacific/Honolulu"; // UTC-10, no DST
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      if (originalTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTz;
+      }
+    });
+
+    it("defaults the date field from src/utils/datetime's localToday(), not a UTC-derived value", () => {
+      // 2026-03-01T05:30:00Z is 2026-02-28T19:30 in Honolulu. A form that
+      // reverted to `new Date().toISOString().slice(0, 10)` would default to
+      // "2026-03-01" here — this test would still pass if that regression
+      // landed unless it pins the local value explicitly.
+      vi.setSystemTime(new Date("2026-03-01T05:30:00Z"));
+
+      renderWithProviders();
+
+      const dateInput = screen.getByLabelText(/date/i) as HTMLInputElement;
+      expect(dateInput.value).toBe("2026-02-28");
+    });
   });
 });
 

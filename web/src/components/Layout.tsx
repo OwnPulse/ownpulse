@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { logout } from "../api/auth";
 import { useSSE } from "../hooks/useSSE";
@@ -37,21 +37,35 @@ export default function Layout() {
 
   const closeSidebar = () => setSidebarOpen(false);
 
+  // Let Escape close the sidebar regardless of which element inside it has
+  // focus, not just the overlay itself.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [sidebarOpen]);
+
   return (
     <div className={styles.layout}>
       <button
         type="button"
-        className={`${styles.menuBtn}${sidebarOpen ? ` ${styles.menuBtnHidden}` : ""}`}
+        className={styles.menuBtn}
         onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label="Toggle menu"
+        aria-label={sidebarOpen ? "Close menu" : "Open menu"}
+        aria-expanded={sidebarOpen}
       >
-        &#9776;
+        {sidebarOpen ? "✕" : "☰"}
       </button>
 
-      {/* biome-ignore lint: overlay click is intentional for closing sidebar */}
-      <div
+      <button
+        type="button"
         className={`${styles.overlay}${sidebarOpen ? ` ${styles.overlayVisible}` : ""}`}
         onClick={closeSidebar}
+        aria-label="Close menu"
+        tabIndex={sidebarOpen ? 0 : -1}
       />
 
       <aside className={`${styles.sidebar}${sidebarOpen ? ` ${styles.sidebarOpen}` : ""}`}>
@@ -60,7 +74,7 @@ export default function Layout() {
           <span className={styles.wordmarkPulse}>Pulse</span>
         </NavLink>
 
-        <nav className={styles.nav}>
+        <nav className={styles.nav} aria-label="Main">
           <NavLink to="/" end className={navLinkClass} onClick={closeSidebar}>
             Dashboard
           </NavLink>
@@ -74,7 +88,7 @@ export default function Layout() {
             Genetics
           </NavLink>
           <NavLink to="/entry" className={navLinkClass} onClick={closeSidebar}>
-            Data Entry
+            Log
           </NavLink>
           <NavLink to="/protocols" className={navLinkClass} onClick={closeSidebar}>
             Protocols

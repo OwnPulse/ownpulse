@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CheckinInput, checkinsApi } from "../../api/checkins";
+import { localToday } from "../../utils/datetime";
 import { DIMENSION_COLORS } from "../dimensionColors.generated";
 import forms from "./forms.module.css";
 
@@ -16,13 +17,9 @@ function sliderBackground(value: string, color: string): string {
   return `linear-gradient(to right, ${color} 0%, ${color} ${pct}%, var(--color-border) ${pct}%)`;
 }
 
-function todayDate() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function CheckinForm() {
   const queryClient = useQueryClient();
-  const [date, setDate] = useState(todayDate);
+  const [date, setDate] = useState(localToday);
   const [energy, setEnergy] = useState("5");
   const [mood, setMood] = useState("5");
   const [focus, setFocus] = useState("5");
@@ -34,7 +31,7 @@ export default function CheckinForm() {
     mutationFn: (data: CheckinInput) => checkinsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["checkins"] });
-      setDate(todayDate());
+      setDate(localToday());
       setEnergy("5");
       setMood("5");
       setFocus("5");
@@ -102,6 +99,7 @@ export default function CheckinForm() {
                 } as React.CSSProperties
               }
               aria-label={label}
+              aria-valuetext={`${value} out of 10`}
             />
           </div>
         );
@@ -119,11 +117,23 @@ export default function CheckinForm() {
       </div>
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Check-in"}
+          {mutation.isPending ? "Saving..." : "Log Check-in"}
         </button>
       </div>
-      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
+      {/* Always mounted (only the text is conditional) so assistive tech
+          reliably announces the result — a role="status" node that's
+          inserted fresh into the DOM each time is not guaranteed to be
+          picked up by screen readers. */}
+      <p
+        className={
+          mutation.isError ? forms.errorMsg : mutation.isSuccess ? forms.successMsg : undefined
+        }
+        role="status"
+        aria-live="polite"
+      >
+        {mutation.isError && `Error: ${mutation.error.message}`}
+        {mutation.isSuccess && "Saved!"}
+      </p>
     </form>
   );
 }

@@ -6,12 +6,9 @@ import { useState } from "react";
 import { type CreateIntervention, interventionsApi } from "../../api/interventions";
 import { type ActiveSubstance, protocolsApi } from "../../api/protocols";
 import { type SavedMedicine, savedMedicinesApi } from "../../api/savedMedicines";
+import { localNow } from "../../utils/datetime";
 import forms from "./forms.module.css";
 import styles from "./InterventionForm.module.css";
-
-function nowLocal() {
-  return new Date().toISOString().slice(0, 16);
-}
 
 function chipLabel(s: ActiveSubstance): string {
   return `${s.substance} ${s.dose}${s.unit} ${s.route}`;
@@ -25,13 +22,30 @@ function savedMedicineLabel(m: SavedMedicine): string {
   return parts.join(" ");
 }
 
+// Free text is always allowed — these are suggestions only, matching iOS's
+// unit/route pickers, not a whitelist. Never validate substance/unit/route
+// input; the platform is non-judgmental by design.
+const UNIT_SUGGESTIONS = ["mg", "mcg", "mL", "IU", "g", "drops", "puffs"];
+const ROUTE_SUGGESTIONS = [
+  "oral",
+  "sublingual",
+  "subq",
+  "IM",
+  "IV",
+  "topical",
+  "inhaled",
+  "nasal",
+  "rectal",
+  "transdermal",
+];
+
 export default function InterventionForm() {
   const queryClient = useQueryClient();
   const [substance, setSubstance] = useState("");
   const [dose, setDose] = useState("");
   const [unit, setUnit] = useState("");
   const [route, setRoute] = useState("");
-  const [administeredAt, setAdministeredAt] = useState(nowLocal);
+  const [administeredAt, setAdministeredAt] = useState(localNow);
   const [fasted, setFasted] = useState(false);
   const [notes, setNotes] = useState("");
 
@@ -55,7 +69,7 @@ export default function InterventionForm() {
       setDose("");
       setUnit("");
       setRoute("");
-      setAdministeredAt(nowLocal());
+      setAdministeredAt(localNow());
       setFasted(false);
       setNotes("");
     },
@@ -111,7 +125,9 @@ export default function InterventionForm() {
       dose: parseFloat(dose),
       unit,
       route,
-      administered_at: administeredAt,
+      // The datetime-local input's value has no UTC offset; the backend's
+      // DateTime<Utc> requires one.
+      administered_at: new Date(administeredAt).toISOString(),
       fasted,
       notes: notes || undefined,
     });
@@ -137,11 +153,13 @@ export default function InterventionForm() {
                 </button>
                 <button
                   type="button"
-                  className={styles.deleteChipBtn}
+                  className={`${styles.deleteChipBtn}${
+                    deletingId === m.id ? ` ${styles.deleteChipBtnConfirming}` : ""
+                  }`}
                   aria-label={`Delete ${m.substance}`}
                   onClick={() => handleDeleteMedicine(m.id)}
                 >
-                  {deletingId === m.id ? "?" : "\u00d7"}
+                  {deletingId === m.id ? "Delete?" : "\u00d7"}
                 </button>
               </span>
             ))}
@@ -225,7 +243,13 @@ export default function InterventionForm() {
           onChange={(e) => setUnit(e.target.value)}
           required
           className={forms.input}
+          list="intervention-unit-suggestions"
         />
+        <datalist id="intervention-unit-suggestions">
+          {UNIT_SUGGESTIONS.map((u) => (
+            <option key={u} value={u} />
+          ))}
+        </datalist>
       </div>
       <div className={forms.field}>
         <label className={forms.label} htmlFor="intervention-route">
@@ -237,7 +261,13 @@ export default function InterventionForm() {
           onChange={(e) => setRoute(e.target.value)}
           required
           className={forms.input}
+          list="intervention-route-suggestions"
         />
+        <datalist id="intervention-route-suggestions">
+          {ROUTE_SUGGESTIONS.map((r) => (
+            <option key={r} value={r} />
+          ))}
+        </datalist>
       </div>
       <div className={forms.field}>
         <label className={forms.label} htmlFor="intervention-time">
@@ -276,11 +306,23 @@ export default function InterventionForm() {
       </div>
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Intervention"}
+          {mutation.isPending ? "Saving..." : "Log Intervention"}
         </button>
       </div>
-      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
+      {/* Always mounted (only the text is conditional) so assistive tech
+          reliably announces the result — a role="status" node that's
+          inserted fresh into the DOM each time is not guaranteed to be
+          picked up by screen readers. */}
+      <p
+        className={
+          mutation.isError ? forms.errorMsg : mutation.isSuccess ? forms.successMsg : undefined
+        }
+        role="status"
+        aria-live="polite"
+      >
+        {mutation.isError && `Error: ${mutation.error.message}`}
+        {mutation.isSuccess && "Saved!"}
+      </p>
     </form>
   );
 }

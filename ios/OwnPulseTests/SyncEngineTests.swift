@@ -466,6 +466,278 @@ struct SyncEngineTests {
         #expect(persisted == anchorPage3, "persisted anchor must reflect the last ack'd page (page3), got \(persisted?.map { String(format: "%02x", $0) }.joined() ?? "nil")")
     }
 
+    // MARK: - Fix: anchor must not advance past a failed offline-queue enqueue
+
+    @Test("anchor stays at its prior value when both the upload AND the offline-queue enqueue fail")
+    @MainActor
+    func testAnchorDoesNotAdvancePastFailedEnqueue() async throws {
+        // This is the exact gap the pre-fix code left uncovered:
+        // `testAnchorDoesNotAdvancePastFailedUpload` only exercises upload
+        // failure with a SUCCESSFUL enqueue. Here we also fail the GRDB
+        // enqueue so the batch is acknowledged by neither the wire NOR the
+        // offline queue — the anchor must be left exactly where it was
+        // before this sync ran, or the batch is lost forever.
+        let provider = MockHealthKitProvider()
+        let heartRateHKType = HealthKitTypeMap.mapping(forRecordType: "heart_rate")!.hkType
+        let priorAnchor = Data([0xFF])
+        let pageAnchor = Data([0x01])
+        provider.queryPagesByType[heartRateHKType] = [
+            AnchoredQueryResult(
+                samples: Self.makeSamples(recordType: "heart_rate", count: 10),
+                newAnchor: pageAnchor,
+                deletedObjectIDs: []
+            )
+        ]
+
+        let network = MockNetworkClient()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        network.asyncRequestNoContentHandler = { _, path, _ in
+            guard path == Endpoints.healthKitSync else { return }
+            throw NetworkError.serverError(statusCode: 500, body: "boom")
+        }
+
+        let db = DatabaseManager(inMemory: true)
+        let offlineQueue = MockOfflineQueue(databaseManager: db)
+        offlineQueue.enqueueShouldFail = true
+        let anchors = AnchorStore(databaseManager: db)
+        // Seed a known "prior" anchor so we can assert it is untouched.
+        try anchors.saveAnchor(priorAnchor, forRecordType: "heart_rate")
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: provider,
+            offlineQueue: offlineQueue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+
+        await engine.sync()
+
+        #expect(offlineQueue.enqueueCallCount > 0, "expected the engine to attempt an enqueue after the upload failed")
+
+        let persisted = try anchors.anchor(forRecordType: "heart_rate")
+        #expect(
+            persisted == priorAnchor,
+            "anchor must stay at its prior value when the batch was neither uploaded nor durably enqueued, got \(persisted?.map { String(format: "%02x", $0) }.joined() ?? "nil")"
+        )
+    }
+
+    // MARK: - Adversarial review F1: a page's anchor is only trustworthy once
+    // EVERY batch cut from it is acked — not just the first one.
+
+    @Test("persisted anchor rolls back to the prior page's anchor when a LATER batch in the SAME page is permanently lost, even though an earlier batch in that page was acked")
+    @MainActor
+    func testAnchorRollsBackWithinSamePageOnPermanentLoss() async throws {
+        // pageSize (5000) / batchSize (500) = 10 batches cut from ONE
+        // HealthKit page, all sharing the same page anchor. Batch 1 uploads
+        // successfully; batch 2 fails BOTH the upload and its enqueue
+        // (permanently lost); batches 3-10 are drained into the queue
+        // successfully as "leftovers". Pre-fix, batch 1's success alone
+        // stamped the FULL page's anchor as ack'd — this proves that no
+        // longer happens: the persisted anchor must roll back to whatever
+        // it was before this sync, because batch 2's 500 samples are gone
+        // and the page anchor covers them too.
+        let provider = MockHealthKitProvider()
+        let heartRateHKType = HealthKitTypeMap.mapping(forRecordType: "heart_rate")!.hkType
+        let priorAnchor = Data([0xFE])
+        let pageAnchor = Data([0x01])
+        provider.queryPagesByType[heartRateHKType] = [
+            AnchoredQueryResult(
+                samples: (0..<5000).map { Self.makeSample(idx: $0) },
+                newAnchor: pageAnchor,
+                deletedObjectIDs: []
+            )
+        ]
+
+        let network = MockNetworkClient()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        // Batch 1 (the first 500-record POST) succeeds; every batch after
+        // that fails the upload.
+        let callCount = CallCounter()
+        network.asyncRequestNoContentHandler = { _, path, _ in
+            guard path == Endpoints.healthKitSync else { return }
+            let n = callCount.increment()
+            if n > 1 {
+                throw NetworkError.serverError(statusCode: 500, body: "boom")
+            }
+        }
+
+        let db = DatabaseManager(inMemory: true)
+        let offlineQueue = MockOfflineQueue(databaseManager: db)
+        // Batch 1 uploads fine, so the FIRST enqueue attempt is for batch
+        // 2 — fail exactly that one. Batches 3-10 (drained as "leftovers"
+        // once the failure is detected) enqueue successfully.
+        offlineQueue.enqueueFailAtCall = 1
+        let anchors = AnchorStore(databaseManager: db)
+        try anchors.saveAnchor(priorAnchor, forRecordType: "heart_rate")
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: provider,
+            offlineQueue: offlineQueue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+
+        await engine.sync()
+
+        let persisted = try anchors.anchor(forRecordType: "heart_rate")
+        #expect(
+            persisted == priorAnchor,
+            "persisted anchor must roll back to the prior page's anchor when a later batch in the SAME page is permanently lost — a single acked batch must not vouch for the whole page — got \(persisted?.map { String(format: "%02x", $0) }.joined() ?? "nil")"
+        )
+    }
+
+    @Test("persisted anchor stays at page N's anchor when a permanent enqueue failure happens on page N+1 WITHIN the leftover-drain loop")
+    @MainActor
+    func testAnchorStaysAtPriorPageWhenLeftoverDrainLosesALaterPage() async throws {
+        // Page 0 is a FULL page (5000 samples = 10 batches of 500) so the
+        // producer continues on to fetch page 1 instead of terminating.
+        // Only ONE upload is ever attempted — page 0's first batch — and
+        // it fails; that's what cancels the producer and switches
+        // everything still buffered (page 0's remaining 9 batches, then
+        // page 1's single short batch) to enqueue-only "leftover" drain.
+        // Enqueue succeeds for page 0's batches (so page 0 ends up fully
+        // acked) but fails for page 1's batch — a permanent loss on the
+        // page immediately AFTER the one that triggered the leftover path.
+        // The persisted anchor must land on page 0's anchor, never page
+        // 1's (which is permanently lost) and never nil (page 0 WAS fully
+        // covered).
+        let provider = MockHealthKitProvider()
+        let heartRateHKType = HealthKitTypeMap.mapping(forRecordType: "heart_rate")!.hkType
+        let anchorPage0 = Data([0xA0])
+        let anchorPage1 = Data([0xA1])
+        provider.queryPagesByType[heartRateHKType] = [
+            AnchoredQueryResult(
+                samples: (0..<5000).map { Self.makeSample(idx: $0) },
+                newAnchor: anchorPage0,
+                deletedObjectIDs: []
+            ),
+            AnchoredQueryResult(
+                samples: (5000..<5010).map { Self.makeSample(idx: $0) },
+                newAnchor: anchorPage1,
+                deletedObjectIDs: []
+            ),
+        ]
+
+        let network = MockNetworkClient()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        // The ONLY upload attempt (page 0's first batch) fails — that's
+        // what enters the leftover-drain path. Nothing is ever uploaded
+        // again after this; everything else is enqueue-only.
+        network.asyncRequestNoContentHandler = { _, path, _ in
+            guard path == Endpoints.healthKitSync else { return }
+            throw NetworkError.serverError(statusCode: 500, body: "boom")
+        }
+
+        let db = DatabaseManager(inMemory: true)
+        let offlineQueue = MockOfflineQueue(databaseManager: db)
+        // Enqueue call #1 is page 0's failed-upload batch (from the
+        // initial catch block); calls #2-10 are page 0's remaining
+        // batches (drained as leftovers) — all must succeed so page 0
+        // ends up fully acked. Call #11 is page 1's only batch — fail
+        // exactly that one.
+        offlineQueue.enqueueFailAtCall = 11
+        let anchors = AnchorStore(databaseManager: db)
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: provider,
+            offlineQueue: offlineQueue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+
+        await engine.sync()
+
+        let persisted = try anchors.anchor(forRecordType: "heart_rate")
+        #expect(
+            persisted == anchorPage0,
+            "persisted anchor must stay at page 0's anchor — page 0 was fully covered, but page 1's permanent loss must block it (and everything after it) from ever being committed, got \(persisted?.map { String(format: "%02x", $0) }.joined() ?? "nil")"
+        )
+    }
+
+    // MARK: - Adversarial review F2: only deterministic rejections count
+    // toward offline-queue abandonment
+
+    @Test("drainOfflineQueue counts a deterministic 4xx toward abandonment but NOT a transport/connectivity failure")
+    @MainActor
+    func testDrainOfflineQueueClassifiesFailuresBeforeCountingAttempts() async throws {
+        let db = DatabaseManager(inMemory: true)
+        let offlineQueue = MockOfflineQueue(databaseManager: db)
+        // Seed two queued entries directly via the real queue underneath
+        // the mock (enqueue isn't configured to fail here).
+        try offlineQueue.enqueue(HealthKitBulkInsert(records: []))
+        try offlineQueue.enqueue(HealthKitBulkInsert(records: []))
+
+        let network = MockNetworkClient()
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        // First drain call: reject every entry with a transport error
+        // (NSURLErrorDomain-style), which must NOT count toward
+        // abandonment — an offline window firing this drain every few
+        // seconds must not destroy the queue.
+        network.requestNoContentHandler = { _, path, _ in
+            if path == Endpoints.healthKitSync {
+                throw NSError(domain: NSURLErrorDomain, code: -1009, userInfo: nil)
+            }
+        }
+
+        let anchors = AnchorStore(databaseManager: db)
+        let progress = SyncProgress()
+        let engine = SyncEngine(
+            networkClient: network,
+            healthKitProvider: MockHealthKitProvider(),
+            offlineQueue: offlineQueue,
+            anchorStore: anchors,
+            progress: progress,
+            backgroundTaskHost: nil
+        )
+
+        await engine.sync()
+        #expect(
+            offlineQueue.recordFailedAttemptCallCount == 0,
+            "a transport/connectivity failure must never count toward offline-queue abandonment"
+        )
+        // Both entries are still pending (not abandoned, not dropped).
+        #expect(try offlineQueue.dequeuePending().count == 2)
+
+        // Second drain call: now reject with a deterministic 4xx (not 401
+        // /408/429) — this SHOULD count.
+        network.requestNoContentHandler = { _, path, _ in
+            if path == Endpoints.healthKitSync {
+                throw NetworkError.serverError(statusCode: 422, body: "unprocessable")
+            }
+        }
+        await engine.sync()
+        #expect(
+            offlineQueue.recordFailedAttemptCallCount == 2,
+            "a deterministic 4xx rejection must count toward abandonment — expected exactly the 2 pending entries to be attempted"
+        )
+    }
+
     // MARK: - Review fix B2: stream must not drop batches under back-pressure
 
     @Test("no batches dropped when upload is slower than producer")
@@ -525,7 +797,7 @@ struct SyncEngineTests {
             func querySamples(type: HKSampleType, anchor: Data?, limit: Int) async throws -> AnchoredQueryResult {
                 throw NSError(domain: "test.healthkit", code: 42, userInfo: nil)
             }
-            func writeSample(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date) async throws {}
+            func writeSample(type: HKSampleType, value: Double, unit: HKUnit, start: Date, end: Date, syncIdentifier: String) async throws {}
             func observeSampleUpdates() -> AsyncStream<Void> { AsyncStream { _ in } }
             func enableBackgroundDelivery() async throws {}
             func disableAllBackgroundDelivery() async throws {}
@@ -659,9 +931,26 @@ struct SyncEngineTests {
         // backend mapped to a HealthKit type).
         let item = HealthKitWriteQueueItem(
             id: "wq-1",
+            userId: "user-1",
             hkType: "heart_rate",
-            value: 64.0,
-            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500)
+            value: HealthKitWriteQueuePayload(
+                value: 64.0,
+                // A real, parseable-by-HKUnit(from:) UCUM string — NOT the
+                // app's own display label ("bpm" in `HealthKitTypeMap`'s
+                // `unitString`, which HKUnit(from:) can't parse). Using a
+                // genuinely parseable unit exercises the actual
+                // payload-unit path rather than silently falling back to
+                // `mapping.unit` and passing for the wrong reason.
+                unit: "count/min",
+                startTime: Date(timeIntervalSince1970: 1_700_000_000),
+                endTime: Date(timeIntervalSince1970: 1_700_000_001)
+            ),
+            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500),
+            confirmedAt: nil,
+            failedAt: nil,
+            error: nil,
+            sourceRecordId: nil,
+            sourceTable: nil
         )
         network.requestHandler = { method, path, _ in
             if method == "GET" && path == Endpoints.healthKitWriteQueue {
@@ -686,12 +975,357 @@ struct SyncEngineTests {
         #expect(provider.writtenSamples.count == 1,
                 "expected the single write-queue item to be written to HealthKit")
         #expect(provider.writtenSamples.first?.value == 64.0)
+        // Resolved the payload's own (parseable) unit — not just the
+        // mapping fallback.
+        #expect(provider.writtenSamples.first?.unit == HKUnit.count().unitDivided(by: .minute()))
+        // Uses the payload's own start/end, not the queue's `scheduledAt`.
+        #expect(provider.writtenSamples.first?.start == Date(timeIntervalSince1970: 1_700_000_000))
+        #expect(provider.writtenSamples.first?.end == Date(timeIntervalSince1970: 1_700_000_001))
+        // Tagged with the write-queue item's own id, so a re-write (e.g.
+        // confirm POST fails after this write succeeds) replaces the
+        // existing sample instead of duplicating it.
+        #expect(provider.writtenSamples.first?.syncIdentifier == "wq-1")
         // And confirmed back to the server so it isn't re-served.
         #expect(confirmedIds.all() == ["wq-1"],
                 "the written item must be confirmed so the backend stops serving it")
     }
 
+    // MARK: - Write-back failure reporting
+
+    @MainActor
+    @Test("write-back HealthKit write failure is reported in failures, not confirmed")
+    func testWriteBackWriteFailureReportedNotConfirmed() async throws {
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+        provider.writeSampleError = HealthKitWriteError.unsupportedSampleType("test")
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-fail", hkType: "heart_rate")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "a failed write must not be recorded as written")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.ids.isEmpty == true, "a failed item must never be confirmed")
+        #expect(confirms.first?.failures.map(\.id) == ["wq-fail"])
+    }
+
+    @MainActor
+    @Test("write-back item with a transient HealthKit write failure is neither confirmed nor reported as failed")
+    func testWriteBackTransientFailureLeftPending() async throws {
+        // Reporting via `failures` permanently retires the item server-side
+        // (see `WriteBackFailureClassifier`). A transient condition (device
+        // locked, HealthKit temporarily unavailable, authorization not yet
+        // determined) is expected to clear — the item must stay pending so
+        // the write-queue's natural retry (next sync) picks it up again.
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+        provider.writeSampleError = HKError(.errorHealthDataUnavailable)
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-transient", hkType: "heart_rate")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty)
+        #expect(confirmBodies.all().isEmpty, "a transient failure must never call /healthkit/confirm — the item is left pending, not confirmed or failed")
+        // Even though nothing was reported to the backend, the user should
+        // still see that something went wrong this sync — not a silently
+        // "clean" sync with a write quietly dropped.
+        let lastError = await engine.lastError
+        #expect(lastError != nil, "a transient write-back failure must still surface via lastError, not be silently swallowed")
+    }
+
+    @MainActor
+    @Test("write-back item with a writable: false hk_type is reported in failures, never reaching HealthKitProvider.writeSample")
+    func testWriteBackNotWritableTypeReportedAsFailure() async throws {
+        // walking_heart_rate is a real HKQuantityType mapping with
+        // `writable: false` — share authorization was never requested for
+        // it. Without the upfront `mapping.writable` check, this would loop
+        // "transient" (HKError.errorAuthorizationDenied) forever instead of
+        // ever being reported.
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-not-writable", hkType: "walking_heart_rate")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "a writable:false type must never reach HealthKitProvider.writeSample")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.ids.isEmpty == true)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-not-writable"])
+    }
+
+    @MainActor
+    @Test("write-back item with a parseable-but-incompatible unit is reported in failures, never crashing")
+    func testWriteBackIncompatibleUnitReportedAsFailure() async throws {
+        // "count" is a syntactically valid UCUM string but dimensionally
+        // incompatible with body_mass's kilogram unit. Constructing an
+        // HKQuantity with an incompatible unit raises an uncatchable
+        // NSInvalidArgumentException — this must be caught before ever
+        // reaching HealthKitProvider.writeSample.
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-bad-unit", hkType: "body_mass", value: 82.5, unit: "count")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "must never construct an HKQuantity with an incompatible unit")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-bad-unit"])
+    }
+
+    @MainActor
+    @Test("write-back item with an unparseable unit is reported in failures — never silently falls back to the mapping's unit")
+    func testWriteBackUnparseableUnitReportedAsFailure() async throws {
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-unparseable-unit", hkType: "body_mass", value: 82.5, unit: "not a real unit")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "an unparseable unit must never fall back to the mapping's unit and write anyway")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-unparseable-unit"])
+    }
+
+    @MainActor
+    @Test("write-back item with an unmapped hk_type is reported in failures, never written or confirmed")
+    func testWriteBackUnmappedTypeReportedAsFailure() async throws {
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = makeWriteQueueItem(id: "wq-unmapped", hkType: "not_a_real_hk_type")
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "an unmapped type must never reach HealthKitProvider.writeSample")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.ids.isEmpty == true)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-unmapped"])
+    }
+
+    @MainActor
+    @Test("write-back item with a null numeric value is reported in failures, never written or confirmed")
+    func testWriteBackNullValueReportedAsFailure() async throws {
+        // The backend's row has no route-level requirement that a numeric
+        // value be present — a record enqueued without one serves
+        // `value.value == nil`. This must never reach `writeSample`.
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        let item = HealthKitWriteQueueItem(
+            id: "wq-null",
+            userId: "user-1",
+            hkType: "body_mass",
+            value: HealthKitWriteQueuePayload(
+                value: nil,
+                unit: nil,
+                startTime: Date(timeIntervalSince1970: 1_700_000_000),
+                endTime: nil
+            ),
+            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500),
+            confirmedAt: nil,
+            failedAt: nil,
+            error: nil,
+            sourceRecordId: nil,
+            sourceTable: nil
+        )
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [item]
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty, "a null value must never reach HealthKitProvider.writeSample")
+        let confirms = confirmBodies.all()
+        #expect(confirms.count == 1)
+        #expect(confirms.first?.ids.isEmpty == true)
+        #expect(confirms.first?.failures.map(\.id) == ["wq-null"])
+    }
+
+    @MainActor
+    @Test("empty write-back queue never calls confirm")
+    func testWriteBackEmptyQueueNeverConfirms() async throws {
+        let provider = MockHealthKitProvider()
+        provider.queryPages = []
+
+        let (engine, network, _, _) = buildEngine(
+            healthKitProvider: provider,
+            networkClient: MockNetworkClient()
+        )
+
+        network.requestHandler = { method, path, _ in
+            if method == "GET" && path == Endpoints.healthKitWriteQueue {
+                return [HealthKitWriteQueueItem]()
+            }
+            return []
+        }
+        let confirmBodies = CapturedConfirmBodies()
+        network.requestNoContentHandler = { _, path, body in
+            if path == Endpoints.healthKitConfirm, let confirm = body as? HealthKitConfirm {
+                confirmBodies.record(confirm)
+            }
+        }
+
+        await engine.sync()
+
+        #expect(provider.writtenSamples.isEmpty)
+        #expect(confirmBodies.all().isEmpty, "an empty write-queue must never call /healthkit/confirm")
+    }
+
     // MARK: - Helpers
+
+    private func makeWriteQueueItem(
+        id: String,
+        hkType: String,
+        value: Double = 64.0,
+        // A real, parseable-by-HKUnit(from:) UCUM string. "bpm" (the app's
+        // own `HealthKitTypeMap` display label, not a UCUM string) would
+        // fail to parse and silently exercise only the nil-unit fallback
+        // path, not the actual payload-unit resolution.
+        unit: String? = "count/min"
+    ) -> HealthKitWriteQueueItem {
+        HealthKitWriteQueueItem(
+            id: id,
+            userId: "user-1",
+            hkType: hkType,
+            value: HealthKitWriteQueuePayload(
+                value: value,
+                unit: unit,
+                startTime: Date(timeIntervalSince1970: 1_700_000_000),
+                endTime: Date(timeIntervalSince1970: 1_700_000_001)
+            ),
+            scheduledAt: Date(timeIntervalSince1970: 1_700_000_500),
+            confirmedAt: nil,
+            failedAt: nil,
+            error: nil,
+            sourceRecordId: nil,
+            sourceTable: nil
+        )
+    }
 
     private static func makeSamples(recordType: String, count: Int, startOffset: Int = 0) -> [HealthKitSample] {
         let base = Date(timeIntervalSince1970: 1_700_000_000)
@@ -767,6 +1401,24 @@ private final class CapturedConfirmIds: @unchecked Sendable {
     func all() -> [String] {
         lock.lock(); defer { lock.unlock() }
         return ids
+    }
+}
+
+/// Thread-safe collector for every `HealthKitConfirm` body POSTed to
+/// `/healthkit/confirm` — used by write-back failure-reporting tests that
+/// need to inspect both `ids` and `failures` together.
+private final class CapturedConfirmBodies: @unchecked Sendable {
+    private let lock = NSLock()
+    private var bodies: [HealthKitConfirm] = []
+
+    func record(_ body: HealthKitConfirm) {
+        lock.lock(); defer { lock.unlock() }
+        bodies.append(body)
+    }
+
+    func all() -> [HealthKitConfirm] {
+        lock.lock(); defer { lock.unlock() }
+        return bodies
     }
 }
 

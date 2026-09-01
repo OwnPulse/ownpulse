@@ -5,6 +5,7 @@ import BackgroundTasks
 import Foundation
 import SwiftUI
 import Testing
+import UserNotifications
 @testable import OwnPulse
 
 @Suite("AppDependencies — auto-sync lifecycle wiring")
@@ -26,6 +27,14 @@ struct AppDependenciesTests {
             if method == "GET" && path == Endpoints.healthKitWriteQueue {
                 return [HealthKitWriteQueueItem]()
             }
+            // Both `bootstrapAutoSync()` (on login) and `handleScenePhase(.active)`
+            // fire a dose-reminder rebuild alongside the HealthKit sync, which
+            // fetches active runs. Stub it to an empty list so those tests
+            // don't crash on a type mismatch against the `[AuthMethod]`
+            // fallback below.
+            if method == "GET" && path == Endpoints.activeRuns {
+                return [ActiveRunResponse]()
+            }
             return [] as [AuthMethod]
         }
         network.requestNoContentHandler = { _, _, _ in /* no-op */ }
@@ -38,7 +47,8 @@ struct AppDependenciesTests {
             keychainService: keychain,
             networkClient: network,
             healthKitProvider: provider,
-            syncScheduler: scheduler
+            syncScheduler: scheduler,
+            databaseManager: DatabaseManager(inMemory: true)
         )
         return (deps, provider, submitter)
     }
@@ -194,6 +204,100 @@ struct AppDependenciesTests {
             let date = await deps.syncEngine.lastSyncDate
             return date != nil
         }
+    }
+
+    // MARK: - Dose reminders wired into scene-phase / login / logout
+
+    @Test("scene phase .active while authenticated rebuilds dose reminders")
+    func activeScenePhaseRebuildsDoseReminders() async throws {
+        let keychain = MockKeychainService()
+        let network = MockNetworkClient()
+        network.requestHandler = { _, path, _ in
+            if path == Endpoints.healthKitWriteQueue { return [HealthKitWriteQueueItem]() }
+            if path == Endpoints.activeRuns { return [ActiveRunResponse]() }
+            return [] as [AuthMethod]
+        }
+        network.requestNoContentHandler = { _, _, _ in }
+
+        let deps = AppDependencies(
+            keychainService: keychain,
+            networkClient: network,
+            healthKitProvider: MockHealthKitProvider(),
+            syncScheduler: SyncScheduler(submitter: RecordingSubmitter()),
+            databaseManager: DatabaseManager(inMemory: true)
+        )
+        let url = URL(string: "ownpulse://auth#token=jwt&refresh_token=refresh")!
+        try await deps.authService.processCallback(url: url)
+
+        // Login itself triggers a rebuild (bootstrapAutoSync); wait for it,
+        // then reset the call log and confirm scene-phase .active triggers
+        // its own independent rebuild too.
+        try await eventually(timeout: 2.0) {
+            network.requestCalls.contains { $0.path == Endpoints.activeRuns }
+        }
+
+        let callsBefore = network.requestCalls.count
+        #expect(deps.handleScenePhase(.active) == true)
+
+        try await eventually(timeout: 2.0) {
+            network.requestCalls.count > callsBefore
+                && network.requestCalls.suffix(from: callsBefore).contains { $0.path == Endpoints.activeRuns }
+        }
+    }
+
+    @Test("logout removes every pending dose reminder via the notification center")
+    func logoutClearsAllDoseReminders() async throws {
+        // Seed the keychain with an already-valid, non-expired token so
+        // `AuthService.init` sets `isAuthenticated = true` directly —
+        // deliberately NOT going through `processCallback`/`bootstrapAutoSync`,
+        // so the only dose-reminder-related call this test can observe is
+        // logout's own `clearAll()`, not an incidental login-triggered
+        // rebuild racing to remove the same pre-seeded ids first.
+        let keychain = MockKeychainService()
+        try keychain.save(key: AuthService.accessTokenKey, data: Data(Self.makeValidJWT().utf8))
+
+        let network = MockNetworkClient()
+        network.requestHandler = { _, _, _ in [] as [AuthMethod] }
+        network.requestNoContentHandler = { _, _, _ in }
+
+        let center = MockUserNotificationCenter()
+        // As if a previous rebuild had already scheduled reminders — logout
+        // must remove these, not just no-op against an empty center.
+        center.pendingRequests = [
+            UNNotificationRequest(identifier: "dose-run-1-08:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil),
+            UNNotificationRequest(identifier: "dose-run-1-20:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil),
+        ]
+
+        let deps = AppDependencies(
+            keychainService: keychain,
+            networkClient: network,
+            healthKitProvider: MockHealthKitProvider(),
+            syncScheduler: SyncScheduler(submitter: RecordingSubmitter()),
+            notificationCenter: center,
+            databaseManager: DatabaseManager(inMemory: true)
+        )
+        #expect(deps.authService.isAuthenticated == true)
+
+        await deps.authService.logout()
+
+        #expect(deps.authService.isAuthenticated == false)
+        let removedIds = Set(center.removedIdentifierBatches.flatMap { $0 })
+        #expect(removedIds.contains("dose-run-1-08:00-2026-06-01"))
+        #expect(removedIds.contains("dose-run-1-20:00-2026-06-01"))
+        #expect(center.pendingRequests.isEmpty)
+    }
+
+    /// Builds a syntactically-valid, non-expired JWT so `AuthService.init`'s
+    /// `JWTDecoder.isExpired` check passes. The signature segment is never
+    /// validated client-side — only `sub`/`exp` in the payload matter here.
+    private static func makeValidJWT(expiresIn: TimeInterval = 3600) -> String {
+        let header = Data("{\"alg\":\"none\"}".utf8).base64EncodedString()
+        let payload: [String: Any] = [
+            "sub": "user-1",
+            "exp": Date().addingTimeInterval(expiresIn).timeIntervalSince1970,
+        ]
+        let payloadData = try! JSONSerialization.data(withJSONObject: payload)
+        return "\(header).\(payloadData.base64EncodedString()).signature"
     }
 
     // MARK: - Plan fix #6: bootstrap calls authorization BEFORE enabling delivery

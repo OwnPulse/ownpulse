@@ -36,7 +36,8 @@ struct ProtocolsViewModelTests {
         protocolName: String = "Test Protocol",
         progressPct: Double = 18.0,
         dosesToday: Int = 2,
-        dosesCompletedToday: Int = 0
+        dosesCompletedToday: Int = 0,
+        notify: Bool = false
     ) -> ActiveRunResponse {
         ActiveRunResponse(
             id: id,
@@ -45,6 +46,11 @@ struct ProtocolsViewModelTests {
             startDate: "2026-03-28",
             durationDays: 28,
             status: "active",
+            notify: notify,
+            notifyTime: nil,
+            notifyTimes: nil,
+            repeatReminders: false,
+            repeatIntervalMinutes: nil,
             progressPct: progressPct,
             dosesToday: dosesToday,
             dosesCompletedToday: dosesCompletedToday,
@@ -470,6 +476,52 @@ struct ProtocolsViewModelTests {
         #expect(mock.requestCalls.count == 2)
         #expect(mock.requestCalls[0].method == "POST")
         #expect(mock.requestCalls[0].path == Endpoints.runSkipDose("run-1"))
+    }
+
+    // MARK: - Dose Reminder Rebuild Hook
+
+    @Test("loadProtocols success rebuilds dose reminders via the injected coordinator")
+    func loadProtocolsRebuildsDoseReminders() async {
+        let mock = MockNetworkClient()
+        let runs = [Self.makeActiveRun(notify: true)]
+        mock.requestHandler = { _, path, _ in
+            if path == Endpoints.activeRuns { return runs }
+            return [Self.makeListItem()]
+        }
+        let rebuilder = MockDoseReminderRebuilder()
+
+        let vm = ProtocolsViewModel(networkClient: mock, doseReminderRebuilder: rebuilder)
+        await vm.loadProtocols()
+
+        #expect(rebuilder.rebuildCallCount == 1)
+    }
+
+    @Test("loadProtocols failure does not rebuild dose reminders")
+    func loadProtocolsFailureSkipsDoseReminderRebuild() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 500, body: "internal error")
+        }
+        let rebuilder = MockDoseReminderRebuilder()
+
+        let vm = ProtocolsViewModel(networkClient: mock, doseReminderRebuilder: rebuilder)
+        await vm.loadProtocols()
+
+        #expect(rebuilder.rebuildCallCount == 0)
+    }
+
+    @Test("loadProtocols works without a dose reminder rebuilder configured")
+    func loadProtocolsWithoutRebuilderDoesNotCrash() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, path, _ in
+            if path == Endpoints.activeRuns { return [ActiveRunResponse]() }
+            return [ProtocolListItem]()
+        }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadProtocols()
+
+        #expect(vm.listState == .loaded)
     }
 
     // MARK: - Reset Form

@@ -8,7 +8,7 @@
 
 ## Context
 
-OwnPulse needs a backend API that will handle continuous health data ingest from multiple sources (HealthKit, Garmin, Oura, Dexcom), background sync jobs, streaming data exports, correlation computation, and eventually aggregate queries across cooperative members. The API must be self-hostable on modest hardware — a single VPS with 4GB RAM serving one or a handful of users is the target deployment.
+OwnPulse needs a backend API that will handle continuous health data ingest from multiple sources (HealthKit, Garmin, Oura), background sync jobs, streaming data exports, correlation computation, and eventually aggregate queries across cooperative members. The API must be self-hostable on modest hardware — a single VPS with 4GB RAM serving one or a handful of users is the target deployment.
 
 Key forces:
 - **Performance matters for the self-hosting case.** A resource-hungry runtime (JVM, .NET CLR) is a real barrier when running on a $48/mo droplet alongside Postgres and nginx.

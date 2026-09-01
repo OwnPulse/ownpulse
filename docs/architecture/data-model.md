@@ -4,6 +4,10 @@
 
 When the database schema changes, this document and `schema/open-schema.json` must be updated in the same PR.
 
+## Export coverage
+
+`GET /export/json` (`export/json.rs`) streams a flat top-level array per key, scoped to the requesting user. As of schema `0.3.0` the exported keys are exactly: `health_records`, `interventions`, `daily_checkins`, `lab_results`, `observations` (covers sleep and all other user-defined data — see the `observations` section below), `protocols` (templates, i.e. rows with `user_id = NULL`, are excluded), `protocol_lines`, `protocol_runs`, `protocol_doses`, `calendar_days` (added in `0.3.0`; includes zero-meeting days within the sync window, not just days with meetings), and — only if the user has any — `genetic_records`. This is **not** every table in this document: tables not listed above (e.g. `users`, `user_auth_methods`, `source_preferences`, `sharing_consents`, `explore_charts`, `observer_polls`/`observer_poll_members`/`observer_responses`, `export_jobs`) are not part of the export today. See [`schema/open-schema.md`](../../schema/open-schema.md) for the schema-file view of the same key list — the two are kept in sync by a test (`export::test_export_json_keys_match_open_schema`) that asserts the export's top-level keys equal the schema's declared keys. `GET /export/csv` covers `health_records` only — see [api.md](api.md#export).
+
 ## Tables
 
 ### `users`
@@ -56,7 +60,7 @@ All wearable and device measurements (heart rate, HRV, weight, blood glucose, sl
 Before inserting any health record, the API checks for existing records within a **60-second window** and **2% value tolerance** from a different source. When a potential duplicate is detected:
 
 - The new record is still inserted, but with its `duplicate_of` column set to reference the existing record's ID. Records are never silently dropped.
-- The `source_preferences` table determines which source is preferred for each metric type. The preferred source's record is treated as canonical.
+- Duplicates are collapsed to one canonical row for default aggregate reads (`/explore/series`, `/dashboard/summary`, `/stats/*`) — applied at query time, not by mutating or dropping rows. This collapse is unconditional: absent any `source_preferences` row, the original (first-arriving) record is canonical by default, so a pair is never double-counted even with no preference set. The `source_preferences` table lets the user override that default per metric type by naming either side of the pair; naming a source that isn't part of the pair is a no-op. `GET /health-records`, all export paths, and the friend-shared data view always return every row regardless of preference.
 - A structured warning is logged containing both record IDs and their respective sources, enabling audit and debugging.
 
 ### `interventions`
@@ -73,6 +77,24 @@ Substance, medication, and supplement logs. Names are freeform text with no vali
 | `route` | TEXT nullable | e.g. `oral`, `sublingual`, `injection` |
 | `taken_at` | TIMESTAMPTZ | |
 | `created_at` | TIMESTAMPTZ | |
+| `updated_at` | TIMESTAMPTZ | Added in `0032_protocol_dose_tracking.sql`. Set on every edit via `PATCH /interventions/:id`. |
+
+### `protocol_doses`
+
+Logged/skipped doses for a protocol line, scoped to a specific `protocol_runs` execution.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID PK | |
+| `protocol_line_id` | UUID FK | References `protocol_lines`, `ON DELETE CASCADE` |
+| `run_id` | UUID FK nullable | References `protocol_runs`, `ON DELETE CASCADE`. `NULL` for legacy protocol-level doses logged before runs existed (or via the deprecated `/protocols/:id/doses/*` endpoints). |
+| `day_number` | INT | Offset from the run's `start_date` (or the protocol's `start_date` for legacy `NULL`-run rows) |
+| `status` | TEXT | `completed` or `skipped` |
+| `intervention_id` | UUID FK nullable | References `interventions`; set only for `completed` doses |
+| `skip_reason` | TEXT nullable | Added in `0032_protocol_dose_tracking.sql`. Optional free-text reason recorded when skipping. |
+| `logged_at` | TIMESTAMPTZ | |
+
+**Unique constraint:** `(protocol_line_id, run_id, day_number)` with `NULLS NOT DISTINCT` (added in `0032_protocol_dose_tracking.sql`, replacing the original `(protocol_line_id, day_number)` constraint). This scopes duplicate-dose detection to a single run — a second run of the same protocol can log the same `day_number` without colliding with the first run's doses — while still keeping legacy `NULL`-run rows unique among themselves.
 
 ### `daily_checkins`
 
@@ -117,12 +139,20 @@ Flexible extensibility layer for user-defined data. See [ADR-0002](../decisions/
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `type` | TEXT | `event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental` |
+| `type` | TEXT | `event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental`, `sleep`. Sleep has no dedicated table — `POST/GET /sleep` (`routes/sleep.rs`) read and write `observations` rows with `type = 'sleep'`; duration/stage/score fields live in `value`. |
 | `name` | TEXT | User-defined freeform name |
 | `value` | JSONB | Shape depends on `type` (validated in API layer) |
+| `source` | TEXT | `manual` (default) or an integration name (e.g. `garmin`, `oura`) |
+| `source_id` | TEXT nullable | Deterministic per-source id (e.g. `garmin-sleep-2026-03-28`) used to dedupe re-synced rows. Always `NULL` for manual entries. |
 | `started_at` | TIMESTAMPTZ | |
 | `ended_at` | TIMESTAMPTZ nullable | For `event_duration` only |
 | `created_at` | TIMESTAMPTZ | |
+
+`UNIQUE (user_id, source, source_id) WHERE source_id IS NOT NULL` — a partial
+unique index so re-syncing a wearable observation (e.g. a Garmin sleep record
+re-fetched every 15 minutes) is a no-op rather than a fresh duplicate row.
+Manual entries never set `source_id`, so they're never constrained by it and
+may legitimately repeat.
 
 **JSONB `value` shapes by type:**
 
@@ -136,16 +166,29 @@ Flexible extensibility layer for user-defined data. See [ADR-0002](../decisions/
 
 ### `calendar_days`
 
-Meeting and schedule aggregates per day.
+Meeting aggregates per day, populated by the Google Calendar background sync
+(`jobs::google_calendar_sync`). **Aggregates only** — event titles,
+descriptions, attendees, and locations are never stored, and never even
+requested from Google beyond checking whether the calendar owner declined a
+meeting (see `integrations::google_calendar` module docs); see also
+`docs/decisions/0011-explore-and-observer-polls.md`. `UNIQUE(user_id, date)`
+— every sync recomputes a rolling 7-day-back / 1-day-forward window from
+scratch and fully overwrites each day's row in it (including writing zero
+rows for days with no meetings), rather than accumulating, so a
+cancelled/rescheduled meeting is reflected correctly rather than leaving a
+stale count. All-day entries, out-of-office/focus-time/working-location
+events, and meetings the owner declined are excluded from the count. Days
+are bucketed by UTC calendar date of the event's start time (not the user's
+local timezone) — a known limitation, not a bug.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `date` | DATE | |
-| `meeting_count` | INT | |
-| `meeting_hours` | DOUBLE | |
-| `created_at` | TIMESTAMPTZ | |
+| `date` | DATE | UTC calendar date |
+| `meeting_count` | INT | Number of timed, non-declined events that day; all-day entries don't count |
+| `meeting_minutes` | INT | Total minutes across those events |
+| `synced_at` | TIMESTAMPTZ | Last time this row was (re)computed |
 
 ### `genetic_records`
 
@@ -199,7 +242,7 @@ OAuth tokens for all third-party integrations. Encrypted with AES-256-GCM.
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `provider` | TEXT | e.g. `garmin`, `oura`, `dexcom`, `google`, `mychart` |
+| `provider` | TEXT | e.g. `garmin`, `oura`, `google`, `mychart` |
 | `access_token_encrypted` | BYTEA | AES-256-GCM encrypted |
 | `refresh_token_encrypted` | BYTEA | AES-256-GCM encrypted |
 | `expires_at` | TIMESTAMPTZ nullable | |

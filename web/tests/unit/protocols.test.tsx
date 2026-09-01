@@ -139,7 +139,7 @@ describe("PatternSelector", () => {
 describe("ImportModal", () => {
   it("parses valid JSON file", async () => {
     const validProtocol = JSON.stringify({
-      schema: "ownpulse/protocol/v1",
+      schema: "ownpulse-protocol/v1",
       name: "Test Protocol",
       duration_days: 14,
       tags: [],
@@ -199,8 +199,10 @@ describe("TemplateCard", () => {
     const useBtn = screen.getByRole("button", { name: /use this protocol/i });
     await userEvent.click(useBtn);
 
-    // Date picker should appear
-    const dateInput = screen.getByDisplayValue(new Date().toISOString().slice(0, 10));
+    // Date picker should appear, defaulting to the local (not UTC) date.
+    const now = new Date();
+    const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const dateInput = screen.getByDisplayValue(todayLocal);
     expect(dateInput).toBeDefined();
     expect(screen.getByRole("button", { name: /start/i })).toBeDefined();
   });

@@ -232,6 +232,106 @@ describe("ProtocolView with runs", () => {
     expect(capturedBody).toEqual({ status: "paused" });
   });
 
+  it("calls logRunDose with the active run id (not the protocol id) when Log is clicked", async () => {
+    let capturedRunId: string | undefined;
+    let capturedUrl: string | undefined;
+    let capturedBody: unknown;
+
+    // Local date, matching how ProtocolView now parses run.start_date — using
+    // the UTC date here would make this test flaky for contributors west of
+    // UTC near midnight.
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const activeRun = {
+      id: "run-1",
+      protocol_id: "proto-1",
+      user_id: "user-1",
+      start_date: todayStr,
+      status: "active" as const,
+      notify: false,
+      notify_times: [],
+      repeat_reminders: false,
+      repeat_interval_minutes: 30,
+      created_at: `${todayStr}T10:00:00Z`,
+    };
+
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([activeRun])),
+      http.post("/api/v1/protocols/runs/:runId/doses/log", async ({ params, request }) => {
+        capturedRunId = params.runId as string;
+        capturedUrl = request.url;
+        capturedBody = await request.json();
+        return HttpResponse.json({
+          id: "dose-1",
+          protocol_line_id: "line-1",
+          day_number: 0,
+          status: "completed",
+          intervention_id: "iv-1",
+          logged_at: `${todayStr}T12:00:00Z`,
+          created_at: `${todayStr}T12:00:00Z`,
+        });
+      }),
+    );
+
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText("Today’s Doses")).toBeDefined();
+    });
+
+    const logButton = screen.getByRole("button", { name: "Log" });
+    expect(logButton).not.toBeDisabled();
+    await user.click(logButton);
+
+    await waitFor(() => {
+      expect(capturedRunId).toBe("run-1");
+    });
+
+    // Must NOT have posted using the protocol id ("proto-1") as the run id.
+    expect(capturedRunId).not.toBe(protocol.id);
+    expect(capturedUrl).toContain("/api/v1/protocols/runs/run-1/doses/log");
+    // The request body itself must be the exact expected shape — a handler
+    // that returns 200 for any body (e.g. `{totally_wrong: 1}`) would pass a
+    // test that only checks the URL.
+    expect(capturedBody).toEqual({ protocol_line_id: "line-1", day_number: 0 });
+  });
+
+  it("shows a hint instead of the dose list when there is no active run", async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[1]])), // completed only
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText("Today’s Doses")).toBeDefined();
+    });
+
+    expect(screen.getByText("Start a run to log doses")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Log" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+  });
+
+  it("shows the same hint when the only run is paused", async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () =>
+        HttpResponse.json([{ ...runs[0], status: "paused" }]),
+      ),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText("Today’s Doses")).toBeDefined();
+    });
+
+    expect(screen.getByText("Start a run to log doses")).toBeDefined();
+  });
+
   it("renders description section", async () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
@@ -242,6 +342,95 @@ describe("ProtocolView with runs", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Healing protocol")).toBeDefined();
+    });
+  });
+
+  it("builds the share link from the response's `token` field", async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([])),
+      http.post("/api/v1/protocols/:id/share", () =>
+        HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }),
+      ),
+    );
+
+    renderWithProviders();
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(screen.getByText("Share")).toBeDefined();
+    });
+
+    await user.click(screen.getByText("Share"));
+
+    await waitFor(() => {
+      const input = screen.getByDisplayValue(/\/protocols\/shared\/share-abc$/);
+      expect(input).toBeDefined();
+    });
+  });
+
+  describe("today's-dose day math at a UTC-offset-sensitive instant", () => {
+    const originalTz = process.env.TZ;
+
+    beforeEach(() => {
+      // UTC-10, no DST — a run.start_date parsed as UTC midnight instead of
+      // local midnight rolls its "day 0" forward by 10h relative to this
+      // timezone's actual local day.
+      process.env.TZ = "Pacific/Honolulu";
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      if (originalTz === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = originalTz;
+      }
+    });
+
+    it("does not show today's doses before the run's start date has arrived locally", async () => {
+      // 2026-03-29T05:00:00Z is 2026-03-28T19:00 in Honolulu — local
+      // calendar is still the day *before* the run's start_date.
+      vi.setSystemTime(new Date("2026-03-29T05:00:00Z"));
+
+      server.use(
+        http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+        http.get("/api/v1/protocols/:id/runs", () =>
+          HttpResponse.json([{ ...runs[0], start_date: "2026-03-29" }]),
+        ),
+      );
+
+      renderWithProviders();
+
+      await waitFor(() => {
+        expect(screen.getByText("Today’s Doses")).toBeDefined();
+      });
+
+      // Parsing start_date as UTC (the bug) would put "now" 5h after that
+      // UTC instant, i.e. inside day 0 of the run — showing today's dose a
+      // full local day early. Parsing it as local correctly treats the run
+      // as not yet started for this user's actual calendar day.
+      expect(screen.getByText("No doses scheduled for today.")).toBeDefined();
+      expect(screen.queryByRole("button", { name: "Log" })).toBeNull();
+    });
+
+    it("shows today's dose once the run's start date has arrived locally", async () => {
+      // 2026-03-29T05:00:00Z is 2026-03-28T19:00 in Honolulu — the local
+      // calendar day matching the run's start_date.
+      vi.setSystemTime(new Date("2026-03-29T05:00:00Z"));
+
+      server.use(
+        http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+        http.get("/api/v1/protocols/:id/runs", () =>
+          HttpResponse.json([{ ...runs[0], start_date: "2026-03-28" }]),
+        ),
+      );
+
+      renderWithProviders();
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Log" })).toBeDefined();
+      });
     });
   });
 });

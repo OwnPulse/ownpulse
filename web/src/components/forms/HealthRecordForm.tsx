@@ -4,11 +4,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type CreateHealthRecord, healthRecordsApi } from "../../api/health-records";
+import { localNow } from "../../utils/datetime";
 import forms from "./forms.module.css";
-
-function nowLocal() {
-  return new Date().toISOString().slice(0, 16);
-}
 
 export default function HealthRecordForm() {
   const queryClient = useQueryClient();
@@ -16,7 +13,7 @@ export default function HealthRecordForm() {
   const [recordType, setRecordType] = useState("");
   const [value, setValue] = useState("");
   const [unit, setUnit] = useState("");
-  const [startTime, setStartTime] = useState(nowLocal);
+  const [startTime, setStartTime] = useState(localNow);
 
   const mutation = useMutation({
     mutationFn: (data: CreateHealthRecord) => healthRecordsApi.create(data),
@@ -26,7 +23,7 @@ export default function HealthRecordForm() {
       setRecordType("");
       setValue("");
       setUnit("");
-      setStartTime(nowLocal());
+      setStartTime(localNow());
     },
   });
 
@@ -37,7 +34,12 @@ export default function HealthRecordForm() {
       record_type: recordType,
       value: parseFloat(value),
       unit,
-      start_time: startTime,
+      // The datetime-local input's value has no UTC offset ("2026-03-01T05:05");
+      // the backend's DateTime<Utc> requires one. Converting here makes that
+      // explicit rather than relying on the backend happening to reject (or,
+      // if it's ever loosened to parse naive strings as UTC, silently
+      // misinterpreting) an unqualified local time.
+      start_time: new Date(startTime).toISOString(),
     });
   };
 
@@ -108,11 +110,23 @@ export default function HealthRecordForm() {
       </div>
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Health Record"}
+          {mutation.isPending ? "Saving..." : "Log Health Record"}
         </button>
       </div>
-      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
+      {/* Always mounted (only the text is conditional) so assistive tech
+          reliably announces the result — a role="status" node that's
+          inserted fresh into the DOM each time is not guaranteed to be
+          picked up by screen readers. */}
+      <p
+        className={
+          mutation.isError ? forms.errorMsg : mutation.isSuccess ? forms.successMsg : undefined
+        }
+        role="status"
+        aria-live="polite"
+      >
+        {mutation.isError && `Error: ${mutation.error.message}`}
+        {mutation.isSuccess && "Saved!"}
+      </p>
     </form>
   );
 }

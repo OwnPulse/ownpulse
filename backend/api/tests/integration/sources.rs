@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+use chrono::{Duration, SecondsFormat, Utc};
 use serde_json::json;
 use tower::ServiceExt;
 
 use crate::common;
+
+/// RFC3339 timestamp `minutes_ago` in the past, so test data always falls
+/// inside the overlap scan's rolling window regardless of the current date.
+fn recent_ts(minutes_ago: i64) -> String {
+    (Utc::now() - Duration::minutes(minutes_ago)).to_rfc3339_opts(SecondsFormat::Secs, true)
+}
 
 /// Insert a health record for the test user directly via the API.
 async fn insert_record(
@@ -42,44 +49,12 @@ async fn test_overlap_scan_reports_metrics_with_multiple_sources() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     // heart_rate has two sources -> should be reported.
-    insert_record(
-        &app,
-        &token,
-        "garmin",
-        "heart_rate",
-        60.0,
-        "2026-05-20T10:00:00Z",
-    )
-    .await;
-    insert_record(
-        &app,
-        &token,
-        "garmin",
-        "heart_rate",
-        61.0,
-        "2026-05-20T10:01:00Z",
-    )
-    .await;
-    insert_record(
-        &app,
-        &token,
-        "oura",
-        "heart_rate",
-        62.0,
-        "2026-05-20T10:02:00Z",
-    )
-    .await;
+    insert_record(&app, &token, "garmin", "heart_rate", 60.0, &recent_ts(120)).await;
+    insert_record(&app, &token, "garmin", "heart_rate", 61.0, &recent_ts(119)).await;
+    insert_record(&app, &token, "oura", "heart_rate", 62.0, &recent_ts(118)).await;
 
     // weight has a single source -> should NOT be reported.
-    insert_record(
-        &app,
-        &token,
-        "manual",
-        "weight",
-        80.0,
-        "2026-05-20T08:00:00Z",
-    )
-    .await;
+    insert_record(&app, &token, "manual", "weight", 80.0, &recent_ts(240)).await;
 
     let resp = app
         .app
@@ -116,15 +91,7 @@ async fn test_overlap_scan_empty_when_no_overlap() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     // Single-source metric only.
-    insert_record(
-        &app,
-        &token,
-        "manual",
-        "weight",
-        80.0,
-        "2026-05-20T08:00:00Z",
-    )
-    .await;
+    insert_record(&app, &token, "manual", "weight", 80.0, &recent_ts(240)).await;
 
     let resp = app
         .app
@@ -173,18 +140,10 @@ async fn test_overlap_scan_is_user_scoped() {
         "garmin",
         "heart_rate",
         60.0,
-        "2026-05-20T10:00:00Z",
+        &recent_ts(120),
     )
     .await;
-    insert_record(
-        &app,
-        &token_a,
-        "oura",
-        "heart_rate",
-        62.0,
-        "2026-05-20T10:02:00Z",
-    )
-    .await;
+    insert_record(&app, &token_a, "oura", "heart_rate", 62.0, &recent_ts(118)).await;
 
     // A second user with no data must see an empty scan.
     let (_user_b, token_b) = common::create_test_user(&app).await;
@@ -205,4 +164,81 @@ async fn test_overlap_scan_is_user_scoped() {
         body["metrics"].as_array().unwrap().is_empty(),
         "user B must not see user A's overlaps"
     );
+}
+
+// ---------------------------------------------------------------------------
+// POST /source-preferences — preferred_source validation
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_upsert_source_preference_accepts_known_source() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/source-preferences",
+            &token,
+            Some(&json!({ "metric_type": "heart_rate", "preferred_source": "garmin" })),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 201);
+    let body = common::body_json(resp).await;
+    assert_eq!(body["preferred_source"], "garmin");
+}
+
+#[tokio::test]
+async fn test_upsert_source_preference_rejects_unknown_source() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/source-preferences",
+            &token,
+            Some(&json!({ "metric_type": "heart_rate", "preferred_source": "garmn" })),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        400,
+        "typo'd source must be rejected, not silently accepted"
+    );
+    let body = common::body_json(resp).await;
+    let message = body["error"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("garmn"),
+        "error message should be descriptive: {message}"
+    );
+}
+
+#[tokio::test]
+async fn test_upsert_source_preference_unauthenticated() {
+    let app = common::setup().await;
+
+    let resp = app
+        .app
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/v1/source-preferences")
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(
+                    json!({ "metric_type": "heart_rate", "preferred_source": "garmin" })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 401);
 }

@@ -6,6 +6,7 @@ import { setupServer } from "msw/node";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { protocolsApi } from "../../src/api/protocols";
 import { useAuthStore } from "../../src/store/auth";
+import { refresh401Handler } from "./support/msw-auth-refresh";
 
 const todaysDosesList = [
   {
@@ -20,7 +21,6 @@ const todaysDosesList = [
     time_of_day: "08:00",
     day_number: 3,
     status: "pending" as const,
-    dose_id: null,
   },
   {
     protocol_id: "p1",
@@ -34,7 +34,6 @@ const todaysDosesList = [
     time_of_day: "08:00",
     day_number: 3,
     status: "completed" as const,
-    dose_id: "dose-1",
   },
 ];
 
@@ -68,6 +67,7 @@ const server = setupServer(
   http.post("/api/v1/protocols/runs/:runId/doses/skip", () => {
     return HttpResponse.json(skippedDose);
   }),
+  refresh401Handler,
 );
 
 beforeAll(() => server.listen());

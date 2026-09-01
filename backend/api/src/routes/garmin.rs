@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
-//! Garmin OAuth 1.0a flow — connect and callback routes.
+//! Garmin OAuth 1.0a flow — connect, callback, and manual sync routes.
 
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::header::SET_COOKIE;
 use axum::response::{IntoResponse, Redirect, Response};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::AppState;
 use crate::auth::extractor::AuthUser;
@@ -14,6 +15,8 @@ use crate::crypto;
 use crate::db::integration_tokens;
 use crate::error::ApiError;
 use crate::integrations::garmin::GarminClient;
+use crate::jobs::garmin_sync;
+use crate::routes::read_cookie;
 
 /// GET /auth/garmin/login — start the OAuth 1.0a flow.
 ///
@@ -185,21 +188,37 @@ pub async fn garmin_callback(
     Ok(response)
 }
 
-/// Read a named cookie from the request headers.
-fn read_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies
-                .split(';')
-                .filter_map(|c| {
-                    let trimmed = c.trim();
-                    trimmed
-                        .strip_prefix(name)
-                        .and_then(|rest| rest.strip_prefix('='))
-                        .map(|v| v.to_string())
-                })
-                .next()
-        })
+#[derive(Serialize)]
+pub struct SyncResponse {
+    pub source: String,
+    pub records_inserted: u32,
+}
+
+/// POST /integrations/garmin/sync — fetch Garmin data now instead of waiting
+/// for the periodic background job's next interval.
+pub async fn sync(
+    State(state): State<AppState>,
+    auth_user: AuthUser,
+) -> Result<Json<SyncResponse>, ApiError> {
+    let records_inserted = garmin_sync::sync_user_now(
+        &state.pool,
+        &state.config,
+        &state.http_client,
+        auth_user.id,
+        &state.event_tx,
+    )
+    .await
+    .map_err(|e| {
+        // Match on the typed outcome rather than comparing error strings —
+        // `ApiError::from` maps each variant to the right HTTP status.
+        if let crate::jobs::SyncError::Upstream(ref msg) = e {
+            tracing::warn!(user_id = %auth_user.id, error = %msg, "Garmin manual sync failed");
+        }
+        ApiError::from(e)
+    })?;
+
+    Ok(Json(SyncResponse {
+        source: "garmin".to_string(),
+        records_inserted,
+    }))
 }

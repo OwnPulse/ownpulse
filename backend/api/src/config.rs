@@ -58,10 +58,17 @@ pub struct Config {
     #[serde(default)]
     pub oura_auth_base_url: Option<String>,
 
+    /// Redirect URI for the Google Calendar *connect* flow — deliberately
+    /// separate from `google_redirect_uri` (login/signup). Reuses
+    /// `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, but Google requires an
+    /// exact registered redirect URI per flow, and this flow requires an
+    /// authenticated user + `calendar.readonly` scope rather than login.
     #[serde(default)]
-    pub dexcom_client_id: Option<String>,
+    pub google_calendar_redirect_uri: Option<String>,
+    /// Override the Google Calendar API base URL for testing. Defaults to
+    /// `https://www.googleapis.com`.
     #[serde(default)]
-    pub dexcom_client_secret: Option<String>,
+    pub google_calendar_api_base_url: Option<String>,
 
     /// MyChart / SMART-on-FHIR public OAuth client id. SMART public clients use
     /// PKCE rather than a client secret, so no secret is configured. The FHIR
@@ -169,6 +176,63 @@ fn default_smtp_port() -> u16 {
     2587
 }
 
+/// Minimal `Config` construction for unit tests that need *a* config value
+/// but don't exercise any of its fields (e.g. background-job spawn/shutdown
+/// smoke tests). Integration tests that actually hit config-dependent
+/// behavior should use `tests/integration/common.rs::test_config` instead.
+#[cfg(test)]
+pub mod test_helpers {
+    use super::{
+        Config, default_apple_jwks_url, default_data_region, default_encryption_key,
+        default_google_token_url, default_google_userinfo_url, default_jwt_expiry,
+        default_jwt_secret, default_refresh_expiry, default_rust_log, default_smtp_port,
+        default_web_origin,
+    };
+
+    pub fn minimal_config() -> Config {
+        Config {
+            database_url: "postgres://user:pass@localhost/db".to_string(),
+            jwt_secret: default_jwt_secret(),
+            jwt_expiry_seconds: default_jwt_expiry(),
+            refresh_token_expiry_seconds: default_refresh_expiry(),
+            google_client_id: None,
+            google_client_secret: None,
+            google_redirect_uri: None,
+            google_token_url: default_google_token_url(),
+            google_userinfo_url: default_google_userinfo_url(),
+            apple_client_id: None,
+            apple_jwks_url: default_apple_jwks_url(),
+            garmin_client_id: None,
+            garmin_client_secret: None,
+            garmin_base_url: None,
+            oura_client_id: None,
+            oura_client_secret: None,
+            oura_api_base_url: None,
+            oura_auth_base_url: None,
+            google_calendar_redirect_uri: None,
+            google_calendar_api_base_url: None,
+            mychart_client_id: None,
+            mychart_allow_insecure_urls: true,
+            encryption_key: default_encryption_key(),
+            encryption_key_previous: None,
+            storage_path: None,
+            app_user: None,
+            app_password_hash: None,
+            data_region: default_data_region(),
+            web_origin: default_web_origin(),
+            rust_log: default_rust_log(),
+            require_invite: false,
+            ios_min_version: None,
+            ios_force_upgrade_below: None,
+            smtp_host: None,
+            smtp_port: default_smtp_port(),
+            smtp_username: None,
+            smtp_password: None,
+            smtp_from: None,
+        }
+    }
+}
+
 impl Config {
     /// Return the Google OAuth redirect URI.
     ///
@@ -178,6 +242,15 @@ impl Config {
         self.google_redirect_uri
             .clone()
             .unwrap_or_else(|| format!("{}/api/v1/auth/google/callback", self.web_origin))
+    }
+
+    /// Return the Google Calendar connect-flow redirect URI. Same override
+    /// pattern as [`Config::google_redirect_uri`], but a distinct path since
+    /// this is a separate OAuth flow (linking, not login).
+    pub fn google_calendar_redirect_uri(&self) -> String {
+        self.google_calendar_redirect_uri
+            .clone()
+            .unwrap_or_else(|| format!("{}/api/v1/auth/google-calendar/callback", self.web_origin))
     }
 
     /// Load configuration from environment variables.
@@ -240,8 +313,8 @@ mod tests {
             oura_client_secret: None,
             oura_api_base_url: None,
             oura_auth_base_url: None,
-            dexcom_client_id: None,
-            dexcom_client_secret: None,
+            google_calendar_redirect_uri: None,
+            google_calendar_api_base_url: None,
             mychart_client_id: None,
             mychart_allow_insecure_urls: true,
             encryption_key: default_encryption_key(),
@@ -317,6 +390,26 @@ mod tests {
         assert_eq!(
             config.google_redirect_uri(),
             "https://custom.example.com/callback"
+        );
+    }
+
+    #[test]
+    fn google_calendar_redirect_uri_derived_from_web_origin() {
+        let config = test_config();
+        assert_eq!(
+            config.google_calendar_redirect_uri(),
+            "http://localhost:5173/api/v1/auth/google-calendar/callback"
+        );
+    }
+
+    #[test]
+    fn google_calendar_redirect_uri_explicit_override() {
+        let mut config = test_config();
+        config.google_calendar_redirect_uri =
+            Some("https://custom.example.com/gcal-callback".to_string());
+        assert_eq!(
+            config.google_calendar_redirect_uri(),
+            "https://custom.example.com/gcal-callback"
         );
     }
 }

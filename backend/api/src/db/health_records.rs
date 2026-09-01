@@ -7,6 +7,86 @@ use sqlx::PgPool;
 use std::collections::HashMap;
 use uuid::Uuid;
 
+/// WHERE-clause fragment that collapses each dedup pair in `health_records`
+/// down to exactly one canonical row for default aggregate reads.
+///
+/// Two things this deliberately does **not** do, because both are wrong:
+///
+/// 1. Equate "has `duplicate_of`" with "is the non-canonical row". That
+///    column is stamped on whichever row happened to arrive **second** —
+///    arrival order, not preference, decides which row gets it. A check
+///    like `duplicate_of IS NOT NULL AND source <> preferred` is therefore
+///    ordering-dependent: if the preferred source's record happens to
+///    arrive first (`duplicate_of IS NULL`), it hides nothing, and if a
+///    preference names a source absent from the pair (stale/typo — the
+///    preference endpoint historically didn't validate against real data),
+///    it hides the later row with no replacement, silently dropping data
+///    from every chart that reads it.
+/// 2. Only exclude a row when a preference exists. With **no** preference
+///    at all — every user's default state — a naive "only filter when a
+///    preference matches" check leaves both sides of every pair counted:
+///    two sources reporting the same sleep session would double it to ~16h.
+///
+/// So the rule is unconditional: every dedup pair collapses to one row,
+/// preference or not.
+///
+/// - If a row is the **later** arrival (`duplicate_of` points at another row
+///   in the pair, the "original"), it is hidden *unless* a preference
+///   explicitly names its own source — i.e. the default keeps the original,
+///   and a preference can only override that default in the later row's
+///   favor.
+/// - If a row is the **original** (some other row's `duplicate_of` points
+///   back at it), it is hidden only when a preference explicitly names the
+///   *other* row's source — overriding the default in the later row's
+///   favor.
+///
+/// Per-pair this yields exactly one visible row in all three cases (no
+/// preference, preference names the original's source, preference names the
+/// later row's source); a preference naming neither row's source is
+/// correctly a no-op (falls back to the default: original wins).
+///
+/// This is the "applied at query time" half of the dedup rule described in
+/// `CLAUDE.md` and `docs/architecture/healthkit-sync.md`: both records are
+/// always kept in the table, but only the canonical one is counted in
+/// default aggregate views. It must **never** be applied to `GET
+/// /health-records`, friend-shared views, or any export path — those stay
+/// raw so provenance is never dropped.
+///
+/// Requires the query to alias `health_records` as `hr`. The two branches
+/// are written as separate top-level `EXISTS`es (rather than one `JOIN ...
+/// ON (a OR b)`) so each can use a plain index-friendly equality lookup —
+/// `original.id = hr.duplicate_of` hits the primary key, `later.duplicate_of
+/// = hr.id` hits `idx_health_records_duplicate_of` (migration 0035) — instead
+/// of forcing a sequential scan to evaluate an OR across two columns inside
+/// a correlated subquery.
+pub const SOURCE_PREFERENCE_EXCLUSION: &str = "NOT (
+        -- hr is the later arrival of a pair; hidden unless a preference
+        -- explicitly keeps it (names hr's own source).
+        EXISTS (
+            SELECT 1 FROM health_records original
+            WHERE original.id = hr.duplicate_of
+              AND NOT EXISTS (
+                  SELECT 1 FROM source_preferences sp
+                  WHERE sp.user_id = hr.user_id
+                    AND sp.metric_type = hr.record_type
+                    AND sp.preferred_source = hr.source
+              )
+        )
+        OR
+        -- hr is the original of a pair; hidden only when a preference
+        -- explicitly promotes the later row's source over it.
+        EXISTS (
+            SELECT 1 FROM health_records later
+            WHERE later.duplicate_of = hr.id
+              AND EXISTS (
+                  SELECT 1 FROM source_preferences sp
+                  WHERE sp.user_id = hr.user_id
+                    AND sp.metric_type = hr.record_type
+                    AND sp.preferred_source = later.source
+              )
+        )
+    )";
+
 /// A cross-source dedup match for a single record in a bulk-insert batch.
 /// Emitted by [`bulk_insert_healthkit`] so the caller can log/metric each
 /// match without re-querying the DB.
@@ -266,6 +346,51 @@ pub async fn insert(
     .await
 }
 
+/// Insert a health record, skipping the write if a row with the same
+/// `(user_id, source, record_type, start_time, source_id)` already exists.
+///
+/// Used exclusively by background sync jobs (Garmin/Oura), which re-fetch the
+/// same window of data on every cycle and always set a deterministic
+/// `source_id` (e.g. `garmin-steps-2026-03-28`). Without `ON CONFLICT`, a
+/// re-synced row hits the existing unique constraint and surfaces as a
+/// generic "failed to insert" warning on every cycle; this makes the replay
+/// case an explicit, silent no-op instead. Returns `None` when the row
+/// already existed, `Some` when a new row was actually written, so callers
+/// can report a truthful insert count instead of counting every *attempt*.
+/// `duplicate_of` is threaded through unchanged so a re-sync of a
+/// cross-source duplicate (a different day's find_duplicate match) doesn't
+/// hit the same unique-violation noise this function exists to avoid.
+pub async fn insert_synced(
+    pool: &PgPool,
+    user_id: Uuid,
+    record: &CreateHealthRecord,
+    duplicate_of: Option<Uuid>,
+) -> Result<Option<HealthRecordRow>, sqlx::Error> {
+    sqlx::query_as::<_, HealthRecordRow>(
+        "INSERT INTO health_records
+            (user_id, source, record_type, value, unit, start_time, end_time,
+             metadata, source_id, duplicate_of)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (user_id, source, record_type, start_time, source_id)
+             DO NOTHING
+         RETURNING id, user_id, source, record_type, value, unit,
+                   start_time, end_time, metadata, source_id, source_instance,
+                   duplicate_of, healthkit_written, created_at",
+    )
+    .bind(user_id)
+    .bind(&record.source)
+    .bind(&record.record_type)
+    .bind(record.value)
+    .bind(&record.unit)
+    .bind(record.start_time)
+    .bind(record.end_time)
+    .bind(&record.metadata)
+    .bind(&record.source_id)
+    .bind(duplicate_of)
+    .fetch_optional(pool)
+    .await
+}
+
 /// List health records for a user with optional filters. Capped at 1000 rows.
 pub async fn list(
     pool: &PgPool,
@@ -317,18 +442,32 @@ pub async fn get_by_id(
 }
 
 /// Delete a health record. Returns true if a row was actually deleted.
+///
+/// The `duplicate_of` cleanup and the delete run in one transaction: without
+/// that, a `duplicate_of` insert racing between the two statements can leave
+/// the FK pointing at a row that's about to disappear, so the DELETE fails
+/// on the FK constraint after provenance has already been wiped — the record
+/// survives but its dedup history doesn't. Both statements are also scoped
+/// to `user_id`, so the cleanup is a no-op when `id` doesn't belong to the
+/// caller, matching the not-found semantics of the delete.
 pub async fn delete(pool: &PgPool, user_id: Uuid, id: Uuid) -> Result<bool, sqlx::Error> {
-    // Clear any duplicate_of references pointing to this record first.
-    sqlx::query("UPDATE health_records SET duplicate_of = NULL WHERE duplicate_of = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
+    let mut tx = pool.begin().await?;
+
+    sqlx::query(
+        "UPDATE health_records SET duplicate_of = NULL WHERE duplicate_of = $1 AND user_id = $2",
+    )
+    .bind(id)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
 
     let result = sqlx::query("DELETE FROM health_records WHERE id = $1 AND user_id = $2")
         .bind(id)
         .bind(user_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
+
+    tx.commit().await?;
 
     Ok(result.rows_affected() > 0)
 }

@@ -16,14 +16,17 @@ use crate::error::ApiError;
 use crate::models::healthkit::{
     HealthKitBulkAck, HealthKitBulkInsert, HealthKitConfirm, HealthKitWriteQueueRow,
 };
+use crate::routes::events::publish_event;
 
 /// Maximum number of records accepted in a single `POST /healthkit/sync` call.
 ///
-/// iOS currently chunks by 100 records per batch, so a cap of 500 leaves
-/// headroom for future client changes while preventing a pathological client
-/// from starving the pool or blowing up process memory on the two large
-/// `UNNEST` bindings we build in [`db_hr::bulk_insert_healthkit`]. Raise this
-/// only alongside a load test at the new ceiling.
+/// iOS's own batch size (`SyncEngine.batchSize`) is also 500 — the two
+/// constants track each other with zero headroom today. This still bounds
+/// the two large `UNNEST` bindings we build in
+/// [`db_hr::bulk_insert_healthkit`] to a known size, preventing a pathological
+/// client from starving the pool or blowing up process memory. Raise this
+/// only alongside raising the iOS constant and a load test at the new
+/// ceiling.
 const MAX_HEALTHKIT_BATCH: usize = 500;
 
 /// `POST /healthkit/sync` — bulk insert health records from HealthKit in two
@@ -155,6 +158,17 @@ pub async fn bulk_insert(
         counter!("healthkit_same_source_duplicates_total").increment(same_source_dropped as u64);
     }
 
+    // Web's SSE dashboard subscribes to "health_records" changes but never
+    // refreshed on an iOS HealthKit sync, since this route was the one write
+    // path that didn't publish. Every other write route does (see
+    // `health_records.rs`, `checkins.rs`, etc.) — match that here. Gated on
+    // `inserted > 0`: iOS polls this endpoint frequently even with nothing
+    // new to sync, and every dashboard query refetching on an all-duplicate,
+    // zero-row batch would defeat the point of the event (signal, not noise).
+    if result.inserted > 0 {
+        publish_event(&state.event_tx, user_id, "health_records", None);
+    }
+
     let ack = HealthKitBulkAck {
         received,
         inserted: result.inserted,
@@ -172,12 +186,21 @@ pub async fn write_queue(
     Ok(Json(rows))
 }
 
-/// POST /healthkit/confirm — confirm that items have been written to HealthKit.
+/// POST /healthkit/confirm — confirm that items have been written to HealthKit,
+/// and/or report items the client attempted but failed to write.
+///
+/// Both updates run in one transaction: a request that lists ids in both
+/// `ids` and `failures` (or crashes mid-request) must not leave the queue
+/// half-applied — see `db::healthkit::confirm`/`mark_failed` for the
+/// same-request precedence rule (confirm wins).
 pub async fn confirm(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<HealthKitConfirm>,
 ) -> Result<StatusCode, ApiError> {
-    db::confirm(&state.pool, user_id, &body.ids).await?;
+    let mut tx = state.pool.begin().await?;
+    db::confirm(&mut tx, user_id, &body.ids).await?;
+    db::mark_failed(&mut tx, user_id, &body.failures).await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }

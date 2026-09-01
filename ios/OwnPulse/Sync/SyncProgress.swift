@@ -31,6 +31,16 @@ final class SyncProgress {
     var totalTypes: Int = 0
     var completedTypes: Int = 0
 
+    /// Count of offline-queue entries currently abandoned (repeatedly
+    /// rejected by the backend past the retry cap) — surfaced so a drop is
+    /// never silent. Reflects the queue's ground truth, refreshed after
+    /// every offline-queue drain.
+    private(set) var abandonedOfflineEntries: Int = 0
+
+    func setAbandonedOfflineEntries(_ count: Int) {
+        abandonedOfflineEntries = count
+    }
+
     /// Total records uploaded across all types in the current sync session.
     var totalRecordsUploaded: Int {
         typeStatuses.values.map(\.recordsSynced).reduce(0, +)

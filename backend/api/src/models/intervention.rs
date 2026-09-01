@@ -20,6 +20,7 @@ pub struct InterventionRow {
     pub notes: Option<String>,
     pub healthkit_written: Option<bool>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Deserialize)]
@@ -38,4 +39,18 @@ pub struct CreateIntervention {
 pub struct InterventionQuery {
     pub start: Option<DateTime<Utc>>,
     pub end: Option<DateTime<Utc>>,
+}
+
+/// PATCH /interventions/:id — all fields optional, unset fields are left
+/// unchanged. No substance-name validation per project rules.
+#[derive(Deserialize)]
+pub struct UpdateIntervention {
+    pub substance: Option<String>,
+    pub dose: Option<f64>,
+    pub unit: Option<String>,
+    pub route: Option<String>,
+    pub administered_at: Option<DateTime<Utc>>,
+    pub fasted: Option<bool>,
+    pub timing_relative_to: Option<String>,
+    pub notes: Option<String>,
 }

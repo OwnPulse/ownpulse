@@ -122,7 +122,36 @@ describe("InterventionForm", () => {
     expect(screen.getByLabelText(/dose/i)).toBeDefined();
     expect(screen.getByLabelText(/unit/i)).toBeDefined();
     expect(screen.getByLabelText(/route/i)).toBeDefined();
-    expect(screen.getByRole("button", { name: /save intervention/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /log intervention/i })).toBeDefined();
+  });
+
+  it("renders unit and route suggestion datalists", () => {
+    renderForm();
+
+    const unitInput = screen.getByLabelText(/unit/i);
+    expect(unitInput.getAttribute("list")).toBe("intervention-unit-suggestions");
+    const unitOptions = Array.from(
+      document.getElementById("intervention-unit-suggestions")?.querySelectorAll("option") ?? [],
+    ).map((o) => o.getAttribute("value"));
+    expect(unitOptions).toEqual(["mg", "mcg", "mL", "IU", "g", "drops", "puffs"]);
+
+    const routeInput = screen.getByLabelText(/route/i);
+    expect(routeInput.getAttribute("list")).toBe("intervention-route-suggestions");
+    const routeOptions = Array.from(
+      document.getElementById("intervention-route-suggestions")?.querySelectorAll("option") ?? [],
+    ).map((o) => o.getAttribute("value"));
+    expect(routeOptions).toEqual([
+      "oral",
+      "sublingual",
+      "subq",
+      "IM",
+      "IV",
+      "topical",
+      "inhaled",
+      "nasal",
+      "rectal",
+      "transdermal",
+    ]);
   });
 
   it("renders quick-pick chips when active substances exist", async () => {
@@ -186,7 +215,7 @@ describe("InterventionForm", () => {
     // Fill via chip
     await user.click(screen.getByText("BPC-157 250mcg SubQ"));
 
-    await user.click(screen.getByRole("button", { name: /save intervention/i }));
+    await user.click(screen.getByRole("button", { name: /log intervention/i }));
 
     await waitFor(() => {
       expect(screen.getByText("Saved!")).toBeDefined();
@@ -209,7 +238,7 @@ describe("InterventionForm", () => {
     await user.type(screen.getByLabelText(/unit/i), "mg");
     await user.type(screen.getByLabelText(/route/i), "oral");
 
-    await user.click(screen.getByRole("button", { name: /save intervention/i }));
+    await user.click(screen.getByRole("button", { name: /log intervention/i }));
 
     await waitFor(() => {
       expect(screen.getByText(/error:/i)).toBeDefined();

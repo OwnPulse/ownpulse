@@ -18,6 +18,12 @@ npm run build
 npm test && npm run test:e2e
 ```
 
+Use Node 22 (`.nvmrc` / `engines` pin it) — running the suite on a different
+major version can surface environment-specific failures that look like a
+"known baseline" but are actually real. Any test failing locally is a defect
+to fix immediately — never treat it as a tolerated baseline to work around
+or ignore.
+
 ## Interface to Other Services
 
 - Pact consumer contract at `pact/contracts/web-backend.json`

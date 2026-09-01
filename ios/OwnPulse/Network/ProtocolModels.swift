@@ -193,6 +193,20 @@ struct ActiveRunResponse: Codable, Sendable, Identifiable {
     let startDate: String
     let durationDays: Int?
     let status: String
+    /// Whether the user opted in to local dose reminders for this run.
+    let notify: Bool
+    /// Legacy single reminder time, `"HH:mm"`. Superseded by `notifyTimes`
+    /// when present, but some runs only ever set this field.
+    let notifyTime: String?
+    /// One or more reminder times, `"HH:mm"` each. When both this and
+    /// `notifyTime` are nil/empty but `notify` is true, a default reminder
+    /// time is used — see `DoseReminderCoordinator`.
+    let notifyTimes: [String]?
+    /// Server-side "repeat until logged" setting. NOT implemented on-device
+    /// — see `NotificationManager.scheduleDoseReminders`. Surfaced here only
+    /// so the UI can reflect what was configured; it has no on-device effect.
+    let repeatReminders: Bool
+    let repeatIntervalMinutes: Int?
     let progressPct: Double
     let dosesToday: Int
     let dosesCompletedToday: Int
@@ -205,6 +219,11 @@ struct ActiveRunResponse: Codable, Sendable, Identifiable {
         case startDate = "start_date"
         case durationDays = "duration_days"
         case status
+        case notify
+        case notifyTime = "notify_time"
+        case notifyTimes = "notify_times"
+        case repeatReminders = "repeat_reminders"
+        case repeatIntervalMinutes = "repeat_interval_minutes"
         case progressPct = "progress_pct"
         case dosesToday = "doses_today"
         case dosesCompletedToday = "doses_completed_today"
