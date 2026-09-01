@@ -120,6 +120,7 @@ struct ExploreViewModelTests {
 
         let vm = ExploreViewModel(networkClient: mock)
         let existingKey = ExploreViewModel.sparklineKey(source: "health_records", field: "heart_rate")
+        // date-ok
         vm.sparklineData[existingKey] = [DataPoint(t: "2026-04-10", v: 60, n: 1)]
 
         await vm.loadSparklines(source: "health_records", fields: ["heart_rate"])

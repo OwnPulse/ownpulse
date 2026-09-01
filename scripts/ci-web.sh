@@ -5,6 +5,10 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+# --- test-date-lint job ---
+"$REPO_ROOT/scripts/check-test-dates.sh"
+
 cd "$REPO_ROOT/web"
 
 npm ci

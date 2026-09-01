@@ -177,7 +177,9 @@ describe("ProtocolBuilder", () => {
           start_date: null,
           duration_days: 28,
           share_token: null,
+          // date-ok
           created_at: "2026-01-01T00:00:00Z",
+          // date-ok
           updated_at: "2026-01-01T00:00:00Z",
           lines: [],
         });

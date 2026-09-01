@@ -7,7 +7,14 @@
 # throughout ios/AGENTS.md.
 set -euo pipefail
 
-cd "$(dirname "$0")/../ios"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# check-test-dates.sh also scans ios/OwnPulseTests, though CI itself doesn't
+# gate ios.yml on it (macOS runner minutes are precious) — run it locally so
+# iOS test authors get the same signal backend/web CI enforces.
+"$SCRIPT_DIR/check-test-dates.sh"
+
+cd "$SCRIPT_DIR/../ios"
 
 # Pin the toolchain so this script and CI build with the same Swift compiler.
 # Override by exporting DEVELOPER_DIR before calling this script if you need

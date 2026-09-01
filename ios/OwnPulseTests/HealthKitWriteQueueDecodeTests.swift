@@ -14,19 +14,9 @@ import Testing
 /// shape, this test (not a production crash) is where it should surface.
 @Suite("HealthKitWriteQueueItem decode — pact contract")
 struct HealthKitWriteQueueDecodeTests {
+    // date-ok
     private static let pactJSON = """
-    {
-      "id": "77777777-7777-7777-7777-777777777777",
-      "user_id": "some-uuid",
-      "hk_type": "body_mass",
-      "value": { "value": 82.5, "unit": "kg", "start_time": "2026-03-20T10:00:00Z", "end_time": "2026-03-20T10:00:00Z" },
-      "scheduled_at": "2026-03-20T10:00:00Z",
-      "confirmed_at": null,
-      "failed_at": null,
-      "error": null,
-      "source_record_id": null,
-      "source_table": null
-    }
+    { "id": "77777777-7777-7777-7777-777777777777", "user_id": "some-uuid", "hk_type": "body_mass", "value": { "value": 82.5, "unit": "kg", "start_time": "2026-03-20T10:00:00Z", "end_time": "2026-03-20T10:00:00Z" }, "scheduled_at": "2026-03-20T10:00:00Z", "confirmed_at": null, "failed_at": null, "error": null, "source_record_id": null, "source_table": null }
     """
 
     // Uses `NetworkClient.makeDecoder()` — the actual decoder every
@@ -45,6 +35,7 @@ struct HealthKitWriteQueueDecodeTests {
             from: Data(Self.pactJSON.utf8)
         )
 
+        // date-ok
         let expectedTime = ISO8601DateFormatter().date(from: "2026-03-20T10:00:00Z")
 
         #expect(item.id == "77777777-7777-7777-7777-777777777777")
@@ -76,19 +67,9 @@ struct HealthKitWriteQueueDecodeTests {
 
     @Test("decodes a payload with a null end_time (instantaneous sample)")
     func decodesNullEndTime() throws {
+        // date-ok
         let json = """
-        {
-          "id": "1",
-          "user_id": "u",
-          "hk_type": "body_mass",
-          "value": { "value": 1.0, "unit": null, "start_time": "2026-03-20T10:00:00Z", "end_time": null },
-          "scheduled_at": "2026-03-20T10:00:00Z",
-          "confirmed_at": null,
-          "failed_at": null,
-          "error": null,
-          "source_record_id": null,
-          "source_table": null
-        }
+        { "id": "1", "user_id": "u", "hk_type": "body_mass", "value": { "value": 1.0, "unit": null, "start_time": "2026-03-20T10:00:00Z", "end_time": null }, "scheduled_at": "2026-03-20T10:00:00Z", "confirmed_at": null, "failed_at": null, "error": null, "source_record_id": null, "source_table": null }
         """
         let item = try Self.makeDecoder().decode(HealthKitWriteQueueItem.self, from: Data(json.utf8))
         #expect(item.value.unit == nil)
@@ -102,6 +83,7 @@ struct HealthKitWriteQueueDecodeTests {
     /// the null-value variant so the decoder (and `processWriteBack`'s
     /// nil-value guard) are exercised against the shape the backend can
     /// actually serve, not just the common case.
+    // date-ok
     private static let nullValuePactJSON = """
     {"id":"1","user_id":"u","hk_type":"body_mass","value":{"value":null,"unit":null,"start_time":"2026-03-20T10:00:00Z","end_time":null},"scheduled_at":"2026-03-20T10:00:00Z","confirmed_at":null,"failed_at":null,"error":null,"source_record_id":null,"source_table":null}
     """
@@ -115,6 +97,7 @@ struct HealthKitWriteQueueDecodeTests {
 
         #expect(item.value.value == nil)
         #expect(item.value.unit == nil)
+        // date-ok
         #expect(item.value.startTime == ISO8601DateFormatter().date(from: "2026-03-20T10:00:00Z"))
         #expect(item.value.endTime == nil)
     }
@@ -129,24 +112,15 @@ struct HealthKitWriteQueueDecodeTests {
     /// is what every test in this suite exercises.
     @Test("decodes fractional-second timestamps (real backend/web rows, not just the whole-second pact fixture)")
     func decodesFractionalSeconds() throws {
+        // date-ok
         let json = """
-        {
-          "id": "77777777-7777-7777-7777-777777777777",
-          "user_id": "some-uuid",
-          "hk_type": "body_mass",
-          "value": { "value": 82.5, "unit": "kg", "start_time": "2026-03-20T10:00:00.123456Z", "end_time": "2026-03-20T10:00:00.123456Z" },
-          "scheduled_at": "2026-03-20T10:00:00.123456Z",
-          "confirmed_at": null,
-          "failed_at": null,
-          "error": null,
-          "source_record_id": null,
-          "source_table": null
-        }
+        { "id": "77777777-7777-7777-7777-777777777777", "user_id": "some-uuid", "hk_type": "body_mass", "value": { "value": 82.5, "unit": "kg", "start_time": "2026-03-20T10:00:00.123456Z", "end_time": "2026-03-20T10:00:00.123456Z" }, "scheduled_at": "2026-03-20T10:00:00.123456Z", "confirmed_at": null, "failed_at": null, "error": null, "source_record_id": null, "source_table": null }
         """
         let item = try Self.makeDecoder().decode(HealthKitWriteQueueItem.self, from: Data(json.utf8))
 
         let fractionalFormatter = ISO8601DateFormatter()
         fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        // date-ok
         let expected = fractionalFormatter.date(from: "2026-03-20T10:00:00.123456Z")
 
         #expect(item.value.startTime == expected)

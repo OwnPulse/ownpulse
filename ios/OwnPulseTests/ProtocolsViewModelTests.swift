@@ -21,11 +21,13 @@ struct ProtocolsViewModelTests {
             id: id,
             name: name,
             status: status,
+            // date-ok
             startDate: "2026-03-01",
             durationDays: durationDays,
             isTemplate: false,
             progressPct: progressPct,
             nextDose: nil,
+            // date-ok
             createdAt: "2026-03-01T00:00:00Z"
         )
     }
@@ -43,6 +45,7 @@ struct ProtocolsViewModelTests {
             id: id,
             protocolId: protocolId,
             protocolName: protocolName,
+            // date-ok
             startDate: "2026-03-28",
             durationDays: 28,
             status: "active",
@@ -54,6 +57,7 @@ struct ProtocolsViewModelTests {
             progressPct: progressPct,
             dosesToday: dosesToday,
             dosesCompletedToday: dosesCompletedToday,
+            // date-ok
             createdAt: "2026-03-28T10:00:00Z"
         )
     }
@@ -71,9 +75,11 @@ struct ProtocolsViewModelTests {
             name: name,
             description: "Test description",
             status: status,
+            // date-ok
             startDate: "2026-03-01",
             durationDays: durationDays,
             shareToken: nil,
+            // date-ok
             createdAt: "2026-03-01T00:00:00Z",
             lines: lines
         )
@@ -115,6 +121,7 @@ struct ProtocolsViewModelTests {
             dayNumber: dayNumber,
             status: status,
             interventionId: nil,
+            // date-ok
             loggedAt: "2026-03-01T08:00:00Z"
         )
     }

@@ -24,6 +24,7 @@ describe("invitesApi", () => {
       const validResponse = {
         valid: true,
         label: "For friends",
+        // date-ok
         expires_at: "2026-04-01T00:00:00Z",
         inviter_name: "Tony",
       };
@@ -112,7 +113,9 @@ describe("invitesApi", () => {
   describe("getClaims", () => {
     it("GETs /api/v1/admin/invites/:id/claims and returns claims", async () => {
       const claims = [
+        // date-ok
         { user_email: "alice@example.com", claimed_at: "2026-03-20T10:00:00Z" },
+        // date-ok
         { user_email: "bob@example.com", claimed_at: "2026-03-21T10:00:00Z" },
       ];
 

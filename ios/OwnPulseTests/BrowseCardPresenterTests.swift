@@ -45,6 +45,7 @@ struct BrowseCardPresenterTests {
 
     @Test("non-empty points -> .chart")
     func sparklineStateChart() {
+        // date-ok
         let points = [DataPoint(t: "2026-04-10", v: 1, n: 1)]
         let state = BrowseCardPresenter.sparklineState(points: points, isLoading: false)
         #expect(state == .chart(points: points))
@@ -52,6 +53,7 @@ struct BrowseCardPresenterTests {
 
     @Test("chart takes precedence over loading when data is present")
     func sparklineStateChartBeatsLoading() {
+        // date-ok
         let points = [DataPoint(t: "2026-04-10", v: 1, n: 1)]
         let state = BrowseCardPresenter.sparklineState(points: points, isLoading: true)
         #expect(state == .chart(points: points))
@@ -91,6 +93,7 @@ struct BrowseCardPresenterTests {
 
     @Test("body_mass value goes through WeightFormatter (lb pref)")
     func latestValueBodyMassPounds() {
+        // date-ok
         let points = [DataPoint(t: "2026-04-10", v: 70, n: 1)]
         let text = BrowseCardPresenter.latestValueText(
             field: "body_mass",
@@ -103,6 +106,7 @@ struct BrowseCardPresenterTests {
 
     @Test("body_mass value goes through WeightFormatter (kg pref)")
     func latestValueBodyMassKilograms() {
+        // date-ok
         let points = [DataPoint(t: "2026-04-10", v: 70, n: 1)]
         let text = BrowseCardPresenter.latestValueText(
             field: "body_mass",
@@ -114,6 +118,7 @@ struct BrowseCardPresenterTests {
 
     @Test("small non-body_mass values get one decimal")
     func latestValueSmallNumber() {
+        // date-ok
         let points = [DataPoint(t: "2026-04-10", v: 6.4, n: 1)]
         let text = BrowseCardPresenter.latestValueText(field: "energy", points: points)
         #expect(text == "6.4")
@@ -121,6 +126,7 @@ struct BrowseCardPresenterTests {
 
     @Test("values >= 10 drop decimals for a compact display")
     func latestValueLargeNumber() {
+        // date-ok
         let points = [DataPoint(t: "2026-04-10", v: 62, n: 1)]
         let text = BrowseCardPresenter.latestValueText(field: "heart_rate", points: points)
         #expect(text == "62")
@@ -129,8 +135,11 @@ struct BrowseCardPresenterTests {
     @Test("uses the LAST point (chronological-last in the array)")
     func latestValueUsesLastPoint() {
         let points = [
+            // date-ok
             DataPoint(t: "2026-04-10", v: 60, n: 1),
+            // date-ok
             DataPoint(t: "2026-04-11", v: 65, n: 1),
+            // date-ok
             DataPoint(t: "2026-04-12", v: 58, n: 1),
         ]
         let text = BrowseCardPresenter.latestValueText(field: "heart_rate", points: points)

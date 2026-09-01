@@ -12,6 +12,7 @@ const mockUsers = [
     role: "admin",
     status: "active",
     data_region: "us",
+    // date-ok
     created_at: "2025-01-01T00:00:00Z",
   },
   {
@@ -21,6 +22,7 @@ const mockUsers = [
     role: "user",
     status: "active",
     data_region: "us",
+    // date-ok
     created_at: "2025-06-01T00:00:00Z",
   },
 ];
@@ -34,6 +36,7 @@ const mockInvites = [
     use_count: 3,
     expires_at: null,
     revoked_at: null,
+    // date-ok
     created_at: "2025-01-01T00:00:00Z",
   },
 ];
@@ -118,6 +121,7 @@ test.describe("Admin page", () => {
             use_count: 0,
             expires_at: null,
             revoked_at: null,
+            // date-ok
             created_at: "2026-03-22T00:00:00Z",
           }),
         });
@@ -136,6 +140,7 @@ test.describe("Admin page", () => {
             use_count: 0,
             expires_at: null,
             revoked_at: null,
+            // date-ok
             created_at: "2026-03-22T00:00:00Z",
           },
         ]),
@@ -164,6 +169,7 @@ test.describe("Admin page", () => {
   test("revoke invite flow", async ({ page }) => {
     await mockAdminApis(page);
 
+    // date-ok
     const revokedInvite = { ...mockInvites[0], revoked_at: "2026-03-22T00:00:00Z" };
 
     // Mock the revoke endpoint

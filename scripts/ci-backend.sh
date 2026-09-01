@@ -7,7 +7,12 @@
 # See CLAUDE.md "Local Setup" for spinning up Postgres via Docker.
 set -euo pipefail
 
-cd "$(dirname "$0")/../backend"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# --- test-date-lint job ---
+"$SCRIPT_DIR/check-test-dates.sh"
+
+cd "$SCRIPT_DIR/../backend"
 
 if [[ -z "${DATABASE_URL:-}" ]]; then
   echo "DATABASE_URL is not set. Example:" >&2

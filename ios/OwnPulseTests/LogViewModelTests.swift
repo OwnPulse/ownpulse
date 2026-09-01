@@ -75,6 +75,7 @@ struct LogViewModelTests {
     func submitCheckinSuccess() async {
         let mock = MockNetworkClient()
         let response = CheckinResponse(
+            // date-ok
             id: "checkin-1", date: "2026-03-28", energy: 7, mood: 8,
             focus: 6, recovery: 7, libido: 5
         )
@@ -130,6 +131,7 @@ struct LogViewModelTests {
     func submitCheckinRequestBody() async {
         let mock = MockNetworkClient()
         let response = CheckinResponse(
+            // date-ok
             id: "c-1", date: "2026-03-28", energy: 8, mood: 9,
             focus: 7, recovery: 6, libido: 5
         )
@@ -370,6 +372,7 @@ struct LogViewModelTests {
     func applySavedMedicineFormatsDose() {
         let mock = MockNetworkClient()
         let vm = LogViewModel(networkClient: mock)
+        // date-ok
         let medicine = SavedMedicine(
             id: "med-1", substance: "Creatine", dose: 5, unit: "g", route: "oral",
             sortOrder: 0, createdAt: "2026-03-01T00:00:00Z"
@@ -571,6 +574,7 @@ struct LogViewModelTests {
         }
     }
 
+    // date-ok
     private static func makeDose() -> ProtocolDose {
         ProtocolDose(id: "dose-1", protocolLineId: "line-1", dayNumber: 0, status: .completed, interventionId: "int-1", loggedAt: "2026-03-28T08:00:00Z")
     }

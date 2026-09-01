@@ -24,6 +24,7 @@ const mockUsers = [
     role: "admin",
     status: "active",
     data_region: "us",
+    // date-ok
     created_at: "2025-01-01T00:00:00Z",
   },
   {
@@ -33,6 +34,7 @@ const mockUsers = [
     role: "user",
     status: "active",
     data_region: "us",
+    // date-ok
     created_at: "2025-06-01T00:00:00Z",
   },
 ];
@@ -46,6 +48,7 @@ const mockInvites = [
     use_count: 3,
     expires_at: null,
     revoked_at: null,
+    // date-ok
     created_at: "2025-01-01T00:00:00Z",
   },
 ];
@@ -263,6 +266,7 @@ describe("adminApi", () => {
         use_count: 0,
         expires_at: null,
         revoked_at: null,
+        // date-ok
         created_at: "2026-03-22T00:00:00Z",
       };
 
@@ -299,6 +303,7 @@ describe("adminApi", () => {
             code: "INVITE-NEW",
             label: "With email",
             use_count: 0,
+            // date-ok
             created_at: "2026-03-22T00:00:00Z",
           });
         }),
@@ -344,6 +349,7 @@ describe("adminApi", () => {
   describe("revokeInvite", () => {
     it("DELETEs /api/v1/admin/invites/:id", async () => {
       let capturedId: string | undefined;
+      // date-ok
       const revokedInvite = { ...mockInvites[0], revoked_at: "2026-03-22T00:00:00Z" };
 
       server.use(
@@ -357,6 +363,7 @@ describe("adminApi", () => {
       const result = await adminApi.revokeInvite("inv1");
 
       expect(capturedId).toBe("inv1");
+      // date-ok
       expect(result.revoked_at).toBe("2026-03-22T00:00:00Z");
     });
 

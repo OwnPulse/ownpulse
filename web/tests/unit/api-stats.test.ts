@@ -10,6 +10,7 @@ import { refresh401Handler } from "./support/msw-auth-refresh";
 
 const beforeAfterResponse = {
   intervention_substance: "Magnesium",
+  // date-ok
   first_dose: "2026-01-15T08:00:00Z",
   last_dose: null,
   metric: { source: "checkins", field: "energy" },
@@ -18,7 +19,9 @@ const beforeAfterResponse = {
     std_dev: 1.1,
     n: 30,
     points: [
+      // date-ok
       { t: "2026-01-01T00:00:00Z", v: 5 },
+      // date-ok
       { t: "2026-01-02T00:00:00Z", v: 6 },
     ],
   },
@@ -27,7 +30,9 @@ const beforeAfterResponse = {
     std_dev: 0.9,
     n: 30,
     points: [
+      // date-ok
       { t: "2026-01-16T00:00:00Z", v: 7 },
+      // date-ok
       { t: "2026-01-17T00:00:00Z", v: 6 },
     ],
   },
@@ -47,7 +52,9 @@ const correlateResponse = {
   method: "pearson",
   interpretation: "Strong positive correlation",
   scatter: [
+    // date-ok
     { a: 5, b: 6, t: "2026-01-01T00:00:00Z" },
+    // date-ok
     { a: 7, b: 8, t: "2026-01-02T00:00:00Z" },
   ],
 };
@@ -162,7 +169,9 @@ describe("statsApi", () => {
       const result = await statsApi.correlate({
         metric_a: { source: "checkins", field: "energy" },
         metric_b: { source: "checkins", field: "mood" },
+        // date-ok
         start: "2026-01-01T00:00:00Z",
+        // date-ok
         end: "2026-03-01T23:59:59Z",
         resolution: "daily",
         method: "pearson",
@@ -182,7 +191,9 @@ describe("statsApi", () => {
         statsApi.correlate({
           metric_a: { source: "checkins", field: "energy" },
           metric_b: { source: "checkins", field: "mood" },
+          // date-ok
           start: "2026-01-01T00:00:00Z",
+          // date-ok
           end: "2026-03-01T23:59:59Z",
           resolution: "daily",
           method: "pearson",
@@ -200,7 +211,9 @@ describe("statsApi", () => {
         statsApi.correlate({
           metric_a: { source: "checkins", field: "energy" },
           metric_b: { source: "checkins", field: "mood" },
+          // date-ok
           start: "2026-01-01T00:00:00Z",
+          // date-ok
           end: "2026-03-01T23:59:59Z",
           resolution: "daily",
           method: "pearson",
@@ -214,7 +227,9 @@ describe("statsApi", () => {
       const result = await statsApi.lagCorrelate({
         metric_a: { source: "checkins", field: "energy" },
         metric_b: { source: "checkins", field: "mood" },
+        // date-ok
         start: "2026-01-01T00:00:00Z",
+        // date-ok
         end: "2026-03-01T23:59:59Z",
         resolution: "daily",
         max_lag_days: 7,
@@ -236,7 +251,9 @@ describe("statsApi", () => {
         statsApi.lagCorrelate({
           metric_a: { source: "checkins", field: "energy" },
           metric_b: { source: "checkins", field: "mood" },
+          // date-ok
           start: "2026-01-01T00:00:00Z",
+          // date-ok
           end: "2026-03-01T23:59:59Z",
           resolution: "daily",
           max_lag_days: 7,
@@ -255,7 +272,9 @@ describe("statsApi", () => {
         statsApi.lagCorrelate({
           metric_a: { source: "checkins", field: "energy" },
           metric_b: { source: "checkins", field: "mood" },
+          // date-ok
           start: "2026-01-01T00:00:00Z",
+          // date-ok
           end: "2026-03-01T23:59:59Z",
           resolution: "daily",
           max_lag_days: 7,
@@ -274,7 +293,9 @@ describe("statsApi", () => {
         statsApi.lagCorrelate({
           metric_a: { source: "checkins", field: "energy" },
           metric_b: { source: "checkins", field: "mood" },
+          // date-ok
           start: "2026-01-01T00:00:00Z",
+          // date-ok
           end: "2026-03-01T23:59:59Z",
           resolution: "daily",
           max_lag_days: 7,
