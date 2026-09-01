@@ -26,6 +26,7 @@ describe("auth multi-provider API", () => {
         id: "1",
         provider: "google",
         email: "user@example.com",
+        // date-ok
         created_at: "2026-01-01T00:00:00Z",
       },
     ];
@@ -48,6 +49,7 @@ describe("auth multi-provider API", () => {
         id: "1",
         provider: "google",
         email: "user@example.com",
+        // date-ok
         created_at: "2026-01-01T00:00:00Z",
       },
     ];

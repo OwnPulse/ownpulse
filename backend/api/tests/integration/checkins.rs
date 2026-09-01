@@ -12,6 +12,7 @@ async fn test_create_checkin() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     let body = json!({
+        // date-ok
         "date": "2026-03-18",
         "energy": 7,
         "mood": 8,
@@ -34,6 +35,7 @@ async fn test_create_checkin() {
     assert_eq!(response.status(), 201);
 
     let json = common::body_json(response).await;
+    // date-ok
     assert_eq!(json["date"], "2026-03-18");
     assert_eq!(json["energy"], 7);
     assert_eq!(json["mood"], 8);
@@ -45,6 +47,7 @@ async fn test_multiple_checkins_same_day() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     let body1 = json!({
+        // date-ok
         "date": "2026-03-18",
         "energy": 5,
         "mood": 6
@@ -65,6 +68,7 @@ async fn test_multiple_checkins_same_day() {
 
     // Second POST for same date — should create a second checkin
     let body2 = json!({
+        // date-ok
         "date": "2026-03-18",
         "energy": 9,
         "mood": 10
@@ -99,6 +103,7 @@ async fn test_multiple_checkins_same_day() {
     let checkins = items.as_array().unwrap();
     let matching: Vec<_> = checkins
         .iter()
+        // date-ok
         .filter(|c| c["date"] == "2026-03-18")
         .collect();
     assert_eq!(matching.len(), 2);
@@ -111,6 +116,7 @@ async fn test_update_checkin() {
 
     // Create a checkin
     let body = json!({
+        // date-ok
         "date": "2026-03-18",
         "energy": 5,
         "mood": 6,
@@ -134,6 +140,7 @@ async fn test_update_checkin() {
 
     // Update the checkin via PUT
     let update_body = json!({
+        // date-ok
         "date": "2026-03-18",
         "energy": 9,
         "mood": 10,
@@ -181,6 +188,7 @@ async fn test_checkin_validates_score_range() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     let body = json!({
+        // date-ok
         "date": "2026-03-18",
         "energy": 11
     });
@@ -205,6 +213,7 @@ async fn test_update_nonexistent_checkin_returns_404() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     let body = json!({
+        // date-ok
         "date": "2026-03-18",
         "energy": 5
     });
@@ -232,6 +241,7 @@ async fn test_update_other_users_checkin_returns_404() {
 
     // User 1 creates a checkin
     let body = json!({
+        // date-ok
         "date": "2026-03-18",
         "energy": 5,
         "mood": 6
@@ -254,6 +264,7 @@ async fn test_update_other_users_checkin_returns_404() {
 
     // User 2 tries to update user 1's checkin
     let update_body = json!({
+        // date-ok
         "date": "2026-03-18",
         "energy": 10
     });

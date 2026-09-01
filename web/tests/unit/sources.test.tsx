@@ -7,7 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
 import { MemoryRouter, useLocation } from "react-router-dom";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import Sources from "../../src/pages/Sources";
 
 const server = setupServer();
@@ -86,7 +86,7 @@ describe("Sources page", () => {
     });
   });
 
-  it("shows a disabled Connect control with a 'coming soon' message for Google Calendar when it isn't connected", async () => {
+  it("shows an enabled Connect button for Google Calendar when it isn't connected", async () => {
     server.use(http.get("/api/v1/integrations", () => HttpResponse.json([])));
     renderPage();
 
@@ -94,12 +94,76 @@ describe("Sources page", () => {
       expect(screen.getByText("google_calendar")).toBeDefined();
     });
     expect(screen.getAllByText("Disconnected").length).toBeGreaterThanOrEqual(1);
-    // No live link to the (currently broken for everyone) login route — a
-    // disabled control that doesn't burn the shared login rate limit.
-    expect(screen.queryByRole("link", { name: "Connect" })).toBeNull();
     const connectBtn = screen.getByRole("button", { name: "Connect" });
-    expect(connectBtn).toBeDisabled();
-    expect(screen.getByText("Connecting from the web is coming soon")).toBeDefined();
+    expect(connectBtn).not.toBeDisabled();
+  });
+
+  describe("starting the Google Calendar connect flow", () => {
+    // jsdom's `Location.prototype.href` setter is non-configurable, so it
+    // can't be spied on directly (`Object.defineProperty` throws "Cannot
+    // redefine property"). Swap the whole `window.location` for a plain
+    // mutable stub instead — seeded from the *real* href (not an empty
+    // string) so relative `fetch("/api/v1/...")` calls the app client makes
+    // can still resolve; an earlier version of this stub zeroed `href` out
+    // and broke every request, not just the navigation this is meant to
+    // observe.
+    let originalLocation: Location;
+
+    beforeEach(() => {
+      originalLocation = window.location;
+      // biome-ignore lint/suspicious/noExplicitAny: test-only Location stub
+      delete (window as any).location;
+      window.location = { ...originalLocation } as Location;
+    });
+
+    afterEach(() => {
+      window.location = originalLocation;
+    });
+
+    it("navigates to the returned auth_url on success", async () => {
+      server.use(
+        http.get("/api/v1/integrations", () => HttpResponse.json([])),
+        http.get("/api/v1/auth/google-calendar/login", () =>
+          HttpResponse.json({ auth_url: "https://accounts.google.com/o/oauth2/v2/auth?mock=1" }),
+        ),
+      );
+      renderPage();
+      const user = userEvent.setup();
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Connect" })).toBeDefined();
+      });
+      await user.click(screen.getByRole("button", { name: "Connect" }));
+
+      await waitFor(() => {
+        expect(window.location.href).toBe("https://accounts.google.com/o/oauth2/v2/auth?mock=1");
+      });
+    });
+
+    it("shows an error message if starting the flow fails", async () => {
+      server.use(
+        http.get("/api/v1/integrations", () => HttpResponse.json([])),
+        http.get(
+          "/api/v1/auth/google-calendar/login",
+          () => new HttpResponse("Error", { status: 500 }),
+        ),
+      );
+      renderPage();
+      const user = userEvent.setup();
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Connect" })).toBeDefined();
+      });
+      await user.click(screen.getByRole("button", { name: "Connect" }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText("Couldn't start the Google Calendar connection. Please try again."),
+        ).toBeDefined();
+      });
+      // Left in a re-clickable state, not stuck disabled.
+      expect(screen.getByRole("button", { name: "Connect" })).not.toBeDisabled();
+    });
   });
 
   it("shows Connected status, last sync time, and a Disconnect button for a connected source", async () => {
@@ -109,6 +173,7 @@ describe("Sources page", () => {
           {
             source: "google_calendar",
             connected: true,
+            // date-ok
             last_synced_at: "2026-08-01T12:00:00Z",
           },
         ]),
@@ -121,8 +186,8 @@ describe("Sources page", () => {
     });
     expect(screen.getByText(/Last sync: 2026-08-01T12:00:00Z/)).toBeDefined();
     expect(screen.getByRole("button", { name: "Disconnect" })).toBeDefined();
-    // Already connected, so no disabled Connect placeholder row for it.
-    expect(screen.queryByText("Connecting from the web is coming soon")).toBeNull();
+    // Already connected, so no Connect placeholder row for it.
+    expect(screen.queryByRole("button", { name: "Connect" })).toBeNull();
   });
 
   it("surfaces last_sync_error when present", async () => {
@@ -165,7 +230,7 @@ describe("Sources page", () => {
     await user.click(screen.getByRole("button", { name: "Disconnect" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Connecting from the web is coming soon")).toBeDefined();
+      expect(screen.getByRole("button", { name: "Connect" })).toBeDefined();
     });
   });
 
@@ -175,7 +240,7 @@ describe("Sources page", () => {
       http.get("/api/v1/integrations", () =>
         HttpResponse.json([{ source: "google_calendar", connected: true }]),
       ),
-      http.post("/api/v1/integrations/google-calendar/sync", () => {
+      http.post("/api/v1/integrations/google_calendar/sync", () => {
         syncCount += 1;
         return HttpResponse.json({ source: "google_calendar", records_inserted: 3 });
       }),
@@ -200,7 +265,7 @@ describe("Sources page", () => {
         HttpResponse.json([{ source: "google_calendar", connected: true }]),
       ),
       http.post(
-        "/api/v1/integrations/google-calendar/sync",
+        "/api/v1/integrations/google_calendar/sync",
         () =>
           new HttpResponse(JSON.stringify({ error: "rate limited" }), {
             status: 429,
@@ -229,7 +294,7 @@ describe("Sources page", () => {
         HttpResponse.json(connected ? [{ source: "google_calendar", connected: true }] : []),
       ),
       http.post(
-        "/api/v1/integrations/google-calendar/sync",
+        "/api/v1/integrations/google_calendar/sync",
         () => new HttpResponse("Error", { status: 500 }),
       ),
       http.delete("/api/v1/integrations/google_calendar", () => {
@@ -251,7 +316,7 @@ describe("Sources page", () => {
     await user.click(screen.getByRole("button", { name: "Disconnect" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Connecting from the web is coming soon")).toBeDefined();
+      expect(screen.getByRole("button", { name: "Connect" })).toBeDefined();
     });
     expect(screen.queryByText("Sync failed.")).toBeNull();
   });
@@ -262,7 +327,7 @@ describe("Sources page", () => {
         HttpResponse.json([{ source: "google_calendar", connected: true }]),
       ),
       http.post(
-        "/api/v1/integrations/google-calendar/sync",
+        "/api/v1/integrations/google_calendar/sync",
         () => new HttpResponse("Error", { status: 500 }),
       ),
     );

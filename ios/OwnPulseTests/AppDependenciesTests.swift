@@ -264,7 +264,9 @@ struct AppDependenciesTests {
         // As if a previous rebuild had already scheduled reminders — logout
         // must remove these, not just no-op against an empty center.
         center.pendingRequests = [
+            // date-ok
             UNNotificationRequest(identifier: "dose-run-1-08:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil),
+            // date-ok
             UNNotificationRequest(identifier: "dose-run-1-20:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil),
         ]
 
@@ -282,7 +284,9 @@ struct AppDependenciesTests {
 
         #expect(deps.authService.isAuthenticated == false)
         let removedIds = Set(center.removedIdentifierBatches.flatMap { $0 })
+        // date-ok
         #expect(removedIds.contains("dose-run-1-08:00-2026-06-01"))
+        // date-ok
         #expect(removedIds.contains("dose-run-1-20:00-2026-06-01"))
         #expect(center.pendingRequests.isEmpty)
     }

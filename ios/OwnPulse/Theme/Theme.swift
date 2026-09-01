@@ -3,16 +3,23 @@
 
 import SwiftUI
 
-// The brand palette (terracotta, teal, gold, sage, warmBg, cardLight) is
-// generated from docs/design/tokens.json into Tokens.swift. The members below
-// are hand-written: they are either not yet modeled in the token source
-// (darkBg, cardDark), deliberately tuned for WCAG AA contrast in a way the raw
-// palette does not express (mutedText, googleBlue), or colorblind-safe trend
-// indicators sourced from the generated ChartColors Wong palette (always
-// paired with a directional arrow — see TrendDirection).
+// The brand palette (terracotta, teal, gold, sage, purple, dimensionEnergy,
+// dimensionMood, dimensionFocus, dimensionRecovery, dimensionLibido, warmBg,
+// cardLight, darkBg, cardDark, success, warning, error) is generated from
+// docs/design/tokens.json into Tokens.swift. The members below are
+// hand-written: they are either not yet modeled in the token source
+// (darkBgGradientEnd), deliberately tuned for WCAG AA contrast in a way the
+// raw palette does not express (mutedText, googleBlue), or colorblind-safe
+// trend indicators sourced from the generated ChartColors Wong palette
+// (always paired with a directional arrow — see TrendDirection).
 extension OPColor {
-    static let darkBg = Color(red: 26 / 255, green: 26 / 255, blue: 26 / 255)
-    static let cardDark = Color(red: 34 / 255, green: 34 / 255, blue: 34 / 255)
+    /// The second stop of the dashboard's dark-mode background gradient.
+    ///
+    /// Mirrors `darkBg`: dark mode has no token source yet for a gradient end
+    /// stop specifically (brand.md: "no dark mode as primary"), so this is
+    /// hand-picked to sit just below `darkBg` (#1a1a18) rather than a
+    /// token-generated value.
+    static let darkBgGradientEnd = Color(red: 20 / 255, green: 20 / 255, blue: 26 / 255)
 
     /// Muted secondary text that still clears WCAG AA (4.5:1 for normal text).
     ///
@@ -61,11 +68,14 @@ extension Color {
 struct OPCardModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
+    /// Matches web's card radius (`radii.lg` in tokens.json, 12px).
+    static let cornerRadius: CGFloat = OPRadius.lg
+
     func body(content: Content) -> some View {
         content
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                     .fill(colorScheme == .dark ? .ultraThinMaterial : .regularMaterial)
             )
             .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.08), radius: 8, y: 4)

@@ -18,7 +18,9 @@ import {
   componentPairings,
   compositeOver,
   contrastRatio,
+  enumerateDarkPairings,
   enumeratePairings,
+  parseRgbaString,
   relativeLuminance,
 } from "../../../tools/design-tokens/contrast.js";
 
@@ -122,6 +124,79 @@ describe("enumeratePairings", () => {
     expect(names).toContain("white text on primary.default fill");
     expect(names).toContain("white text on feedback.error fill");
     expect(names.some((n) => n.includes("focus boundary"))).toBe(true);
+  });
+});
+
+// A tiny synthetic dark palette, layered onto syntheticTokens(): all-white
+// foregrounds on black dark surfaces (so every dark pairing passes) except
+// dark.text-muted, which fails 4.5:1 on the dark surfaces.
+function syntheticDarkTokens() {
+  return {
+    ...syntheticTokens(),
+    dark: {
+      color: {
+        link: { value: "#ffffff" },
+        "link-hover": { value: "#ffffff" },
+        "success-fg": { value: "#ffffff" },
+        bg: { value: "#000000" },
+        "bg-warm": { value: "#000000" },
+        surface: { value: "#000000" },
+        "surface-elevated": { value: "#000000" },
+        text: { value: "#ffffff" },
+        "text-secondary": { value: "#ffffff" },
+        // Fails 4.5:1 on the black dark surfaces.
+        "text-muted": { value: "#333333" },
+        "error-light": { value: "#000000" },
+        "primary-light": { value: "rgba(255, 255, 255, 0.15)" },
+      },
+    },
+  };
+}
+
+describe("enumerateDarkPairings", () => {
+  it("returns nothing when the token source has no `dark` group", () => {
+    expect(enumerateDarkPairings(syntheticTokens())).toEqual([]);
+  });
+
+  it("includes a 4.5:1 normal-text assertion for dark.text-muted on each dark surface", () => {
+    const mutedPairings = enumerateDarkPairings(syntheticDarkTokens()).filter((p) =>
+      p.name.startsWith("dark.text-muted text on"),
+    );
+    expect(mutedPairings).toHaveLength(4);
+    for (const p of mutedPairings) {
+      expect(p.threshold).toBe(4.5);
+      expect(p.kind).toBe("normal-text");
+    }
+  });
+
+  it("asserts the dark-tuned foreground accents (link, link-hover, success-fg)", () => {
+    const names = enumerateDarkPairings(syntheticDarkTokens()).map((p) => p.name);
+    expect(names).toContain("dark.link text on dark.bg");
+    expect(names).toContain("dark.link-hover text on dark.bg");
+    expect(names).toContain("dark.success-fg text on dark.bg");
+  });
+
+  it("does not assert accent or feedback.warning/.error as dark foreground text", () => {
+    // Those have no dark-tuned counterpart — see informationalDarkGaps.
+    const names = enumerateDarkPairings(syntheticDarkTokens()).map((p) => p.name);
+    expect(names.some((n) => n.startsWith("accent."))).toBe(false);
+    expect(names.some((n) => n.startsWith("feedback.warning"))).toBe(false);
+    expect(names.some((n) => n.startsWith("feedback.error"))).toBe(false);
+  });
+
+  it("flags dark.text-muted as failing when checked with checkContrast", () => {
+    const { failures } = checkContrast(syntheticDarkTokens());
+    expect(failures.some((f) => f.name.startsWith("dark.text-muted"))).toBe(true);
+  });
+});
+
+describe("parseRgbaString", () => {
+  it("parses r, g, b, a from an rgba(...) string", () => {
+    expect(parseRgbaString("rgba(178, 87, 60, 0.15)")).toEqual({ r: 178, g: 87, b: 60, a: 0.15 });
+  });
+
+  it("throws on a non-rgba string", () => {
+    expect(() => parseRgbaString("#b2573c")).toThrow(/Not an rgba/);
   });
 });
 

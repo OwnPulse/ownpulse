@@ -23,6 +23,7 @@ describe("integrationsApi", () => {
       server.use(
         http.get("/api/v1/integrations", () =>
           HttpResponse.json([
+            // date-ok
             { source: "google_calendar", connected: true, last_synced_at: "2026-08-01T00:00:00Z" },
           ]),
         ),
@@ -30,6 +31,7 @@ describe("integrationsApi", () => {
 
       const result = await integrationsApi.list();
       expect(result).toEqual([
+        // date-ok
         { source: "google_calendar", connected: true, last_synced_at: "2026-08-01T00:00:00Z" },
       ]);
     });
@@ -97,7 +99,7 @@ describe("integrationsApi", () => {
   describe("sync", () => {
     it("returns the sync result on success", async () => {
       server.use(
-        http.post("/api/v1/integrations/google-calendar/sync", () =>
+        http.post("/api/v1/integrations/google_calendar/sync", () =>
           HttpResponse.json({ source: "google_calendar", records_inserted: 5 }),
         ),
       );
@@ -108,7 +110,7 @@ describe("integrationsApi", () => {
     it("rejects with a 401 ApiError and logs out an authenticated session when the refresh also 401s", async () => {
       server.use(
         http.post(
-          "/api/v1/integrations/google-calendar/sync",
+          "/api/v1/integrations/google_calendar/sync",
           () => new HttpResponse("Unauthorized", { status: 401 }),
         ),
         http.post("/api/v1/auth/refresh", () => new HttpResponse("Unauthorized", { status: 401 })),
@@ -124,7 +126,7 @@ describe("integrationsApi", () => {
     it("rejects with an ApiError carrying retryAfterSeconds on 429", async () => {
       server.use(
         http.post(
-          "/api/v1/integrations/google-calendar/sync",
+          "/api/v1/integrations/google_calendar/sync",
           () =>
             new HttpResponse(JSON.stringify({ error: "rate limited" }), {
               status: 429,
@@ -141,7 +143,7 @@ describe("integrationsApi", () => {
     it("rejects with an ApiError on 500", async () => {
       server.use(
         http.post(
-          "/api/v1/integrations/google-calendar/sync",
+          "/api/v1/integrations/google_calendar/sync",
           () => new HttpResponse("Error", { status: 500 }),
         ),
       );

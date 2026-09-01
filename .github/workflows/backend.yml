@@ -40,6 +40,15 @@ jobs:
               - 'pact/**'
               - '.github/workflows/backend.yml'
 
+  test_date_lint:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - run: scripts/check-test-dates.sh
+
   fmt:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
@@ -87,6 +96,37 @@ jobs:
             ${{ runner.os }}-cargo-clippy-
 
       - run: cargo clippy -- -D warnings
+
+  # Runs the (DB-free) unit suite under a non-UTC, DST-less timezone so
+  # date/time bugs that only show up at a UTC+13 offset surface in CI instead
+  # of on a contributor's machine. Unit tests only (no testcontainers Postgres
+  # needed) to keep this cheap as an extra full run.
+  test_timezone:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      TZ: Pacific/Auckland
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7  # v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-
+
+      - run: cargo test --lib
 
   test:
     needs: changes
@@ -204,18 +244,22 @@ jobs:
   result:
     name: Backend / result
     if: always()
-    needs: [changes, fmt, clippy, test]
+    needs: [changes, test_date_lint, fmt, clippy, test, test_timezone]
     runs-on: ubuntu-latest
     steps:
       - name: Check result
         run: |
-          if [[ "${{ needs.fmt.result }}" == "failure" || \
+          if [[ "${{ needs.test_date_lint.result }}" == "failure" || \
+                "${{ needs.fmt.result }}" == "failure" || \
                 "${{ needs.clippy.result }}" == "failure" || \
-                "${{ needs.test.result }}" == "failure" ]]; then
+                "${{ needs.test.result }}" == "failure" || \
+                "${{ needs.test_timezone.result }}" == "failure" ]]; then
             echo "Backend CI failed"
+            echo "  test_date_lint: ${{ needs.test_date_lint.result }}"
             echo "  fmt: ${{ needs.fmt.result }}"
             echo "  clippy: ${{ needs.clippy.result }}"
             echo "  test: ${{ needs.test.result }}"
+            echo "  test_timezone: ${{ needs.test_timezone.result }}"
             exit 1
           fi
           echo "Backend gate passed"

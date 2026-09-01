@@ -447,7 +447,9 @@ async fn test_correlate_invalid_start_after_end() {
     let body = json!({
         "metric_a": {"source": "health_records", "field": "heart_rate"},
         "metric_b": {"source": "health_records", "field": "steps"},
+        // date-ok
         "start": "2026-12-01T00:00:00Z",
+        // date-ok
         "end": "2026-01-01T00:00:00Z",
         "resolution": "daily"
     });
@@ -481,7 +483,9 @@ async fn test_correlate_invalid_metric_source() {
     let body = json!({
         "metric_a": {"source": "bogus", "field": "heart_rate"},
         "metric_b": {"source": "health_records", "field": "steps"},
+        // date-ok
         "start": "2026-01-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-01T00:00:00Z",
         "resolution": "daily"
     });
@@ -508,7 +512,9 @@ async fn test_correlate_no_data_returns_empty() {
     let body = json!({
         "metric_a": {"source": "health_records", "field": "heart_rate"},
         "metric_b": {"source": "health_records", "field": "steps"},
+        // date-ok
         "start": "2020-01-01T00:00:00Z",
+        // date-ok
         "end": "2020-02-01T00:00:00Z",
         "resolution": "daily"
     });
@@ -594,7 +600,9 @@ async fn test_lag_correlate_unauthenticated() {
     let body = json!({
         "metric_a": {"source": "health_records", "field": "heart_rate"},
         "metric_b": {"source": "health_records", "field": "steps"},
+        // date-ok
         "start": "2026-01-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-01T00:00:00Z",
         "resolution": "daily",
         "max_lag_days": 3
@@ -621,7 +629,9 @@ async fn test_lag_correlate_invalid_max_lag_too_high() {
     let body = json!({
         "metric_a": {"source": "health_records", "field": "heart_rate"},
         "metric_b": {"source": "health_records", "field": "steps"},
+        // date-ok
         "start": "2026-01-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-01T00:00:00Z",
         "resolution": "daily",
         "max_lag_days": 31
@@ -651,7 +661,9 @@ async fn test_lag_correlate_invalid_max_lag_zero() {
     let body = json!({
         "metric_a": {"source": "health_records", "field": "heart_rate"},
         "metric_b": {"source": "health_records", "field": "steps"},
+        // date-ok
         "start": "2026-01-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-01T00:00:00Z",
         "resolution": "daily",
         "max_lag_days": 0
@@ -679,7 +691,9 @@ async fn test_lag_correlate_start_after_end() {
     let body = json!({
         "metric_a": {"source": "health_records", "field": "heart_rate"},
         "metric_b": {"source": "health_records", "field": "steps"},
+        // date-ok
         "start": "2026-12-01T00:00:00Z",
+        // date-ok
         "end": "2026-01-01T00:00:00Z",
         "resolution": "daily",
         "max_lag_days": 3

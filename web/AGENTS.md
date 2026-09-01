@@ -24,6 +24,10 @@ major version can surface environment-specific failures that look like a
 to fix immediately — never treat it as a tolerated baseline to work around
 or ignore.
 
+Before pushing, run `scripts/ci-web.sh` from the repo root — it mirrors
+`.github/workflows/web.yml` (contrast check, tsc, biome, vitest, playwright)
+so failures surface locally instead of on a CI runner.
+
 ## Interface to Other Services
 
 - Pact consumer contract at `pact/contracts/web-backend.json`

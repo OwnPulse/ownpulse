@@ -6,6 +6,7 @@ import SwiftUI
 struct DashboardView: View {
     @Environment(AppDependencies.self) private var dependencies
     @State private var viewModel: DashboardViewModel?
+    @State private var protocolsViewModel: ProtocolsViewModel?
     @State private var showHealthKitSheet = false
     @State private var hkAuthorized = false
 
@@ -50,6 +51,12 @@ struct DashboardView: View {
                     syncEngine: dependencies.syncEngine
                 )
             }
+            if protocolsViewModel == nil {
+                protocolsViewModel = ProtocolsViewModel(
+                    networkClient: dependencies.networkClient,
+                    doseReminderRebuilder: dependencies.doseReminderCoordinator
+                )
+            }
             Task {
                 await viewModel?.loadDashboard()
                 // Show HealthKit prompt once after first login, after dashboard has loaded
@@ -58,6 +65,7 @@ struct DashboardView: View {
                     UserDefaults.standard.set(true, forKey: "hasSeenHealthKitPrompt")
                 }
             }
+            Task { await protocolsViewModel?.loadMissedDoses() }
         }
     }
 
@@ -112,6 +120,28 @@ struct DashboardView: View {
                     }
                     .opCard()
                     .accessibilityIdentifier("healthKitConnectBanner")
+                }
+
+                // Missed Doses
+                if let pvm = protocolsViewModel, !pvm.missedDoses.isEmpty {
+                    NavigationLink {
+                        MissedDosesListView(viewModel: pvm)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .font(.title2)
+                                .foregroundStyle(OPColor.terracotta)
+                            Text("\(pvm.missedDoses.count) missed dose\(pvm.missedDoses.count != 1 ? "s" : "") — Review")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .opCard()
+                    .accessibilityIdentifier("missedDosesRow")
                 }
 
                 // Hero Metric Card
@@ -221,7 +251,7 @@ struct DashboardView: View {
         Group {
             if colorScheme == .dark {
                 LinearGradient(
-                    colors: [OPColor.darkBg, Color(red: 0.08, green: 0.08, blue: 0.1)],
+                    colors: [OPColor.darkBg, OPColor.darkBgGradientEnd],
                     startPoint: .top,
                     endPoint: .bottom
                 )

@@ -528,9 +528,9 @@ every row.
 | GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 1 |
 | POST | `/integrations/garmin/sync` | Trigger an immediate Garmin fetch | 1 |
 | POST | `/integrations/oura/sync` | Trigger an immediate Oura fetch | 1 |
-| GET | `/auth/google-calendar/login` | Start the Google Calendar OAuth 2.0 connect flow (requires JWT) | 2 |
-| GET | `/auth/google-calendar/callback` | Google Calendar OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 2 |
-| POST | `/integrations/google-calendar/sync` | Trigger an immediate Google Calendar fetch | 2 |
+| GET | `/auth/google-calendar/login` | Start the Google Calendar OAuth 2.0 connect flow — JSON, requires JWT | 2 |
+| GET | `/auth/google-calendar/callback` | Google Calendar OAuth 2.0 callback — browser redirect, no auth header | 2 |
+| POST | `/integrations/google-calendar/sync` | Trigger an immediate Google Calendar fetch (also reachable at `/integrations/google_calendar/sync`) | 2 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
 | POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
 
@@ -580,6 +580,49 @@ It reuses `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` but has its own redirect
 URI (`GOOGLE_CALENDAR_REDIRECT_URI`, defaulting to
 `<WEB_ORIGIN>/api/v1/auth/google-calendar/callback`) since Google requires an
 exact registered redirect per OAuth client/flow combination.
+
+**`/auth/google-calendar/login` is a JSON endpoint, not a redirect.** The web
+app is same-origin with the API (the default redirect URI above is
+`{WEB_ORIGIN}/...`), so unlike Garmin/Oura's connect flow it doesn't need a
+browser-navigable login route: the Sources page calls it with a normal
+`fetch()` + `Authorization: Bearer` header, gets back `200 { "auth_url": "…"
+}`, and navigates the browser to `auth_url` itself. Response `200`:
+
+```json
+{ "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?..." }
+```
+
+The route also records a row in `oauth_states` (`state`, `user_id`,
+`provider`, `created_at`) keyed by the CSRF `state` value embedded in
+`auth_url`. `/auth/google-calendar/callback` — the page Google redirects the
+browser to directly, which genuinely cannot carry an `Authorization` header
+— consumes that row (`DELETE ... RETURNING user_id`, so it's single-use) to
+recover which user started the flow and to validate CSRF, instead of relying
+on a cookie for either. A state row is rejected as invalid if it doesn't
+exist (never issued, already consumed, or table wiped) or is older than 10
+minutes. No cookie is set by either route.
+
+The callback never renders JSON or an error page to the browser — every
+path, success or failure, ends in a redirect to the web app:
+
+- Success: `{WEB_ORIGIN}/sources?connected=google_calendar`.
+- Failure: `{WEB_ORIGIN}/sources?error=<code>`, where `<code>` is one of
+  `access_denied` (Google's own `error` param — the user declined consent,
+  or Google errored some other way), `state_invalid` (missing, unrecognized,
+  already-consumed, or expired `state`), `missing_code` (callback reached
+  without either `code` or `error` — shouldn't happen from Google itself),
+  `exchange_failed` (the code-for-token exchange failed), or `server_error`
+  (server misconfiguration or a DB/encryption failure storing the result).
+  The web app renders these codes; the API never exposes anything more
+  specific (e.g. upstream response bodies) than the code itself.
+
+`/integrations/google-calendar/sync` is also reachable at
+`/integrations/google_calendar/sync` (underscore) — the same handler is
+mounted at both paths. The hyphenated path predates this alias and is kept
+for compatibility; the underscore form matches the `source` id everywhere
+else in the API (`GET /integrations`, `DELETE /integrations/:source`,
+`integration_tokens.source`), so a client building this URL from that id
+lands on a real route.
 
 **Aggregates only — never event content.** The Calendar API request sends
 `fields=items(start(dateTime),end(dateTime),attendees(self,responseStatus)),nextPageToken`
@@ -1373,6 +1416,7 @@ Observer exports all their responses across all polls.
 | POST | `/protocols/runs/:run_id/doses/skip` | Skip a dose on an active run | 1 |
 | DELETE | `/protocols/runs/:run_id/doses/:dose_id` | Undo a logged/skipped dose on a run | 1 |
 | GET | `/protocols/runs/todays-doses` | Today's scheduled doses across all of the user's active runs | 1 |
+| GET | `/protocols/active-substances` | Distinct substance/dose/unit/route across all of the user's active runs, for quick-pick UI | 1 |
 | GET | `/protocols/runs/:run_id/doses` | Dose status for every scheduled day of a run, in a `from_day..to_day` range | 1 |
 | GET | `/protocols/runs/missed-doses` | Scheduled-but-missed days across all of the user's active runs | 1 |
 | GET | `/protocols/runs/:run_id/adherence` | Adherence summary (scheduled/completed/skipped/missed) for a run, overall + per line | 1 |
@@ -1571,6 +1615,27 @@ whose `schedule_pattern` marks today's day number as active.
 `status` is `null` until a dose is logged or skipped for that line today, then
 `"completed"` or `"skipped"`. `protocol_line_id` is the id to send back to the
 log/skip endpoints above.
+
+#### `GET /protocols/active-substances`
+
+Distinct substance/dose/unit/route combinations across all of the user's
+currently active runs (`DISTINCT ON`, one row per unique combination even if
+multiple lines/runs share it), for a quick-pick substance list when logging
+an ad hoc intervention.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "substance": "BPC-157",
+    "dose": 250.0,
+    "unit": "mcg",
+    "route": "subcutaneous",
+    "protocol_name": "Recovery Stack"
+  }
+]
+```
 
 #### Canonical dose-status rule
 

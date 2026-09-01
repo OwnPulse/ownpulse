@@ -12,8 +12,19 @@ enum OPColor {
     static let teal = Color(red: 55 / 255, green: 124 / 255, blue: 124 / 255)
     static let gold = Color(red: 196 / 255, green: 154 / 255, blue: 60 / 255)
     static let sage = Color(red: 90 / 255, green: 138 / 255, blue: 90 / 255)
+    static let purple = Color(red: 123 / 255, green: 97 / 255, blue: 194 / 255)
+    static let dimensionEnergy = Color(red: 167 / 255, green: 131 / 255, blue: 51 / 255)
+    static let dimensionMood = Color(red: 178 / 255, green: 87 / 255, blue: 60 / 255)
+    static let dimensionFocus = Color(red: 55 / 255, green: 124 / 255, blue: 124 / 255)
+    static let dimensionRecovery = Color(red: 90 / 255, green: 138 / 255, blue: 90 / 255)
+    static let dimensionLibido = Color(red: 123 / 255, green: 97 / 255, blue: 194 / 255)
     static let warmBg = Color(red: 250 / 255, green: 246 / 255, blue: 241 / 255)
     static let cardLight = Color(red: 255 / 255, green: 255 / 255, blue: 255 / 255)
+    static let success = Color(red: 0 / 255, green: 117 / 255, blue: 85 / 255)
+    static let warning = Color(red: 151 / 255, green: 105 / 255, blue: 0 / 255)
+    static let error = Color(red: 164 / 255, green: 73 / 255, blue: 0 / 255)
+    static let darkBg = Color(red: 26 / 255, green: 26 / 255, blue: 24 / 255)
+    static let cardDark = Color(red: 37 / 255, green: 37 / 255, blue: 35 / 255)
 }
 
 /// Corner radii, generated from the canonical token source.

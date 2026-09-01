@@ -17,7 +17,15 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { buildTokens, cssVarName, swiftColor } from "../../../tools/design-tokens/build.js";
+import {
+  brandColors,
+  buildTokens,
+  cssVarName,
+  dimensionColors,
+  interventionColor,
+  loadDictionary,
+  swiftColor,
+} from "../../../tools/design-tokens/build.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const cssPath = resolve(repoRoot, "web/src/styles/_tokens.css");
@@ -25,6 +33,7 @@ const swiftPath = resolve(repoRoot, "ios/OwnPulse/Theme/Tokens.swift");
 const mdPath = resolve(repoRoot, "docs/design/tokens-generated.md");
 const chartTsPath = resolve(repoRoot, "web/src/components/explore/chartMetricColors.generated.ts");
 const chartSwiftPath = resolve(repoRoot, "ios/OwnPulse/Theme/ChartColors.swift");
+const dimensionTsPath = resolve(repoRoot, "web/src/components/dimensionColors.generated.ts");
 
 const read = (p: string) => readFileSync(p, "utf8");
 
@@ -120,6 +129,7 @@ describe("idempotency", () => {
       md: read(mdPath),
       chartTs: read(chartTsPath),
       chartSwift: read(chartSwiftPath),
+      dimensionTs: read(dimensionTsPath),
     };
 
     await buildTokens();
@@ -129,5 +139,106 @@ describe("idempotency", () => {
     expect(read(mdPath)).toBe(before.md);
     expect(read(chartTsPath)).toBe(before.chartTs);
     expect(read(chartSwiftPath)).toBe(before.chartSwift);
+    expect(read(dimensionTsPath)).toBe(before.dimensionTs);
+  });
+});
+
+describe("dimensionColors", () => {
+  it("returns the five dimension keys in canonical order, with values read from tokens.json", async () => {
+    const dictionary = await loadDictionary();
+    const colors = dimensionColors(dictionary);
+    // Values come from the resolved dictionary, not restated here as literals,
+    // so this test can't pass by coincidentally matching a hardcoded guess.
+    const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join("."), t]));
+    expect(Object.keys(colors)).toEqual(["energy", "mood", "focus", "recovery", "libido"]);
+    for (const key of Object.keys(colors)) {
+      expect(colors[key]).toBe(byPath.get(`color.dimension.${key}`)?.original.value);
+    }
+  });
+
+  it("throws when a color.dimension.* key is missing from the token source", () => {
+    const dictionary = { allTokens: [] };
+    expect(() => dimensionColors(dictionary)).toThrow(/color\.dimension\.energy/);
+  });
+});
+
+describe("interventionColor", () => {
+  it("returns the chart.intervention value read from tokens.json", async () => {
+    const dictionary = await loadDictionary();
+    const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join("."), t]));
+    expect(interventionColor(dictionary)).toBe(byPath.get("chart.intervention")?.original.value);
+  });
+
+  it("throws when chart.intervention is missing from the token source", () => {
+    const dictionary = { allTokens: [] };
+    expect(() => interventionColor(dictionary)).toThrow(/chart\.intervention/);
+  });
+});
+
+describe("brandColors", () => {
+  it("returns color.primary.default and color.accent.default read from tokens.json", async () => {
+    const dictionary = await loadDictionary();
+    const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join("."), t]));
+    const { primary, accent } = brandColors(dictionary);
+    expect(primary).toBe(byPath.get("color.primary.default")?.original.value);
+    expect(accent).toBe(byPath.get("color.accent.default")?.original.value);
+  });
+
+  it("throws when color.primary.default is missing from the token source", () => {
+    const dictionary = { allTokens: [] };
+    expect(() => brandColors(dictionary)).toThrow(/color\.primary\.default/);
+  });
+
+  it("throws when color.accent.default is missing but color.primary.default is present", () => {
+    const dictionary = {
+      allTokens: [{ path: ["color", "primary", "default"], original: { value: "#b2573c" } }],
+    };
+    expect(() => brandColors(dictionary)).toThrow(/color\.accent\.default/);
+  });
+});
+
+// Extracts the r/g/b components of a `--color-<key>: #rrggbb;` declaration
+// from generated CSS text, for cross-checking against a Swift Color literal.
+function cssColorRgb(css: string, cssKey: string): { r: number; g: number; b: number } {
+  const match = css.match(new RegExp(`--color-${cssKey}: (#[0-9a-f]{6});`));
+  expect(match, `--color-${cssKey} not found in _tokens.css`).not.toBeNull();
+  const hex = match?.[1] ?? "";
+  return {
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+describe("dimension/OPColor parity (CSS <-> Swift)", () => {
+  it("--color-libido in _tokens.css and OPColor.purple in Tokens.swift resolve to the same hex", () => {
+    // OPColor.purple is sourced from color.dimension.purple (not .libido) in
+    // SWIFT_COLOR_MAP, but the two tokens share a value, so they must still
+    // agree — this guards against the map ever pointing at the wrong token.
+    const css = read(cssPath);
+    const swift = read(swiftPath);
+    const { r, g, b } = cssColorRgb(css, "libido");
+    expect(swift).toContain(
+      `static let purple = Color(red: ${r} / 255, green: ${g} / 255, blue: ${b} / 255)`,
+    );
+  });
+
+  it.each([
+    ["energy", "dimensionEnergy"],
+    ["mood", "dimensionMood"],
+    ["focus", "dimensionFocus"],
+    ["recovery", "dimensionRecovery"],
+    ["libido", "dimensionLibido"],
+  ] as const)("--color-%s in _tokens.css and OPColor.%s in Tokens.swift resolve to the same hex", (cssKey, swiftName) => {
+    // Each color.dimension.<key> is emitted TWICE — once into
+    // dimensionColors.generated.ts's DIMENSION_COLORS (web) and once into
+    // Tokens.swift's OPColor.dimension<Key> (iOS, via SWIFT_COLOR_MAP) — so
+    // the two platforms can't silently diverge on a dimension's own color.
+    const css = read(cssPath);
+    const swift = read(swiftPath);
+    const { r, g, b } = cssColorRgb(css, cssKey);
+    expect(swift).toContain(
+      `static let ${swiftName} = Color(red: ${r} / 255, green: ${g} / 255, blue: ${b} / 255)`,
+    );
   });
 });

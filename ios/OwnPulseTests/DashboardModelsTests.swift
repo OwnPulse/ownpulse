@@ -14,23 +14,9 @@ struct DashboardModelsTests {
 
     @Test("DashboardSummary decodes from JSON")
     func decodeDashboardSummary() throws {
+        // date-ok
         let json = """
-        {
-            "latest_checkin": {
-                "energy": 7,
-                "mood": 8,
-                "focus": 6,
-                "recovery": 7,
-                "libido": null,
-                "date": "2026-03-28"
-            },
-            "checkin_count_7d": 5,
-            "health_record_count_7d": 42,
-            "intervention_count_7d": 3,
-            "observation_count_7d": 2,
-            "latest_lab_date": "2026-03-15",
-            "pending_friend_shares": 1
-        }
+        { "latest_checkin": { "energy": 7, "mood": 8, "focus": 6, "recovery": 7, "libido": null, "date": "2026-03-28" }, "checkin_count_7d": 5, "health_record_count_7d": 42, "intervention_count_7d": 3, "observation_count_7d": 2, "latest_lab_date": "2026-03-15", "pending_friend_shares": 1 }
         """.data(using: .utf8)!
 
         let summary = try decoder.decode(DashboardSummary.self, from: json)
@@ -38,6 +24,7 @@ struct DashboardModelsTests {
         #expect(summary.healthRecordCount7d == 42)
         #expect(summary.latestCheckin?.energy == 7)
         #expect(summary.latestCheckin?.libido == nil)
+        // date-ok
         #expect(summary.latestLabDate == "2026-03-15")
         #expect(summary.pendingFriendShares == 1)
     }
@@ -187,28 +174,9 @@ struct DashboardModelsTests {
 
     @Test("BatchSeriesResponse decodes with multiple series")
     func decodeBatchSeries() throws {
+        // date-ok
         let json = """
-        {
-            "series": [
-                {
-                    "source": "checkins",
-                    "field": "energy",
-                    "unit": "",
-                    "points": [
-                        {"t": "2026-03-21", "v": 6.0, "n": 1},
-                        {"t": "2026-03-22", "v": 7.0, "n": 1}
-                    ]
-                },
-                {
-                    "source": "health_records",
-                    "field": "resting_heart_rate",
-                    "unit": "bpm",
-                    "points": [
-                        {"t": "2026-03-21", "v": 58.0, "n": 1}
-                    ]
-                }
-            ]
-        }
+        { "series": [ { "source": "checkins", "field": "energy", "unit": "", "points": [ {"t": "2026-03-21", "v": 6.0, "n": 1}, {"t": "2026-03-22", "v": 7.0, "n": 1} ] }, { "source": "health_records", "field": "resting_heart_rate", "unit": "bpm", "points": [ {"t": "2026-03-21", "v": 58.0, "n": 1} ] } ] }
         """.data(using: .utf8)!
 
         let response = try decoder.decode(BatchSeriesResponse.self, from: json)
@@ -222,14 +190,9 @@ struct DashboardModelsTests {
 
     @Test("Insight decodes with all fields")
     func decodeInsight() throws {
+        // date-ok
         let json = """
-        {
-            "id": "ins-1",
-            "insight_type": "correlation",
-            "headline": "Sleep correlates with mood",
-            "detail": "More sleep = better mood.",
-            "created_at": "2026-03-28T10:00:00Z"
-        }
+        { "id": "ins-1", "insight_type": "correlation", "headline": "Sleep correlates with mood", "detail": "More sleep = better mood.", "created_at": "2026-03-28T10:00:00Z" }
         """.data(using: .utf8)!
 
         let insight = try decoder.decode(Insight.self, from: json)
@@ -241,14 +204,9 @@ struct DashboardModelsTests {
 
     @Test("Insight decodes with null detail")
     func decodeInsightNullDetail() throws {
+        // date-ok
         let json = """
-        {
-            "id": "ins-2",
-            "insight_type": "trend",
-            "headline": "Energy trending up",
-            "detail": null,
-            "created_at": "2026-03-28T10:00:00Z"
-        }
+        { "id": "ins-2", "insight_type": "trend", "headline": "Energy trending up", "detail": null, "created_at": "2026-03-28T10:00:00Z" }
         """.data(using: .utf8)!
 
         let insight = try decoder.decode(Insight.self, from: json)
@@ -260,6 +218,7 @@ struct DashboardModelsTests {
     @Test("UpsertCheckin encodes correctly")
     func encodeUpsertCheckin() throws {
         let checkin = UpsertCheckin(
+            // date-ok
             date: "2026-03-28",
             energy: 8, mood: 7, focus: 6, recovery: 9, libido: 5,
             notes: "Great day"
@@ -268,6 +227,7 @@ struct DashboardModelsTests {
         let data = try encoder.encode(checkin)
         let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
+        // date-ok
         #expect(dict?["date"] as? String == "2026-03-28")
         #expect(dict?["energy"] as? Int == 8)
         #expect(dict?["notes"] as? String == "Great day")
@@ -276,6 +236,7 @@ struct DashboardModelsTests {
     @Test("UpsertCheckin encodes null notes when empty")
     func encodeUpsertCheckinNullNotes() throws {
         let checkin = UpsertCheckin(
+            // date-ok
             date: "2026-03-28",
             energy: 5, mood: 5, focus: 5, recovery: 5, libido: 5,
             notes: nil
@@ -296,6 +257,7 @@ struct DashboardModelsTests {
             dose: 200,
             unit: "mg",
             route: "oral",
+            // date-ok
             administeredAt: "2026-03-28T08:00:00Z",
             fasted: true,
             notes: nil
@@ -306,6 +268,7 @@ struct DashboardModelsTests {
 
         #expect(dict?["substance"] as? String == "Caffeine")
         #expect(dict?["dose"] as? Double == 200)
+        // date-ok
         #expect(dict?["administered_at"] as? String == "2026-03-28T08:00:00Z")
         #expect(dict?["fasted"] as? Bool == true)
     }
@@ -317,6 +280,7 @@ struct DashboardModelsTests {
         let observation = CreateObservation(
             type: "scale",
             name: "Wellbeing",
+            // date-ok
             startTime: "2026-03-28T10:00:00Z",
             endTime: nil,
             value: ["numeric": .int(7), "max": .int(10)]
@@ -327,6 +291,7 @@ struct DashboardModelsTests {
 
         #expect(dict?["type"] as? String == "scale")
         #expect(dict?["name"] as? String == "Wellbeing")
+        // date-ok
         #expect(dict?["start_time"] as? String == "2026-03-28T10:00:00Z")
 
         let value = dict?["value"] as? [String: Any]

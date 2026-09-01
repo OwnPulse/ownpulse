@@ -38,10 +38,13 @@ const protocol = {
   name: "BPC-157 Stack",
   description: "Healing protocol",
   status: "active",
+  // date-ok
   start_date: "2026-03-01",
   duration_days: 28,
   share_token: null,
+  // date-ok
   created_at: "2026-03-01T00:00:00Z",
+  // date-ok
   updated_at: "2026-03-01T00:00:00Z",
   lines: [
     {
@@ -64,24 +67,28 @@ const runs = [
     id: "run-1",
     protocol_id: "proto-1",
     user_id: "user-1",
+    // date-ok
     start_date: "2026-03-28",
     status: "active",
     notify: false,
     notify_times: [],
     repeat_reminders: false,
     repeat_interval_minutes: 30,
+    // date-ok
     created_at: "2026-03-28T10:00:00Z",
   },
   {
     id: "run-2",
     protocol_id: "proto-1",
     user_id: "user-1",
+    // date-ok
     start_date: "2026-02-01",
     status: "completed",
     notify: false,
     notify_times: [],
     repeat_reminders: false,
     repeat_interval_minutes: 30,
+    // date-ok
     created_at: "2026-02-01T10:00:00Z",
   },
 ];
@@ -146,7 +153,9 @@ describe("ProtocolView with runs", () => {
     expect(screen.getByText("Start New Run")).toBeDefined();
 
     // Run cards
+    // date-ok
     expect(screen.getByText("Started 2026-03-28")).toBeDefined();
+    // date-ok
     expect(screen.getByText("Started 2026-02-01")).toBeDefined();
 
     // Active run has Pause + Complete buttons
@@ -185,6 +194,7 @@ describe("ProtocolView with runs", () => {
   });
 
   it("shows Pause/Complete for active run and Resume for paused run", async () => {
+    // date-ok
     const mixedRuns = [runs[0], { ...runs[1], status: "paused", start_date: "2026-02-15" }];
 
     server.use(
@@ -349,8 +359,10 @@ describe("ProtocolView with runs", () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
       http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([])),
-      http.post("/api/v1/protocols/:id/share", () =>
-        HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }),
+      http.post(
+        "/api/v1/protocols/:id/share",
+        // date-ok
+        () => HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }),
       ),
     );
 
@@ -391,12 +403,15 @@ describe("ProtocolView with runs", () => {
     it("does not show today's doses before the run's start date has arrived locally", async () => {
       // 2026-03-29T05:00:00Z is 2026-03-28T19:00 in Honolulu — local
       // calendar is still the day *before* the run's start_date.
+      // date-ok
       vi.setSystemTime(new Date("2026-03-29T05:00:00Z"));
 
       server.use(
         http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-        http.get("/api/v1/protocols/:id/runs", () =>
-          HttpResponse.json([{ ...runs[0], start_date: "2026-03-29" }]),
+        http.get(
+          "/api/v1/protocols/:id/runs",
+          // date-ok
+          () => HttpResponse.json([{ ...runs[0], start_date: "2026-03-29" }]),
         ),
       );
 
@@ -417,12 +432,15 @@ describe("ProtocolView with runs", () => {
     it("shows today's dose once the run's start date has arrived locally", async () => {
       // 2026-03-29T05:00:00Z is 2026-03-28T19:00 in Honolulu — the local
       // calendar day matching the run's start_date.
+      // date-ok
       vi.setSystemTime(new Date("2026-03-29T05:00:00Z"));
 
       server.use(
         http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-        http.get("/api/v1/protocols/:id/runs", () =>
-          HttpResponse.json([{ ...runs[0], start_date: "2026-03-28" }]),
+        http.get(
+          "/api/v1/protocols/:id/runs",
+          // date-ok
+          () => HttpResponse.json([{ ...runs[0], start_date: "2026-03-28" }]),
         ),
       );
 

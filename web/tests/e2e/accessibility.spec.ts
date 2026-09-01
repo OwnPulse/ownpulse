@@ -114,6 +114,7 @@ async function scanRegisterInviteForm(page: Page, testInfo: TestInfo) {
         valid: true,
         code: "TEST-CODE",
         created_by_name: "Admin",
+        // date-ok
         expires_at: "2027-01-01T00:00:00Z",
       }),
     }),
@@ -133,6 +134,7 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
       contentType: "application/json",
       body: JSON.stringify({
         latest_checkin: {
+          // date-ok
           date: "2026-06-01",
           energy: 7,
           mood: 6,
@@ -144,6 +146,7 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
         health_record_count_7d: 12,
         intervention_count_7d: 3,
         observation_count_7d: 8,
+        // date-ok
         latest_lab_date: "2026-05-20",
         pending_friend_shares: 1,
       }),
@@ -213,6 +216,7 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
           headline: "Energy trending up",
           detail: "Up 12% over the last week.",
           metadata: {},
+          // date-ok
           created_at: "2026-06-01T00:00:00Z",
         },
         {
@@ -221,6 +225,7 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
           headline: "Unusual recovery dip",
           detail: "Recovery dropped below your baseline.",
           metadata: {},
+          // date-ok
           created_at: "2026-06-01T00:00:00Z",
         },
         {
@@ -229,6 +234,7 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
           headline: "No sleep data this week",
           detail: null,
           metadata: {},
+          // date-ok
           created_at: "2026-06-01T00:00:00Z",
         },
         {
@@ -237,6 +243,7 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
           headline: "5-day check-in streak",
           detail: "Keep it going.",
           metadata: {},
+          // date-ok
           created_at: "2026-06-01T00:00:00Z",
         },
         {
@@ -245,6 +252,7 @@ async function scanDashboard(page: Page, testInfo: TestInfo) {
           headline: "Caffeine vs sleep",
           detail: "Negative correlation detected.",
           metadata: {},
+          // date-ok
           created_at: "2026-06-01T00:00:00Z",
         },
       ]),
@@ -323,6 +331,7 @@ async function scanSettings(page: Page, testInfo: TestInfo) {
           id: "1",
           provider: "google",
           email: "user@example.com",
+          // date-ok
           created_at: "2026-01-01T00:00:00Z",
         },
       ]),
