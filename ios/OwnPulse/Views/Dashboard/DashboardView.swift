@@ -221,7 +221,7 @@ struct DashboardView: View {
         Group {
             if colorScheme == .dark {
                 LinearGradient(
-                    colors: [OPColor.darkBg, Color(red: 0.08, green: 0.08, blue: 0.1)],
+                    colors: [OPColor.darkBg, OPColor.darkBgGradientEnd],
                     startPoint: .top,
                     endPoint: .bottom
                 )

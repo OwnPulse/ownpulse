@@ -19,6 +19,12 @@ xcodebuild test -scheme OwnPulse -destination 'platform=iOS Simulator,name=iPhon
 maestro test ios/maestro/flows/
 ```
 
+Before pushing, run `scripts/ci-ios.sh` from the repo root — it mirrors
+`.github/workflows/ios.yml` (Debug test build + Release whole-module compile)
+so `sending`/region-isolation errors surface locally instead of at TestFlight
+time. Maestro flows are not run in CI; run them manually when you touch a
+flow they cover.
+
 ## Interface to Other Services
 
 - Pact consumer contract at `pact/contracts/ios-backend.json`

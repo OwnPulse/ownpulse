@@ -359,22 +359,39 @@ Flows live in `ios/maestro/flows/`. File names match the user story: `log-interv
 
 ## CI/CD
 
-### Runner strategy
+### Runner strategy (current reality)
 
-**Linux jobs** (backend, web): ARC (Actions Runner Controller) — ephemeral runner pods in k3s cluster on the droplet, autoscale to zero, label `arc-runner-set`.
+**Linux jobs** (backend, web): plain GitHub-hosted `ubuntu-latest` runners.
 
-**macOS/iOS jobs**: Self-hosted Mac mini M4 + Tart VMs. Each job gets a fresh ephemeral macOS VM with Xcode 16 pinned. Label `macos-tart`. No GitHub-hosted macOS runners — they are slow, flaky, and expensive. See `docs/infrastructure.md` for full Mac mini setup runbook.
+**macOS/iOS jobs**: plain GitHub-hosted `macos-15` runners, with a simulator created
+at job start (the image ships no pre-provisioned iOS simulator devices).
 
-**Connectivity**: Tailscale connects Mac mini, droplet, and dev machines. No public ports on the Mac mini.
+ARC (Actions Runner Controller) and a self-hosted Mac mini + Tart VM fleet are
+**planned but not yet built** — `arc-runner-set` and `macos-tart` labels do not
+exist in this repo's workflows today. Treat any doc or workflow comment claiming
+otherwise as stale. When that infra lands, it will be a committed change to
+`ownpulse-infra` plus a `runs-on:` update here, not a manual runner registration.
 
 ```
-backend.yml    unit + integration + contract + clippy + sqlx check + build   runs-on: arc-runner-set
-web.yml        vitest + playwright + tsc + build                             runs-on: arc-runner-set
-ios.yml        swift testing + xcuitest + maestro (inside Tart VM)          runs-on: macos-tart
-deploy.yml     helm upgrade when backend + web pass on main                  runs-on: arc-runner-set
+backend.yml    fmt + clippy + sqlx check + tests (incl. contract) + build   runs-on: ubuntu-latest
+web.yml        biome + tsc + vitest + playwright + build                    runs-on: ubuntu-latest
+ios.yml        xcodebuild test + Release WMO compile                        runs-on: macos-15
+deploy.yml     helm upgrade when backend + web pass on main                 runs-on: ubuntu-latest
 ```
+
+Maestro E2E flows exist under `ios/maestro/flows/` but are **not run in CI** —
+run them manually (`maestro test ios/maestro/flows/`) against a local
+simulator/device before merging changes that touch flows they cover.
 
 All jobs idempotent. No shared runner state. iOS failures do not block deploy — pragmatic for solo dev, tighten when team grows.
+
+### Local gate scripts
+
+`scripts/ci-backend.sh`, `scripts/ci-web.sh`, `scripts/ci-ios.sh` transcribe the
+check steps of the matching workflow file verbatim. Run the one for your area
+before pushing — it catches what CI will catch, without waiting on a runner.
+Each script's header comment names the workflow it mirrors; **any edit to that
+workflow's check steps must update the script in the same PR**, and vice versa.
 
 ---
 

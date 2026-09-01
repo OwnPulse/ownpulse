@@ -30,7 +30,7 @@ struct AdminView: View {
             if let errorMessage {
                 Section {
                     Text(errorMessage)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(OPColor.error)
                         .font(.caption)
                         .accessibilityIdentifier("adminErrorMessage")
                 }
@@ -145,7 +145,7 @@ struct AdminView: View {
                 } label: {
                     Text(user.status == "active" ? "Disable" : "Enable")
                 }
-                .tint(user.status == "active" ? .orange : .green)
+                .tint(user.status == "active" ? .orange : OPColor.success)
             }
         }
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -172,16 +172,16 @@ struct AdminView: View {
                         .font(.caption)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(.green.opacity(0.2))
-                        .foregroundStyle(.green)
+                        .background(OPColor.success.opacity(0.2))
+                        .foregroundStyle(OPColor.success)
                         .clipShape(Capsule())
                 } else {
                     Text("Revoked")
                         .font(.caption)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(.red.opacity(0.2))
-                        .foregroundStyle(.red)
+                        .background(OPColor.error.opacity(0.2))
+                        .foregroundStyle(OPColor.error)
                         .clipShape(Capsule())
                 }
             }
@@ -230,8 +230,8 @@ struct AdminView: View {
             .font(.caption)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(status == "active" ? .green.opacity(0.2) : .red.opacity(0.2))
-            .foregroundStyle(status == "active" ? .green : .red)
+            .background(status == "active" ? OPColor.success.opacity(0.2) : OPColor.error.opacity(0.2))
+            .foregroundStyle(status == "active" ? OPColor.success : OPColor.error)
             .clipShape(Capsule())
     }
 

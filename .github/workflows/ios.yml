@@ -16,6 +16,12 @@ jobs:
   test:
     runs-on: macos-15
     timeout-minutes: 30
+    env:
+      # Pin the toolchain so CI and scripts/ci-ios.sh build with the same
+      # Swift compiler. Newest Xcode 16.x on the macos-15 runner image as of
+      # this writing (see actions/runner-images macos-15 readme) — bump this
+      # deliberately, not by relying on whatever the image defaults to.
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
 
@@ -65,11 +71,9 @@ jobs:
       # boundary errors therefore pass `test` but fail the Release archive
       # (`ownpulse-infra` iOS Build & Upload) — i.e. only surface at TestFlight
       # time. Compile the app under Release (whole-module, like the archive) to
-      # catch that class of error on merge. Build only — no signing, no tests,
-      # no upload — so it adds only the compile to this same runner, and only on
-      # pushes to main (skipped on PRs to save macOS minutes).
+      # catch that class of error before merge. Build only — no signing, no
+      # tests, no upload — so it adds only the compile to this same runner.
       - name: Release compile (whole-module concurrency check)
-        if: github.event_name == 'push'
         working-directory: ios
         run: |
           set -o pipefail

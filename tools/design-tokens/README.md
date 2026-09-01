@@ -22,7 +22,7 @@ This regenerates six committed outputs:
 | Output | Consumer |
 | ------ | -------- |
 | `web/src/styles/_tokens.css` | imported by `web/src/styles/variables.css` for the palette (light `:root`, plus both dark-mode blocks from the `dark.*` group), typography, spacing, radii, shadows |
-| `web/src/components/explore/chartMetricColors.generated.ts` | per-metric chart colors + `INTERVENTION_COLOR`, re-exported from `web/src/components/explore/chartColors.ts` |
+| `web/src/components/explore/chartMetricColors.generated.ts` | per-metric chart colors + `INTERVENTION_COLOR` (re-exported from `web/src/components/explore/chartColors.ts`) + `PRIMARY_COLOR`/`ACCENT_COLOR` (imported directly by the analyze charts: `LagChart`, `ScatterChart`, `BeforeAfterChart`) |
 | `web/src/components/dimensionColors.generated.ts` | `DIMENSION_COLORS` (the five check-in dimensions), consumed by `CheckinForm`, `ScoreRing`, `SparklineRow` |
 | `ios/OwnPulse/Theme/Tokens.swift` | `OPColor` palette + `OPRadius` / `OPFontSize`, consumed by `ios/OwnPulse/Theme/Theme.swift` |
 | `ios/OwnPulse/Theme/ChartColors.swift` | per-metric chart colors (iOS), shares its source of truth with `chartMetricColors.generated.ts` |
@@ -112,7 +112,7 @@ bundled into this tooling change.
 ## Tests
 
 The generator is covered by `web/tests/unit/design-tokens-generator.test.ts`
-(name mapping, CSS↔Swift value parity, `dimensionColors()`/`interventionColor()`
+(name mapping, CSS↔Swift value parity, `dimensionColors()`/`interventionColor()`/`brandColors()`
 against the real token source — including the missing-token throw path —
 CSS↔Swift parity for all five `color.dimension.*` → `OPColor.dimension*`
 pairs, and an idempotency check that the build reproduces all six committed
@@ -124,8 +124,10 @@ threshold, including the `color.dimension.*`/`chart.intervention`
 graphical-object pairings on both light and dark surfaces). The
 `DIMENSION_COLORS` and `INTERVENTION_COLOR` consumers are covered where
 they're used: `web/tests/unit/score-ring.test.tsx`, `checkin-form.test.tsx`,
-`sparkline-row.test.tsx`, and `chart-colors.test.ts`. Run with `npm test` in
-`web/`.
+`sparkline-row.test.tsx`, and `chart-colors.test.ts` (which also asserts
+`PRIMARY_COLOR`/`ACCENT_COLOR` against the old pre-token hexes and that the
+analyze charts import them rather than hardcoding a hex). Run with `npm test`
+in `web/`.
 
 ## Scope
 

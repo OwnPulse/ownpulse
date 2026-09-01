@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
+  brandColors,
   buildTokens,
   cssVarName,
   dimensionColors,
@@ -171,6 +172,28 @@ describe("interventionColor", () => {
   it("throws when chart.intervention is missing from the token source", () => {
     const dictionary = { allTokens: [] };
     expect(() => interventionColor(dictionary)).toThrow(/chart\.intervention/);
+  });
+});
+
+describe("brandColors", () => {
+  it("returns color.primary.default and color.accent.default read from tokens.json", async () => {
+    const dictionary = await loadDictionary();
+    const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join("."), t]));
+    const { primary, accent } = brandColors(dictionary);
+    expect(primary).toBe(byPath.get("color.primary.default")?.original.value);
+    expect(accent).toBe(byPath.get("color.accent.default")?.original.value);
+  });
+
+  it("throws when color.primary.default is missing from the token source", () => {
+    const dictionary = { allTokens: [] };
+    expect(() => brandColors(dictionary)).toThrow(/color\.primary\.default/);
+  });
+
+  it("throws when color.accent.default is missing but color.primary.default is present", () => {
+    const dictionary = {
+      allTokens: [{ path: ["color", "primary", "default"], original: { value: "#b2573c" } }],
+    };
+    expect(() => brandColors(dictionary)).toThrow(/color\.accent\.default/);
   });
 });
 
