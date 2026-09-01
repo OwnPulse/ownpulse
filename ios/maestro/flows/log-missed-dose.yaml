@@ -76,5 +76,5 @@ appId: health.ownpulse.app
     id: "confirmLogDoseButton-.*-0"
 - extendedWaitUntil:
     visible:
-      id: "doseRow-.*-0"
+      id: "doseStatus-.*-0-completed"
     timeout: 10000

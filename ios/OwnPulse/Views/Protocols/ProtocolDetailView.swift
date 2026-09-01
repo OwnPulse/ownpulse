@@ -490,6 +490,9 @@ struct DoseGridSection: View {
 
     @State private var actionTarget: RunDoseDay?
     @State private var skipReasonText = ""
+    @State private var logNotesText = ""
+    @State private var logTimeTaken: Date?
+    @State private var logTimeTakenEnabled = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -544,6 +547,9 @@ struct DoseGridSection: View {
             if day.status == .missed || day.status == .pending {
                 Button {
                     skipReasonText = ""
+                    logNotesText = ""
+                    logTimeTaken = nil
+                    logTimeTakenEnabled = false
                     actionTarget = day
                 } label: {
                     doseRowContent(day)
@@ -587,6 +593,7 @@ struct DoseGridSection: View {
                 .font(.caption)
                 .fontWeight(.semibold)
                 .foregroundStyle(statusColor(day.status))
+                .accessibilityIdentifier("doseStatus-\(day.protocolLineId)-\(day.dayNumber)-\(day.status.rawValue)")
         }
     }
 
@@ -610,6 +617,37 @@ struct DoseGridSection: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
+                }
+                Section("Log details (optional)") {
+                    Toggle("Time taken", isOn: Binding(
+                        get: { logTimeTakenEnabled },
+                        set: { enabled in
+                            logTimeTakenEnabled = enabled
+                            // Default to now only when first enabled — leaving it nil
+                            // otherwise lets the server derive the timestamp from
+                            // start_date + day_number + tz offset.
+                            if enabled && logTimeTaken == nil {
+                                logTimeTaken = Date()
+                            }
+                        }
+                    ))
+                    .accessibilityIdentifier("logTimeTakenToggle-\(day.protocolLineId)-\(day.dayNumber)")
+
+                    if logTimeTakenEnabled {
+                        DatePicker(
+                            "Time",
+                            selection: Binding(
+                                get: { logTimeTaken ?? Date() },
+                                set: { logTimeTaken = $0 }
+                            ),
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                        .datePickerStyle(.compact)
+                        .accessibilityIdentifier("logTimeTakenPicker-\(day.protocolLineId)-\(day.dayNumber)")
+                    }
+
+                    TextField("Notes", text: $logNotesText, axis: .vertical)
+                        .accessibilityIdentifier("logNotesField-\(day.protocolLineId)-\(day.dayNumber)")
                 }
                 Section("Skip reason (optional)") {
                     TextField("Reason", text: $skipReasonText, axis: .vertical)
@@ -653,12 +691,15 @@ struct DoseGridSection: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log") {
+                        let trimmedNotes = logNotesText.trimmingCharacters(in: .whitespacesAndNewlines)
                         Task {
                             let success = await viewModel.logDose(
                                 protocolId: protocolId,
                                 runId: runId,
                                 lineId: day.protocolLineId,
-                                dayNumber: day.dayNumber
+                                dayNumber: day.dayNumber,
+                                administeredAt: logTimeTakenEnabled ? logTimeTaken : nil,
+                                notes: trimmedNotes.isEmpty ? nil : trimmedNotes
                             )
                             if success { actionTarget = nil }
                         }

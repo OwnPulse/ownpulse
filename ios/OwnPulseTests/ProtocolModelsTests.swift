@@ -7,7 +7,10 @@ import Testing
 
 @Suite("Protocol Models")
 struct ProtocolModelsTests {
-    private let decoder = JSONDecoder()
+    // Exercise the production decoder config (fractional-second ISO8601
+    // fallback) rather than a bare JSONDecoder(), so these fixtures catch
+    // date-decoding regressions the real NetworkClient would hit.
+    private let decoder = NetworkClient.makeDecoder()
 
     // MARK: - ProtocolDetail decode regression tests
     //
