@@ -109,7 +109,7 @@ struct SyncStatusView: View {
                         systemImage: "exclamationmark.triangle.fill"
                     )
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(OPColor.error)
 
                     Spacer()
 
@@ -242,7 +242,7 @@ struct SyncStatusView: View {
                 .foregroundStyle(OPColor.teal)
         case .failed:
             Image(systemName: "xmark.circle.fill")
-                .foregroundStyle(.red)
+                .foregroundStyle(OPColor.error)
         case .pending:
             Image(systemName: "circle")
                 .foregroundStyle(.secondary)

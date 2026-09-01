@@ -56,6 +56,7 @@ describe("api client", () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 401,
+      headers: new Headers(),
       text: () => Promise.resolve("Unauthorized"),
     });
     vi.stubGlobal("fetch", mockFetch);
@@ -73,6 +74,7 @@ describe("api client", () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
+      headers: new Headers(),
       text: () => Promise.resolve("Internal Server Error"),
     });
     vi.stubGlobal("fetch", mockFetch);

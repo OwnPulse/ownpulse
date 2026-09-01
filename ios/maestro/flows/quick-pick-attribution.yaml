@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: quick-picking a substance that matches today's pending
+# scheduled dose offers "Count toward <protocol>" instead of silently
+# creating a free-floating intervention (attribution parity with web).
+#
+# startRunButton only renders on the protocol LIST row (ProtocolCardView) —
+# not inside the detail view — so the run must be started before switching
+# to the Log tab.
+appId: health.ownpulse.app
+---
+- assertVisible:
+    id: "mainTabView"
+
+- tapOn: "Protocols"
+- assertVisible:
+    id: "protocolFilterPicker"
+
+# Create a protocol that starts today so its day 0 dose is quick-pickable.
+- tapOn:
+    id: "newProtocolButton"
+- assertVisible:
+    id: "protocolNameField"
+- tapOn:
+    id: "protocolNameField"
+- inputText: "Quick Pick Attribution Protocol"
+- tapOn:
+    id: "substanceName-0"
+- inputText: "Creatine"
+- tapOn:
+    id: "substanceDose-0"
+- inputText: "5"
+- tapOn:
+    id: "createProtocolButton"
+- extendedWaitUntil:
+    visible:
+      id: "protocolFilterPicker"
+    timeout: 10000
+
+- assertVisible:
+    id: "startRunButton-.*"
+- tapOn:
+    id: "startRunButton-.*"
+- extendedWaitUntil:
+    notVisible:
+      id: "startRunButton-.*"
+    timeout: 10000
+
+# Switch to the Log tab and quick-pick the same substance/dose.
+- tapOn: "Log"
+- assertVisible:
+    id: "logTabPicker"
+- tapOn: "Intervention"
+- extendedWaitUntil:
+    visible:
+      id: "quickPickChip-.*Creatine.*"
+    timeout: 10000
+- tapOn:
+    id: "quickPickChip-.*Creatine.*"
+
+# The quick-picked substance+dose matches today's pending dose — the
+# attribution toggle should appear, defaulted on.
+- assertVisible:
+    id: "countTowardProtocolToggle"
+
+- tapOn:
+    id: "saveInterventionButton"
+- extendedWaitUntil:
+    visible:
+      id: "submitSuccess"
+    timeout: 10000

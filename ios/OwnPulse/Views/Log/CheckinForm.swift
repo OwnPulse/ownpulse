@@ -23,7 +23,7 @@ struct CheckinForm: View {
             ScoreSlider(
                 label: "Energy",
                 value: $viewModel.energy,
-                accentColor: OPColor.gold
+                accentColor: OPColor.dimensionEnergy
             )
 
             ScoreSlider(
@@ -47,7 +47,7 @@ struct CheckinForm: View {
             ScoreSlider(
                 label: "Libido",
                 value: $viewModel.libido,
-                accentColor: .purple
+                accentColor: OPColor.purple
             )
 
             Divider()
@@ -67,7 +67,7 @@ struct CheckinForm: View {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Text("Save Check-in")
+                        Text("Log Check-in")
                             .fontWeight(.semibold)
                     }
                 }

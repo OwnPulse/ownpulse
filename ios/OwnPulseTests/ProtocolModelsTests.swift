@@ -418,4 +418,79 @@ struct ProtocolModelsTests {
         let obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(obj["skip_reason"] as? String == "traveling")
     }
+
+    // MARK: - ActiveSubstance decode regression test
+    //
+    // Pinned to the backend's `ActiveSubstanceItem`
+    // (`backend/api/src/models/protocol.rs`), which has no `protocol_id`
+    // field — unlike web's `ActiveSubstance` TS interface, which declares
+    // one the backend does not actually serialize.
+
+    @Test("ActiveSubstance decodes a full entry with dose/unit/route present")
+    func decodeActiveSubstanceFull() throws {
+        let json = """
+        [
+          {
+            "substance": "BPC-157",
+            "dose": 250.0,
+            "unit": "mcg",
+            "route": "subcutaneous",
+            "protocol_name": "Recovery Stack"
+          }
+        ]
+        """.data(using: .utf8)!
+
+        let items = try decoder.decode([ActiveSubstance].self, from: json)
+        let item = try #require(items.first)
+        #expect(item.substance == "BPC-157")
+        #expect(item.dose == 250.0)
+        #expect(item.unit == "mcg")
+        #expect(item.route == "subcutaneous")
+        #expect(item.protocolName == "Recovery Stack")
+    }
+
+    @Test("ActiveSubstance decodes with dose/unit/route absent")
+    func decodeActiveSubstanceNullFields() throws {
+        let json = """
+        [
+          {
+            "substance": "Creatine",
+            "dose": null,
+            "unit": null,
+            "route": null,
+            "protocol_name": "Stack"
+          }
+        ]
+        """.data(using: .utf8)!
+
+        let items = try decoder.decode([ActiveSubstance].self, from: json)
+        let item = try #require(items.first)
+        #expect(item.dose == nil)
+        #expect(item.unit == nil)
+        #expect(item.route == nil)
+    }
+
+    // MARK: - ActiveSubstance.id uniqueness
+    //
+    // The backend's DISTINCT ON explicitly permits rows for the same
+    // substance/protocol that differ only by route, and a nil dose must not
+    // collide with a genuine 0-dose row. Either collision would silently
+    // drop a row from a SwiftUI `ForEach` (and duplicate an accessibility
+    // identifier).
+
+    @Test("ActiveSubstance.id differs for rows that differ only by route")
+    func activeSubstanceIdDiffersByRoute() {
+        let oral = ActiveSubstance(substance: "BPC-157", dose: 250, unit: "mcg", route: "oral", protocolName: "Stack")
+        let subq = ActiveSubstance(substance: "BPC-157", dose: 250, unit: "mcg", route: "subcutaneous", protocolName: "Stack")
+
+        #expect(oral.id != subq.id)
+    }
+
+    @Test("ActiveSubstance.id differs between a nil dose and a zero dose")
+    func activeSubstanceIdDiffersNilVsZeroDose() {
+        let nilDose = ActiveSubstance(substance: "Creatine", dose: nil, unit: "g", route: "oral", protocolName: "Stack")
+        let zeroDose = ActiveSubstance(substance: "Creatine", dose: 0, unit: "g", route: "oral", protocolName: "Stack")
+
+        #expect(nilDose.id != zeroDose.id)
+    }
 }

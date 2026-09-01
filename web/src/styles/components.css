@@ -86,7 +86,9 @@
 }
 
 .op-btn-danger:hover:not(:disabled) {
-  background: #993d3d;
+  /* Darkened error tone for hover, derived from the token instead of a
+     hand-picked hex so it stays in sync if color-error is ever retinted. */
+  background: color-mix(in srgb, var(--color-error) 85%, black);
 }
 
 .op-btn-ghost {
@@ -141,12 +143,12 @@
 }
 
 .op-badge-success {
-  background: rgba(90, 138, 90, 0.15);
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
   color: var(--color-success);
 }
 
 .op-badge-error {
-  background: rgba(181, 74, 74, 0.15);
+  background: color-mix(in srgb, var(--color-error) 15%, transparent);
   color: var(--color-error);
 }
 
@@ -195,7 +197,9 @@
 
 .op-input:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(194, 101, 74, 0.15);
+  /* Was a literal rgba() copy of the pre-token primary hex (#c2654a); tied to
+     color-primary via color-mix so the focus ring can't drift from the palette. */
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .op-textarea {
@@ -217,7 +221,9 @@
 
 .op-textarea:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(194, 101, 74, 0.15);
+  /* Was a literal rgba() copy of the pre-token primary hex (#c2654a); tied to
+     color-primary via color-mix so the focus ring can't drift from the palette. */
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 .op-select {
@@ -237,7 +243,9 @@
 
 .op-select:focus {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(194, 101, 74, 0.15);
+  /* Was a literal rgba() copy of the pre-token primary hex (#c2654a); tied to
+     color-primary via color-mix so the focus ring can't drift from the palette. */
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-primary) 15%, transparent);
 }
 
 /* --- Slider --- */

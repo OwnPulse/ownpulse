@@ -6,7 +6,7 @@ The Settings page is where you manage your account preferences, data sources, ex
 
 When you have multiple data sources reporting the same metric (for example, heart rate from both Apple Health and a connected wearable), you can set which source is considered authoritative. Go to **Settings > Source Preferences** and select your preferred source for each metric type.
 
-The preferred source is used for display on the Timeline and in analysis. Data from non-preferred sources is still stored, still appears in exports, and can be viewed in detailed data views. Changing your preference takes effect immediately for all future data display.
+The preferred source is used on the dashboard, in charts and analysis (Explore, correlation/stats), and in the deduplication logic behind them -- not on the Timeline or any detailed/raw data view, which always show every record from every source regardless of preference. Data from non-preferred sources is still stored, still appears in exports, friend-shared views, and detailed data views. Changing your preference takes effect immediately for all future aggregate display.
 
 See [Integrations](integrations.md) for more on connecting and managing data sources.
 
@@ -30,7 +30,7 @@ Other units (distance, temperature, energy) are not yet configurable.
 
 ### How source preferences work
 
-When multiple sources report the same metric, the preferred source's value is shown on the dashboard and used in analysis. Non-preferred source data is kept in the database -- it is not deleted, just deprioritized. You can always see data from all sources in exports and detailed data views. Changing your preference takes effect immediately for all future display.
+When multiple sources report the same metric, the preferred source's value is shown on the dashboard and used in charts and analysis. Non-preferred source data is kept in the database -- it is not deleted, just deprioritized in those aggregate views. You can always see data from all sources on the Timeline, in exports, and in detailed data views. Changing your preference takes effect immediately for all future aggregate display.
 
 ## Export data
 

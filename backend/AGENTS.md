@@ -18,6 +18,10 @@ cargo build
 cargo test
 ```
 
+Before pushing, run `scripts/ci-backend.sh` from the repo root — it mirrors
+`.github/workflows/backend.yml` (fmt, clippy, sqlx check, tests incl.
+contract) so failures surface locally instead of on a CI runner.
+
 ## Interface to Other Services
 
 - REST API defined in `docs/architecture/api.md`
