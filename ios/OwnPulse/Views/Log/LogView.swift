@@ -107,9 +107,9 @@ struct LogView: View {
         case .error(let message):
             HStack {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(OPColor.error)
                 Text(message)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(OPColor.error)
             }
             .font(.caption)
             .transition(.move(edge: .bottom).combined(with: .opacity))
