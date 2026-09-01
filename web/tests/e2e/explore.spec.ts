@@ -62,8 +62,10 @@ async function mockExploreApis(page: import("@playwright/test").Page) {
             range: { preset: "30d" },
             resolution: "daily",
           },
-          created_at: "2026-03-01T00:00:00Z", // date-ok
-          updated_at: "2026-03-01T00:00:00Z", // date-ok
+          // date-ok
+          created_at: "2026-03-01T00:00:00Z",
+          // date-ok
+          updated_at: "2026-03-01T00:00:00Z",
         }),
       });
     }
@@ -81,11 +83,16 @@ async function mockExploreApis(page: import("@playwright/test").Page) {
             field: "energy",
             unit: "score",
             points: [
-              { t: "2026-03-01T00:00:00Z", v: 7, n: 1 }, // date-ok
-              { t: "2026-03-02T00:00:00Z", v: 6, n: 1 }, // date-ok
-              { t: "2026-03-03T00:00:00Z", v: 8, n: 1 }, // date-ok
-              { t: "2026-03-04T00:00:00Z", v: 5, n: 1 }, // date-ok
-              { t: "2026-03-05T00:00:00Z", v: 9, n: 1 }, // date-ok
+              // date-ok
+              { t: "2026-03-01T00:00:00Z", v: 7, n: 1 },
+              // date-ok
+              { t: "2026-03-02T00:00:00Z", v: 6, n: 1 },
+              // date-ok
+              { t: "2026-03-03T00:00:00Z", v: 8, n: 1 },
+              // date-ok
+              { t: "2026-03-04T00:00:00Z", v: 5, n: 1 },
+              // date-ok
+              { t: "2026-03-05T00:00:00Z", v: 9, n: 1 },
             ],
           },
         ],

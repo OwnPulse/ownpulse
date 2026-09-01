@@ -109,12 +109,7 @@ struct APIModelsTests {
     func authMethodCreatedAtISO8601() throws {
         // date-ok
         let json = """
-        {
-            "id": "uuid-1",
-            "provider": "apple",
-            "email": "user@example.com",
-            "created_at": "2026-03-20T10:00:00Z"
-        }
+        { "id": "uuid-1", "provider": "apple", "email": "user@example.com", "created_at": "2026-03-20T10:00:00Z" }
         """.data(using: .utf8)!
 
         let decoded = try decoder.decode(AuthMethod.self, from: json)

@@ -21,16 +21,20 @@ const mockFlags = [
     key: "dark_mode_v2",
     enabled: true,
     description: "Enable dark mode v2",
-    created_at: "2026-01-01T00:00:00Z", // date-ok
-    updated_at: "2026-01-01T00:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-01-01T00:00:00Z",
+    // date-ok
+    updated_at: "2026-01-01T00:00:00Z",
   },
   {
     id: "f2",
     key: "new_dashboard",
     enabled: false,
     description: null,
-    created_at: "2026-02-01T00:00:00Z", // date-ok
-    updated_at: "2026-02-01T00:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-02-01T00:00:00Z",
+    // date-ok
+    updated_at: "2026-02-01T00:00:00Z",
   },
 ];
 

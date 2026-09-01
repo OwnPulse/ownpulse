@@ -90,7 +90,8 @@ async fn test_create_protocol_empty_name_returns_400() {
 
     let body = json!({
         "name": "",
-        "start_date": "2026-04-01", // date-ok
+        // date-ok
+        "start_date": "2026-04-01",
         "duration_days": 7,
         "lines": [{
             "substance": "Creatine",
@@ -123,7 +124,8 @@ async fn test_create_protocol_bad_duration_returns_400() {
     // duration_days = 0
     let body_zero = json!({
         "name": "Bad Duration",
-        "start_date": "2026-04-01", // date-ok
+        // date-ok
+        "start_date": "2026-04-01",
         "duration_days": 0,
         "lines": [{
             "substance": "X",
@@ -151,7 +153,8 @@ async fn test_create_protocol_bad_duration_returns_400() {
     let pattern_400: Vec<bool> = vec![true; 400];
     let body_400 = json!({
         "name": "Too Long",
-        "start_date": "2026-04-01", // date-ok
+        // date-ok
+        "start_date": "2026-04-01",
         "duration_days": 400,
         "lines": [{
             "substance": "X",
@@ -183,7 +186,8 @@ async fn test_create_protocol_pattern_length_mismatch_returns_400() {
     // duration_days=7 but pattern has 5 elements
     let body = json!({
         "name": "Mismatch",
-        "start_date": "2026-04-01", // date-ok
+        // date-ok
+        "start_date": "2026-04-01",
         "duration_days": 7,
         "lines": [{
             "substance": "Creatine",
@@ -214,7 +218,8 @@ async fn test_create_protocol_empty_substance_returns_400() {
 
     let body = json!({
         "name": "Empty Sub",
-        "start_date": "2026-04-01", // date-ok
+        // date-ok
+        "start_date": "2026-04-01",
         "duration_days": 3,
         "lines": [{
             "substance": "",
@@ -248,7 +253,8 @@ async fn test_list_protocols() {
 
     let body2 = json!({
         "name": "Second Protocol",
-        "start_date": "2026-04-01", // date-ok
+        // date-ok
+        "start_date": "2026-04-01",
         "duration_days": 3,
         "lines": [{
             "substance": "Vitamin D",

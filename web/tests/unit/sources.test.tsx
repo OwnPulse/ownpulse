@@ -64,7 +64,8 @@ describe("Sources page", () => {
           {
             source: "google_calendar",
             connected: true,
-            last_synced_at: "2026-08-01T12:00:00Z", // date-ok
+            // date-ok
+            last_synced_at: "2026-08-01T12:00:00Z",
           },
         ]),
       ),

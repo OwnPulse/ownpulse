@@ -24,7 +24,8 @@ const mockUsers = [
     role: "admin",
     status: "active",
     data_region: "us",
-    created_at: "2025-01-01T00:00:00Z", // date-ok
+    // date-ok
+    created_at: "2025-01-01T00:00:00Z",
   },
   {
     id: "u2",
@@ -33,7 +34,8 @@ const mockUsers = [
     role: "user",
     status: "active",
     data_region: "us",
-    created_at: "2025-06-01T00:00:00Z", // date-ok
+    // date-ok
+    created_at: "2025-06-01T00:00:00Z",
   },
 ];
 
@@ -46,7 +48,8 @@ const mockInvites = [
     use_count: 3,
     expires_at: null,
     revoked_at: null,
-    created_at: "2025-01-01T00:00:00Z", // date-ok
+    // date-ok
+    created_at: "2025-01-01T00:00:00Z",
   },
 ];
 
@@ -263,7 +266,8 @@ describe("adminApi", () => {
         use_count: 0,
         expires_at: null,
         revoked_at: null,
-        created_at: "2026-03-22T00:00:00Z", // date-ok
+        // date-ok
+        created_at: "2026-03-22T00:00:00Z",
       };
 
       server.use(
@@ -299,7 +303,8 @@ describe("adminApi", () => {
             code: "INVITE-NEW",
             label: "With email",
             use_count: 0,
-            created_at: "2026-03-22T00:00:00Z", // date-ok
+            // date-ok
+            created_at: "2026-03-22T00:00:00Z",
           });
         }),
       );
@@ -344,7 +349,8 @@ describe("adminApi", () => {
   describe("revokeInvite", () => {
     it("DELETEs /api/v1/admin/invites/:id", async () => {
       let capturedId: string | undefined;
-      const revokedInvite = { ...mockInvites[0], revoked_at: "2026-03-22T00:00:00Z" }; // date-ok
+      // date-ok
+      const revokedInvite = { ...mockInvites[0], revoked_at: "2026-03-22T00:00:00Z" };
 
       server.use(
         http.delete("/api/v1/admin/invites/:id", ({ params }) => {
@@ -357,7 +363,8 @@ describe("adminApi", () => {
       const result = await adminApi.revokeInvite("inv1");
 
       expect(capturedId).toBe("inv1");
-      expect(result.revoked_at).toBe("2026-03-22T00:00:00Z"); // date-ok
+      // date-ok
+      expect(result.revoked_at).toBe("2026-03-22T00:00:00Z");
     });
 
     it("throws on 401 and triggers logout", async () => {

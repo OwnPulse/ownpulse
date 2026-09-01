@@ -20,11 +20,14 @@ const mockPolls: Poll[] = [
       {
         id: "member-1",
         observer_email: "s***@example.com",
-        accepted_at: "2026-03-01T00:00:00Z", // date-ok
-        created_at: "2026-02-28T00:00:00Z", // date-ok
+        // date-ok
+        accepted_at: "2026-03-01T00:00:00Z",
+        // date-ok
+        created_at: "2026-02-28T00:00:00Z",
       },
     ],
-    created_at: "2026-02-28T00:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-02-28T00:00:00Z",
     deleted_at: null,
   },
 ];
@@ -280,7 +283,8 @@ describe("ObserverPolls page", () => {
       mockGetResponses.mockResolvedValue({ responses: [] });
       mockInvite.mockResolvedValue({
         invite_token: "test-token",
-        invite_expires_at: "2026-04-04T00:00:00Z", // date-ok
+        // date-ok
+        invite_expires_at: "2026-04-04T00:00:00Z",
         invite_url: "http://localhost/observe/accept?token=test-token",
       });
 
@@ -318,9 +322,11 @@ describe("ObserverPolls page", () => {
             id: "resp-1",
             member_id: "member-1",
             observer_email: "s***@example.com",
-            date: "2026-03-27", // date-ok
+            // date-ok
+            date: "2026-03-27",
             scores: { energy: 7, mood: 8, focus: 6 },
-            created_at: "2026-03-27T10:00:00Z", // date-ok
+            // date-ok
+            created_at: "2026-03-27T10:00:00Z",
           },
         ],
       });
@@ -335,7 +341,8 @@ describe("ObserverPolls page", () => {
       await user.click(screen.getByText("Daily mood check"));
 
       await waitFor(() => {
-        expect(screen.getByText("2026-03-27")).toBeDefined(); // date-ok
+        // date-ok
+        expect(screen.getByText("2026-03-27")).toBeDefined();
       });
 
       expect(screen.getByText("7")).toBeDefined();
@@ -446,9 +453,11 @@ describe("ObserverPolls page", () => {
     it("submits response with correct data", async () => {
       mockRespond.mockResolvedValue({
         id: "resp-new",
-        date: "2026-03-28", // date-ok
+        // date-ok
+        date: "2026-03-28",
         scores: { energy: 5, mood: 5 },
-        created_at: "2026-03-28T10:00:00Z", // date-ok
+        // date-ok
+        created_at: "2026-03-28T10:00:00Z",
       });
 
       renderPage();
@@ -478,9 +487,11 @@ describe("ObserverPolls page", () => {
     it("shows success message after submitting response", async () => {
       mockRespond.mockResolvedValue({
         id: "resp-new",
-        date: "2026-03-28", // date-ok
+        // date-ok
+        date: "2026-03-28",
         scores: { energy: 5, mood: 5 },
-        created_at: "2026-03-28T10:00:00Z", // date-ok
+        // date-ok
+        created_at: "2026-03-28T10:00:00Z",
       });
 
       renderPage();

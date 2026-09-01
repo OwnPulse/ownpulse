@@ -11,7 +11,8 @@ import { refresh401Handler } from "./support/msw-auth-refresh";
 const mockSummary = {
   total_variants: 650000,
   source: "23andMe",
-  uploaded_at: "2026-03-20T10:00:00Z", // date-ok
+  // date-ok
+  uploaded_at: "2026-03-20T10:00:00Z",
   chromosomes: { "1": 50000, "2": 45000, X: 20000 },
   annotated_count: 42,
 };
@@ -23,14 +24,16 @@ const mockListResponse = {
       chromosome: "1",
       position: 11856378,
       genotype: "CT",
-      created_at: "2026-03-20T10:00:00Z", // date-ok
+      // date-ok
+      created_at: "2026-03-20T10:00:00Z",
     },
     {
       rsid: "rs4680",
       chromosome: "22",
       position: 19963748,
       genotype: "AG",
-      created_at: "2026-03-20T10:00:00Z", // date-ok
+      // date-ok
+      created_at: "2026-03-20T10:00:00Z",
     },
   ],
   total: 650000,

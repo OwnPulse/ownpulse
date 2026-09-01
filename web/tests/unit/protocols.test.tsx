@@ -24,9 +24,11 @@ const interventionsList = [
     dose: 200,
     unit: "mg",
     route: "oral",
-    administered_at: "2026-03-02T08:00:00Z", // date-ok
+    // date-ok
+    administered_at: "2026-03-02T08:00:00Z",
     fasted: false,
-    created_at: "2026-03-02T08:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-03-02T08:00:00Z",
   },
   {
     id: "iv-2",
@@ -35,9 +37,11 @@ const interventionsList = [
     dose: 5000,
     unit: "IU",
     route: "oral",
-    administered_at: "2026-03-03T08:00:00Z", // date-ok
+    // date-ok
+    administered_at: "2026-03-03T08:00:00Z",
     fasted: false,
-    created_at: "2026-03-03T08:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-03-03T08:00:00Z",
   },
 ];
 

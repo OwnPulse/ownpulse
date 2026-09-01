@@ -48,9 +48,11 @@ const interventionsResponse = [
     dose: 400,
     unit: "mg",
     route: "oral",
-    administered_at: "2026-01-15T08:00:00Z", // date-ok
+    // date-ok
+    administered_at: "2026-01-15T08:00:00Z",
     fasted: false,
-    created_at: "2026-01-15T08:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-01-15T08:00:00Z",
   },
   {
     id: "int-2",
@@ -59,15 +61,18 @@ const interventionsResponse = [
     dose: 5,
     unit: "g",
     route: "oral",
-    administered_at: "2026-01-16T08:00:00Z", // date-ok
+    // date-ok
+    administered_at: "2026-01-16T08:00:00Z",
     fasted: false,
-    created_at: "2026-01-16T08:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-01-16T08:00:00Z",
   },
 ];
 
 const beforeAfterResponse = {
   intervention_substance: "Magnesium",
-  first_dose: "2026-01-15T08:00:00Z", // date-ok
+  // date-ok
+  first_dose: "2026-01-15T08:00:00Z",
   last_dose: null,
   metric: { source: "checkins", field: "energy" },
   before: {
@@ -75,8 +80,10 @@ const beforeAfterResponse = {
     std_dev: 1.1,
     n: 30,
     points: [
-      { t: "2026-01-01T00:00:00Z", v: 5 }, // date-ok
-      { t: "2026-01-02T00:00:00Z", v: 6 }, // date-ok
+      // date-ok
+      { t: "2026-01-01T00:00:00Z", v: 5 },
+      // date-ok
+      { t: "2026-01-02T00:00:00Z", v: 6 },
     ],
   },
   after: {
@@ -84,8 +91,10 @@ const beforeAfterResponse = {
     std_dev: 0.9,
     n: 30,
     points: [
-      { t: "2026-01-16T00:00:00Z", v: 7 }, // date-ok
-      { t: "2026-01-17T00:00:00Z", v: 6 }, // date-ok
+      // date-ok
+      { t: "2026-01-16T00:00:00Z", v: 7 },
+      // date-ok
+      { t: "2026-01-17T00:00:00Z", v: 6 },
     ],
   },
   change_pct: 30.8,
@@ -104,8 +113,10 @@ const correlateResponse = {
   method: "pearson",
   interpretation: "Strong positive correlation",
   scatter: [
-    { a: 5, b: 6, t: "2026-01-01T00:00:00Z" }, // date-ok
-    { a: 7, b: 8, t: "2026-01-02T00:00:00Z" }, // date-ok
+    // date-ok
+    { a: 5, b: 6, t: "2026-01-01T00:00:00Z" },
+    // date-ok
+    { a: 7, b: 8, t: "2026-01-02T00:00:00Z" },
   ],
 };
 
@@ -213,8 +224,10 @@ describe("ScatterChart", () => {
     render(
       <ScatterChart
         data={[
-          { a: 5, b: 6, t: "2026-01-01T00:00:00Z" }, // date-ok
-          { a: 7, b: 8, t: "2026-01-02T00:00:00Z" }, // date-ok
+          // date-ok
+          { a: 5, b: 6, t: "2026-01-01T00:00:00Z" },
+          // date-ok
+          { a: 7, b: 8, t: "2026-01-02T00:00:00Z" },
         ]}
         labelA="Energy"
         labelB="Mood"
@@ -393,8 +406,10 @@ describe("CorrelationForm", () => {
 
     const startInput = screen.getByLabelText("Start Date");
     const endInput = screen.getByLabelText("End Date");
-    await user.type(startInput, "2026-01-01"); // date-ok
-    await user.type(endInput, "2026-03-01"); // date-ok
+    // date-ok
+    await user.type(startInput, "2026-01-01");
+    // date-ok
+    await user.type(endInput, "2026-03-01");
 
     await user.click(screen.getByRole("button", { name: /^correlate$/i }));
 
@@ -426,8 +441,10 @@ describe("CorrelationForm", () => {
 
     await user.selectOptions(screen.getByLabelText("Metric A"), "checkins:energy");
     await user.selectOptions(screen.getByLabelText("Metric B"), "checkins:mood");
-    await user.type(screen.getByLabelText("Start Date"), "2026-01-01"); // date-ok
-    await user.type(screen.getByLabelText("End Date"), "2026-03-01"); // date-ok
+    // date-ok
+    await user.type(screen.getByLabelText("Start Date"), "2026-01-01");
+    // date-ok
+    await user.type(screen.getByLabelText("End Date"), "2026-03-01");
     await user.click(screen.getByRole("button", { name: /^correlate$/i }));
 
     await waitFor(() => {
@@ -486,8 +503,10 @@ describe("LagCorrelationForm", () => {
 
     await user.selectOptions(screen.getByLabelText("Metric A"), "checkins:energy");
     await user.selectOptions(screen.getByLabelText("Metric B"), "checkins:mood");
-    await user.type(screen.getByLabelText("Start Date"), "2026-01-01"); // date-ok
-    await user.type(screen.getByLabelText("End Date"), "2026-03-01"); // date-ok
+    // date-ok
+    await user.type(screen.getByLabelText("Start Date"), "2026-01-01");
+    // date-ok
+    await user.type(screen.getByLabelText("End Date"), "2026-03-01");
 
     await user.click(screen.getByRole("button", { name: /analyze lag/i }));
 
@@ -519,8 +538,10 @@ describe("LagCorrelationForm", () => {
 
     await user.selectOptions(screen.getByLabelText("Metric A"), "checkins:energy");
     await user.selectOptions(screen.getByLabelText("Metric B"), "checkins:mood");
-    await user.type(screen.getByLabelText("Start Date"), "2026-01-01"); // date-ok
-    await user.type(screen.getByLabelText("End Date"), "2026-03-01"); // date-ok
+    // date-ok
+    await user.type(screen.getByLabelText("Start Date"), "2026-01-01");
+    // date-ok
+    await user.type(screen.getByLabelText("End Date"), "2026-03-01");
     await user.click(screen.getByRole("button", { name: /analyze lag/i }));
 
     await waitFor(() => {

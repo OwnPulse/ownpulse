@@ -6,29 +6,29 @@
 # exists for exactly this. Prefer relative-time helpers (e.g. `now()`,
 # `Utc::now() - Duration::days(n)`, `faker`-generated dates) over literals.
 #
+# Deliberately parser-free: this only ever looks at individual lines, never
+# tracks whether a line is inside an open string/comment/block. Earlier
+# versions tried to track that (Swift `"""` blocks, backtick template
+# literals, and — the one that actually broke something — Rust's plain
+# `"..."` strings, which can legally contain a literal newline) and kept
+# growing new special cases. One of them appended an annotation *inside* a
+# multi-line SQL string, which reached Postgres as a literal `//` and broke
+# a test at runtime. Not worth it for a lint. The rule now:
+#
 # Exemptions:
 #   - paths under pact/contracts/, tests/fixtures/, or db/migrations/ (fixed
 #     recorded fixtures / historical schema, not test assertions)
-#   - a line annotated with a trailing `// date-ok` comment
-#   - a line with a standalone `// date-ok` comment immediately above or
-#     below it — above, for a code line where a trailing comment isn't legal
-#     (rustfmt moves a trailing comment after a line ending in `{` down to
-#     its own line, so both directions have to work); below, for the same
-#     reason in reverse
-#   - a multi-line string literal block — a Swift `"""` fixture, a backtick
-#     template literal, OR a plain Rust `"..."` string that spans several
-#     physical lines (Rust allows a literal newline inside a regular string,
-#     e.g. a multi-line SQL query passed to sqlx::query) — where the line
-#     immediately *before* the block starts is a standalone `// date-ok`
-#     comment. A trailing comment can't be placed inside the literal itself
-#     without corrupting it (this bit a SQL query once: a same-line `//`
-#     landed mid-string and postgres choked on it as a syntax error), so the
-#     annotation goes above. Block boundaries are detected by an odd count of
-#     unescaped `"` characters on a line — works for `"""` (3, odd) and for a
-#     plain `"` opening/closing an ordinary multi-line string alike.
-#   Both forms are judged case by case: prefer fixing the test to use a
-#   relative-time helper; only annotate when the literal date is genuinely
-#   the fixed subject under test (e.g. a deterministic scheduler fixture).
+#   - a standalone `// date-ok` (or `# date-ok`) comment line — nothing else
+#     on that line — appearing on any of the 3 lines immediately above the
+#     flagged line. No trailing/same-line annotation is supported: a
+#     same-line comment can land inside a multi-line string literal and
+#     corrupt it, which is exactly what happened above. For a multi-line
+#     fixture (JSON payload, SQL query, ...), put the comment above the
+#     statement that opens it, close enough that the date-bearing line
+#     falls within the 3-line lookback.
+#   Judged case by case: prefer fixing the test to use a relative-time
+#   helper; only annotate when the literal date is genuinely the fixed
+#   subject under test (e.g. a deterministic scheduler fixture).
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -51,62 +51,32 @@ while IFS= read -r file; do
   [[ -z "$file" ]] && continue
   [[ "$file" =~ $EXEMPT_PATH_RE ]] && continue
 
-  # Slurp the whole file first (rather than a single streaming pass) so a
-  # plain flagged line can be exempted by a standalone `// date-ok` comment
-  # either immediately above or below it — rustfmt relocates a trailing
-  # comment on a line ending in `{` (e.g. a `for ... {` loop header) onto its
-  # own line below, which would otherwise silently un-exempt an annotated line.
   out="$(awk '
     function is_date_line(s) {
       return (s ~ /["\x27`][^"\x27`]*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][^"\x27`]*["\x27`]/)
     }
     function is_bare_date_ok(s) {
-      return (s ~ /^[ \t]*\/\/[ \t]*date-ok[ \t]*$/)
+      return (s ~ /^[ \t]*(\/\/|#)[ \t]*date-ok[ \t]*$/)
     }
     { lines[NR] = $0; last = NR }
     END {
-      in_block = 0
-      block_exempt = 0
       for (i = 1; i <= last; i++) {
         cur = lines[i]
-        cur_ok = (cur ~ /date-ok/)
-        prev_bare_ok = (i > 1) && is_bare_date_ok(lines[i-1])
-        next_bare_ok = (i < last) && is_bare_date_ok(lines[i+1])
+        if (!is_date_line(cur)) { continue }
 
-        # Count unescaped double-quote characters (strip escaped \" pairs
-        # first -- an escaped quote does not open or close anything). A bare
-        # """ still nets an odd count (3), so this also covers Swift blocks.
-        tmp = cur
-        gsub(/\\"/, "", tmp)
-        dq = gsub(/"/, "\"", tmp)
-        tmp2 = cur
-        backtick = gsub(/`/, "`", tmp2)
-        opens_or_closes = (dq % 2 == 1) || (backtick % 2 == 1)
-
-        if (in_block) {
-          if (is_date_line(cur) && !block_exempt) {
-            printf "%s:%d: hardcoded date literal (inside fixture block) - %s\n", FILENAME, i, cur
-            failures++
-          }
-          if (opens_or_closes) { in_block = 0 }
-          continue
+        exempt = 0
+        for (back = 1; back <= 3; back++) {
+          j = i - back
+          if (j < 1) { break }
+          if (is_bare_date_ok(lines[j])) { exempt = 1; break }
         }
-
-        if (opens_or_closes) {
-          in_block = 1
-          block_exempt = prev_bare_ok
-          if (is_date_line(cur) && !block_exempt && !cur_ok) {
-            printf "%s:%d: hardcoded date literal (fixture block opens here) - %s\n", FILENAME, i, cur
-            failures++
-          }
-          continue
-        }
+        if (exempt) { continue }
 
         is_comment_line = (cur ~ /^[ \t]*\/\//)
-        if (is_date_line(cur) && !cur_ok && !prev_bare_ok && !next_bare_ok && !is_comment_line) {
-          printf "%s:%d: hardcoded date literal - %s\n", FILENAME, i, cur
-          failures++
-        }
+        if (is_comment_line) { continue }
+
+        printf "%s:%d: hardcoded date literal - %s\n", FILENAME, i, cur
+        failures++
       }
       exit (failures > 0) ? 1 : 0
     }
@@ -122,8 +92,7 @@ if [[ $total_failures -gt 0 ]]; then
   echo
   echo "check-test-dates.sh: found $total_failures hardcoded date literal(s) in test files."
   echo "Use a relative-time helper instead (now(), Duration-based offsets, faker-generated"
-  echo "dates), annotate the line with a trailing '// date-ok', or — for a multi-line"
-  echo "fixture block — put a standalone '// date-ok' comment on the line above it."
+  echo "dates), or put a standalone '// date-ok' comment on one of the 3 lines above it."
   exit 1
 fi
 

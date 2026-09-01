@@ -34,7 +34,8 @@ const importedProtocol = {
   status: "draft",
   duration_days: 14,
   share_token: null,
-  created_at: "2026-03-28T00:00:00Z", // date-ok
+  // date-ok
+  created_at: "2026-03-28T00:00:00Z",
   lines: [],
 };
 
@@ -163,13 +164,15 @@ describe("protocolsApi - import/share", () => {
       server.use(
         http.post(
           "/api/v1/protocols/:id/share",
-          () => HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }), // date-ok
+          // date-ok
+          () => HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }),
         ),
       );
 
       const result = await protocolsApi.share("proto-1");
 
-      expect(result).toEqual({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }); // date-ok
+      // date-ok
+      expect(result).toEqual({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" });
     });
 
     it("propagates a 401 error", async () => {

@@ -24,11 +24,14 @@ const mockPoll = {
     {
       id: "member-1",
       observer_email: "s***@example.com",
-      accepted_at: "2026-03-01T00:00:00Z", // date-ok
-      created_at: "2026-02-28T00:00:00Z", // date-ok
+      // date-ok
+      accepted_at: "2026-03-01T00:00:00Z",
+      // date-ok
+      created_at: "2026-02-28T00:00:00Z",
     },
   ],
-  created_at: "2026-02-28T00:00:00Z", // date-ok
+  // date-ok
+  created_at: "2026-02-28T00:00:00Z",
   deleted_at: null,
 };
 
@@ -287,7 +290,8 @@ describe("observerPollsApi", () => {
     it("POSTs /api/v1/observer-polls/:id/invite and returns invite data", async () => {
       const inviteData = {
         invite_token: "test-token",
-        invite_expires_at: "2026-04-04T00:00:00Z", // date-ok
+        // date-ok
+        invite_expires_at: "2026-04-04T00:00:00Z",
         invite_url: "http://localhost/observe/accept?token=test-token",
       };
 
@@ -340,9 +344,11 @@ describe("observerPollsApi", () => {
             id: "resp-1",
             member_id: "member-1",
             observer_email: "s***@example.com",
-            date: "2026-03-27", // date-ok
+            // date-ok
+            date: "2026-03-27",
             scores: { energy: 7, mood: 8 },
-            created_at: "2026-03-27T10:00:00Z", // date-ok
+            // date-ok
+            created_at: "2026-03-27T10:00:00Z",
           },
         ],
       };
@@ -369,12 +375,16 @@ describe("observerPollsApi", () => {
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
       await observerPollsApi.getResponses("poll-1", {
-        start: "2026-03-01", // date-ok
-        end: "2026-03-31", // date-ok
+        // date-ok
+        start: "2026-03-01",
+        // date-ok
+        end: "2026-03-31",
       });
 
-      expect(capturedUrl).toContain("start=2026-03-01"); // date-ok
-      expect(capturedUrl).toContain("end=2026-03-31"); // date-ok
+      // date-ok
+      expect(capturedUrl).toContain("start=2026-03-01");
+      // date-ok
+      expect(capturedUrl).toContain("end=2026-03-31");
     });
 
     it("throws on 401 and triggers logout", async () => {
@@ -513,9 +523,11 @@ describe("observerPollsApi", () => {
 
       const responseView = {
         id: "resp-1",
-        date: "2026-03-27", // date-ok
+        // date-ok
+        date: "2026-03-27",
         scores: { energy: 7, mood: 8 },
-        created_at: "2026-03-27T10:00:00Z", // date-ok
+        // date-ok
+        created_at: "2026-03-27T10:00:00Z",
       };
 
       server.use(
@@ -527,12 +539,14 @@ describe("observerPollsApi", () => {
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
       const result = await observerPollsApi.respond("poll-1", {
-        date: "2026-03-27", // date-ok
+        // date-ok
+        date: "2026-03-27",
         scores: { energy: 7, mood: 8 },
       });
 
       expect(capturedBody).toEqual({
-        date: "2026-03-27", // date-ok
+        // date-ok
+        date: "2026-03-27",
         scores: { energy: 7, mood: 8 },
       });
       expect(result).toEqual(responseView);
@@ -548,7 +562,8 @@ describe("observerPollsApi", () => {
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
       await expect(
-        observerPollsApi.respond("poll-1", { date: "2026-03-27", scores: {} }), // date-ok
+        // date-ok
+        observerPollsApi.respond("poll-1", { date: "2026-03-27", scores: {} }),
       ).rejects.toThrow("Unauthorized");
       expect(useAuthStore.getState().isAuthenticated).toBe(false);
     });
@@ -563,7 +578,8 @@ describe("observerPollsApi", () => {
 
       const { observerPollsApi } = await import("../../src/api/observer-polls");
       await expect(
-        observerPollsApi.respond("poll-1", { date: "2026-03-27", scores: {} }), // date-ok
+        // date-ok
+        observerPollsApi.respond("poll-1", { date: "2026-03-27", scores: {} }),
       ).rejects.toMatchObject({ name: "ApiError", status: 500 });
     });
   });
@@ -574,9 +590,11 @@ describe("observerPollsApi", () => {
         responses: [
           {
             id: "r1",
-            date: "2026-03-27", // date-ok
+            // date-ok
+            date: "2026-03-27",
             scores: { energy: 7 },
-            created_at: "2026-03-27T10:00:00Z", // date-ok
+            // date-ok
+            created_at: "2026-03-27T10:00:00Z",
           },
         ],
       };
@@ -672,9 +690,11 @@ describe("observerPollsApi", () => {
         responses: [
           {
             poll_name: "Daily check",
-            date: "2026-03-27", // date-ok
+            // date-ok
+            date: "2026-03-27",
             scores: { energy: 7 },
-            created_at: "2026-03-27T10:00:00Z", // date-ok
+            // date-ok
+            created_at: "2026-03-27T10:00:00Z",
           },
         ],
       };

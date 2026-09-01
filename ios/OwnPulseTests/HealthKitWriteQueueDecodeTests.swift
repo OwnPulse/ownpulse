@@ -16,18 +16,7 @@ import Testing
 struct HealthKitWriteQueueDecodeTests {
     // date-ok
     private static let pactJSON = """
-    {
-      "id": "77777777-7777-7777-7777-777777777777",
-      "user_id": "some-uuid",
-      "hk_type": "body_mass",
-      "value": { "value": 82.5, "unit": "kg", "start_time": "2026-03-20T10:00:00Z", "end_time": "2026-03-20T10:00:00Z" },
-      "scheduled_at": "2026-03-20T10:00:00Z",
-      "confirmed_at": null,
-      "failed_at": null,
-      "error": null,
-      "source_record_id": null,
-      "source_table": null
-    }
+    { "id": "77777777-7777-7777-7777-777777777777", "user_id": "some-uuid", "hk_type": "body_mass", "value": { "value": 82.5, "unit": "kg", "start_time": "2026-03-20T10:00:00Z", "end_time": "2026-03-20T10:00:00Z" }, "scheduled_at": "2026-03-20T10:00:00Z", "confirmed_at": null, "failed_at": null, "error": null, "source_record_id": null, "source_table": null }
     """
 
     // Uses `NetworkClient.makeDecoder()` — the actual decoder every
@@ -46,7 +35,8 @@ struct HealthKitWriteQueueDecodeTests {
             from: Data(Self.pactJSON.utf8)
         )
 
-        let expectedTime = ISO8601DateFormatter().date(from: "2026-03-20T10:00:00Z") // date-ok
+        // date-ok
+        let expectedTime = ISO8601DateFormatter().date(from: "2026-03-20T10:00:00Z")
 
         #expect(item.id == "77777777-7777-7777-7777-777777777777")
         #expect(item.userId == "some-uuid")
@@ -79,18 +69,7 @@ struct HealthKitWriteQueueDecodeTests {
     func decodesNullEndTime() throws {
         // date-ok
         let json = """
-        {
-          "id": "1",
-          "user_id": "u",
-          "hk_type": "body_mass",
-          "value": { "value": 1.0, "unit": null, "start_time": "2026-03-20T10:00:00Z", "end_time": null },
-          "scheduled_at": "2026-03-20T10:00:00Z",
-          "confirmed_at": null,
-          "failed_at": null,
-          "error": null,
-          "source_record_id": null,
-          "source_table": null
-        }
+        { "id": "1", "user_id": "u", "hk_type": "body_mass", "value": { "value": 1.0, "unit": null, "start_time": "2026-03-20T10:00:00Z", "end_time": null }, "scheduled_at": "2026-03-20T10:00:00Z", "confirmed_at": null, "failed_at": null, "error": null, "source_record_id": null, "source_table": null }
         """
         let item = try Self.makeDecoder().decode(HealthKitWriteQueueItem.self, from: Data(json.utf8))
         #expect(item.value.unit == nil)
@@ -118,7 +97,8 @@ struct HealthKitWriteQueueDecodeTests {
 
         #expect(item.value.value == nil)
         #expect(item.value.unit == nil)
-        #expect(item.value.startTime == ISO8601DateFormatter().date(from: "2026-03-20T10:00:00Z")) // date-ok
+        // date-ok
+        #expect(item.value.startTime == ISO8601DateFormatter().date(from: "2026-03-20T10:00:00Z"))
         #expect(item.value.endTime == nil)
     }
 
@@ -134,24 +114,14 @@ struct HealthKitWriteQueueDecodeTests {
     func decodesFractionalSeconds() throws {
         // date-ok
         let json = """
-        {
-          "id": "77777777-7777-7777-7777-777777777777",
-          "user_id": "some-uuid",
-          "hk_type": "body_mass",
-          "value": { "value": 82.5, "unit": "kg", "start_time": "2026-03-20T10:00:00.123456Z", "end_time": "2026-03-20T10:00:00.123456Z" },
-          "scheduled_at": "2026-03-20T10:00:00.123456Z",
-          "confirmed_at": null,
-          "failed_at": null,
-          "error": null,
-          "source_record_id": null,
-          "source_table": null
-        }
+        { "id": "77777777-7777-7777-7777-777777777777", "user_id": "some-uuid", "hk_type": "body_mass", "value": { "value": 82.5, "unit": "kg", "start_time": "2026-03-20T10:00:00.123456Z", "end_time": "2026-03-20T10:00:00.123456Z" }, "scheduled_at": "2026-03-20T10:00:00.123456Z", "confirmed_at": null, "failed_at": null, "error": null, "source_record_id": null, "source_table": null }
         """
         let item = try Self.makeDecoder().decode(HealthKitWriteQueueItem.self, from: Data(json.utf8))
 
         let fractionalFormatter = ISO8601DateFormatter()
         fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let expected = fractionalFormatter.date(from: "2026-03-20T10:00:00.123456Z") // date-ok
+        // date-ok
+        let expected = fractionalFormatter.date(from: "2026-03-20T10:00:00.123456Z")
 
         #expect(item.value.startTime == expected)
         #expect(item.value.endTime == expected)

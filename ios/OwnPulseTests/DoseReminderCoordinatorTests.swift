@@ -31,7 +31,8 @@ struct DoseReminderCoordinatorTests {
             id: id,
             protocolId: protocolId,
             protocolName: "Test Protocol",
-            startDate: "2026-06-01", // date-ok
+            // date-ok
+            startDate: "2026-06-01",
             durationDays: durationDays,
             status: "active",
             notify: notify,
@@ -42,7 +43,8 @@ struct DoseReminderCoordinatorTests {
             progressPct: 10,
             dosesToday: 1,
             dosesCompletedToday: 0,
-            createdAt: "2026-06-01T00:00:00Z" // date-ok
+            // date-ok
+            createdAt: "2026-06-01T00:00:00Z"
         )
     }
 
@@ -53,10 +55,12 @@ struct DoseReminderCoordinatorTests {
             name: "Test Protocol",
             description: nil,
             status: .active,
-            startDate: "2026-06-01", // date-ok
+            // date-ok
+            startDate: "2026-06-01",
             durationDays: durationDays,
             shareToken: nil,
-            createdAt: "2026-06-01T00:00:00Z", // date-ok
+            // date-ok
+            createdAt: "2026-06-01T00:00:00Z",
             lines: lines
         )
     }
@@ -149,7 +153,8 @@ struct DoseReminderCoordinatorTests {
             id: "run-1",
             protocolId: "proto-1",
             protocolName: "Test",
-            startDate: "2026-06-01", // date-ok
+            // date-ok
+            startDate: "2026-06-01",
             durationDays: 30,
             status: "active",
             notify: true,
@@ -160,7 +165,8 @@ struct DoseReminderCoordinatorTests {
             progressPct: 0,
             dosesToday: 0,
             dosesCompletedToday: 0,
-            createdAt: "2026-06-01T00:00:00Z" // date-ok
+            // date-ok
+            createdAt: "2026-06-01T00:00:00Z"
         )
         network.requestHandler = { _, path, _ in
             if path == Endpoints.activeRuns { return [run] }

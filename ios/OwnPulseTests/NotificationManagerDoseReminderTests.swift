@@ -32,7 +32,8 @@ struct NotificationManagerDoseReminderTests {
             runId: runId,
             protocolId: "proto-1",
             protocolName: "Test Protocol",
-            startDate: date("2026-06-01"), // date-ok
+            // date-ok
+            startDate: date("2026-06-01"),
             notify: notify,
             notifyTimes: ["09:00"],
             lines: [],
@@ -47,7 +48,8 @@ struct NotificationManagerDoseReminderTests {
         let center = MockUserNotificationCenter()
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
 
-        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
         #expect(center.addedRequests.count == 7)
         #expect(center.addedRequests.allSatisfy { $0.identifier.hasPrefix("dose-run-1-") })
@@ -58,16 +60,19 @@ struct NotificationManagerDoseReminderTests {
         let center = MockUserNotificationCenter()
         let staleContent = UNMutableNotificationContent()
         let staleRequest = UNNotificationRequest(
-            identifier: "dose-run-1-09:00-2099-01-01", // date-ok
+            // date-ok
+            identifier: "dose-run-1-09:00-2099-01-01",
             content: staleContent,
             trigger: nil
         )
         center.pendingRequests = [staleRequest]
 
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
-        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
-        #expect(center.removedIdentifierBatches.flatMap { $0 }.contains("dose-run-1-09:00-2099-01-01")) // date-ok
+        // date-ok
+        #expect(center.removedIdentifierBatches.flatMap { $0 }.contains("dose-run-1-09:00-2099-01-01"))
     }
 
     @Test("scheduleDoseReminders never removes non-dose-reminder pending requests")
@@ -81,7 +86,8 @@ struct NotificationManagerDoseReminderTests {
         center.pendingRequests = [otherRequest]
 
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
-        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
         let removedIds = center.removedIdentifierBatches.flatMap { $0 }
         #expect(!removedIds.contains("some-other-notification"))
@@ -92,7 +98,8 @@ struct NotificationManagerDoseReminderTests {
         let center = MockUserNotificationCenter()
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
 
-        await manager.scheduleDoseReminders(runs: [makeRun(notify: false)], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun(notify: false)], now: date("2026-06-01"))
 
         #expect(center.addedRequests.isEmpty)
     }
@@ -106,7 +113,8 @@ struct NotificationManagerDoseReminderTests {
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
 
         // Should not throw/crash — errors are logged and swallowed per-request.
-        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
         #expect(center.addedRequests.isEmpty)
     }
@@ -121,7 +129,8 @@ struct NotificationManagerDoseReminderTests {
                 runId: "run-\(i)",
                 protocolId: "proto-\(i)",
                 protocolName: "Protocol \(i)",
-                startDate: date("2026-06-01"), // date-ok
+                // date-ok
+                startDate: date("2026-06-01"),
                 notify: true,
                 notifyTimes: ["08:00", "20:00"],
                 lines: [],
@@ -129,7 +138,8 @@ struct NotificationManagerDoseReminderTests {
             )
         }
 
-        await manager.scheduleDoseReminders(runs: runs, now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: runs, now: date("2026-06-01"))
 
         #expect(center.addedRequests.count == 64)
     }
@@ -145,7 +155,8 @@ struct NotificationManagerDoseReminderTests {
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
 
         // 7 candidate dose reminders, but only 4 slots remain (64 - 60).
-        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
         #expect(center.addedRequests.count == 4)
         // The 60 pre-existing, unrelated requests must be untouched.
@@ -161,7 +172,8 @@ struct NotificationManagerDoseReminderTests {
         center.stubbedAuthorizationStatus = .denied
 
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
-        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
         #expect(center.addedRequests.isEmpty)
         #expect(center.removedIdentifierBatches.isEmpty) // skips pruning too — nothing to schedule anyway
@@ -174,7 +186,8 @@ struct NotificationManagerDoseReminderTests {
         center.authorizationGranted = true
 
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
-        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
         #expect(center.addedRequests.count == 7)
     }
@@ -186,7 +199,8 @@ struct NotificationManagerDoseReminderTests {
 
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
         // notify: false -> zero specs, so no prompt should fire.
-        await manager.scheduleDoseReminders(runs: [makeRun(notify: false)], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun(notify: false)], now: date("2026-06-01"))
 
         #expect(center.stubbedAuthorizationStatus == .notDetermined) // unchanged — requestAuthorization() never called
         #expect(center.addedRequests.isEmpty)
@@ -199,7 +213,8 @@ struct NotificationManagerDoseReminderTests {
         center.authorizationGranted = false
 
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
-        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01")) // date-ok
+        // date-ok
+        await manager.scheduleDoseReminders(runs: [makeRun()], now: date("2026-06-01"))
 
         #expect(center.addedRequests.isEmpty)
     }
@@ -210,8 +225,10 @@ struct NotificationManagerDoseReminderTests {
     func clearAllRemovesOnlyDoseReminders() async {
         let center = MockUserNotificationCenter()
         center.pendingRequests = [
-            UNNotificationRequest(identifier: "dose-run-1-09:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil), // date-ok
-            UNNotificationRequest(identifier: "dose-run-2-20:00-2026-06-02", content: UNMutableNotificationContent(), trigger: nil), // date-ok
+            // date-ok
+            UNNotificationRequest(identifier: "dose-run-1-09:00-2026-06-01", content: UNMutableNotificationContent(), trigger: nil),
+            // date-ok
+            UNNotificationRequest(identifier: "dose-run-2-20:00-2026-06-02", content: UNMutableNotificationContent(), trigger: nil),
             UNNotificationRequest(identifier: "unrelated", content: UNMutableNotificationContent(), trigger: nil),
         ]
         let manager = NotificationManager(networkClient: MockNetworkClient(), notificationCenter: center)
@@ -219,8 +236,10 @@ struct NotificationManagerDoseReminderTests {
         await manager.clearAllDoseReminders()
 
         let removedIds = Set(center.removedIdentifierBatches.flatMap { $0 })
-        #expect(removedIds.contains("dose-run-1-09:00-2026-06-01")) // date-ok
-        #expect(removedIds.contains("dose-run-2-20:00-2026-06-02")) // date-ok
+        // date-ok
+        #expect(removedIds.contains("dose-run-1-09:00-2026-06-01"))
+        // date-ok
+        #expect(removedIds.contains("dose-run-2-20:00-2026-06-02"))
         #expect(!removedIds.contains("unrelated"))
     }
 

@@ -88,11 +88,14 @@ describe("ProtocolBuilder Start Now prompt", () => {
           name: "Test Protocol",
           description: null,
           status: "draft",
-          start_date: "2026-03-28", // date-ok
+          // date-ok
+          start_date: "2026-03-28",
           duration_days: 28,
           share_token: null,
-          created_at: "2026-03-28T00:00:00Z", // date-ok
-          updated_at: "2026-03-28T00:00:00Z", // date-ok
+          // date-ok
+          created_at: "2026-03-28T00:00:00Z",
+          // date-ok
+          updated_at: "2026-03-28T00:00:00Z",
           lines: [],
         }),
       ),
@@ -132,11 +135,14 @@ describe("ProtocolBuilder Start Now prompt", () => {
           name: "Test Protocol",
           description: null,
           status: "draft",
-          start_date: "2026-03-28", // date-ok
+          // date-ok
+          start_date: "2026-03-28",
           duration_days: 28,
           share_token: null,
-          created_at: "2026-03-28T00:00:00Z", // date-ok
-          updated_at: "2026-03-28T00:00:00Z", // date-ok
+          // date-ok
+          created_at: "2026-03-28T00:00:00Z",
+          // date-ok
+          updated_at: "2026-03-28T00:00:00Z",
           lines: [],
         }),
       ),

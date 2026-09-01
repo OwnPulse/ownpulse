@@ -17,7 +17,8 @@ async fn test_create_health_record() {
         "record_type": "heart_rate",
         "value": 72.0,
         "unit": "bpm",
-        "start_time": "2026-03-18T10:00:00Z" // date-ok
+        // date-ok
+        "start_time": "2026-03-18T10:00:00Z"
     });
 
     let response = app
@@ -49,7 +50,8 @@ async fn test_list_health_records() {
         "record_type": "weight",
         "value": 80.5,
         "unit": "kg",
-        "start_time": "2026-03-18T08:00:00Z" // date-ok
+        // date-ok
+        "start_time": "2026-03-18T08:00:00Z"
     });
 
     // Create a record
@@ -96,7 +98,8 @@ async fn test_get_health_record() {
         "record_type": "blood_pressure_systolic",
         "value": 120.0,
         "unit": "mmHg",
-        "start_time": "2026-03-18T09:00:00Z" // date-ok
+        // date-ok
+        "start_time": "2026-03-18T09:00:00Z"
     });
 
     let create_resp = app
@@ -142,7 +145,8 @@ async fn test_delete_health_record() {
         "record_type": "temperature",
         "value": 36.6,
         "unit": "celsius",
-        "start_time": "2026-03-18T07:00:00Z" // date-ok
+        // date-ok
+        "start_time": "2026-03-18T07:00:00Z"
     });
 
     let create_resp = app
@@ -211,7 +215,8 @@ async fn test_delete_does_not_clear_other_users_duplicate_of() {
             record_type: "heart_rate".to_string(),
             value: Some(70.0),
             unit: Some("bpm".to_string()),
-            start_time: "2026-03-18T14:00:00Z".parse().unwrap(), // date-ok
+            // date-ok
+            start_time: "2026-03-18T14:00:00Z".parse().unwrap(),
             end_time: None,
             metadata: None,
             source_id: None,
@@ -229,7 +234,8 @@ async fn test_delete_does_not_clear_other_users_duplicate_of() {
             record_type: "heart_rate".to_string(),
             value: Some(70.2),
             unit: Some("bpm".to_string()),
-            start_time: "2026-03-18T14:00:05Z".parse().unwrap(), // date-ok
+            // date-ok
+            start_time: "2026-03-18T14:00:05Z".parse().unwrap(),
             end_time: None,
             metadata: None,
             source_id: None,
@@ -298,7 +304,8 @@ async fn test_delete_clears_own_duplicate_of() {
             record_type: "heart_rate".to_string(),
             value: Some(70.0),
             unit: Some("bpm".to_string()),
-            start_time: "2026-03-18T15:00:00Z".parse().unwrap(), // date-ok
+            // date-ok
+            start_time: "2026-03-18T15:00:00Z".parse().unwrap(),
             end_time: None,
             metadata: None,
             source_id: None,
@@ -316,7 +323,8 @@ async fn test_delete_clears_own_duplicate_of() {
             record_type: "heart_rate".to_string(),
             value: Some(70.2),
             unit: Some("bpm".to_string()),
-            start_time: "2026-03-18T15:00:05Z".parse().unwrap(), // date-ok
+            // date-ok
+            start_time: "2026-03-18T15:00:05Z".parse().unwrap(),
             end_time: None,
             metadata: None,
             source_id: None,
@@ -367,7 +375,8 @@ async fn test_healthkit_sourced_record_never_enqueues_write_back() {
         "record_type": "heart_rate",
         "value": 72.0,
         "unit": "bpm",
-        "start_time": "2026-03-18T10:00:00Z" // date-ok
+        // date-ok
+        "start_time": "2026-03-18T10:00:00Z"
     });
 
     let response = app
@@ -409,7 +418,8 @@ async fn test_manual_record_enqueues_write_back() {
         "record_type": "heart_rate",
         "value": 72.0,
         "unit": "bpm",
-        "start_time": "2026-03-18T11:00:00Z" // date-ok
+        // date-ok
+        "start_time": "2026-03-18T11:00:00Z"
     });
 
     let response = app
@@ -454,8 +464,10 @@ async fn test_cycle_guard_not_bypassable_via_request_body() {
 
     // Two records in the same request window: one healthkit, one manual.
     for (source, start_time) in [
-        ("healthkit", "2026-03-18T12:00:00Z"), // date-ok
-        ("manual", "2026-03-18T13:00:00Z"),    // date-ok
+        // date-ok
+        ("healthkit", "2026-03-18T12:00:00Z"),
+        // date-ok
+        ("manual", "2026-03-18T13:00:00Z"),
     ] {
         let body = json!({
             "source": source,

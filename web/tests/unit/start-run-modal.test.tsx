@@ -86,13 +86,15 @@ describe("StartRunModal", () => {
           id: "run-1",
           protocol_id: "proto-1",
           user_id: "user-1",
-          start_date: "2026-03-28", // date-ok
+          // date-ok
+          start_date: "2026-03-28",
           status: "active",
           notify: false,
           notify_times: [],
           repeat_reminders: false,
           repeat_interval_minutes: 30,
-          created_at: "2026-03-28T10:00:00Z", // date-ok
+          // date-ok
+          created_at: "2026-03-28T10:00:00Z",
         });
       }),
     );

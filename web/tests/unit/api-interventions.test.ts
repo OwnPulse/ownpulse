@@ -16,9 +16,11 @@ const interventionsList = [
     dose: 200,
     unit: "mg",
     route: "oral",
-    administered_at: "2026-03-02T08:00:00Z", // date-ok
+    // date-ok
+    administered_at: "2026-03-02T08:00:00Z",
     fasted: false,
-    created_at: "2026-03-02T08:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-03-02T08:00:00Z",
   },
   {
     id: "iv-2",
@@ -27,10 +29,12 @@ const interventionsList = [
     dose: 400,
     unit: "mg",
     route: "oral",
-    administered_at: "2026-03-03T20:00:00Z", // date-ok
+    // date-ok
+    administered_at: "2026-03-03T20:00:00Z",
     fasted: true,
     notes: "before bed",
-    created_at: "2026-03-03T20:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-03-03T20:00:00Z",
   },
 ];
 
@@ -74,14 +78,18 @@ describe("interventionsApi", () => {
       server.use(
         http.get("/api/v1/interventions", ({ request }) => {
           const url = new URL(request.url);
-          expect(url.searchParams.get("start")).toBe("2026-03-01T00:00:00Z"); // date-ok
-          expect(url.searchParams.get("end")).toBe("2026-03-07T23:59:59Z"); // date-ok
+          // date-ok
+          expect(url.searchParams.get("start")).toBe("2026-03-01T00:00:00Z");
+          // date-ok
+          expect(url.searchParams.get("end")).toBe("2026-03-07T23:59:59Z");
           return HttpResponse.json([interventionsList[0]]);
         }),
       );
       const result = await interventionsApi.list({
-        start: "2026-03-01T00:00:00Z", // date-ok
-        end: "2026-03-07T23:59:59Z", // date-ok
+        // date-ok
+        start: "2026-03-01T00:00:00Z",
+        // date-ok
+        end: "2026-03-07T23:59:59Z",
       });
       expect(result).toHaveLength(1);
     });
@@ -138,7 +146,8 @@ describe("interventionsApi", () => {
         dose: 200,
         unit: "mg",
         route: "oral",
-        administered_at: "2026-03-02T08:00:00Z", // date-ok
+        // date-ok
+        administered_at: "2026-03-02T08:00:00Z",
         fasted: false,
       });
       expect(result.id).toBe("iv-1");
@@ -156,7 +165,8 @@ describe("interventionsApi", () => {
           dose: 100,
           unit: "mg",
           route: "oral",
-          administered_at: "2026-03-02T08:00:00Z", // date-ok
+          // date-ok
+          administered_at: "2026-03-02T08:00:00Z",
           fasted: false,
         }),
       ).rejects.toThrow("Unauthorized");

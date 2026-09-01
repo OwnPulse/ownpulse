@@ -13,11 +13,14 @@ const mockPolls = [
       {
         id: "member-1",
         observer_email: "s***@example.com",
-        accepted_at: "2026-03-01T00:00:00Z", // date-ok
-        created_at: "2026-02-28T00:00:00Z", // date-ok
+        // date-ok
+        accepted_at: "2026-03-01T00:00:00Z",
+        // date-ok
+        created_at: "2026-02-28T00:00:00Z",
       },
     ],
-    created_at: "2026-02-28T00:00:00Z", // date-ok
+    // date-ok
+    created_at: "2026-02-28T00:00:00Z",
     deleted_at: null,
   },
 ];
@@ -88,7 +91,8 @@ async function mockApis(page: import("@playwright/test").Page) {
       contentType: "application/json",
       body: JSON.stringify({
         invite_token: "test-token",
-        invite_expires_at: "2026-04-04T00:00:00Z", // date-ok
+        // date-ok
+        invite_expires_at: "2026-04-04T00:00:00Z",
         invite_url: "http://localhost:5173/observe/accept?token=test-token",
       }),
     }),
@@ -108,9 +112,11 @@ async function mockApis(page: import("@playwright/test").Page) {
       contentType: "application/json",
       body: JSON.stringify({
         id: "resp-new",
-        date: "2026-03-28", // date-ok
+        // date-ok
+        date: "2026-03-28",
         scores: { energy: 5, mood: 5 },
-        created_at: "2026-03-28T10:00:00Z", // date-ok
+        // date-ok
+        created_at: "2026-03-28T10:00:00Z",
       }),
     }),
   );

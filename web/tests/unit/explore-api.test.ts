@@ -28,8 +28,10 @@ const batchSeriesResponse = {
       field: "energy",
       unit: "score",
       points: [
-        { t: "2026-03-01T00:00:00Z", v: 7, n: 1 }, // date-ok
-        { t: "2026-03-02T00:00:00Z", v: 6, n: 1 }, // date-ok
+        // date-ok
+        { t: "2026-03-01T00:00:00Z", v: 7, n: 1 },
+        // date-ok
+        { t: "2026-03-02T00:00:00Z", v: 6, n: 1 },
       ],
     },
   ],
@@ -44,8 +46,10 @@ const savedChart = {
     range: { preset: "30d" },
     resolution: "daily",
   },
-  created_at: "2026-03-01T00:00:00Z", // date-ok
-  updated_at: "2026-03-01T00:00:00Z", // date-ok
+  // date-ok
+  created_at: "2026-03-01T00:00:00Z",
+  // date-ok
+  updated_at: "2026-03-01T00:00:00Z",
 };
 
 const server = setupServer(
@@ -117,8 +121,10 @@ describe("exploreApi", () => {
     it("fetches batch series successfully", async () => {
       const result = await exploreApi.batchSeries({
         metrics: [{ source: "checkins", field: "energy" }],
-        start: "2026-03-01", // date-ok
-        end: "2026-03-07", // date-ok
+        // date-ok
+        start: "2026-03-01",
+        // date-ok
+        end: "2026-03-07",
         resolution: "daily",
       });
       expect(result.series).toHaveLength(1);
@@ -134,8 +140,10 @@ describe("exploreApi", () => {
       await expect(
         exploreApi.batchSeries({
           metrics: [{ source: "checkins", field: "energy" }],
-          start: "2026-03-01", // date-ok
-          end: "2026-03-07", // date-ok
+          // date-ok
+          start: "2026-03-01",
+          // date-ok
+          end: "2026-03-07",
           resolution: "daily",
         }),
       ).rejects.toThrow("Forbidden");
@@ -254,7 +262,8 @@ describe("exploreApi", () => {
             source: "checkins",
             field: "energy",
             unit: "score",
-            points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }], // date-ok
+            // date-ok
+            points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
           });
         }),
       );
@@ -262,8 +271,10 @@ describe("exploreApi", () => {
       const result = await exploreApi.getSeries({
         source: "checkins",
         field: "energy",
-        start: "2026-03-01", // date-ok
-        end: "2026-03-07", // date-ok
+        // date-ok
+        start: "2026-03-01",
+        // date-ok
+        end: "2026-03-07",
         resolution: "daily",
       });
       expect(result.source).toBe("checkins");

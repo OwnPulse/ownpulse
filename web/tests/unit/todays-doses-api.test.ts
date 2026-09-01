@@ -43,8 +43,10 @@ const loggedDose = {
   day_number: 3,
   status: "completed" as const,
   intervention_id: "iv-1",
-  logged_at: "2026-03-28T08:00:00Z", // date-ok
-  created_at: "2026-03-28T08:00:00Z", // date-ok
+  // date-ok
+  logged_at: "2026-03-28T08:00:00Z",
+  // date-ok
+  created_at: "2026-03-28T08:00:00Z",
 };
 
 const skippedDose = {
@@ -53,8 +55,10 @@ const skippedDose = {
   day_number: 3,
   status: "skipped" as const,
   intervention_id: null,
-  logged_at: "2026-03-28T08:00:00Z", // date-ok
-  created_at: "2026-03-28T08:00:00Z", // date-ok
+  // date-ok
+  logged_at: "2026-03-28T08:00:00Z",
+  // date-ok
+  created_at: "2026-03-28T08:00:00Z",
 };
 
 const server = setupServer(
