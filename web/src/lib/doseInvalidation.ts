@@ -26,3 +26,5 @@ export function invalidateDoseQueries(queryClient: QueryClient) {
     queryClient.invalidateQueries({ queryKey: [...queryKey] });
   }
 }
+
+// CI retrigger marker (workflow suites were never created for prior heads)
