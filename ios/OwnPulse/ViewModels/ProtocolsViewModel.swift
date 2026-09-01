@@ -203,7 +203,13 @@ final class ProtocolsViewModel {
     // MARK: - Dose Actions
 
     func logDose(protocolId: String, runId: String?, lineId: String, dayNumber: Int) async {
-        let body = LogDoseRequest(protocolLineId: lineId, dayNumber: dayNumber)
+        let body = LogDoseRequest(
+            protocolLineId: lineId,
+            dayNumber: dayNumber,
+            administeredAt: nil,
+            notes: nil,
+            tzOffsetMinutes: TimeZone.current.secondsFromGMT() / 60
+        )
         do {
             if let runId {
                 let _: ProtocolDose = try await networkClient.request(
