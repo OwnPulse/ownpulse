@@ -455,7 +455,7 @@ async fn test_cycle_guard_not_bypassable_via_request_body() {
     // Two records in the same request window: one healthkit, one manual.
     for (source, start_time) in [
         ("healthkit", "2026-03-18T12:00:00Z"), // date-ok
-        ("manual", "2026-03-18T13:00:00Z"), // date-ok
+        ("manual", "2026-03-18T13:00:00Z"),    // date-ok
     ] {
         let body = json!({
             "source": source,

@@ -10,6 +10,11 @@
 #   - paths under pact/contracts/, tests/fixtures/, or db/migrations/ (fixed
 #     recorded fixtures / historical schema, not test assertions)
 #   - a line annotated with a trailing `// date-ok` comment
+#   - a line with a standalone `// date-ok` comment immediately above or
+#     below it — above, for a code line where a trailing comment isn't legal
+#     (rustfmt moves a trailing comment after a line ending in `{` down to
+#     its own line, so both directions have to work); below, for the same
+#     reason in reverse
 #   - a multi-line string/JSON fixture block (opened by a bare `"""` or a
 #     backtick template literal), where the line immediately *before* the
 #     block starts is a standalone `// date-ok` comment — a trailing comment
@@ -40,48 +45,61 @@ while IFS= read -r file; do
   [[ -z "$file" ]] && continue
   [[ "$file" =~ $EXEMPT_PATH_RE ]] && continue
 
+  # Slurp the whole file first (rather than a single streaming pass) so a
+  # plain flagged line can be exempted by a standalone `// date-ok` comment
+  # either immediately above or below it — rustfmt relocates a trailing
+  # comment on a line ending in `{` (e.g. a `for ... {` loop header) onto its
+  # own line below, which would otherwise silently un-exempt an annotated line.
   out="$(awk '
     function is_date_line(s) {
       return (s ~ /["\x27`][^"\x27`]*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9][^"\x27`]*["\x27`]/)
     }
-    {
-      cur = $0
-      cur_ok = (cur ~ /date-ok/)
-      tmp = cur
-      triple = gsub(/"""/, "\"\"\"", tmp)
-      tmp2 = cur
-      backtick = gsub(/`/, "`", tmp2)
-      opens_or_closes = (triple % 2 == 1) || (backtick % 2 == 1)
-
-      if (in_block) {
-        if (is_date_line(cur) && !block_exempt) {
-          printf "%s:%d: hardcoded date literal (inside fixture block) - %s\n", FILENAME, FNR, cur
-          failures++
-        }
-        if (opens_or_closes) { in_block = 0 }
-        prev_ok = cur_ok
-        next
-      }
-
-      if (opens_or_closes) {
-        in_block = 1
-        block_exempt = prev_ok
-        if (is_date_line(cur) && !block_exempt && !cur_ok) {
-          printf "%s:%d: hardcoded date literal (fixture block opens here) - %s\n", FILENAME, FNR, cur
-          failures++
-        }
-        prev_ok = cur_ok
-        next
-      }
-
-      is_comment_line = (cur ~ /^[ \t]*\/\//)
-      if (is_date_line(cur) && !cur_ok && !is_comment_line) {
-        printf "%s:%d: hardcoded date literal - %s\n", FILENAME, FNR, cur
-        failures++
-      }
-      prev_ok = cur_ok
+    function is_bare_date_ok(s) {
+      return (s ~ /^[ \t]*\/\/[ \t]*date-ok[ \t]*$/)
     }
-    END { exit (failures > 0) ? 1 : 0 }
+    { lines[NR] = $0; last = NR }
+    END {
+      in_block = 0
+      block_exempt = 0
+      for (i = 1; i <= last; i++) {
+        cur = lines[i]
+        cur_ok = (cur ~ /date-ok/)
+        prev_bare_ok = (i > 1) && is_bare_date_ok(lines[i-1])
+        next_bare_ok = (i < last) && is_bare_date_ok(lines[i+1])
+
+        tmp = cur
+        triple = gsub(/"""/, "\"\"\"", tmp)
+        tmp2 = cur
+        backtick = gsub(/`/, "`", tmp2)
+        opens_or_closes = (triple % 2 == 1) || (backtick % 2 == 1)
+
+        if (in_block) {
+          if (is_date_line(cur) && !block_exempt) {
+            printf "%s:%d: hardcoded date literal (inside fixture block) - %s\n", FILENAME, i, cur
+            failures++
+          }
+          if (opens_or_closes) { in_block = 0 }
+          continue
+        }
+
+        if (opens_or_closes) {
+          in_block = 1
+          block_exempt = prev_bare_ok
+          if (is_date_line(cur) && !block_exempt && !cur_ok) {
+            printf "%s:%d: hardcoded date literal (fixture block opens here) - %s\n", FILENAME, i, cur
+            failures++
+          }
+          continue
+        }
+
+        is_comment_line = (cur ~ /^[ \t]*\/\//)
+        if (is_date_line(cur) && !cur_ok && !prev_bare_ok && !next_bare_ok && !is_comment_line) {
+          printf "%s:%d: hardcoded date literal - %s\n", FILENAME, i, cur
+          failures++
+        }
+      }
+      exit (failures > 0) ? 1 : 0
+    }
   ' "$file")" && rc=0 || rc=$?
 
   if [[ -n "$out" ]]; then

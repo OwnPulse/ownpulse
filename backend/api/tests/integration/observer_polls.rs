@@ -1038,7 +1038,8 @@ async fn owner_filters_responses_by_date_range() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     // Submit responses for different dates
-    for date in &["2025-01-10", "2025-01-15", "2025-01-20"] { // date-ok
+    for date in &["2025-01-10", "2025-01-15", "2025-01-20"] {
+        // date-ok
         let body = json!({
             "date": date,
             "scores": {"energy": 7, "mood": 8}

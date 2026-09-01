@@ -44,7 +44,8 @@ describe("dateRangeToParams", () => {
     expect(Math.round(diff)).toBeLessThanOrEqual(367);
   });
 
-  it("returns 2020-01-01 to today for all preset", () => { // date-ok
+  it("returns 2020-01-01 to today for all preset", () => {
+    // date-ok
     const { start, end } = dateRangeToParams({ type: "preset", preset: "all" });
     expect(start).toBe("2020-01-01T00:00:00Z"); // date-ok
     expect(end).toBe(`${new Date().toISOString().slice(0, 10)}T23:59:59Z`);

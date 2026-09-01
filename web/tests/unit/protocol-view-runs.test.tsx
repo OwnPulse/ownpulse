@@ -349,8 +349,9 @@ describe("ProtocolView with runs", () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
       http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([])),
-      http.post("/api/v1/protocols/:id/share", () =>
-        HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }), // date-ok
+      http.post(
+        "/api/v1/protocols/:id/share",
+        () => HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }), // date-ok
       ),
     );
 
@@ -395,8 +396,9 @@ describe("ProtocolView with runs", () => {
 
       server.use(
         http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-        http.get("/api/v1/protocols/:id/runs", () =>
-          HttpResponse.json([{ ...runs[0], start_date: "2026-03-29" }]), // date-ok
+        http.get(
+          "/api/v1/protocols/:id/runs",
+          () => HttpResponse.json([{ ...runs[0], start_date: "2026-03-29" }]), // date-ok
         ),
       );
 
@@ -421,8 +423,9 @@ describe("ProtocolView with runs", () => {
 
       server.use(
         http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-        http.get("/api/v1/protocols/:id/runs", () =>
-          HttpResponse.json([{ ...runs[0], start_date: "2026-03-28" }]), // date-ok
+        http.get(
+          "/api/v1/protocols/:id/runs",
+          () => HttpResponse.json([{ ...runs[0], start_date: "2026-03-28" }]), // date-ok
         ),
       );
 

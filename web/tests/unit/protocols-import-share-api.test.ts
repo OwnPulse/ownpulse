@@ -161,8 +161,9 @@ describe("protocolsApi - import/share", () => {
   describe("share", () => {
     it("returns { token, expires_at } from /api/v1/protocols/:id/share", async () => {
       server.use(
-        http.post("/api/v1/protocols/:id/share", () =>
-          HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }), // date-ok
+        http.post(
+          "/api/v1/protocols/:id/share",
+          () => HttpResponse.json({ token: "share-abc", expires_at: "2026-04-30T00:00:00Z" }), // date-ok
         ),
       );
 
