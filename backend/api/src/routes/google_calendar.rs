@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::AppState;
-use crate::auth::extractor::AuthUser;
+use crate::auth::extractor::{AuthUser, AuthUserOrQueryToken, decode_and_load_active_user};
 use crate::crypto;
 use crate::db::integration_tokens;
 use crate::error::ApiError;
@@ -29,9 +29,14 @@ use crate::routes::read_cookie;
 /// Requires authentication. Generates a CSRF state parameter, stores it in a
 /// short-lived httpOnly cookie, and redirects to Google's authorization page
 /// requesting the read-only Calendar scope.
+///
+/// This route is reached by plain browser navigation (an `<a href>` on the
+/// web Sources page, not a `fetch()` call), so it accepts `?token=<JWT>` as
+/// a fallback to the `Authorization` header — see
+/// [`AuthUserOrQueryToken`] for the precedence and access-log caveat.
 pub async fn google_calendar_login(
     State(state): State<AppState>,
-    auth_user: AuthUser,
+    auth_user: AuthUserOrQueryToken,
 ) -> Result<Response, ApiError> {
     let client_id = state
         .config
@@ -70,10 +75,27 @@ pub async fn google_calendar_login(
         "google_calendar_oauth_state={csrf_state}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600"
     );
 
+    // The callback is a full-page GET the browser follows after Google
+    // redirects back — it cannot carry an `Authorization` header any more
+    // than this login request could. Bind it to the authenticated user by
+    // carrying the (short-lived) access token one hop further in a second
+    // httpOnly cookie, alongside the CSRF state cookie above. Same lifetime,
+    // same path scope, cleared by the callback on completion.
+    let user_cookie = format!(
+        "google_calendar_oauth_user={}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600",
+        auth_user.token
+    );
+
     let mut response = Redirect::to(&auth_url).into_response();
     response.headers_mut().append(
         SET_COOKIE,
         state_cookie
+            .parse()
+            .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
+    );
+    response.headers_mut().append(
+        SET_COOKIE,
+        user_cookie
             .parse()
             .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
     );
@@ -92,12 +114,16 @@ pub struct GoogleCalendarCallbackQuery {
 /// GET /auth/google-calendar/callback — exchange the authorization code for
 /// tokens.
 ///
-/// Requires authentication. Validates the CSRF state against the cookie,
+/// This is a full-page GET the browser follows after Google redirects back,
+/// so — like `google_calendar_login` — it cannot carry an `Authorization`
+/// header. Instead of `AuthUser`, it authenticates from the
+/// `google_calendar_oauth_user` cookie `google_calendar_login` set: the same
+/// access token, decoded and re-validated (expiry, user active) exactly as
+/// [`AuthUser`] would. Validates the CSRF state against the state cookie,
 /// exchanges the code for tokens, encrypts and stores them under
 /// `source = 'google_calendar'`.
 pub async fn google_calendar_callback(
     State(state): State<AppState>,
-    auth_user: AuthUser,
     headers: axum::http::HeaderMap,
     Query(query): Query<GoogleCalendarCallbackQuery>,
 ) -> Result<Response, ApiError> {
@@ -111,6 +137,10 @@ pub async fn google_calendar_callback(
         .google_client_secret
         .as_deref()
         .ok_or_else(|| ApiError::Internal("GOOGLE_CLIENT_SECRET not configured".to_string()))?;
+
+    let user_token =
+        read_cookie(&headers, "google_calendar_oauth_user").ok_or(ApiError::Unauthorized)?;
+    let (user_id, _role) = decode_and_load_active_user(&user_token, &state).await?;
 
     let expected_state = read_cookie(&headers, "google_calendar_oauth_state")
         .ok_or_else(|| ApiError::BadRequest("missing google_calendar_oauth_state cookie".into()))?;
@@ -153,21 +183,17 @@ pub async fn google_calendar_callback(
         .map(|k| crypto::parse_encryption_key(k))
         .transpose()?;
 
-    let existing_refresh_token = integration_tokens::list_for_user(
-        &state.pool,
-        auth_user.id,
-        &encryption_key,
-        prev_key.as_ref(),
-    )
-    .await
-    .map_err(|e| {
-        ApiError::Internal(format!(
-            "failed to load existing Google Calendar token: {e}"
-        ))
-    })?
-    .into_iter()
-    .find(|t| t.source == "google_calendar")
-    .and_then(|t| t.refresh_token);
+    let existing_refresh_token =
+        integration_tokens::list_for_user(&state.pool, user_id, &encryption_key, prev_key.as_ref())
+            .await
+            .map_err(|e| {
+                ApiError::Internal(format!(
+                    "failed to load existing Google Calendar token: {e}"
+                ))
+            })?
+            .into_iter()
+            .find(|t| t.source == "google_calendar")
+            .and_then(|t| t.refresh_token);
 
     let refresh_to_store = tokens
         .refresh_token
@@ -176,7 +202,7 @@ pub async fn google_calendar_callback(
 
     integration_tokens::upsert(
         &state.pool,
-        auth_user.id,
+        user_id,
         "google_calendar",
         &tokens.access_token,
         refresh_to_store,
@@ -186,7 +212,7 @@ pub async fn google_calendar_callback(
     .await
     .map_err(|e| ApiError::Internal(format!("failed to store Google Calendar tokens: {e}")))?;
 
-    tracing::info!(user_id = %auth_user.id, "Google Calendar integration connected");
+    tracing::info!(user_id = %user_id, "Google Calendar integration connected");
 
     let secure = if state.config.web_origin.starts_with("https://") {
         "; Secure"
@@ -196,12 +222,21 @@ pub async fn google_calendar_callback(
     let clear_state = format!(
         "google_calendar_oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
     );
+    let clear_user = format!(
+        "google_calendar_oauth_user=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0"
+    );
 
     let redirect_url = format!(
         "{}/settings?connected=google_calendar",
         state.config.web_origin
     );
     let mut response = Redirect::to(&redirect_url).into_response();
+    response.headers_mut().append(
+        SET_COOKIE,
+        clear_user
+            .parse()
+            .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
+    );
     response.headers_mut().append(
         SET_COOKIE,
         clear_state

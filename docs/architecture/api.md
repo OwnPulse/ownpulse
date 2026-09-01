@@ -528,9 +528,9 @@ every row.
 | GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 1 |
 | POST | `/integrations/garmin/sync` | Trigger an immediate Garmin fetch | 1 |
 | POST | `/integrations/oura/sync` | Trigger an immediate Oura fetch | 1 |
-| GET | `/auth/google-calendar/login` | Start the Google Calendar OAuth 2.0 connect flow (requires JWT) | 2 |
+| GET | `/auth/google-calendar/login?token=<JWT>` | Start the Google Calendar OAuth 2.0 connect flow (requires JWT, header or query param) | 2 |
 | GET | `/auth/google-calendar/callback` | Google Calendar OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 2 |
-| POST | `/integrations/google-calendar/sync` | Trigger an immediate Google Calendar fetch | 2 |
+| POST | `/integrations/google-calendar/sync` | Trigger an immediate Google Calendar fetch (also reachable at `/integrations/google_calendar/sync`) | 2 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
 | POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
 
@@ -580,6 +580,23 @@ It reuses `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` but has its own redirect
 URI (`GOOGLE_CALENDAR_REDIRECT_URI`, defaulting to
 `<WEB_ORIGIN>/api/v1/auth/google-calendar/callback`) since Google requires an
 exact registered redirect per OAuth client/flow combination.
+
+The web Sources page's Connect control reaches `/auth/google-calendar/login`
+by plain browser navigation (an `<a href>`, not a `fetch()` call), so the
+route accepts a `?token=<JWT>` query parameter as a fallback to the
+`Authorization` header — a browser navigation cannot attach a custom header.
+This is the same pattern `GET /events` uses for `EventSource`, which has the
+identical limitation: the header is used when present, and the token appears
+in server access logs only on the query-param path. Use the short-lived
+access token here, never a refresh token, to bound that exposure.
+
+`/integrations/google-calendar/sync` is also reachable at
+`/integrations/google_calendar/sync` (underscore) — the same handler is
+mounted at both paths. The hyphenated path predates this alias and is kept
+for compatibility; the underscore form matches the `source` id everywhere
+else in the API (`GET /integrations`, `DELETE /integrations/:source`,
+`integration_tokens.source`), so a client building this URL from that id
+lands on a real route.
 
 **Aggregates only — never event content.** The Calendar API request sends
 `fields=items(start(dateTime),end(dateTime),attendees(self,responseStatus)),nextPageToken`

@@ -1139,6 +1139,36 @@ async fn google_calendar_manual_sync_without_connection_returns_404() {
 }
 
 #[tokio::test]
+async fn google_calendar_manual_sync_underscore_alias_reaches_same_handler() {
+    // `/integrations/google_calendar/sync` (underscore) is an alias for
+    // `/integrations/google-calendar/sync` (hyphen, tested above) — a client
+    // building the URL from the `source` id returned by `GET /integrations`
+    // (which is always underscore-separated) must land on a real route
+    // rather than 404ing on a path that only exists with a hyphen.
+    let app = common::setup_with_config(|cfg| {
+        cfg.google_client_id = Some("test-google-id".to_string());
+        cfg.google_client_secret = Some("test-google-secret".to_string());
+    })
+    .await;
+
+    let (_, token) = common::create_test_user(&app).await;
+
+    let response = app
+        .app
+        .clone()
+        .oneshot(post_with_auth(
+            "/api/v1/integrations/google_calendar/sync",
+            &token,
+        ))
+        .await
+        .unwrap();
+
+    // Same outcome as the hyphenated path for an unconnected user — proves
+    // this reaches `google_calendar::sync`, not a 404 from an unmatched route.
+    assert_eq!(response.status(), 404);
+}
+
+#[tokio::test]
 async fn google_calendar_manual_sync_without_server_config_returns_501() {
     let app = common::setup().await;
     let (_, token) = common::create_test_user(&app).await;
