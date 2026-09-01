@@ -1373,6 +1373,7 @@ Observer exports all their responses across all polls.
 | POST | `/protocols/runs/:run_id/doses/skip` | Skip a dose on an active run | 1 |
 | DELETE | `/protocols/runs/:run_id/doses/:dose_id` | Undo a logged/skipped dose on a run | 1 |
 | GET | `/protocols/runs/todays-doses` | Today's scheduled doses across all of the user's active runs | 1 |
+| GET | `/protocols/active-substances` | Distinct substance/dose/unit/route across all of the user's active runs, for quick-pick UI | 1 |
 | GET | `/protocols/runs/:run_id/doses` | Dose status for every scheduled day of a run, in a `from_day..to_day` range | 1 |
 | GET | `/protocols/runs/missed-doses` | Scheduled-but-missed days across all of the user's active runs | 1 |
 | GET | `/protocols/runs/:run_id/adherence` | Adherence summary (scheduled/completed/skipped/missed) for a run, overall + per line | 1 |
@@ -1571,6 +1572,27 @@ whose `schedule_pattern` marks today's day number as active.
 `status` is `null` until a dose is logged or skipped for that line today, then
 `"completed"` or `"skipped"`. `protocol_line_id` is the id to send back to the
 log/skip endpoints above.
+
+#### `GET /protocols/active-substances`
+
+Distinct substance/dose/unit/route combinations across all of the user's
+currently active runs (`DISTINCT ON`, one row per unique combination even if
+multiple lines/runs share it), for a quick-pick substance list when logging
+an ad hoc intervention.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "substance": "BPC-157",
+    "dose": 250.0,
+    "unit": "mcg",
+    "route": "subcutaneous",
+    "protocol_name": "Recovery Stack"
+  }
+]
+```
 
 #### Canonical dose-status rule
 

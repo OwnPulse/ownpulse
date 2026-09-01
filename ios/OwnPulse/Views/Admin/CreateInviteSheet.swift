@@ -75,7 +75,7 @@ struct CreateInviteSheet: View {
             if let errorMessage {
                 Section {
                     Text(errorMessage)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(OPColor.error)
                         .font(.caption)
                         .accessibilityIdentifier("createInviteError")
                 }
@@ -109,7 +109,7 @@ struct CreateInviteSheet: View {
 
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: successIconSize))
-                .foregroundStyle(.green)
+                .foregroundStyle(OPColor.success)
                 .accessibilityHidden(true)
 
             Text("Invite Created")
@@ -133,7 +133,7 @@ struct CreateInviteSheet: View {
                 Label("Share Invite Link", systemImage: "square.and.arrow.up")
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(.blue)
+                    .background(OPColor.terracotta)
                     .foregroundStyle(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
             }

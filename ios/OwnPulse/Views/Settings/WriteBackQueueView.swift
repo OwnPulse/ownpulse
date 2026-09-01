@@ -266,7 +266,7 @@ struct WriteBackQueueView: View {
                 if let error = vm.actionError {
                     Text(error)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(OPColor.error)
                         .accessibilityIdentifier("writeBackActionError")
                 }
             }

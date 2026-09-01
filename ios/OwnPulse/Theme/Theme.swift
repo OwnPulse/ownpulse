@@ -3,16 +3,37 @@
 
 import SwiftUI
 
-// The brand palette (terracotta, teal, gold, sage, warmBg, cardLight) is
-// generated from docs/design/tokens.json into Tokens.swift. The members below
-// are hand-written: they are either not yet modeled in the token source
-// (darkBg, cardDark), deliberately tuned for WCAG AA contrast in a way the raw
-// palette does not express (mutedText, googleBlue), or colorblind-safe trend
-// indicators sourced from the generated ChartColors Wong palette (always
-// paired with a directional arrow — see TrendDirection).
+// The brand palette (terracotta, teal, gold, sage, purple, warmBg, cardLight,
+// success, warning, error) is generated from docs/design/tokens.json into
+// Tokens.swift. The members below are hand-written: they are either not yet
+// modeled in the token source (darkBg, cardDark, darkBgGradientEnd), not yet
+// emitted by the generator (dimensionEnergy — see its doc comment),
+// deliberately tuned for WCAG AA contrast in a way the raw palette does not
+// express (mutedText, googleBlue), or colorblind-safe trend indicators
+// sourced from the generated ChartColors Wong palette (always paired with a
+// directional arrow — see TrendDirection).
 extension OPColor {
     static let darkBg = Color(red: 26 / 255, green: 26 / 255, blue: 26 / 255)
     static let cardDark = Color(red: 34 / 255, green: 34 / 255, blue: 34 / 255)
+
+    /// The second stop of the dashboard's dark-mode background gradient.
+    ///
+    /// Mirrors `darkBg` above: dark mode has no token source yet (brand.md:
+    /// "no dark mode as primary"), so this is hand-picked to sit just below
+    /// `darkBg` (#1a1a1a) rather than a token-generated value.
+    static let darkBgGradientEnd = Color(red: 20 / 255, green: 20 / 255, blue: 26 / 255)
+
+    /// Check-in dimension color for Energy (`color.dimension.energy` in
+    /// tokens.json, #a78333).
+    ///
+    /// Not yet emitted by the Tokens.swift generator (#292 only wired up the
+    /// flat `color.dimension.*` keys, not the nested per-dimension map also
+    /// added in that change) — hand-written here until the generator covers
+    /// it. Deliberately distinct from `OPColor.gold` (#c49a3c): the raw gold
+    /// value clears only ~2.5:1 against the light surfaces, below the 3:1
+    /// WCAG AA graphical-object floor the ScoreSlider/ScoreRing/SparklineRow
+    /// need, so tokens.json darkens it along the same hue to ~3.4-3.5:1.
+    static let dimensionEnergy = Color(red: 167 / 255, green: 131 / 255, blue: 51 / 255)
 
     /// Muted secondary text that still clears WCAG AA (4.5:1 for normal text).
     ///
@@ -61,11 +82,14 @@ extension Color {
 struct OPCardModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
+    /// Matches web's card radius (`radii.lg` in tokens.json, 12px).
+    static let cornerRadius: CGFloat = OPRadius.lg
+
     func body(content: Content) -> some View {
         content
             .padding(16)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
                     .fill(colorScheme == .dark ? .ultraThinMaterial : .regularMaterial)
             )
             .shadow(color: .black.opacity(colorScheme == .dark ? 0.3 : 0.08), radius: 8, y: 4)

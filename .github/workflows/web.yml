@@ -129,19 +129,58 @@ jobs:
           label: web coverage
           badge-file: web-coverage.json
 
+  # Runs the unit suite under non-UTC, non-US timezones so date/time bugs that
+  # only show up across a DST-less UTC+13/UTC-10 offset (or a day boundary)
+  # surface in CI instead of on a contributor's machine. No coverage — this
+  # is a correctness check, not a coverage source — so it stays cheap even as
+  # a second and third full vitest run.
+  test_timezones:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        tz: [Pacific/Auckland, Pacific/Honolulu]
+    name: Web / vitest (TZ=${{ matrix.tz }})
+    defaults:
+      run:
+        working-directory: web
+    env:
+      TZ: ${{ matrix.tz }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      # The design-tokens generator test imports style-dictionary, which lives
+      # in tools/design-tokens/node_modules (resolved relative to build.js), not
+      # web/node_modules. Install it so the generator + idempotency tests run.
+      - name: Install design-tokens generator deps
+        working-directory: tools/design-tokens
+        run: npm ci
+
+      - run: npx vitest run
+
   result:
     name: Web / result
     if: always()
-    needs: [changes, test_date_lint, test]
+    needs: [changes, test_date_lint, test, test_timezones]
     runs-on: ubuntu-latest
     steps:
       - name: Check result
         run: |
           if [[ "${{ needs.test_date_lint.result }}" == "failure" || \
-                "${{ needs.test.result }}" == "failure" ]]; then
+                "${{ needs.test.result }}" == "failure" || \
+                "${{ needs.test_timezones.result }}" == "failure" ]]; then
             echo "Web CI failed"
             echo "  test_date_lint: ${{ needs.test_date_lint.result }}"
             echo "  test: ${{ needs.test.result }}"
+            echo "  test_timezones: ${{ needs.test_timezones.result }}"
             exit 1
           fi
           echo "Web gate passed"
