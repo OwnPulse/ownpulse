@@ -6,6 +6,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import Sources from "../../src/pages/Sources";
 
@@ -15,13 +16,23 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
-function renderPage() {
+// `MemoryRouter` keeps its own in-memory history, not `window.location` — read
+// the router's current search string via this probe instead.
+function LocationSearchProbe() {
+  const location = useLocation();
+  return <div data-testid="location-search">{location.search}</div>;
+}
+
+function renderPage(initialPath = "/sources") {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <Sources />
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Sources />
+        <LocationSearchProbe />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -38,6 +49,40 @@ describe("Sources page", () => {
     renderPage();
     await waitFor(() => {
       expect(screen.getByText("Error loading integrations.")).toBeDefined();
+    });
+  });
+
+  it("shows a success banner for ?connected=google_calendar and clears it from the URL", async () => {
+    server.use(
+      http.get("/api/v1/integrations", () =>
+        HttpResponse.json([{ source: "google_calendar", connected: true }]),
+      ),
+    );
+    renderPage("/sources?connected=google_calendar");
+
+    await waitFor(() => {
+      expect(screen.getByText("Google Calendar connected.")).toBeDefined();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("location-search").textContent).toBe("");
+    });
+  });
+
+  it("shows a known error banner for ?error=access_denied", async () => {
+    server.use(http.get("/api/v1/integrations", () => HttpResponse.json([])));
+    renderPage("/sources?error=access_denied");
+
+    await waitFor(() => {
+      expect(screen.getByText("Google Calendar connection was cancelled.")).toBeDefined();
+    });
+  });
+
+  it("shows a generic error banner for an unrecognized ?error=<code>", async () => {
+    server.use(http.get("/api/v1/integrations", () => HttpResponse.json([])));
+    renderPage("/sources?error=some_future_backend_code");
+
+    await waitFor(() => {
+      expect(screen.getByText("Couldn't connect Google Calendar. Please try again.")).toBeDefined();
     });
   });
 
