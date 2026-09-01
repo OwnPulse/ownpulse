@@ -1519,6 +1519,177 @@
       }
     },
     {
+      "description": "a request to log a dose against a protocol run",
+      "providerState": "an active protocol run exists with a pending dose",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/protocols/runs/22222222-2222-2222-2222-222222222222/doses/log",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "protocol_line_id": "33333333-3333-3333-3333-333333333333",
+          "day_number": 3,
+          "tz_offset_minutes": -420
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "44444444-4444-4444-4444-444444444444",
+          "protocol_line_id": "33333333-3333-3333-3333-333333333333",
+          "day_number": 3,
+          "status": "completed",
+          "intervention_id": "55555555-5555-5555-5555-555555555555",
+          "logged_at": "2026-03-28T08:00:00Z",
+          "run_id": "22222222-2222-2222-2222-222222222222",
+          "skip_reason": null
+        }
+      }
+    },
+    {
+      "description": "a request to skip a dose against a protocol run",
+      "providerState": "an active protocol run exists with a pending dose",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/protocols/runs/22222222-2222-2222-2222-222222222222/doses/skip",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "protocol_line_id": "33333333-3333-3333-3333-333333333333",
+          "day_number": 3,
+          "skip_reason": "traveling"
+        }
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
+      "description": "a request to undo a logged or skipped dose",
+      "providerState": "a dose has been logged for a protocol run",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/protocols/runs/22222222-2222-2222-2222-222222222222/doses/44444444-4444-4444-4444-444444444444",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
+      "description": "a request for a protocol run's per-day dose status",
+      "providerState": "an active protocol run exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/22222222-2222-2222-2222-222222222222/doses",
+        "query": "from_day=0&to_day=13",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "day_number": 3,
+            "date": "2026-03-31",
+            "protocol_line_id": "33333333-3333-3333-3333-333333333333",
+            "substance": "BPC-157",
+            "dose": 250,
+            "unit": "mcg",
+            "route": "SubQ",
+            "time_of_day": "AM",
+            "status": "missed",
+            "dose_id": null,
+            "intervention_id": null,
+            "skip_reason": null,
+            "logged_at": null
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request for scheduled days missed across the caller's active runs",
+      "providerState": "the caller has a scheduled day in the past with no dose row",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/missed-doses",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "protocol_id": "11111111-1111-1111-1111-111111111111",
+            "protocol_name": "BPC Stack",
+            "run_id": "22222222-2222-2222-2222-222222222222",
+            "protocol_line_id": "33333333-3333-3333-3333-333333333333",
+            "substance": "BPC-157",
+            "dose": 250,
+            "unit": "mcg",
+            "route": "SubQ",
+            "time_of_day": "AM",
+            "day_number": 2,
+            "date": "2026-03-30",
+            "status": "missed"
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request for a protocol run's adherence summary",
+      "providerState": "an active protocol run has closed scheduled days",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/22222222-2222-2222-2222-222222222222/adherence",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "run_id": "22222222-2222-2222-2222-222222222222",
+          "scheduled_so_far": 10,
+          "completed": 8,
+          "skipped": 1,
+          "missed": 1,
+          "adherence_pct": 88.9,
+          "lines": [
+            {
+              "protocol_line_id": "33333333-3333-3333-3333-333333333333",
+              "substance": "BPC-157",
+              "scheduled_so_far": 10,
+              "completed": 8,
+              "skipped": 1,
+              "missed": 1,
+              "adherence_pct": 88.9
+            }
+          ]
+        }
+      }
+    },
+    {
       "description": "a request to list integration statuses",
       "providerState": "a connected google_calendar integration exists",
       "request": {

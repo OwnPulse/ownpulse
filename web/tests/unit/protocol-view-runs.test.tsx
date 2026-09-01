@@ -12,7 +12,11 @@ import ProtocolView from "../../src/pages/ProtocolView";
 import { useAuthStore } from "../../src/store/auth";
 
 vi.mock("../../src/components/protocols/DoseStatusGrid", () => ({
-  DoseStatusGrid: () => <div data-testid="dose-grid">Grid</div>,
+  DoseStatusGrid: ({ runId, interactive }: { runId: string; interactive: boolean }) => (
+    <div data-testid="dose-grid">
+      Grid for {runId} ({interactive ? "interactive" : "read-only"})
+    </div>
+  ),
 }));
 
 vi.mock("../../src/components/protocols/StartRunModal", () => ({
@@ -62,36 +66,62 @@ const protocol = {
   ],
 };
 
+const activeRun = {
+  id: "run-1",
+  protocol_id: "proto-1",
+  protocol_name: "BPC-157 Stack",
+  user_id: "user-1",
+  // date-ok
+  start_date: "2026-03-28",
+  duration_days: 28,
+  status: "active",
+  notify: false,
+  notify_times: [],
+  repeat_reminders: false,
+  repeat_interval_minutes: 30,
+  progress_pct: 10,
+  doses_today: 1,
+  doses_completed_today: 0,
+  adherence_pct: null,
+  doses_missed: null,
+  // date-ok
+  created_at: "2026-03-28T10:00:00Z",
+};
+
 const runs = [
-  {
-    id: "run-1",
-    protocol_id: "proto-1",
-    user_id: "user-1",
-    // date-ok
-    start_date: "2026-03-28",
-    status: "active",
-    notify: false,
-    notify_times: [],
-    repeat_reminders: false,
-    repeat_interval_minutes: 30,
-    // date-ok
-    created_at: "2026-03-28T10:00:00Z",
-  },
+  activeRun,
   {
     id: "run-2",
     protocol_id: "proto-1",
+    protocol_name: "BPC-157 Stack",
     user_id: "user-1",
     // date-ok
     start_date: "2026-02-01",
+    duration_days: 28,
     status: "completed",
     notify: false,
     notify_times: [],
     repeat_reminders: false,
     repeat_interval_minutes: 30,
+    progress_pct: 100,
+    doses_today: 0,
+    doses_completed_today: 0,
+    adherence_pct: 90,
+    doses_missed: 1,
     // date-ok
     created_at: "2026-02-01T10:00:00Z",
   },
 ];
+
+const adherenceResponse = {
+  run_id: "run-1",
+  scheduled_so_far: 10,
+  completed: 8,
+  skipped: 1,
+  missed: 1,
+  adherence_pct: 88.9,
+  lines: [],
+};
 
 function renderWithProviders() {
   const queryClient = new QueryClient({
@@ -140,6 +170,9 @@ describe("ProtocolView with runs", () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
       http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json(runs)),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
+      ),
     );
 
     renderWithProviders();
@@ -200,6 +233,9 @@ describe("ProtocolView with runs", () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
       http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json(mixedRuns)),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
+      ),
     );
 
     renderWithProviders();
@@ -219,6 +255,9 @@ describe("ProtocolView with runs", () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
       http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[0]])),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
+      ),
       http.patch("/api/v1/protocols/runs/:runId", async ({ params, request }) => {
         patchCalled = true;
         expect(params.runId).toBe("run-1");
@@ -242,104 +281,126 @@ describe("ProtocolView with runs", () => {
     expect(capturedBody).toEqual({ status: "paused" });
   });
 
-  it("calls logRunDose with the active run id (not the protocol id) when Log is clicked", async () => {
-    let capturedRunId: string | undefined;
-    let capturedUrl: string | undefined;
-    let capturedBody: unknown;
-
-    // Local date, matching how ProtocolView now parses run.start_date — using
-    // the UTC date here would make this test flaky for contributors west of
-    // UTC near midnight.
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-    const activeRun = {
-      id: "run-1",
-      protocol_id: "proto-1",
-      user_id: "user-1",
-      start_date: todayStr,
-      status: "active" as const,
-      notify: false,
-      notify_times: [],
-      repeat_reminders: false,
-      repeat_interval_minutes: 30,
-      created_at: `${todayStr}T10:00:00Z`,
-    };
-
+  it("passes the active run id (not the protocol id) to the dose grid", async () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([activeRun])),
-      http.post("/api/v1/protocols/runs/:runId/doses/log", async ({ params, request }) => {
-        capturedRunId = params.runId as string;
-        capturedUrl = request.url;
-        capturedBody = await request.json();
-        return HttpResponse.json({
-          id: "dose-1",
-          protocol_line_id: "line-1",
-          day_number: 0,
-          status: "completed",
-          intervention_id: "iv-1",
-          logged_at: `${todayStr}T12:00:00Z`,
-          created_at: `${todayStr}T12:00:00Z`,
-        });
-      }),
-    );
-
-    renderWithProviders();
-    const user = userEvent.setup();
-
-    await waitFor(() => {
-      expect(screen.getByText("Today’s Doses")).toBeDefined();
-    });
-
-    const logButton = screen.getByRole("button", { name: "Log" });
-    expect(logButton).not.toBeDisabled();
-    await user.click(logButton);
-
-    await waitFor(() => {
-      expect(capturedRunId).toBe("run-1");
-    });
-
-    // Must NOT have posted using the protocol id ("proto-1") as the run id.
-    expect(capturedRunId).not.toBe(protocol.id);
-    expect(capturedUrl).toContain("/api/v1/protocols/runs/run-1/doses/log");
-    // The request body itself must be the exact expected shape — a handler
-    // that returns 200 for any body (e.g. `{totally_wrong: 1}`) would pass a
-    // test that only checks the URL.
-    expect(capturedBody).toEqual({ protocol_line_id: "line-1", day_number: 0 });
-  });
-
-  it("shows a hint instead of the dose list when there is no active run", async () => {
-    server.use(
-      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[1]])), // completed only
-    );
-
-    renderWithProviders();
-
-    await waitFor(() => {
-      expect(screen.getByText("Today’s Doses")).toBeDefined();
-    });
-
-    expect(screen.getByText("Start a run to log doses")).toBeDefined();
-    expect(screen.queryByRole("button", { name: "Log" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
-  });
-
-  it("shows the same hint when the only run is paused", async () => {
-    server.use(
-      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-      http.get("/api/v1/protocols/:id/runs", () =>
-        HttpResponse.json([{ ...runs[0], status: "paused" }]),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[0]])),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
       ),
     );
 
     renderWithProviders();
 
     await waitFor(() => {
-      expect(screen.getByText("Today’s Doses")).toBeDefined();
+      expect(screen.getByTestId("dose-grid")).toBeDefined();
     });
 
-    expect(screen.getByText("Start a run to log doses")).toBeDefined();
+    expect(screen.getByText("Grid for run-1 (interactive)")).toBeDefined();
+  });
+
+  it("shows adherence summary from the adherence endpoint", async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[0]])),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
+      ),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText(/89% adherence · 8 done · 1 skipped · 1 missed/)).toBeDefined();
+    });
+  });
+
+  it('shows "No closed days yet" when adherence_pct is null', async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[0]])),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json({ ...adherenceResponse, adherence_pct: null }),
+      ),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText("No closed days yet")).toBeDefined();
+    });
+  });
+
+  it("shows a hint instead of the schedule grid only when there are no runs at all", async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([])),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText("Schedule")).toBeDefined();
+    });
+
+    expect(screen.getByText("Start a run to see your schedule.")).toBeDefined();
+    expect(screen.queryByTestId("dose-grid")).toBeNull();
+  });
+
+  it("falls back to the most recent run and renders a read-only grid when there is no active run (completed only)", async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[1]])), // completed only
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
+      ),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dose-grid")).toBeDefined();
+    });
+
+    expect(screen.getByText("Grid for run-2 (read-only)")).toBeDefined();
+    expect(screen.getByText(/this run is completed — showing read-only history/i)).toBeDefined();
+  });
+
+  it("falls back to the most recent run and renders a read-only grid when the only run is paused", async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () =>
+        HttpResponse.json([{ ...runs[0], status: "paused" }]),
+      ),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
+      ),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText("Grid for run-1 (read-only)")).toBeDefined();
+    });
+    expect(screen.getByText(/this run is paused — showing read-only history/i)).toBeDefined();
+  });
+
+  it("prefers the active run over a more recent non-active run", async () => {
+    // runs[] is ordered created_at DESC like the real API — an older
+    // active run must still win over a newer completed one.
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[1], runs[0]])),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
+      ),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText("Grid for run-1 (interactive)")).toBeDefined();
+    });
   });
 
   it("renders description section", async () => {
@@ -380,75 +441,9 @@ describe("ProtocolView with runs", () => {
       expect(input).toBeDefined();
     });
   });
-
-  describe("today's-dose day math at a UTC-offset-sensitive instant", () => {
-    const originalTz = process.env.TZ;
-
-    beforeEach(() => {
-      // UTC-10, no DST — a run.start_date parsed as UTC midnight instead of
-      // local midnight rolls its "day 0" forward by 10h relative to this
-      // timezone's actual local day.
-      process.env.TZ = "Pacific/Honolulu";
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-      if (originalTz === undefined) {
-        delete process.env.TZ;
-      } else {
-        process.env.TZ = originalTz;
-      }
-    });
-
-    it("does not show today's doses before the run's start date has arrived locally", async () => {
-      // 2026-03-29T05:00:00Z is 2026-03-28T19:00 in Honolulu — local
-      // calendar is still the day *before* the run's start_date.
-      // date-ok
-      vi.setSystemTime(new Date("2026-03-29T05:00:00Z"));
-
-      server.use(
-        http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-        http.get(
-          "/api/v1/protocols/:id/runs",
-          // date-ok
-          () => HttpResponse.json([{ ...runs[0], start_date: "2026-03-29" }]),
-        ),
-      );
-
-      renderWithProviders();
-
-      await waitFor(() => {
-        expect(screen.getByText("Today’s Doses")).toBeDefined();
-      });
-
-      // Parsing start_date as UTC (the bug) would put "now" 5h after that
-      // UTC instant, i.e. inside day 0 of the run — showing today's dose a
-      // full local day early. Parsing it as local correctly treats the run
-      // as not yet started for this user's actual calendar day.
-      expect(screen.getByText("No doses scheduled for today.")).toBeDefined();
-      expect(screen.queryByRole("button", { name: "Log" })).toBeNull();
-    });
-
-    it("shows today's dose once the run's start date has arrived locally", async () => {
-      // 2026-03-29T05:00:00Z is 2026-03-28T19:00 in Honolulu — the local
-      // calendar day matching the run's start_date.
-      // date-ok
-      vi.setSystemTime(new Date("2026-03-29T05:00:00Z"));
-
-      server.use(
-        http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-        http.get(
-          "/api/v1/protocols/:id/runs",
-          // date-ok
-          () => HttpResponse.json([{ ...runs[0], start_date: "2026-03-28" }]),
-        ),
-      );
-
-      renderWithProviders();
-
-      await waitFor(() => {
-        expect(screen.getByRole("button", { name: "Log" })).toBeDefined();
-      });
-    });
-  });
+  // The client-side "today's-dose day math" describe block that used to
+  // live here tested ProtocolView's own computeTodaysDoses/"Today's Doses"
+  // section, which this PR removed — the schedule grid (and its own
+  // local-date handling, exercised in dose-status-grid.test.tsx) replaced
+  // it, so there's nothing of that behavior left in this component to test.
 });

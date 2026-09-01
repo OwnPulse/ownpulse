@@ -9,17 +9,23 @@ export interface ProtocolDose {
   day_number: number;
   status: "completed" | "skipped" | "pending";
   intervention_id: string | null;
-  logged_at: string | null;
-  created_at: string;
+  // Always set — `ProtocolDoseRow.logged_at` in the backend is a
+  // non-nullable `DateTime<Utc>`.
+  logged_at: string;
+  // No `created_at` here — `ProtocolDoseRow` in the backend never serves it.
+  // The run this dose belongs to; `null` for legacy protocol-level doses
+  // logged before runs existed.
+  run_id: string | null;
+  skip_reason: string | null;
 }
 
 export interface ProtocolLine {
   id: string;
   protocol_id: string;
   substance: string;
-  dose: number;
-  unit: string;
-  route: string;
+  dose: number | null;
+  unit: string | null;
+  route: string | null;
   time_of_day: string | null;
   schedule_pattern: boolean[];
   sort_order: number;
@@ -60,12 +66,12 @@ export interface TodaysDose {
   protocol_line_id: string;
   run_id: string;
   substance: string;
-  dose: number;
-  unit: string;
-  route: string;
+  dose: number | null;
+  unit: string | null;
+  route: string | null;
   time_of_day: string | null;
   day_number: number;
-  status: "completed" | "skipped" | "pending";
+  status: "completed" | "skipped" | "pending" | null;
 }
 
 export interface CreateProtocolLine {
@@ -89,23 +95,40 @@ export interface CreateProtocol {
 export interface LogDoseRequest {
   protocol_line_id: string;
   day_number: number;
+  /** Must fall within a day of the scheduled date (in `tz_offset_minutes`). */
+  administered_at?: string;
+  notes?: string;
+  /** Caller's local UTC offset in minutes, e.g. `-420` for UTC-7. */
+  tz_offset_minutes?: number;
 }
 
 export interface SkipDoseRequest {
   protocol_line_id: string;
   day_number: number;
+  skip_reason?: string;
 }
 
 export interface ProtocolRun {
   id: string;
   protocol_id: string;
+  protocol_name: string | null;
   user_id: string;
   start_date: string;
+  duration_days: number | null;
   status: "active" | "paused" | "completed";
   notify: boolean;
-  notify_times: string[];
+  notify_time: string | null;
+  notify_times: string[] | null;
   repeat_reminders: boolean;
-  repeat_interval_minutes: number;
+  repeat_interval_minutes: number | null;
+  progress_pct: number;
+  doses_today: number;
+  doses_completed_today: number;
+  /** `null` when the denominator is 0 (nothing scheduled yet, or every
+   *  closed day was skipped) — see `RunResponse.adherence_pct` in the
+   *  backend for the exact rule. */
+  adherence_pct: number | null;
+  doses_missed: number | null;
   created_at: string;
 }
 
@@ -141,6 +164,8 @@ export interface ActiveRunResponse {
   progress_pct: number;
   doses_today: number;
   doses_completed_today: number;
+  adherence_pct: number | null;
+  doses_missed: number | null;
   created_at: string;
 }
 
@@ -176,13 +201,73 @@ export interface TemplateListItem {
   line_count: number;
 }
 
+// No `protocol_id` — `ActiveSubstanceItem` in the backend doesn't serve one
+// (the query is `DISTINCT ON (substance, dose, unit, route)`, not per-protocol).
 export interface ActiveSubstance {
   substance: string;
-  dose: number;
-  unit: string;
-  route: string;
+  dose: number | null;
+  unit: string | null;
+  route: string | null;
   protocol_name: string;
+}
+
+/** One entry of `GET /protocols/runs/:run_id/doses` — a scheduled (line,
+ *  day) pair with its server-computed status. */
+export interface RunDoseItem {
+  day_number: number;
+  date: string;
+  protocol_line_id: string;
+  substance: string;
+  dose: number | null;
+  unit: string | null;
+  route: string | null;
+  time_of_day: string | null;
+  status: "completed" | "skipped" | "missed" | "pending";
+  dose_id: string | null;
+  intervention_id: string | null;
+  skip_reason: string | null;
+  logged_at: string | null;
+}
+
+/** One entry of `GET /protocols/runs/missed-doses` — a scheduled day, in
+ *  the past, across the caller's active runs, with no dose row. Capped at
+ *  200 rows server-side. */
+export interface MissedDoseItem {
   protocol_id: string;
+  protocol_name: string;
+  run_id: string;
+  protocol_line_id: string;
+  substance: string;
+  dose: number | null;
+  unit: string | null;
+  route: string | null;
+  time_of_day: string | null;
+  day_number: number;
+  date: string;
+  status: "missed";
+}
+
+export interface LineAdherence {
+  protocol_line_id: string;
+  substance: string;
+  scheduled_so_far: number;
+  completed: number;
+  skipped: number;
+  missed: number;
+  adherence_pct: number | null;
+}
+
+/** Response of `GET /protocols/runs/:run_id/adherence` — computed over
+ *  closed days only (scheduled days strictly before today, excluding
+ *  paused days); skips are excluded from the adherence denominator. */
+export interface AdherenceResponse {
+  run_id: string;
+  scheduled_so_far: number;
+  completed: number;
+  skipped: number;
+  missed: number;
+  adherence_pct: number | null;
+  lines: LineAdherence[];
 }
 
 export const protocolsApi = {
@@ -216,7 +301,28 @@ export const protocolsApi = {
   // Run doses
   todaysDoses: () => api.get<TodaysDose[]>("/api/v1/protocols/runs/todays-doses"),
   logRunDose: (runId: string, data: LogDoseRequest) =>
-    api.post<ProtocolDose>(`/api/v1/protocols/runs/${runId}/doses/log`, data),
+    // Always send tz_offset_minutes — the backend uses it to resolve
+    // "today"/the default dose time in the caller's own calendar day
+    // rather than the database server's, so every write must carry it,
+    // not just the ones a caller happens to set explicitly.
+    api.post<ProtocolDose>(`/api/v1/protocols/runs/${runId}/doses/log`, {
+      ...data,
+      tz_offset_minutes: data.tz_offset_minutes ?? -new Date().getTimezoneOffset(),
+    }),
+  // 204 No Content — `skip_dose_on_run` in the backend doesn't return the
+  // dose row (unlike log).
   skipRunDose: (runId: string, data: SkipDoseRequest) =>
-    api.post<ProtocolDose>(`/api/v1/protocols/runs/${runId}/doses/skip`, data),
+    api.post<void>(`/api/v1/protocols/runs/${runId}/doses/skip`, data),
+  deleteRunDose: (runId: string, doseId: string) =>
+    api.delete<void>(`/api/v1/protocols/runs/${runId}/doses/${doseId}`),
+  runDoses: (runId: string, range?: { fromDay?: number; toDay?: number }) => {
+    const params = new URLSearchParams();
+    if (range?.fromDay !== undefined) params.set("from_day", String(range.fromDay));
+    if (range?.toDay !== undefined) params.set("to_day", String(range.toDay));
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return api.get<RunDoseItem[]>(`/api/v1/protocols/runs/${runId}/doses${qs}`);
+  },
+  missedDoses: () => api.get<MissedDoseItem[]>("/api/v1/protocols/runs/missed-doses"),
+  runAdherence: (runId: string) =>
+    api.get<AdherenceResponse>(`/api/v1/protocols/runs/${runId}/adherence`),
 };

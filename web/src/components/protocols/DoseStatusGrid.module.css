@@ -8,6 +8,18 @@
   padding: 0.5rem 0;
 }
 
+.status {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+/* Lets the row's children (label + cell wrappers) participate directly in
+   the parent .grid's column tracks instead of the row div claiming one
+   cell for itself. */
+.row {
+  display: contents;
+}
+
 .headerCell {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
@@ -28,6 +40,10 @@
   max-width: 10rem;
 }
 
+.cellWrapper {
+  position: relative;
+}
+
 .cell {
   width: 2.75rem;
   height: 2.75rem;
@@ -40,6 +56,13 @@
   font-weight: 700;
   color: #fff;
   line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+
+.cell:disabled {
+  cursor: default;
+  opacity: 0.7;
 }
 
 .completed {
@@ -63,17 +86,95 @@
   background-size: 6px 6px;
 }
 
-.upcoming {
+.pending {
   background: #999999;
 }
 
 .off {
   background: transparent;
   color: transparent;
+  width: 2.75rem;
+  height: 2.75rem;
+  cursor: default;
 }
 
 .today {
   border-color: var(--color-primary);
+}
+
+.confirming {
+  border-color: var(--color-error);
+}
+
+/* Positioned via inline style (JS-computed viewport coordinates) — rendered
+   through a portal into document.body, not inside .grid, since .grid's
+   overflow-x: auto forces overflow-y: auto too, which would clip an
+   in-flow popover on the bottom rows. */
+.popover {
+  z-index: 100;
+  padding: 0.5rem;
+  min-width: 12rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.popoverError {
+  color: var(--color-error);
+  margin: 0;
+}
+
+.popoverTabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.tab,
+.tabActive {
+  flex: 1;
+  font-size: var(--text-xs);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.tabActive {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.popoverForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: var(--text-xs);
+}
+
+.popoverForm label {
+  color: var(--color-text-muted);
+}
+
+.popoverForm input,
+.popoverForm textarea {
+  font-size: var(--text-xs);
+  padding: 0.25rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-elevated);
+  color: var(--color-text);
+}
+
+.popoverActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
 }
 
 @media (max-width: 640px) {

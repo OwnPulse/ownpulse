@@ -2,16 +2,20 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { type CreateIntervention, interventionsApi } from "../../api/interventions";
 import { type ActiveSubstance, protocolsApi } from "../../api/protocols";
 import { type SavedMedicine, savedMedicinesApi } from "../../api/savedMedicines";
-import { localNow } from "../../utils/datetime";
+import { invalidateDoseQueries } from "../../lib/doseInvalidation";
+import { localNow, localToday } from "../../utils/datetime";
 import forms from "./forms.module.css";
 import styles from "./InterventionForm.module.css";
 
 function chipLabel(s: ActiveSubstance): string {
-  return `${s.substance} ${s.dose}${s.unit} ${s.route}`;
+  const parts = [s.substance];
+  if (s.dose != null) parts.push(s.unit != null ? `${s.dose}${s.unit}` : String(s.dose));
+  if (s.route != null) parts.push(s.route);
+  return parts.join(" ");
 }
 
 function savedMedicineLabel(m: SavedMedicine): string {
@@ -61,17 +65,78 @@ export default function InterventionForm() {
     queryFn: () => savedMedicinesApi.list(),
   });
 
+  const todaysDoses = useQuery({
+    queryKey: ["todays-doses"],
+    queryFn: () => protocolsApi.todaysDoses(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Today-only attribution: if the entered substance+dose+unit matches a
+  // pending scheduled dose for today, offer to log it against that
+  // protocol run instead of creating a standalone intervention.
+  //
+  // Gated on administeredAt actually being today (local): a backdated entry
+  // (yesterday's timestamp) would otherwise still match and submit with
+  // *today's* day_number — the backend's ±1-day logging tolerance accepts
+  // that, silently marking today's dose completed from a stale entry.
+  // `administeredAt` is the raw "YYYY-MM-DDTHH:mm" value of the
+  // datetime-local input (already local, no parsing needed).
+  const parsedDose = dose ? parseFloat(dose) : null;
+  const administeredToday = administeredAt.slice(0, 10) === localToday();
+  const matchedDose = administeredToday
+    ? todaysDoses.data?.find(
+        (td) =>
+          td.status === "pending" &&
+          td.substance.trim().toLowerCase() === substance.trim().toLowerCase() &&
+          parsedDose != null &&
+          td.dose === parsedDose &&
+          (td.unit ?? "").trim().toLowerCase() === unit.trim().toLowerCase(),
+      )
+    : undefined;
+
+  const [attributeToProtocol, setAttributeToProtocol] = useState(true);
+  // Re-default to checked whenever the matched dose identity changes (not
+  // referenced in the body — this only resets a manual uncheck from a
+  // previous match).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional reset trigger, not a value read
+  useEffect(() => {
+    setAttributeToProtocol(true);
+  }, [matchedDose?.run_id, matchedDose?.day_number]);
+
+  // The protocol-run log endpoint has no `fasted` field — submitting in
+  // this mode would silently drop whatever the checkbox says, so disable
+  // it instead of lying about what got saved.
+  const attributingToProtocol = !!matchedDose && attributeToProtocol;
+
+  const resetForm = () => {
+    setSubstance("");
+    setDose("");
+    setUnit("");
+    setRoute("");
+    setAdministeredAt(localNow());
+    setFasted(false);
+    setNotes("");
+  };
+
   const mutation = useMutation({
     mutationFn: (data: CreateIntervention) => interventionsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["interventions"] });
-      setSubstance("");
-      setDose("");
-      setUnit("");
-      setRoute("");
-      setAdministeredAt(localNow());
-      setFasted(false);
-      setNotes("");
+      resetForm();
+    },
+  });
+
+  const logDoseMutation = useMutation({
+    mutationFn: (data: { runId: string; protocolLineId: string; dayNumber: number }) =>
+      protocolsApi.logRunDose(data.runId, {
+        protocol_line_id: data.protocolLineId,
+        day_number: data.dayNumber,
+        administered_at: new Date(administeredAt).toISOString(),
+        notes: notes || undefined,
+      }),
+    onSuccess: () => {
+      invalidateDoseQueries(queryClient);
+      resetForm();
     },
   });
 
@@ -98,9 +163,9 @@ export default function InterventionForm() {
 
   const handleChipClick = (s: ActiveSubstance) => {
     setSubstance(s.substance);
-    setDose(String(s.dose));
-    setUnit(s.unit);
-    setRoute(s.route);
+    if (s.dose != null) setDose(String(s.dose));
+    if (s.unit != null) setUnit(s.unit);
+    if (s.route != null) setRoute(s.route);
   };
 
   const handleSavedMedicineClick = (m: SavedMedicine) => {
@@ -120,6 +185,14 @@ export default function InterventionForm() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (matchedDose && attributeToProtocol) {
+      logDoseMutation.mutate({
+        runId: matchedDose.run_id,
+        protocolLineId: matchedDose.protocol_line_id,
+        dayNumber: matchedDose.day_number,
+      });
+      return;
+    }
     mutation.mutate({
       substance,
       dose: parseFloat(dose),
@@ -196,7 +269,9 @@ export default function InterventionForm() {
           <div className={styles.chipContainer}>
             {substances.map((s) => (
               <button
-                key={`${s.protocol_id}-${s.substance}`}
+                // Matches the backend's DISTINCT ON (substance, dose, unit,
+                // route) tuple — `ActiveSubstance` has no protocol_id.
+                key={`${s.substance}-${s.dose}-${s.unit}-${s.route}`}
                 type="button"
                 className={styles.chip}
                 onClick={() => handleChipClick(s)}
@@ -287,12 +362,18 @@ export default function InterventionForm() {
           type="checkbox"
           id="intervention-fasted"
           checked={fasted}
+          disabled={attributingToProtocol}
           onChange={(e) => setFasted(e.target.checked)}
         />
         <label htmlFor="intervention-fasted" className={forms.checkboxLabel}>
           Fasted
         </label>
       </div>
+      {attributingToProtocol && (
+        <p className={forms.hint}>
+          Fasted isn&rsquo;t recorded when logging against a protocol dose.
+        </p>
+      )}
       <div className={forms.field}>
         <label className={forms.label} htmlFor="intervention-notes">
           Notes
@@ -304,9 +385,26 @@ export default function InterventionForm() {
           className={forms.textarea}
         />
       </div>
+      {matchedDose && (
+        <div className={forms.checkboxField}>
+          <input
+            type="checkbox"
+            id="intervention-attribute-protocol"
+            checked={attributeToProtocol}
+            onChange={(e) => setAttributeToProtocol(e.target.checked)}
+          />
+          <label htmlFor="intervention-attribute-protocol" className={forms.checkboxLabel}>
+            Count toward {matchedDose.protocol_name}
+          </label>
+        </div>
+      )}
       <div className={forms.actions}>
-        <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Log Intervention"}
+        <button
+          type="submit"
+          disabled={mutation.isPending || logDoseMutation.isPending}
+          className="op-btn op-btn-primary"
+        >
+          {mutation.isPending || logDoseMutation.isPending ? "Saving..." : "Log Intervention"}
         </button>
       </div>
       {/* Always mounted (only the text is conditional) so assistive tech
@@ -315,13 +413,18 @@ export default function InterventionForm() {
           picked up by screen readers. */}
       <p
         className={
-          mutation.isError ? forms.errorMsg : mutation.isSuccess ? forms.successMsg : undefined
+          mutation.isError || logDoseMutation.isError
+            ? forms.errorMsg
+            : mutation.isSuccess || logDoseMutation.isSuccess
+              ? forms.successMsg
+              : undefined
         }
         role="status"
         aria-live="polite"
       >
         {mutation.isError && `Error: ${mutation.error.message}`}
-        {mutation.isSuccess && "Saved!"}
+        {logDoseMutation.isError && `Error: ${logDoseMutation.error.message}`}
+        {(mutation.isSuccess || logDoseMutation.isSuccess) && "Saved!"}
       </p>
     </form>
   );
