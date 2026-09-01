@@ -115,7 +115,9 @@ struct ProtocolsViewModelTests {
             dayNumber: dayNumber,
             status: status,
             interventionId: nil,
-            loggedAt: "2026-03-01T08:00:00Z"
+            loggedAt: "2026-03-01T08:00:00Z",
+            runId: nil,
+            skipReason: nil
         )
     }
 
@@ -522,6 +524,241 @@ struct ProtocolsViewModelTests {
         await vm.loadProtocols()
 
         #expect(vm.listState == .loaded)
+    }
+
+    // MARK: - Adherence
+
+    @Test("loadAdherence success stores response")
+    func loadAdherenceSuccess() async {
+        let mock = MockNetworkClient()
+        let response = AdherenceResponse(
+            runId: "run-1",
+            scheduledSoFar: 8,
+            completed: 3,
+            skipped: 2,
+            missed: 3,
+            adherencePct: 50.0,
+            lines: []
+        )
+        mock.requestHandler = { _, _, _ in response }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadAdherence(runId: "run-1")
+
+        #expect(vm.adherenceState == .loaded)
+        #expect(vm.adherence?.adherencePct == 50.0)
+        #expect(mock.requestCalls[0].path == Endpoints.runAdherence("run-1"))
+    }
+
+    @Test("loadAdherence failure transitions to error state")
+    func loadAdherenceFailure() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.serverError(statusCode: 404, body: "not found") }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadAdherence(runId: "run-1")
+
+        if case .error = vm.adherenceState {
+            // expected
+        } else {
+            Issue.record("Expected error state")
+        }
+    }
+
+    @Test("loadAdherence unauthorized transitions to error state")
+    func loadAdherenceUnauthorized() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.unauthorized }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadAdherence(runId: "run-1")
+
+        if case .error = vm.adherenceState {
+            // expected
+        } else {
+            Issue.record("Expected error state for unauthorized")
+        }
+    }
+
+    // MARK: - Run Doses
+
+    @Test("loadRunDoses success stores doses and builds query string")
+    func loadRunDosesSuccess() async {
+        let mock = MockNetworkClient()
+        let days = [
+            RunDoseDay(
+                dayNumber: 3, date: "2026-04-04", protocolLineId: "line-1", substance: "BPC-157",
+                dose: 250.0, unit: "mcg", route: "subq", timeOfDay: "AM", status: .missed,
+                doseId: nil, interventionId: nil, skipReason: nil, loggedAt: nil
+            )
+        ]
+        mock.requestHandler = { _, _, _ in days }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadRunDoses(runId: "run-1", fromDay: 0, toDay: 5)
+
+        #expect(vm.runDosesState == .loaded)
+        #expect(vm.runDoses.count == 1)
+        #expect(mock.requestCalls[0].path == "/api/v1/protocols/runs/run-1/doses?from_day=0&to_day=5")
+    }
+
+    @Test("loadRunDoses failure transitions to error state")
+    func loadRunDosesFailure() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.serverError(statusCode: 400, body: "bad range") }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadRunDoses(runId: "run-1")
+
+        if case .error = vm.runDosesState {
+            // expected
+        } else {
+            Issue.record("Expected error state")
+        }
+    }
+
+    // MARK: - Missed Doses
+
+    @Test("loadMissedDoses success stores items")
+    func loadMissedDosesSuccess() async {
+        let mock = MockNetworkClient()
+        let items = [
+            MissedDoseItem(
+                protocolId: "proto-1", protocolName: "Stack", runId: "run-1", protocolLineId: "line-1",
+                substance: "Creatine", dose: 5.0, unit: "g", route: "oral", timeOfDay: nil,
+                dayNumber: 2, date: "2026-04-03", status: .missed
+            )
+        ]
+        mock.requestHandler = { _, _, _ in items }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadMissedDoses()
+
+        #expect(vm.missedDosesState == .loaded)
+        #expect(vm.missedDoses.count == 1)
+        #expect(mock.requestCalls[0].path == Endpoints.missedDoses)
+    }
+
+    @Test("loadMissedDoses failure transitions to error state")
+    func loadMissedDosesFailure() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.unauthorized }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadMissedDoses()
+
+        if case .error = vm.missedDosesState {
+            // expected
+        } else {
+            Issue.record("Expected error state")
+        }
+    }
+
+    // MARK: - Delete / Undo Dose
+
+    @Test("deleteDose success returns true")
+    func deleteDoseSuccess() async {
+        let mock = MockNetworkClient()
+        mock.requestNoContentHandler = { _, _, _ in }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        let result = await vm.deleteDose(runId: "run-1", doseId: "dose-1")
+
+        #expect(result == true)
+        #expect(mock.requestCalls[0].method == "DELETE")
+        #expect(mock.requestCalls[0].path == Endpoints.deleteDose(runId: "run-1", doseId: "dose-1"))
+    }
+
+    @Test("deleteDose failure returns false")
+    func deleteDoseFailure() async {
+        let mock = MockNetworkClient()
+        mock.requestNoContentHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 404, body: "not found")
+        }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        let result = await vm.deleteDose(runId: "run-1", doseId: "dose-1")
+
+        #expect(result == false)
+    }
+
+    @Test("undoDose success reloads the protocol")
+    func undoDoseSuccess() async {
+        let mock = MockNetworkClient()
+        let detail = Self.makeDetail()
+        mock.requestNoContentHandler = { _, _, _ in }
+        mock.requestHandler = { _, _, _ in detail }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        let result = await vm.undoDose(protocolId: "proto-1", runId: "run-1", doseId: "dose-1")
+
+        #expect(result == true)
+        #expect(mock.requestCalls.count == 2)
+        #expect(mock.requestCalls[0].method == "DELETE")
+        #expect(mock.requestCalls[1].method == "GET")
+    }
+
+    @Test("undoDose failure does not reload the protocol")
+    func undoDoseFailure() async {
+        let mock = MockNetworkClient()
+        mock.requestNoContentHandler = { _, _, _ in
+            throw NetworkError.serverError(statusCode: 404, body: "not found")
+        }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        let result = await vm.undoDose(protocolId: "proto-1", runId: "run-1", doseId: "dose-1")
+
+        #expect(result == false)
+        #expect(mock.requestCalls.count == 1)
+    }
+
+    // MARK: - Log Dose sends tz_offset_minutes
+
+    @Test("logDose always sends tz_offset_minutes and optional administeredAt/notes")
+    func logDoseSendsTZOffsetAndBackfillFields() async {
+        let mock = MockNetworkClient()
+        let dose = Self.makeDose()
+        let detail = Self.makeDetail()
+        var capturedBody: LogDoseRequest?
+        mock.requestHandler = { method, path, body in
+            if method == "POST" && path.contains("doses/log") {
+                capturedBody = body as? LogDoseRequest
+                return dose
+            }
+            return detail
+        }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        let backfillDate = Date(timeIntervalSince1970: 1_743_670_500) // 2025-04-03T09:15:00Z
+        await vm.logDose(
+            protocolId: "proto-1",
+            runId: "run-1",
+            lineId: "line-1",
+            dayNumber: 3,
+            administeredAt: backfillDate,
+            notes: "logged a bit late"
+        )
+
+        let expectedOffset = TimeZone.current.secondsFromGMT() / 60
+        #expect(capturedBody?.tzOffsetMinutes == expectedOffset)
+        #expect(capturedBody?.notes == "logged a bit late")
+        #expect(capturedBody?.administeredAt != nil)
+    }
+
+    @Test("skipDose sends an optional skip reason")
+    func skipDoseSendsReason() async {
+        let mock = MockNetworkClient()
+        let detail = Self.makeDetail()
+        var capturedBody: SkipDoseRequest?
+        mock.requestNoContentHandler = { _, _, body in
+            capturedBody = body as? SkipDoseRequest
+        }
+        mock.requestHandler = { _, _, _ in detail }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.skipDose(protocolId: "proto-1", runId: "run-1", lineId: "line-1", dayNumber: 0, skipReason: "traveling")
+
+        #expect(capturedBody?.skipReason == "traveling")
     }
 
     // MARK: - Reset Form

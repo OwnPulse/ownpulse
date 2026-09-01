@@ -55,6 +55,17 @@ final class ProtocolsViewModel {
     var detailState: LoadState = .idle
     var selectedProtocol: ProtocolDetail?
 
+    // MARK: - Adherence / Dose Backfill State
+
+    var adherenceState: LoadState = .idle
+    var adherence: AdherenceResponse?
+
+    var runDosesState: LoadState = .idle
+    var runDoses: [RunDoseDay] = []
+
+    var missedDosesState: LoadState = .idle
+    var missedDoses: [MissedDoseItem] = []
+
     // MARK: - Create State
 
     var createState: CreateState = .idle
@@ -202,8 +213,30 @@ final class ProtocolsViewModel {
 
     // MARK: - Dose Actions
 
-    func logDose(protocolId: String, runId: String?, lineId: String, dayNumber: Int) async {
-        let body = LogDoseRequest(protocolLineId: lineId, dayNumber: dayNumber)
+    /// The caller's local UTC offset, in minutes — sent on every dose log so
+    /// the server evaluates "today"/backfill-window checks in the user's own
+    /// calendar day rather than UTC's. Recomputed per call (not cached) so a
+    /// device that crosses a time zone mid-session sends the current offset.
+    private static var currentTZOffsetMinutes: Int {
+        TimeZone.current.secondsFromGMT() / 60
+    }
+
+    func logDose(
+        protocolId: String,
+        runId: String?,
+        lineId: String,
+        dayNumber: Int,
+        administeredAt: Date? = nil,
+        notes: String? = nil
+    ) async {
+        let formatter = ISO8601DateFormatter()
+        let body = LogDoseRequest(
+            protocolLineId: lineId,
+            dayNumber: dayNumber,
+            administeredAt: administeredAt.map { formatter.string(from: $0) },
+            notes: notes,
+            tzOffsetMinutes: Self.currentTZOffsetMinutes
+        )
         do {
             if let runId {
                 let _: ProtocolDose = try await networkClient.request(
@@ -224,8 +257,14 @@ final class ProtocolsViewModel {
         }
     }
 
-    func skipDose(protocolId: String, runId: String?, lineId: String, dayNumber: Int) async {
-        let body = SkipDoseRequest(protocolLineId: lineId, dayNumber: dayNumber)
+    func skipDose(
+        protocolId: String,
+        runId: String?,
+        lineId: String,
+        dayNumber: Int,
+        skipReason: String? = nil
+    ) async {
+        let body = SkipDoseRequest(protocolLineId: lineId, dayNumber: dayNumber, skipReason: skipReason)
         do {
             if let runId {
                 try await networkClient.requestNoContent(
@@ -243,6 +282,84 @@ final class ProtocolsViewModel {
             await loadProtocol(id: protocolId)
         } catch {
             logger.error("Failed to skip dose: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Deletes (undoes) a logged/skipped dose. Does not itself refresh any
+    /// state — callers reload whichever list they're displaying (protocol
+    /// detail, run doses, missed doses) afterward.
+    func deleteDose(runId: String, doseId: String) async -> Bool {
+        do {
+            try await networkClient.requestNoContent(
+                method: "DELETE",
+                path: Endpoints.deleteDose(runId: runId, doseId: doseId),
+                body: nil as String?
+            )
+            return true
+        } catch {
+            logger.error("Failed to delete dose: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Convenience wrapper used by the protocol-detail dose grid: deletes the
+    /// dose, then reloads the protocol detail so the grid/adherence reflect
+    /// the undo.
+    func undoDose(protocolId: String, runId: String, doseId: String) async -> Bool {
+        let success = await deleteDose(runId: runId, doseId: doseId)
+        if success {
+            await loadProtocol(id: protocolId)
+        }
+        return success
+    }
+
+    // MARK: - Adherence / Dose Backfill
+
+    func loadAdherence(runId: String) async {
+        adherenceState = .loading
+        do {
+            let result: AdherenceResponse = try await networkClient.request(
+                method: "GET",
+                path: Endpoints.runAdherence(runId),
+                body: nil as String?
+            )
+            adherence = result
+            adherenceState = .loaded
+        } catch {
+            logger.error("Failed to load adherence: \(error.localizedDescription, privacy: .public)")
+            adherenceState = .error("Failed to load adherence")
+        }
+    }
+
+    func loadRunDoses(runId: String, fromDay: Int? = nil, toDay: Int? = nil) async {
+        runDosesState = .loading
+        do {
+            let result: [RunDoseDay] = try await networkClient.request(
+                method: "GET",
+                path: Endpoints.runDoses(runId, fromDay: fromDay, toDay: toDay),
+                body: nil as String?
+            )
+            runDoses = result
+            runDosesState = .loaded
+        } catch {
+            logger.error("Failed to load run doses: \(error.localizedDescription, privacy: .public)")
+            runDosesState = .error("Failed to load doses")
+        }
+    }
+
+    func loadMissedDoses() async {
+        missedDosesState = .loading
+        do {
+            let result: [MissedDoseItem] = try await networkClient.request(
+                method: "GET",
+                path: Endpoints.missedDoses,
+                body: nil as String?
+            )
+            missedDoses = result
+            missedDosesState = .loaded
+        } catch {
+            logger.error("Failed to load missed doses: \(error.localizedDescription, privacy: .public)")
+            missedDosesState = .error("Failed to load missed doses")
         }
     }
 

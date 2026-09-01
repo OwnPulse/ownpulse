@@ -93,6 +93,12 @@ struct ProtocolDose: Codable, Sendable, Identifiable {
     /// but tolerated as optional here so older seeded rows without a
     /// populated timestamp don't break the whole detail decode.
     let loggedAt: String?
+    /// Present on the `doses/log` and `doses/skip` response bodies
+    /// (`run_id`/`skip_reason` per api.md) but absent on the doses embedded
+    /// in `GET /protocols/:id`'s `lines[].doses` — optional so this one type
+    /// decodes both shapes.
+    let runId: String?
+    let skipReason: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -101,6 +107,8 @@ struct ProtocolDose: Codable, Sendable, Identifiable {
         case status
         case interventionId = "intervention_id"
         case loggedAt = "logged_at"
+        case runId = "run_id"
+        case skipReason = "skip_reason"
     }
 }
 
@@ -117,6 +125,7 @@ enum ProtocolStatus: String, Codable, Sendable, CaseIterable {
 enum DoseStatus: String, Codable, Sendable {
     case completed
     case skipped
+    case missed
     case pending
 }
 
@@ -159,20 +168,134 @@ struct CreateProtocolLineRequest: Codable, Sendable {
 struct LogDoseRequest: Codable, Sendable {
     let protocolLineId: String
     let dayNumber: Int
+    /// Optional backfill timestamp. Must fall within one calendar day of
+    /// `start_date + day_number` (evaluated in `tzOffsetMinutes`) or the
+    /// server returns 400.
+    let administeredAt: String?
+    let notes: String?
+    /// Always sent — the caller's local UTC offset in minutes, so the
+    /// server evaluates date-boundary comparisons in the user's own
+    /// calendar day rather than UTC's. See docs/architecture/api.md.
+    let tzOffsetMinutes: Int
 
     enum CodingKeys: String, CodingKey {
         case protocolLineId = "protocol_line_id"
         case dayNumber = "day_number"
+        case administeredAt = "administered_at"
+        case notes
+        case tzOffsetMinutes = "tz_offset_minutes"
     }
 }
 
 struct SkipDoseRequest: Codable, Sendable {
     let protocolLineId: String
     let dayNumber: Int
+    let skipReason: String?
 
     enum CodingKeys: String, CodingKey {
         case protocolLineId = "protocol_line_id"
         case dayNumber = "day_number"
+        case skipReason = "skip_reason"
+    }
+}
+
+// MARK: - Adherence
+
+struct AdherenceLineResponse: Codable, Sendable, Identifiable {
+    var id: String { protocolLineId }
+    let protocolLineId: String
+    let substance: String
+    let scheduledSoFar: Int
+    let completed: Int
+    let skipped: Int
+    let missed: Int
+    let adherencePct: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case protocolLineId = "protocol_line_id"
+        case substance
+        case scheduledSoFar = "scheduled_so_far"
+        case completed, skipped, missed
+        case adherencePct = "adherence_pct"
+    }
+}
+
+struct AdherenceResponse: Codable, Sendable {
+    let runId: String
+    let scheduledSoFar: Int
+    let completed: Int
+    let skipped: Int
+    let missed: Int
+    let adherencePct: Double?
+    let lines: [AdherenceLineResponse]
+
+    enum CodingKeys: String, CodingKey {
+        case runId = "run_id"
+        case scheduledSoFar = "scheduled_so_far"
+        case completed, skipped, missed
+        case adherencePct = "adherence_pct"
+        case lines
+    }
+}
+
+// MARK: - Run Dose Day (GET /protocols/runs/:run_id/doses)
+
+struct RunDoseDay: Codable, Sendable, Identifiable {
+    var id: String { "\(protocolLineId)-\(dayNumber)" }
+    let dayNumber: Int
+    let date: String
+    let protocolLineId: String
+    let substance: String
+    let dose: Double?
+    let unit: String?
+    let route: String?
+    let timeOfDay: String?
+    let status: DoseStatus
+    let doseId: String?
+    let interventionId: String?
+    let skipReason: String?
+    let loggedAt: String?
+
+    enum CodingKeys: String, CodingKey {
+        case dayNumber = "day_number"
+        case date
+        case protocolLineId = "protocol_line_id"
+        case substance, dose, unit, route
+        case timeOfDay = "time_of_day"
+        case status
+        case doseId = "dose_id"
+        case interventionId = "intervention_id"
+        case skipReason = "skip_reason"
+        case loggedAt = "logged_at"
+    }
+}
+
+// MARK: - Missed Dose Item (GET /protocols/runs/missed-doses)
+
+struct MissedDoseItem: Codable, Sendable, Identifiable {
+    var id: String { "\(runId)-\(protocolLineId)-\(dayNumber)" }
+    let protocolId: String
+    let protocolName: String
+    let runId: String
+    let protocolLineId: String
+    let substance: String
+    let dose: Double?
+    let unit: String?
+    let route: String?
+    let timeOfDay: String?
+    let dayNumber: Int
+    let date: String
+    let status: DoseStatus
+
+    enum CodingKeys: String, CodingKey {
+        case protocolId = "protocol_id"
+        case protocolName = "protocol_name"
+        case runId = "run_id"
+        case protocolLineId = "protocol_line_id"
+        case substance, dose, unit, route
+        case timeOfDay = "time_of_day"
+        case dayNumber = "day_number"
+        case date, status
     }
 }
 
@@ -271,5 +394,23 @@ extension Endpoints {
 
     static func protocolSkipDose(_ protocolId: String) -> String {
         "/api/v1/protocols/\(protocolId)/doses/skip"
+    }
+
+    static func deleteDose(runId: String, doseId: String) -> String {
+        "/api/v1/protocols/runs/\(runId)/doses/\(doseId)"
+    }
+
+    static func runDoses(_ runId: String, fromDay: Int? = nil, toDay: Int? = nil) -> String {
+        var query: [String] = []
+        if let fromDay { query.append("from_day=\(fromDay)") }
+        if let toDay { query.append("to_day=\(toDay)") }
+        let base = "/api/v1/protocols/runs/\(runId)/doses"
+        return query.isEmpty ? base : base + "?" + query.joined(separator: "&")
+    }
+
+    static let missedDoses = "/api/v1/protocols/runs/missed-doses"
+
+    static func runAdherence(_ runId: String) -> String {
+        "/api/v1/protocols/runs/\(runId)/adherence"
     }
 }

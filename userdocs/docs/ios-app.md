@@ -47,6 +47,9 @@ The iOS app includes a full native protocol editor. You can create, view, and ma
 - **Protocol list** -- browse your protocols with filter options (all, active, paused, completed) and progress bars showing adherence.
 - **Protocol builder** -- create new protocols with substance, dose, route, timing, and a pattern picker for scheduling (Daily, 3x/Week, Every Other Day, Weekdays).
 - **Protocol detail** -- view progress, today's doses with Log and Skip buttons, and substance summaries.
+- **Adherence** -- once a protocol has a run and at least one closed day, the protocol detail screen shows an adherence summary ("83% adherence · 20 done · 2 skipped · 2 missed"). Skipped doses are excluded from the adherence percentage -- a deliberate skip is not treated as a failure. Before a run's first closed day, this reads "No closed days yet."
+- **Dose log & backfill** -- below the adherence summary, a dose log lists every scheduled day for the current run, most recent first, with its status (completed, skipped, missed, or pending). Tap a missed or pending day to log or skip it after the fact, optionally with a skip reason. Tap-and-hold (or use the context menu) on a completed or skipped day to undo it.
+- **Missed doses** -- if you have missed doses across any active protocol, the dashboard shows a "N missed doses -- Review" row. Tapping it opens a list of every missed dose (capped at 200) with quick Log/Skip actions, without needing to open each protocol individually.
 
 !!! note
     The sequencer grid for fine-grained day-by-day editing and copy-week-forward are web-only features. On iOS, use the pattern picker to set schedules.

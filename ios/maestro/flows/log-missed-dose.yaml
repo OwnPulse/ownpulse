@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) OwnPulse Contributors
+#
+# Maestro E2E flow: backfill a dose from the protocol detail dose grid.
+#
+# A freshly-started run's day 0 is scheduled but not yet closed, so the
+# server reports it as "pending" rather than "missed" — the same
+# logMissedDoseButton-<line>-<day> control handles both statuses (see
+# ProtocolDetailView.DoseGridSection), so this flow exercises the same
+# confirmation-sheet path a genuinely missed day would use, without depending
+# on a pre-seeded backend fixture with a day in the past.
+appId: health.ownpulse.app
+---
+- assertVisible:
+    id: "mainTabView"
+
+- tapOn: "Protocols"
+- assertVisible:
+    id: "protocolFilterPicker"
+
+# Create a protocol that starts today so its dose grid has a taggable day 0.
+- tapOn:
+    id: "newProtocolButton"
+- assertVisible:
+    id: "protocolNameField"
+- tapOn:
+    id: "protocolNameField"
+- inputText: "Backfill Test Protocol"
+- tapOn:
+    id: "substanceName-0"
+- inputText: "Creatine"
+- tapOn:
+    id: "substanceDose-0"
+- inputText: "5"
+- tapOn:
+    id: "createProtocolButton"
+- extendedWaitUntil:
+    visible:
+      id: "protocolFilterPicker"
+    timeout: 10000
+
+- tapOn: "Backfill Test Protocol"
+- assertVisible:
+    id: "protocolHeader"
+
+# Start a run so the dose grid and adherence sections render.
+# startRunButton's identifier suffix is the server-generated protocol id, so
+# match by regex rather than a literal (unpredictable) UUID.
+- tapOn:
+    id: "startRunButton-.*"
+- extendedWaitUntil:
+    visible:
+      id: "doseGrid"
+    timeout: 10000
+
+# Tap today's (day 0) pending dose to open the backfill confirmation sheet.
+# logMissedDoseButton's identifier is "<protocol_line_id>-<day_number>" —
+# the line id is also server-generated, so match on the known day-0 suffix.
+- tapOn:
+    id: "logMissedDoseButton-.*-0"
+- assertVisible:
+    id: "confirmLogDoseButton-.*-0"
+- assertVisible:
+    id: "confirmSkipDoseButton-.*-0"
+
+- tapOn:
+    id: "confirmLogDoseButton-.*-0"
+- extendedWaitUntil:
+    visible:
+      id: "doseRow-.*-0"
+    timeout: 10000
