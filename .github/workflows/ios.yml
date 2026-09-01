@@ -65,11 +65,9 @@ jobs:
       # boundary errors therefore pass `test` but fail the Release archive
       # (`ownpulse-infra` iOS Build & Upload) — i.e. only surface at TestFlight
       # time. Compile the app under Release (whole-module, like the archive) to
-      # catch that class of error on merge. Build only — no signing, no tests,
-      # no upload — so it adds only the compile to this same runner, and only on
-      # pushes to main (skipped on PRs to save macOS minutes).
+      # catch that class of error before merge. Build only — no signing, no
+      # tests, no upload — so it adds only the compile to this same runner.
       - name: Release compile (whole-module concurrency check)
-        if: github.event_name == 'push'
         working-directory: ios
         run: |
           set -o pipefail
