@@ -18,6 +18,7 @@ pub mod export;
 pub mod friends;
 pub mod garmin;
 pub mod genetics;
+pub mod google_calendar;
 pub mod health_records;
 pub mod healthkit;
 pub mod insights;
@@ -73,6 +74,27 @@ impl KeyExtractor for JwtSubjectKeyExtractor {
     fn extract<T>(&self, req: &http::Request<T>) -> Result<Self::Key, GovernorError> {
         Ok(extract_jwt_sub(req).unwrap_or_else(|| "anonymous".to_string()))
     }
+}
+
+/// Read a named cookie from the request headers. Shared by every OAuth
+/// connect-flow module (garmin, oura, google_calendar) that stores CSRF
+/// state / request-token secrets in short-lived httpOnly cookies.
+pub(crate) fn read_cookie(headers: &http::HeaderMap, name: &str) -> Option<String> {
+    headers
+        .get(http::header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookies| {
+            cookies
+                .split(';')
+                .filter_map(|c| {
+                    let trimmed = c.trim();
+                    trimmed
+                        .strip_prefix(name)
+                        .and_then(|rest| rest.strip_prefix('='))
+                        .map(|v| v.to_string())
+                })
+                .next()
+        })
 }
 
 /// Try to pull the JWT `sub` claim out of the `Authorization: Bearer <token>`
@@ -168,6 +190,10 @@ fn rate_limited_auth_routes() -> Router<AppState> {
         .route("/auth/reset-password", post(auth::reset_password))
         .route("/auth/garmin/login", get(garmin::garmin_login))
         .route("/auth/oura/login", get(oura::oura_login))
+        .route(
+            "/auth/google-calendar/login",
+            get(google_calendar::google_calendar_login),
+        )
 }
 
 /// OAuth callback routes that are server-initiated redirects protected by
@@ -180,6 +206,10 @@ fn oauth_callback_routes() -> Router<AppState> {
         .route("/auth/apple/callback", post(auth::apple_callback))
         .route("/auth/garmin/callback", get(garmin::garmin_callback))
         .route("/auth/oura/callback", get(oura::oura_callback))
+        .route(
+            "/auth/google-calendar/callback",
+            get(google_calendar::google_calendar_callback),
+        )
 }
 
 /// Build the versioned API router with rate limiting on auth, explore, and
@@ -383,6 +413,10 @@ fn base_routes() -> Router<AppState> {
         // Manual sync — trigger a fetch without waiting for the periodic job.
         .route("/integrations/garmin/sync", post(garmin::sync))
         .route("/integrations/oura/sync", post(oura::sync))
+        .route(
+            "/integrations/google-calendar/sync",
+            post(google_calendar::sync),
+        )
         .route("/integrations/:source", delete(integrations::disconnect))
         // Genetics
         .route("/genetics/upload", post(genetics::upload))

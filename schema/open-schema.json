@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.2.0",
+  "schema_version": "0.3.0",
   "schema_url": "https://github.com/ownpulse/ownpulse/blob/main/schema/open-schema.json",
   "description": "OwnPulse open data export schema",
   "exported_at": null,
@@ -12,5 +12,6 @@
   "protocol_lines": [],
   "protocol_runs": [],
   "protocol_doses": [],
+  "calendar_days": [],
   "genetic_records": []
 }

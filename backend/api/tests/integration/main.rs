@@ -15,6 +15,7 @@ mod export;
 mod feature_flags;
 mod friends;
 mod genetics;
+mod google_calendar;
 mod health_records;
 mod healthkit;
 mod insights;

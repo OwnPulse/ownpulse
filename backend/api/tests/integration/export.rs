@@ -9,7 +9,7 @@ use crate::common;
 #[tokio::test]
 async fn test_export_json() {
     let app = common::setup().await;
-    let (_user_id, token) = common::create_test_user(&app).await;
+    let (user_id, token) = common::create_test_user(&app).await;
 
     // Create some data so the export is not empty
     let hr_body = json!({
@@ -233,6 +233,12 @@ async fn test_export_json() {
         .unwrap();
     assert_eq!(skip_resp.status(), 204);
 
+    // A calendar_days aggregate — no create endpoint exists (it's written
+    // only by the Google Calendar sync job), so insert directly.
+    api::db::calendar_days::upsert(&app.pool, user_id, "2026-03-18".parse().unwrap(), 2, 45)
+        .await
+        .unwrap();
+
     // Export JSON
     let export_resp = app
         .app
@@ -250,7 +256,7 @@ async fn test_export_json() {
     assert_eq!(export_status, 200, "export failed: {body_text}");
 
     let json: serde_json::Value = serde_json::from_str(&body_text).unwrap();
-    assert_eq!(json["schema_version"], "0.2.0");
+    assert_eq!(json["schema_version"], "0.3.0");
     assert!(json["health_records"].is_array());
     assert!(json["interventions"].is_array());
     assert!(json["daily_checkins"].is_array());
@@ -260,6 +266,7 @@ async fn test_export_json() {
     assert!(json["protocol_lines"].is_array());
     assert!(json["protocol_runs"].is_array());
     assert!(json["protocol_doses"].is_array());
+    assert!(json["calendar_days"].is_array());
 
     assert!(
         !json["health_records"].as_array().unwrap().is_empty(),
@@ -305,6 +312,15 @@ async fn test_export_json() {
     );
     assert_eq!(protocols[0]["id"], protocol_id);
     assert_eq!(protocols[0]["name"], "BPC Stack");
+
+    let calendar_days = json["calendar_days"].as_array().unwrap();
+    assert_eq!(
+        calendar_days.len(),
+        1,
+        "export should contain the calendar_days row we inserted"
+    );
+    assert_eq!(calendar_days[0]["meeting_count"], 2);
+    assert_eq!(calendar_days[0]["meeting_minutes"], 45);
 
     let lines = json["protocol_lines"].as_array().unwrap();
     assert_eq!(lines.len(), 2, "export should contain both protocol lines");
@@ -686,7 +702,7 @@ async fn test_export_json_empty_data() {
     assert_eq!(export_resp.status(), 200);
 
     let json = common::body_json(export_resp).await;
-    assert_eq!(json["schema_version"], "0.2.0");
+    assert_eq!(json["schema_version"], "0.3.0");
     for key in [
         "health_records",
         "interventions",
@@ -697,6 +713,7 @@ async fn test_export_json_empty_data() {
         "protocol_lines",
         "protocol_runs",
         "protocol_doses",
+        "calendar_days",
     ] {
         assert!(
             json[key].is_array(),

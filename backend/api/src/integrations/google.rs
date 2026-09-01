@@ -11,6 +11,12 @@ pub struct GoogleTokenResponse {
     pub access_token: String,
     pub id_token: Option<String>,
     pub refresh_token: Option<String>,
+    /// Access token lifetime in seconds. Absent from the login/signup flow's
+    /// usage (short-lived id_token exchange consumed immediately) but
+    /// required by callers that persist the access token for later use (the
+    /// Google Calendar connect flow).
+    #[serde(default)]
+    pub expires_in: Option<i64>,
 }
 
 /// User profile information from Google's userinfo endpoint.
@@ -66,6 +72,46 @@ pub async fn exchange_code_for_tokens(
         .json::<GoogleTokenResponse>()
         .await
         .map_err(|e| format!("failed to parse token response: {e}"))
+}
+
+/// Exchange a refresh token for a new access token via Google's OAuth2 token
+/// endpoint. Used by the Google Calendar sync job — the short-lived access
+/// tokens issued for `calendar.readonly` expire in ~1 hour, so a background
+/// job needs to refresh them itself rather than requiring the user to
+/// re-authorize.
+pub async fn refresh_access_token(
+    client: &reqwest::Client,
+    client_id: &str,
+    client_secret: &str,
+    refresh_token: &str,
+    token_url: &str,
+) -> Result<GoogleTokenResponse, String> {
+    let params = [
+        ("grant_type", "refresh_token"),
+        ("client_id", client_id),
+        ("client_secret", client_secret),
+        ("refresh_token", refresh_token),
+    ];
+
+    let response = client
+        .post(token_url)
+        .form(&params)
+        .send()
+        .await
+        .map_err(|e| format!("token refresh request failed: {e}"))?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        // Never log/return the raw body here — Google's error responses can
+        // echo back request parameters. Only the status is surfaced.
+        let _ = response.text().await;
+        return Err(format!("token refresh returned HTTP {status}"));
+    }
+
+    response
+        .json::<GoogleTokenResponse>()
+        .await
+        .map_err(|e| format!("failed to parse token refresh response: {e}"))
 }
 
 /// Fetch the authenticated user's profile from Google's userinfo endpoint.

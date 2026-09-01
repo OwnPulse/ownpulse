@@ -8,6 +8,7 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::models::calendar_day::CalendarDayRow;
 use crate::models::checkin::CheckinRow;
 use crate::models::genetics::GeneticRecordRow;
 use crate::models::health_record::HealthRecordRow;
@@ -19,9 +20,9 @@ use crate::models::protocol::{ProtocolDoseRow, ProtocolLineRow, ProtocolRow, Pro
 /// Build a streaming JSON export body containing all data for the given user.
 ///
 /// Fetches health_records, interventions, daily_checkins, lab_results,
-/// observations, protocols, protocol_lines, protocol_runs, and
-/// protocol_doses, then serialises the combined payload into a single JSON
-/// document wrapped in `Body::from_stream`.
+/// observations, protocols, protocol_lines, protocol_runs, protocol_doses,
+/// and calendar_days, then serialises the combined payload into a single
+/// JSON document wrapped in `Body::from_stream`.
 ///
 /// Sleep data has no separate table: it is stored as an `observations` row
 /// with `type = 'sleep'` (see `routes/sleep.rs`), so it is already covered
@@ -139,8 +140,16 @@ pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sq
     .fetch_all(pool)
     .await?;
 
+    let calendar_days = sqlx::query_as::<_, CalendarDayRow>(
+        "SELECT id, user_id, date, meeting_count, meeting_minutes, synced_at \
+         FROM calendar_days WHERE user_id = $1 ORDER BY date",
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
     let mut payload = serde_json::json!({
-        "schema_version": "0.2.0",
+        "schema_version": "0.3.0",
         "exported_at": Utc::now(),
         "health_records": health_records,
         "interventions": interventions,
@@ -151,6 +160,7 @@ pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sq
         "protocol_lines": protocol_lines,
         "protocol_runs": protocol_runs,
         "protocol_doses": protocol_doses,
+        "calendar_days": calendar_days,
     });
 
     if !genetic_records.is_empty() {

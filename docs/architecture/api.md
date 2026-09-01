@@ -519,6 +519,9 @@ writing a preference via `POST /source-preferences`.
 | GET | `/auth/oura/callback` | Oura OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 1 |
 | POST | `/integrations/garmin/sync` | Trigger an immediate Garmin fetch | 1 |
 | POST | `/integrations/oura/sync` | Trigger an immediate Oura fetch | 1 |
+| GET | `/auth/google-calendar/login` | Start the Google Calendar OAuth 2.0 connect flow (requires JWT) | 2 |
+| GET | `/auth/google-calendar/callback` | Google Calendar OAuth 2.0 callback — exchanges and stores the token (requires JWT) | 2 |
+| POST | `/integrations/google-calendar/sync` | Trigger an immediate Google Calendar fetch | 2 |
 | POST | `/integrations/mychart/connect` | Connect a MyChart / SMART-on-FHIR provider | 2 |
 | POST | `/integrations/mychart/sync` | Import lab results from a connected MyChart provider | 2 |
 
@@ -557,6 +560,59 @@ fails, the watermark is left where it was and the error is recorded
 (surfaced via `GET /integrations`), so the failed window is retried on the
 next sync instead of being silently skipped. A subsequent fully-successful
 sync clears the recorded error.
+
+#### Google Calendar background sync
+
+Separate from `/auth/google/login` (account login/signup — see Auth above):
+`/auth/google-calendar/login` requires an already-authenticated user and
+requests the read-only `calendar.readonly` scope with `access_type=offline` +
+`prompt=consent`, so a refresh token is issued for the background job to use.
+It reuses `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` but has its own redirect
+URI (`GOOGLE_CALENDAR_REDIRECT_URI`, defaulting to
+`<WEB_ORIGIN>/api/v1/auth/google-calendar/callback`) since Google requires an
+exact registered redirect per OAuth client/flow combination.
+
+**Aggregates only — never event content.** The Calendar API request sends
+`fields=items(start(dateTime),end(dateTime),attendees(self,responseStatus)),nextPageToken`
+and `eventTypes=default` — Google's response is restricted server-side to
+exactly what the sync job needs, so titles, descriptions, and locations
+never cross the wire into this process at all (not merely fetched and
+ignored). `attendees` is requested only to check whether the calendar owner
+declined the meeting; it is never stored, logged, or returned, and exists
+only transiently while parsing one page of results — pages are folded into
+the per-day aggregate and dropped immediately, so no full event list is ever
+held in memory regardless of calendar size. There is no code path through
+which meeting content reaches the database, logs, or an error message.
+
+Every sync recomputes a rolling window — 7 days back through 1 day ahead of
+"now", **always**, not anchored on `last_synced_at` — and writes every day in
+that window into `calendar_days` (`meeting_count`, `meeting_minutes`),
+*including* days with zero meetings. Days are bucketed by UTC calendar date
+of the event's start time, not the user's local timezone. All-day entries,
+out-of-office/focus-time/working-location events (excluded server-side via
+`eventTypes=default`), and meetings the owner declined don't count. Every
+sync fully **overwrites** (`ON CONFLICT ... DO UPDATE`) each day's row from
+scratch rather than accumulating — a day whose meetings were later
+cancelled or rescheduled is corrected to the true current count on the next
+sync, not left at a stale higher value. (An earlier version of this job
+anchored the fetch window on `last_synced_at`, which meant a day already in
+the past could never be revisited to correct it — the always-rolling window
+fixes that.)
+
+If Google rejects the access token (401), the job refreshes once and
+retries the fetch exactly once before giving up — covers a token
+revoked/expired out of band from what its stored `expires_at` predicted.
+
+`POST /integrations/google-calendar/sync` follows the same manual-sync,
+cooldown, advisory-lock, and honest-watermark semantics described above for
+Garmin/Oura. Response `200`:
+
+```json
+{ "source": "google_calendar", "records_inserted": 9 }
+```
+
+(`records_inserted` here counts every `calendar_days` row written this sync
+— the full window, not just days with meetings.)
 
 #### MyChart / SMART-on-FHIR lab import
 

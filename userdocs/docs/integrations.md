@@ -35,7 +35,9 @@ If a sync attempt fails (for example, the third-party service is temporarily una
 
 ## Google Calendar
 
-Google Calendar integration syncs your meeting data in read-only mode. OwnPulse pulls meeting counts and durations to help you correlate schedule load with your health metrics. Link your Google account from the web **Settings** page (Linked Accounts); once linked, the integration appears on the Sources page. OwnPulse does not modify your calendar -- access is strictly read-only.
+Google Calendar integration reads your meeting schedule to compute two numbers per day -- **meeting count** and **total meeting minutes** -- so you can correlate schedule load with your health metrics. It is strictly read-only (OwnPulse never modifies your calendar) and strictly aggregate: event titles, descriptions, attendees, and locations are never read into or stored by OwnPulse -- OwnPulse asks Google to not even send them, rather than fetching and discarding them. All-day entries (holidays, out-of-office blocks), out-of-office/focus-time/working-location events, and meetings you declined aren't counted. Days are grouped by UTC date, which may occasionally shift a late-evening meeting onto the next day if you're west of UTC.
+
+This is separate from linking your Google account for sign-in (**Settings > Linked Accounts**) -- Google Calendar access is authorized independently, since it requires its own permission scope. There is no web or iOS **Connect** button for it yet; connecting currently requires visiting `/api/v1/auth/google-calendar/login` on your OwnPulse instance while signed in. Once connected, Google Calendar syncs automatically every 15 minutes (same schedule as Garmin/Oura) and the integration appears on the Sources page like any other connected source.
 
 ## MyChart and other patient portals
 

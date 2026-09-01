@@ -18,6 +18,7 @@ use crate::db::integration_tokens;
 use crate::error::ApiError;
 use crate::integrations::oura::OuraClient;
 use crate::jobs::oura_sync;
+use crate::routes::read_cookie;
 
 /// GET /auth/oura/login — start the OAuth 2.0 flow.
 ///
@@ -191,23 +192,4 @@ pub async fn sync(
         source: "oura".to_string(),
         records_inserted,
     }))
-}
-
-/// Read a named cookie from the request headers.
-fn read_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies
-                .split(';')
-                .filter_map(|c| {
-                    let trimmed = c.trim();
-                    trimmed
-                        .strip_prefix(name)
-                        .and_then(|rest| rest.strip_prefix('='))
-                        .map(|v| v.to_string())
-                })
-                .next()
-        })
 }

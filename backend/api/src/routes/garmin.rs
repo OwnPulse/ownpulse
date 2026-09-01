@@ -16,6 +16,7 @@ use crate::db::integration_tokens;
 use crate::error::ApiError;
 use crate::integrations::garmin::GarminClient;
 use crate::jobs::garmin_sync;
+use crate::routes::read_cookie;
 
 /// GET /auth/garmin/login — start the OAuth 1.0a flow.
 ///
@@ -220,23 +221,4 @@ pub async fn sync(
         source: "garmin".to_string(),
         records_inserted,
     }))
-}
-
-/// Read a named cookie from the request headers.
-fn read_cookie(headers: &axum::http::HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies
-                .split(';')
-                .filter_map(|c| {
-                    let trimmed = c.trim();
-                    trimmed
-                        .strip_prefix(name)
-                        .and_then(|rest| rest.strip_prefix('='))
-                        .map(|v| v.to_string())
-                })
-                .next()
-        })
 }

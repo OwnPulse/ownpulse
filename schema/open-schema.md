@@ -1,6 +1,6 @@
 # OwnPulse Open Data Schema
 
-**Version:** 0.2.0
+**Version:** 0.3.0
 **License:** CC0 1.0 (Public Domain)
 **Canonical source:** [`schema/open-schema.json`](open-schema.json)
 
@@ -10,7 +10,7 @@ This document describes the OwnPulse open data export format. Any application ca
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `schema_version` | `string` | Semantic version of the schema format (e.g. `"0.2.0"`). |
+| `schema_version` | `string` | Semantic version of the schema format (e.g. `"0.3.0"`). |
 | `schema_url` | `string` | URL to the canonical schema definition in the repository. |
 | `description` | `string` | Human-readable description of this export. |
 | `exported_at` | `string \| null` | ISO 8601 timestamp of when the export was generated. `null` in the skeleton. |
@@ -23,6 +23,7 @@ This document describes the OwnPulse open data export format. Any application ca
 | `protocol_lines` | `array` | Per-substance schedule lines belonging to a `protocols` entry (via `protocol_id`): substance, dose, unit, route, time of day, and schedule pattern. Added in `0.2.0`. |
 | `protocol_runs` | `array` | Executions of a protocol: start date, status, and notification preferences for that run. Added in `0.2.0`. |
 | `protocol_doses` | `array` | Logged or skipped doses for a `protocol_lines` entry, optionally scoped to a `protocol_runs` entry via `run_id` (`null` for legacy pre-run dose logs). Includes `skip_reason` when skipped. Logged doses reference the created record via `intervention_id`, which points into `interventions`. Added in `0.2.0`. |
+| `calendar_days` | `array` | Meeting aggregates per day from the Google Calendar sync job — counts and minutes only, never event titles/attendees/content. Each entry has a `date`, `meeting_count`, and `meeting_minutes`. Days a user has connected Google Calendar for but with no meetings are included as zero rows, not omitted. Added in `0.3.0`. |
 | `genetic_records` | `array` | SNP variants from 23andMe/AncestryDNA/VCF uploads. Present only if the user has uploaded genetic data (omitted, not an empty array, otherwise). This is the user exporting their own data for portability, unrelated to the `sharing_consents`-gated *cooperative* genetics dataset. |
 
 ## Notes
@@ -30,5 +31,5 @@ This document describes the OwnPulse open data export format. Any application ca
 - All timestamps are ISO 8601 with timezone (TIMESTAMPTZ in the database).
 - All IDs are UUIDs.
 - The schema is additive: new keys may be added in future versions but existing keys will not be removed or renamed.
-- This file's keys are the exhaustive set of top-level keys the export can produce; a test (`export::test_export_json_keys_match_open_schema` in `backend/api/tests/integration/export.rs`) asserts `GET /export/json`'s keys never drift from this file. Many other tables in this repository (`users`, `calendar_days`, `sharing_consents`, `user_auth_methods`, `explore_charts`, `observer_polls` and related, `export_jobs`, etc.) are **not yet** part of the export — see [data-model.md](../docs/architecture/data-model.md#export-coverage) for the full picture.
+- This file's keys are the exhaustive set of top-level keys the export can produce; a test (`export::test_export_json_keys_match_open_schema` in `backend/api/tests/integration/export.rs`) asserts `GET /export/json`'s keys never drift from this file. Many other tables in this repository (`users`, `sharing_consents`, `user_auth_methods`, `explore_charts`, `observer_polls` and related, `export_jobs`, etc.) are **not yet** part of the export — see [data-model.md](../docs/architecture/data-model.md#export-coverage) for the full picture.
 - This schema matches the structure in `db/migrations/0001_init.sql` plus subsequent additive migrations. When the database schema changes, this file is updated to match.
