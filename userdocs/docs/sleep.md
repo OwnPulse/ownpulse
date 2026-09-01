@@ -15,7 +15,7 @@ OwnPulse records the following sleep metrics:
 Sleep data can come from two places:
 
 - **Apple Health sync** -- if you wear an Apple Watch or use a sleep tracking app that writes to HealthKit, OwnPulse pulls in your sleep data automatically. See [Apple Health](apple-health.md) for setup instructions.
-- **Manual entry** -- on the Data Entry page, you can log sleep start time, end time, and subjective quality. Manual entries do not include stage breakdowns but do contribute to duration tracking and the timeline chart.
+- **Manual entry** -- on the Log page, you can log sleep start time, end time, and subjective quality. Manual entries do not include stage breakdowns but do contribute to duration tracking and the timeline chart.
 
 !!! tip "Combining sources"
     If you track sleep with a wearable on most nights but occasionally forget to wear it, you can fill in gaps with manual entries. OwnPulse deduplicates overlapping records automatically.
@@ -48,7 +48,7 @@ The iOS app reads sleep data directly from HealthKit. The web dashboard shows th
 
 ## Manual sleep entry
 
-Sleep records can also be entered manually via the Data Entry page on the web. Manual sleep entries include:
+Sleep records can also be entered manually via the Log page on the web. Manual sleep entries include:
 
 - **Duration** -- total sleep time
 - **Stage breakdown** -- deep, light, REM, and awake minutes (optional)

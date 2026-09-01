@@ -141,6 +141,10 @@
   inset: 0;
   background: rgba(0, 0, 0, 0.4);
   z-index: 99;
+  appearance: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
 @media (max-width: 768px) {
@@ -163,9 +167,5 @@
 
   .overlayVisible {
     display: block;
-  }
-
-  .menuBtnHidden {
-    display: none;
   }
 }

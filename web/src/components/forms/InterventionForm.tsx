@@ -153,11 +153,13 @@ export default function InterventionForm() {
                 </button>
                 <button
                   type="button"
-                  className={styles.deleteChipBtn}
+                  className={`${styles.deleteChipBtn}${
+                    deletingId === m.id ? ` ${styles.deleteChipBtnConfirming}` : ""
+                  }`}
                   aria-label={`Delete ${m.substance}`}
                   onClick={() => handleDeleteMedicine(m.id)}
                 >
-                  {deletingId === m.id ? "?" : "\u00d7"}
+                  {deletingId === m.id ? "Delete?" : "\u00d7"}
                 </button>
               </span>
             ))}
@@ -304,11 +306,23 @@ export default function InterventionForm() {
       </div>
       <div className={forms.actions}>
         <button type="submit" disabled={mutation.isPending} className="op-btn op-btn-primary">
-          {mutation.isPending ? "Saving..." : "Save Intervention"}
+          {mutation.isPending ? "Saving..." : "Log Intervention"}
         </button>
       </div>
-      {mutation.isError && <p className={forms.errorMsg}>Error: {mutation.error.message}</p>}
-      {mutation.isSuccess && <p className={forms.successMsg}>Saved!</p>}
+      {/* Always mounted (only the text is conditional) so assistive tech
+          reliably announces the result — a role="status" node that's
+          inserted fresh into the DOM each time is not guaranteed to be
+          picked up by screen readers. */}
+      <p
+        className={
+          mutation.isError ? forms.errorMsg : mutation.isSuccess ? forms.successMsg : undefined
+        }
+        role="status"
+        aria-live="polite"
+      >
+        {mutation.isError && `Error: ${mutation.error.message}`}
+        {mutation.isSuccess && "Saved!"}
+      </p>
     </form>
   );
 }

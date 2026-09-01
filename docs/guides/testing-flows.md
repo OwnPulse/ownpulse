@@ -31,7 +31,7 @@ export GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
 1. Open http://localhost:5173/login
 2. Enter username and password
 3. Verify redirect to Timeline (/)
-4. Verify nav bar shows: Timeline, Data Entry, Sources, Settings, Logout
+4. Verify nav bar shows: Timeline, Log, Sources, Settings, Logout
 5. Click Logout → redirects to /login
 6. Verify Timeline is not accessible without login (redirects to /login)
 
@@ -54,13 +54,13 @@ export GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
 
 ## Flow 3: Daily Check-in
 
-1. Navigate to Data Entry → Check-in tab
+1. Navigate to Log → Check-in tab
 2. Select today's date
 3. Enter scores: Energy 7, Mood 8, Focus 6, Recovery 5, Libido 7
 4. Add optional notes
 5. Click Save → verify "Saved" confirmation
 6. Navigate to Timeline → verify check-in appears
-7. Go back to Data Entry, enter same date with different scores → verify upsert (overwrites)
+7. Go back to Log, enter same date with different scores → verify upsert (overwrites)
 
 **What's tested automatically:** Upsert ON CONFLICT, score range validation (1-10), list/get endpoints.
 
@@ -68,7 +68,7 @@ export GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
 
 ## Flow 4: Log an Intervention
 
-1. Navigate to Data Entry → Intervention tab
+1. Navigate to Log → Intervention tab
 2. Enter: Substance "Caffeine", Dose 200, Unit "mg", Route "oral"
 3. Set time to now, check "Fasted"
 4. Click Save → verify confirmation
@@ -80,7 +80,7 @@ export GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
 
 ## Flow 5: Record Health Data
 
-1. Navigate to Data Entry → Health Record tab
+1. Navigate to Log → Health Record tab
 2. Enter: Source "manual", Type "heart_rate", Value 72, Unit "bpm"
 3. Click Save
 4. Create another: Source "manual", Type "heart_rate", Value 73, Unit "bpm", same time
@@ -92,7 +92,7 @@ export GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
 
 ## Flow 6: Add an Observation
 
-1. Navigate to Data Entry → Observation tab
+1. Navigate to Log → Observation tab
 2. Select Type "event_instant", Name "Sauna", set time
 3. Click Save
 4. Select Type "scale", Name "Sleep quality", enter value 8
@@ -105,7 +105,7 @@ export GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
 
 ## Flow 7: Enter Lab Results
 
-1. Navigate to Data Entry → Lab Result tab
+1. Navigate to Log → Lab Result tab
 2. Enter: Date today, Lab "Quest", Marker "TSH", Value 2.5, Unit "mIU/L"
 3. Set Reference Low 0.4, Reference High 4.0
 4. Click Save → verify `out_of_range` is false (computed)

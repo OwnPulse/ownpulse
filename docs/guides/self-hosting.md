@@ -89,6 +89,7 @@ The following environment variables can be set on the API deployment to customiz
 | `APPLE_JWKS_URL` | `https://appleid.apple.com/auth/keys` | Apple JWKS endpoint for verifying identity tokens. Override only for testing. |
 | `MYCHART_CLIENT_ID` | *(none)* | SMART-on-FHIR public OAuth client id for MyChart lab import. Uses PKCE, so there is no secret. MyChart import is disabled when unset. |
 | `MYCHART_ALLOW_INSECURE_URLS` | `false` | When `true`, allows non-HTTPS / private-host FHIR provider URLs, disabling the MyChart SSRF guard. **Local development and tests only.** The API refuses to start if this is `true` while `WEB_ORIGIN` is not `http://localhost…`. |
+| `GOOGLE_CALENDAR_REDIRECT_URI` | derived from `WEB_ORIGIN` | Redirect URI for the Google Calendar connect flow (separate from Google login). Reuses `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. Only needed if your redirect path differs from the default `<WEB_ORIGIN>/api/v1/auth/google-calendar/callback`. |
 
 When `REQUIRE_INVITE` is `true` (the default), only users with a valid invite code can create an account. An admin creates invite codes from the admin panel and shares them with people they want to grant access. See the [User Management](https://docs.ownpulse.health/admin/) guide for details.
 

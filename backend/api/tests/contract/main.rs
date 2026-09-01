@@ -183,6 +183,22 @@ impl ProviderStateExecutor for StateExecutor {
                 let mut store = self.tokens.lock().expect("token store lock");
                 store.user_token = Some(token);
             }
+            "a protocol run with adherence data exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_adherence_run(
+                    &self.pool,
+                    user_id,
+                    "aaaaaaaa-1111-1111-1111-111111111111",
+                    "aaaaaaaa-2222-2222-2222-222222222222",
+                    "aaaaaaaa-3333-3333-3333-333333333333",
+                )
+                .await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
             "sleep records exist" => {
                 let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
                 seed_sleep_record(&self.pool, user_id).await;
@@ -385,6 +401,70 @@ async fn seed_healthkit_write_queue_item(pool: &sqlx::PgPool, user_id: Uuid) {
     .execute(pool)
     .await
     .expect("seed contract-test write-queue item");
+}
+
+/// Seed a protocol + line + active run (with fixed ids) for the ios-backend
+/// contract's adherence/missed-doses interactions. `start_date` is set to
+/// three days before `CURRENT_DATE`; combined with a daily (all-true)
+/// 7-day pattern and no doses logged, this gives a deterministic result
+/// regardless of when the test runs: `today_day == 3`, so the closed days
+/// are 0/1/2 (day 3, today, is not yet closed — see `dose_status::
+/// closed_bound`), all scheduled and missed, giving `scheduled_so_far=3,
+/// completed=0, skipped=0, missed=3, adherence_pct=0.0`. Every field here is
+/// deterministic and exact-matched; only `/missed-doses`' `date` field
+/// (which depends on the real calendar date) needs a Pact type matcher.
+async fn seed_adherence_run(
+    pool: &sqlx::PgPool,
+    user_id: Uuid,
+    protocol_id: &str,
+    line_id: &str,
+    run_id: &str,
+) {
+    let protocol_id: Uuid = protocol_id.parse().expect("valid protocol UUID");
+    let line_id: Uuid = line_id.parse().expect("valid protocol_line UUID");
+    let run_id: Uuid = run_id.parse().expect("valid protocol_run UUID");
+
+    // This provider state backs two interactions ("get run adherence" and
+    // "list missed doses"), each re-running the full state setup with the
+    // same fixed protocol/line/run ids but a freshly-created (different)
+    // user per call. `ON CONFLICT DO UPDATE` re-parents the fixed rows to
+    // whichever user this call created, so the run's ownership always
+    // matches the token used for that interaction's request.
+    sqlx::query(
+        "INSERT INTO protocols (id, user_id, name, duration_days) \
+         VALUES ($1, $2, 'Contract Adherence Protocol', 7) \
+         ON CONFLICT (id) DO UPDATE SET user_id = excluded.user_id",
+    )
+    .bind(protocol_id)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test adherence protocol");
+
+    sqlx::query(
+        "INSERT INTO protocol_lines \
+            (id, protocol_id, substance, dose, unit, route, schedule_pattern) \
+         VALUES ($1, $2, 'Creatine', 5.0, 'g', 'oral', \
+                 '[true, true, true, true, true, true, true]'::jsonb) \
+         ON CONFLICT (id) DO NOTHING",
+    )
+    .bind(line_id)
+    .bind(protocol_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test adherence line");
+
+    sqlx::query(
+        "INSERT INTO protocol_runs (id, protocol_id, user_id, start_date, status) \
+         VALUES ($1, $2, $3, CURRENT_DATE - 3, 'active') \
+         ON CONFLICT (id) DO UPDATE SET user_id = excluded.user_id",
+    )
+    .bind(run_id)
+    .bind(protocol_id)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test adherence run");
 }
 
 /// Seed a sleep observation so the web contract's `GET /api/v1/sleep` returns
@@ -597,6 +677,38 @@ async fn verify_ios_dose_contract() {
         &app,
         contract,
         FilterInfo::Description(IOS_DOSE_INTERACTIONS.to_string()),
+        Some(2),
+    )
+    .await;
+}
+
+/// Regex matching the iOS adherence/missed-doses interactions in
+/// `ios-backend.json`. These seed a deterministic protocol run (see
+/// `seed_adherence_run`) via fixed UUIDs and a fixed `start_date` offset, so
+/// they verify against the live provider with only a `type` matcher on the
+/// calendar-date-dependent `date` fields.
+const IOS_ADHERENCE_INTERACTIONS: &str = "^a request to (get run adherence|list missed doses)$";
+
+/// Active iOS Pact gate for the run-adherence and missed-doses read
+/// endpoints (`GET /protocols/runs/:run_id/adherence`,
+/// `GET /protocols/runs/missed-doses`). Follows the same verified-slice
+/// pattern as [`verify_ios_dose_contract`]: NOT `#[ignore]`d, fails if the
+/// provider's response shape drifts from the contract or if either
+/// interaction is renamed out of `IOS_ADHERENCE_INTERACTIONS`.
+#[tokio::test]
+async fn verify_ios_adherence_contract() {
+    let contract = contracts_dir().join("ios-backend.json");
+    assert!(
+        contract.exists(),
+        "iOS contract file not found at {}",
+        contract.display()
+    );
+
+    let app = common::setup().await;
+    verify_contract(
+        &app,
+        contract,
+        FilterInfo::Description(IOS_ADHERENCE_INTERACTIONS.to_string()),
         Some(2),
     )
     .await;

@@ -7,6 +7,7 @@
 //! Jobs: Google Calendar sync, Garmin sync, Oura sync.
 
 pub mod garmin_sync;
+pub mod google_calendar_sync;
 pub mod insight_generator;
 pub mod mychart_sync;
 pub mod oura_sync;

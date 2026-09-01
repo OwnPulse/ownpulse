@@ -25,7 +25,7 @@ nav:
   - Getting Started: quickstart.md
   - Login & Account Setup: login.md
   - Dashboard & Timeline: timeline.md
-  - Manual Data Entry: data-entry.md
+  - Log: data-entry.md
   - iOS App: ios-app.md
   - Apple Health: apple-health.md
   - Integrations: integrations.md

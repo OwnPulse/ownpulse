@@ -141,6 +141,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         include_str!("../../../db/migrations/0033_observations_source_dedup.sql"),
     ),
     (
+        "0034_protocol_run_pauses.sql",
+        include_str!("../../../db/migrations/0034_protocol_run_pauses.sql"),
+    ),
+    (
         "0035_health_records_duplicate_of_index.sql",
         include_str!("../../../db/migrations/0035_health_records_duplicate_of_index.sql"),
     ),

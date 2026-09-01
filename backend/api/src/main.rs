@@ -295,6 +295,13 @@ async fn run_server() -> anyhow::Result<()> {
             jobs_cancel.clone(),
             state.event_tx.clone(),
         ),
+        api::jobs::google_calendar_sync::spawn(
+            state.pool.clone(),
+            state.config.clone(),
+            state.http_client.clone(),
+            jobs_cancel.clone(),
+            state.event_tx.clone(),
+        ),
         api::jobs::spawn_insight_job(state.pool.clone(), jobs_cancel.clone()),
     ];
 

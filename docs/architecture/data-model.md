@@ -4,6 +4,10 @@
 
 When the database schema changes, this document and `schema/open-schema.json` must be updated in the same PR.
 
+## Export coverage
+
+`GET /export/json` (`export/json.rs`) streams a flat top-level array per key, scoped to the requesting user. As of schema `0.3.0` the exported keys are exactly: `health_records`, `interventions`, `daily_checkins`, `lab_results`, `observations` (covers sleep and all other user-defined data — see the `observations` section below), `protocols` (templates, i.e. rows with `user_id = NULL`, are excluded), `protocol_lines`, `protocol_runs`, `protocol_doses`, `calendar_days` (added in `0.3.0`; includes zero-meeting days within the sync window, not just days with meetings), and — only if the user has any — `genetic_records`. This is **not** every table in this document: tables not listed above (e.g. `users`, `user_auth_methods`, `source_preferences`, `sharing_consents`, `explore_charts`, `observer_polls`/`observer_poll_members`/`observer_responses`, `export_jobs`) are not part of the export today. See [`schema/open-schema.md`](../../schema/open-schema.md) for the schema-file view of the same key list — the two are kept in sync by a test (`export::test_export_json_keys_match_open_schema`) that asserts the export's top-level keys equal the schema's declared keys. `GET /export/csv` covers `health_records` only — see [api.md](api.md#export).
+
 ## Tables
 
 ### `users`
@@ -135,7 +139,7 @@ Flexible extensibility layer for user-defined data. See [ADR-0002](../decisions/
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `type` | TEXT | `event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental` |
+| `type` | TEXT | `event_instant`, `event_duration`, `scale`, `symptom`, `note`, `context_tag`, `environmental`, `sleep`. Sleep has no dedicated table — `POST/GET /sleep` (`routes/sleep.rs`) read and write `observations` rows with `type = 'sleep'`; duration/stage/score fields live in `value`. |
 | `name` | TEXT | User-defined freeform name |
 | `value` | JSONB | Shape depends on `type` (validated in API layer) |
 | `source` | TEXT | `manual` (default) or an integration name (e.g. `garmin`, `oura`) |
@@ -162,16 +166,29 @@ may legitimately repeat.
 
 ### `calendar_days`
 
-Meeting and schedule aggregates per day.
+Meeting aggregates per day, populated by the Google Calendar background sync
+(`jobs::google_calendar_sync`). **Aggregates only** — event titles,
+descriptions, attendees, and locations are never stored, and never even
+requested from Google beyond checking whether the calendar owner declined a
+meeting (see `integrations::google_calendar` module docs); see also
+`docs/decisions/0011-explore-and-observer-polls.md`. `UNIQUE(user_id, date)`
+— every sync recomputes a rolling 7-day-back / 1-day-forward window from
+scratch and fully overwrites each day's row in it (including writing zero
+rows for days with no meetings), rather than accumulating, so a
+cancelled/rescheduled meeting is reflected correctly rather than leaving a
+stale count. All-day entries, out-of-office/focus-time/working-location
+events, and meetings the owner declined are excluded from the count. Days
+are bucketed by UTC calendar date of the event's start time (not the user's
+local timezone) — a known limitation, not a bug.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `date` | DATE | |
-| `meeting_count` | INT | |
-| `meeting_hours` | DOUBLE | |
-| `created_at` | TIMESTAMPTZ | |
+| `date` | DATE | UTC calendar date |
+| `meeting_count` | INT | Number of timed, non-declined events that day; all-day entries don't count |
+| `meeting_minutes` | INT | Total minutes across those events |
+| `synced_at` | TIMESTAMPTZ | Last time this row was (re)computed |
 
 ### `genetic_records`
 
