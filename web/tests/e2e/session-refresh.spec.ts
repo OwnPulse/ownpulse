@@ -20,12 +20,12 @@ function fakeJwt(): string {
 }
 
 const DASHBOARD_SUMMARY = {
-  latest_checkin: { date: "2026-06-01", energy: 7, mood: 6, focus: 8, recovery: 5, libido: 6 },
+  latest_checkin: { date: "2026-06-01", energy: 7, mood: 6, focus: 8, recovery: 5, libido: 6 }, // date-ok
   checkin_count_7d: 5,
   health_record_count_7d: 12,
   intervention_count_7d: 3,
   observation_count_7d: 8,
-  latest_lab_date: "2026-05-20",
+  latest_lab_date: "2026-05-20", // date-ok
   pending_friend_shares: 0,
 };
 

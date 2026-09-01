@@ -49,7 +49,7 @@ describe("InviteLanding", () => {
         return HttpResponse.json({
           valid: true,
           label: "For Tony's friends",
-          expires_at: "2026-12-31T00:00:00Z",
+          expires_at: "2026-12-31T00:00:00Z", // date-ok
           inviter_name: "Tony",
         });
       }),

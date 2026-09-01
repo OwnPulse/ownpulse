@@ -51,7 +51,7 @@ const protocols = [
     name: "BPC-157 Stack",
     status: "active",
     duration_days: 28,
-    created_at: "2026-03-01T00:00:00Z",
+    created_at: "2026-03-01T00:00:00Z", // date-ok
   },
 ];
 
@@ -61,7 +61,7 @@ const activeRuns = [
     protocol_id: "p1",
     protocol_name: "BPC-157 Stack",
     user_id: "user-1",
-    start_date: "2026-03-28",
+    start_date: "2026-03-28", // date-ok
     duration_days: 28,
     status: "active",
     notify: false,
@@ -72,7 +72,7 @@ const activeRuns = [
     progress_pct: 17.86,
     doses_today: 2,
     doses_completed_today: 0,
-    created_at: "2026-03-28T10:00:00Z",
+    created_at: "2026-03-28T10:00:00Z", // date-ok
   },
 ];
 

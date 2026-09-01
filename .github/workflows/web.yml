@@ -41,6 +41,15 @@ jobs:
               - 'tools/design-tokens/**'
               - 'docs/design/tokens.json'
 
+  test_date_lint:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - run: scripts/check-test-dates.sh
+
   test:
     needs: changes
     if: needs.changes.outputs.web == 'true'
@@ -123,16 +132,19 @@ jobs:
   result:
     name: Web / result
     if: always()
-    needs: [changes, test]
+    needs: [changes, test_date_lint, test]
     runs-on: ubuntu-latest
     steps:
       - name: Check result
         run: |
-          if [[ "${{ needs.test.result }}" == "failure" ]]; then
-            echo "Web tests failed"
+          if [[ "${{ needs.test_date_lint.result }}" == "failure" || \
+                "${{ needs.test.result }}" == "failure" ]]; then
+            echo "Web CI failed"
+            echo "  test_date_lint: ${{ needs.test_date_lint.result }}"
+            echo "  test: ${{ needs.test.result }}"
             exit 1
           fi
-          echo "Web gate passed (test result: ${{ needs.test.result }})"
+          echo "Web gate passed"
 
   build:
     if: github.ref == 'refs/heads/main'

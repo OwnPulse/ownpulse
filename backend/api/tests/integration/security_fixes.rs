@@ -344,7 +344,7 @@ async fn test_disabled_user_cannot_post_health_records() {
                 "record_type": "heart_rate",
                 "value": 65.0,
                 "unit": "bpm",
-                "start_time": "2026-03-18T10:00:00Z"
+                "start_time": "2026-03-18T10:00:00Z" // date-ok
             })),
         ))
         .await
@@ -684,7 +684,7 @@ async fn test_poll_respond_rate_limit_rejects_after_burst() {
                 "PUT",
                 &format!("/api/v1/observer-polls/{fake_poll_id}/respond"),
                 &token,
-                Some(&json!({"date": "2026-03-27", "scores": {"energy": 5}})),
+                Some(&json!({"date": "2026-03-27", "scores": {"energy": 5}})), // date-ok
             ))
             .await
             .unwrap();
@@ -703,7 +703,7 @@ async fn test_poll_respond_rate_limit_rejects_after_burst() {
             "PUT",
             &format!("/api/v1/observer-polls/{fake_poll_id}/respond"),
             &token,
-            Some(&json!({"date": "2026-03-27", "scores": {"energy": 5}})),
+            Some(&json!({"date": "2026-03-27", "scores": {"energy": 5}})), // date-ok
         ))
         .await
         .unwrap();

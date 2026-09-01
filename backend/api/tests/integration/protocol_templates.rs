@@ -16,7 +16,7 @@ async fn create_protocol(app: &common::TestApp, token: &str) -> (Uuid, String) {
     let name = format!("test-protocol-{}", Uuid::new_v4());
     let body = json!({
         "name": name,
-        "start_date": "2026-01-01",
+        "start_date": "2026-01-01", // date-ok
         "duration_days": 7,
         "lines": [{
             "substance": "Creatine",
@@ -309,14 +309,14 @@ async fn test_copy_template() {
             "POST",
             &format!("/api/v1/protocols/templates/{protocol_id}/copy"),
             &user2_token,
-            Some(&json!({"start_date": "2026-03-01"})),
+            Some(&json!({"start_date": "2026-03-01"})), // date-ok
         ))
         .await
         .unwrap();
 
     assert_eq!(resp.status(), 201);
     let body = common::body_json(resp).await;
-    assert_eq!(body["start_date"], "2026-03-01");
+    assert_eq!(body["start_date"], "2026-03-01"); // date-ok
     assert_eq!(body["is_template"], false);
 
     // Verify the new protocol appears in user2's list
@@ -351,7 +351,7 @@ async fn test_copy_non_template_returns_404() {
             "POST",
             &format!("/api/v1/protocols/templates/{protocol_id}/copy"),
             &token,
-            Some(&json!({"start_date": "2026-03-01"})),
+            Some(&json!({"start_date": "2026-03-01"})), // date-ok
         ))
         .await
         .unwrap();

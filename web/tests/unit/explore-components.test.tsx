@@ -257,8 +257,8 @@ describe("ExploreChart", () => {
         field: "energy",
         unit: "score",
         points: [
-          { t: "2026-03-01T00:00:00Z", v: 7, n: 1 },
-          { t: "2026-03-02T00:00:00Z", v: 6, n: 1 },
+          { t: "2026-03-01T00:00:00Z", v: 7, n: 1 }, // date-ok
+          { t: "2026-03-02T00:00:00Z", v: 6, n: 1 }, // date-ok
         ],
       },
     ];
@@ -274,13 +274,13 @@ describe("ExploreChart", () => {
         source: "checkins",
         field: "energy",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }], // date-ok
       },
       {
         source: "checkins",
         field: "mood",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }], // date-ok
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
@@ -304,13 +304,13 @@ describe("ExploreChart", () => {
         source: "checkins",
         field: "energy",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }], // date-ok
       },
       {
         source: "checkins",
         field: "mood",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }], // date-ok
       },
     ];
     render(<ExploreChart series={series} />, { wrapper: createWrapper() });
@@ -343,7 +343,7 @@ describe("ChartLegend", () => {
         source: "checkins",
         field: "energy",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }], // date-ok
       },
       {
         source: "checkins",
@@ -365,7 +365,7 @@ describe("ChartLegend", () => {
         source: "checkins",
         field: "energy",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }], // date-ok
       },
     ];
     render(<ChartLegend series={series} />, { wrapper: createWrapper() });
@@ -383,13 +383,13 @@ describe("ChartLegend", () => {
         source: "checkins",
         field: "energy",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }], // date-ok
       },
       {
         source: "checkins",
         field: "mood",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }], // date-ok
       },
     ];
     render(<ChartLegend series={series} />, { wrapper: createWrapper() });
@@ -404,7 +404,7 @@ describe("ChartLegend", () => {
         source: "checkins",
         field: "energy",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }], // date-ok
       },
     ];
     render(<ChartLegend series={series} />, { wrapper: createWrapper() });
@@ -426,13 +426,13 @@ describe("ChartLegend", () => {
         source: "checkins",
         field: "energy",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 7, n: 1 }], // date-ok
       },
       {
         source: "checkins",
         field: "mood",
         unit: "score",
-        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }],
+        points: [{ t: "2026-03-01T00:00:00Z", v: 8, n: 1 }], // date-ok
       },
     ];
     // "mood" at full-array index 1 has no dedicated token color, so it resolves
@@ -476,8 +476,8 @@ describe("SavedChartCard", () => {
       range: { preset: "30d" },
       resolution: "weekly",
     },
-    created_at: "2026-03-01T00:00:00Z",
-    updated_at: "2026-03-01T00:00:00Z",
+    created_at: "2026-03-01T00:00:00Z", // date-ok
+    updated_at: "2026-03-01T00:00:00Z", // date-ok
   };
 
   it("renders chart name and metadata", () => {
@@ -545,7 +545,7 @@ describe("SavedChartCard", () => {
       ...chart,
       config: {
         ...chart.config,
-        range: { start: "2025-01-01", end: "2025-06-01" },
+        range: { start: "2025-01-01", end: "2025-06-01" }, // date-ok
       },
     };
     render(<SavedChartCard chart={customChart} onLoad={() => {}} onDelete={() => {}} />, {
@@ -573,9 +573,9 @@ describe("ExploreChart with interventions", () => {
       field: "energy",
       unit: "score",
       points: [
-        { t: "2026-03-01T00:00:00Z", v: 7, n: 1 },
-        { t: "2026-03-02T00:00:00Z", v: 6, n: 1 },
-        { t: "2026-03-03T00:00:00Z", v: 8, n: 1 },
+        { t: "2026-03-01T00:00:00Z", v: 7, n: 1 }, // date-ok
+        { t: "2026-03-02T00:00:00Z", v: 6, n: 1 }, // date-ok
+        { t: "2026-03-03T00:00:00Z", v: 8, n: 1 }, // date-ok
       ],
     },
   ];
@@ -588,9 +588,9 @@ describe("ExploreChart with interventions", () => {
       dose: 200,
       unit: "mg",
       route: "oral",
-      administered_at: "2026-03-02T08:00:00Z",
+      administered_at: "2026-03-02T08:00:00Z", // date-ok
       fasted: false,
-      created_at: "2026-03-02T08:00:00Z",
+      created_at: "2026-03-02T08:00:00Z", // date-ok
     },
   ];
 
@@ -636,8 +636,8 @@ describe("ExploreChart with observer data", () => {
         field: "energy",
         unit: "score",
         points: [
-          { t: "2026-03-01T00:00:00Z", v: 7, n: 1 },
-          { t: "2026-03-02T00:00:00Z", v: 8, n: 1 },
+          { t: "2026-03-01T00:00:00Z", v: 7, n: 1 }, // date-ok
+          { t: "2026-03-02T00:00:00Z", v: 8, n: 1 }, // date-ok
         ],
       },
       {
@@ -645,8 +645,8 @@ describe("ExploreChart with observer data", () => {
         field: "poll-1:energy",
         unit: "score",
         points: [
-          { t: "2026-03-01T00:00:00Z", v: 6, n: 1 },
-          { t: "2026-03-02T00:00:00Z", v: 7, n: 1 },
+          { t: "2026-03-01T00:00:00Z", v: 6, n: 1 }, // date-ok
+          { t: "2026-03-02T00:00:00Z", v: 7, n: 1 }, // date-ok
         ],
       },
     ];

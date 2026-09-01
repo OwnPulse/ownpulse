@@ -19,12 +19,12 @@ describe("protocolsApi", () => {
     const createdProtocol = {
       id: "p1",
       name: "Test Protocol",
-      start_date: "2026-04-01",
+      start_date: "2026-04-01", // date-ok
       duration_days: 14,
       status: "active",
       lines: [],
-      created_at: "2026-03-27T00:00:00Z",
-      updated_at: "2026-03-27T00:00:00Z",
+      created_at: "2026-03-27T00:00:00Z", // date-ok
+      updated_at: "2026-03-27T00:00:00Z", // date-ok
     };
 
     mockFetch.mockResolvedValue({
@@ -37,7 +37,7 @@ describe("protocolsApi", () => {
 
     const payload = {
       name: "Test Protocol",
-      start_date: "2026-04-01",
+      start_date: "2026-04-01", // date-ok
       duration_days: 14,
       lines: [
         {

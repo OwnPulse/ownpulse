@@ -70,8 +70,8 @@ const server = setupServer(
       day_number: 3,
       status: "completed",
       intervention_id: "iv-1",
-      logged_at: "2026-03-28T08:00:00Z",
-      created_at: "2026-03-28T08:00:00Z",
+      logged_at: "2026-03-28T08:00:00Z", // date-ok
+      created_at: "2026-03-28T08:00:00Z", // date-ok
     });
   }),
   http.post("/api/v1/protocols/runs/:runId/doses/skip", () => {
@@ -81,8 +81,8 @@ const server = setupServer(
       day_number: 3,
       status: "skipped",
       intervention_id: null,
-      logged_at: "2026-03-28T08:00:00Z",
-      created_at: "2026-03-28T08:00:00Z",
+      logged_at: "2026-03-28T08:00:00Z", // date-ok
+      created_at: "2026-03-28T08:00:00Z", // date-ok
     });
   }),
 );

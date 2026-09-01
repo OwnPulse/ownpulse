@@ -17,7 +17,7 @@ async fn test_export_json() {
         "record_type": "heart_rate",
         "value": 65.0,
         "unit": "bpm",
-        "start_time": "2026-03-18T10:00:00Z"
+        "start_time": "2026-03-18T10:00:00Z" // date-ok
     });
     let create_resp = app
         .app
@@ -39,7 +39,7 @@ async fn test_export_json() {
         "substance": "caffeine",
         "dose": 100.0,
         "unit": "mg",
-        "administered_at": "2026-03-18T09:00:00Z"
+        "administered_at": "2026-03-18T09:00:00Z" // date-ok
     });
     let intervention_resp = app
         .app
@@ -56,7 +56,7 @@ async fn test_export_json() {
 
     // A daily checkin.
     let checkin_body = json!({
-        "date": "2026-03-18",
+        "date": "2026-03-18", // date-ok
         "energy": 7,
         "mood": 6,
         "focus": 8,
@@ -79,7 +79,7 @@ async fn test_export_json() {
 
     // A lab result.
     let lab_body = json!({
-        "panel_date": "2026-03-10",
+        "panel_date": "2026-03-10", // date-ok
         "lab_name": "Quest",
         "marker": "TSH",
         "value": 2.1,
@@ -105,7 +105,7 @@ async fn test_export_json() {
     let observation_body = json!({
         "type": "context_tag",
         "name": "travel",
-        "start_time": "2026-03-18T00:00:00Z",
+        "start_time": "2026-03-18T00:00:00Z", // date-ok
         "source": "manual"
     });
     let observation_resp = app
@@ -124,7 +124,7 @@ async fn test_export_json() {
     // Sleep — stored as an `observations` row with type = "sleep" (no
     // separate table), so it should already appear in `observations`.
     let sleep_body = json!({
-        "date": "2026-03-17",
+        "date": "2026-03-17", // date-ok
         "duration_minutes": 420,
         "deep_minutes": 90,
         "score": 82
@@ -235,7 +235,7 @@ async fn test_export_json() {
 
     // A calendar_days aggregate — no create endpoint exists (it's written
     // only by the Google Calendar sync job), so insert directly.
-    api::db::calendar_days::upsert(&app.pool, user_id, "2026-03-18".parse().unwrap(), 2, 45)
+    api::db::calendar_days::upsert(&app.pool, user_id, "2026-03-18".parse().unwrap(), 2, 45) // date-ok
         .await
         .unwrap();
 
@@ -737,7 +737,7 @@ async fn test_export_csv() {
         "record_type": "spo2",
         "value": 98.0,
         "unit": "%",
-        "start_time": "2026-03-18T11:00:00Z"
+        "start_time": "2026-03-18T11:00:00Z" // date-ok
     });
     let create_resp = app
         .app

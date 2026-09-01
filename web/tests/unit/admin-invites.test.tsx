@@ -17,7 +17,7 @@ const mockUsers = [
     role: "admin",
     status: "active",
     data_region: "us",
-    created_at: "2025-01-01T00:00:00Z",
+    created_at: "2025-01-01T00:00:00Z", // date-ok
   },
   {
     id: "u2",
@@ -26,7 +26,7 @@ const mockUsers = [
     role: "user",
     status: "disabled",
     data_region: "us",
-    created_at: "2025-06-01T00:00:00Z",
+    created_at: "2025-06-01T00:00:00Z", // date-ok
   },
 ];
 
@@ -39,7 +39,7 @@ const mockInvites = [
     use_count: 3,
     expires_at: null,
     revoked_at: null,
-    created_at: "2025-01-01T00:00:00Z",
+    created_at: "2025-01-01T00:00:00Z", // date-ok
   },
   {
     id: "inv2",
@@ -47,9 +47,9 @@ const mockInvites = [
     label: null,
     max_uses: null,
     use_count: 5,
-    expires_at: "2024-01-01T00:00:00Z",
+    expires_at: "2024-01-01T00:00:00Z", // date-ok
     revoked_at: null,
-    created_at: "2025-01-01T00:00:00Z",
+    created_at: "2025-01-01T00:00:00Z", // date-ok
   },
 ];
 
@@ -245,7 +245,7 @@ describe("Admin page", () => {
       label: "Test label",
       max_uses: 5,
       use_count: 0,
-      created_at: "2026-03-22T00:00:00Z",
+      created_at: "2026-03-22T00:00:00Z", // date-ok
     });
 
     renderAdmin();
@@ -286,7 +286,7 @@ describe("Admin page", () => {
       code: "INVITE-NEW",
       label: "No email",
       use_count: 0,
-      created_at: "2026-03-22T00:00:00Z",
+      created_at: "2026-03-22T00:00:00Z", // date-ok
     });
 
     renderAdmin();
@@ -320,7 +320,7 @@ describe("Admin page", () => {
       code: "INVITE-NEW",
       label: "Test",
       use_count: 0,
-      created_at: "2026-03-22T00:00:00Z",
+      created_at: "2026-03-22T00:00:00Z", // date-ok
     });
 
     renderAdmin();
@@ -372,7 +372,7 @@ describe("Admin page", () => {
     const mockRevoke = vi.mocked(adminApi.revokeInvite);
     mockRevoke.mockResolvedValue({
       ...mockInvites[0],
-      revoked_at: "2026-03-22T00:00:00Z",
+      revoked_at: "2026-03-22T00:00:00Z", // date-ok
     });
 
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);

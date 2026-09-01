@@ -41,7 +41,7 @@ function makeInterpretation(overrides: Partial<Interpretation> = {}): Interpreta
 const mockSummary: GeneticSummary = {
   total_variants: 650000,
   source: "23andMe",
-  uploaded_at: "2026-03-20T10:00:00Z",
+  uploaded_at: "2026-03-20T10:00:00Z", // date-ok
   chromosomes: { "1": 50000, "22": 30000, X: 20000 },
   annotated_count: 42,
 };
@@ -64,14 +64,14 @@ const server = setupServer(
           chromosome: "1",
           position: 11856378,
           genotype: "CT",
-          created_at: "2026-03-20T10:00:00Z",
+          created_at: "2026-03-20T10:00:00Z", // date-ok
         },
         {
           rsid: "rs4680",
           chromosome: "22",
           position: 19963748,
           genotype: "AG",
-          created_at: "2026-03-20T10:00:00Z",
+          created_at: "2026-03-20T10:00:00Z", // date-ok
         },
       ],
       total: 2,

@@ -15,7 +15,7 @@ const insightsResponse = [
     headline: "Energy trending up 15%",
     detail: "Average went from 5.2 to 6.0",
     metadata: { explore_params: { source: "checkins", field: "energy", preset: "30d" } },
-    created_at: "2026-03-28T06:00:00Z",
+    created_at: "2026-03-28T06:00:00Z", // date-ok
   },
   {
     id: "i2",
@@ -23,7 +23,7 @@ const insightsResponse = [
     headline: "14-day check-in streak!",
     detail: null,
     metadata: {},
-    created_at: "2026-03-28T06:00:00Z",
+    created_at: "2026-03-28T06:00:00Z", // date-ok
   },
 ];
 

@@ -14,6 +14,7 @@ struct DashboardModelsTests {
 
     @Test("DashboardSummary decodes from JSON")
     func decodeDashboardSummary() throws {
+        // date-ok
         let json = """
         {
             "latest_checkin": {
@@ -38,7 +39,7 @@ struct DashboardModelsTests {
         #expect(summary.healthRecordCount7d == 42)
         #expect(summary.latestCheckin?.energy == 7)
         #expect(summary.latestCheckin?.libido == nil)
-        #expect(summary.latestLabDate == "2026-03-15")
+        #expect(summary.latestLabDate == "2026-03-15") // date-ok
         #expect(summary.pendingFriendShares == 1)
     }
 
@@ -187,6 +188,7 @@ struct DashboardModelsTests {
 
     @Test("BatchSeriesResponse decodes with multiple series")
     func decodeBatchSeries() throws {
+        // date-ok
         let json = """
         {
             "series": [
@@ -222,6 +224,7 @@ struct DashboardModelsTests {
 
     @Test("Insight decodes with all fields")
     func decodeInsight() throws {
+        // date-ok
         let json = """
         {
             "id": "ins-1",
@@ -241,6 +244,7 @@ struct DashboardModelsTests {
 
     @Test("Insight decodes with null detail")
     func decodeInsightNullDetail() throws {
+        // date-ok
         let json = """
         {
             "id": "ins-2",
@@ -260,7 +264,7 @@ struct DashboardModelsTests {
     @Test("UpsertCheckin encodes correctly")
     func encodeUpsertCheckin() throws {
         let checkin = UpsertCheckin(
-            date: "2026-03-28",
+            date: "2026-03-28", // date-ok
             energy: 8, mood: 7, focus: 6, recovery: 9, libido: 5,
             notes: "Great day"
         )
@@ -268,7 +272,7 @@ struct DashboardModelsTests {
         let data = try encoder.encode(checkin)
         let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any]
 
-        #expect(dict?["date"] as? String == "2026-03-28")
+        #expect(dict?["date"] as? String == "2026-03-28") // date-ok
         #expect(dict?["energy"] as? Int == 8)
         #expect(dict?["notes"] as? String == "Great day")
     }
@@ -276,7 +280,7 @@ struct DashboardModelsTests {
     @Test("UpsertCheckin encodes null notes when empty")
     func encodeUpsertCheckinNullNotes() throws {
         let checkin = UpsertCheckin(
-            date: "2026-03-28",
+            date: "2026-03-28", // date-ok
             energy: 5, mood: 5, focus: 5, recovery: 5, libido: 5,
             notes: nil
         )
@@ -296,7 +300,7 @@ struct DashboardModelsTests {
             dose: 200,
             unit: "mg",
             route: "oral",
-            administeredAt: "2026-03-28T08:00:00Z",
+            administeredAt: "2026-03-28T08:00:00Z", // date-ok
             fasted: true,
             notes: nil
         )
@@ -306,7 +310,7 @@ struct DashboardModelsTests {
 
         #expect(dict?["substance"] as? String == "Caffeine")
         #expect(dict?["dose"] as? Double == 200)
-        #expect(dict?["administered_at"] as? String == "2026-03-28T08:00:00Z")
+        #expect(dict?["administered_at"] as? String == "2026-03-28T08:00:00Z") // date-ok
         #expect(dict?["fasted"] as? Bool == true)
     }
 
@@ -317,7 +321,7 @@ struct DashboardModelsTests {
         let observation = CreateObservation(
             type: "scale",
             name: "Wellbeing",
-            startTime: "2026-03-28T10:00:00Z",
+            startTime: "2026-03-28T10:00:00Z", // date-ok
             endTime: nil,
             value: ["numeric": .int(7), "max": .int(10)]
         )
@@ -327,7 +331,7 @@ struct DashboardModelsTests {
 
         #expect(dict?["type"] as? String == "scale")
         #expect(dict?["name"] as? String == "Wellbeing")
-        #expect(dict?["start_time"] as? String == "2026-03-28T10:00:00Z")
+        #expect(dict?["start_time"] as? String == "2026-03-28T10:00:00Z") // date-ok
 
         let value = dict?["value"] as? [String: Any]
         #expect(value?["numeric"] as? Int == 7)

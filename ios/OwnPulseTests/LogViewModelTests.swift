@@ -75,7 +75,7 @@ struct LogViewModelTests {
     func submitCheckinSuccess() async {
         let mock = MockNetworkClient()
         let response = CheckinResponse(
-            id: "checkin-1", date: "2026-03-28", energy: 7, mood: 8,
+            id: "checkin-1", date: "2026-03-28", energy: 7, mood: 8, // date-ok
             focus: 6, recovery: 7, libido: 5
         )
         mock.requestHandler = { _, _, _ in response }
@@ -130,7 +130,7 @@ struct LogViewModelTests {
     func submitCheckinRequestBody() async {
         let mock = MockNetworkClient()
         let response = CheckinResponse(
-            id: "c-1", date: "2026-03-28", energy: 8, mood: 9,
+            id: "c-1", date: "2026-03-28", energy: 8, mood: 9, // date-ok
             focus: 7, recovery: 6, libido: 5
         )
 

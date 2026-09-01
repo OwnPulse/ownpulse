@@ -711,7 +711,7 @@ async fn oura_client_fetches_daily_readiness() {
     );
 
     let result = client
-        .get_daily_readiness("access-token", "2026-03-28", "2026-03-28")
+        .get_daily_readiness("access-token", "2026-03-28", "2026-03-28") // date-ok
         .await;
 
     let response = result.unwrap();
@@ -743,7 +743,7 @@ async fn oura_client_fetches_daily_sleep() {
     );
 
     let result = client
-        .get_daily_sleep("access-token", "2026-03-28", "2026-03-28")
+        .get_daily_sleep("access-token", "2026-03-28", "2026-03-28") // date-ok
         .await;
 
     let response = result.unwrap();
@@ -772,7 +772,7 @@ async fn oura_client_fetches_daily_activity() {
     );
 
     let result = client
-        .get_daily_activity("access-token", "2026-03-28", "2026-03-28")
+        .get_daily_activity("access-token", "2026-03-28", "2026-03-28") // date-ok
         .await;
 
     let response = result.unwrap();
@@ -806,7 +806,7 @@ async fn garmin_client_fetches_daily_summary() {
     };
 
     let result = client
-        .get_daily_summary(&token, "2026-03-27", "2026-03-28")
+        .get_daily_summary(&token, "2026-03-27", "2026-03-28") // date-ok
         .await;
 
     let summaries = result.unwrap();
@@ -838,7 +838,7 @@ async fn garmin_client_fetches_sleep() {
         oauth_token_secret: "secret".to_string(),
     };
 
-    let result = client.get_sleep(&token, "2026-03-28", "2026-03-28").await;
+    let result = client.get_sleep(&token, "2026-03-28", "2026-03-28").await; // date-ok
 
     let sleeps = result.unwrap();
     assert_eq!(sleeps.len(), 1);
@@ -869,7 +869,7 @@ async fn garmin_client_fetches_hrv() {
         oauth_token_secret: "secret".to_string(),
     };
 
-    let result = client.get_hrv(&token, "2026-03-28", "2026-03-28").await;
+    let result = client.get_hrv(&token, "2026-03-28", "2026-03-28").await; // date-ok
 
     let hrvs = result.unwrap();
     assert_eq!(hrvs.len(), 1);
@@ -901,7 +901,7 @@ async fn garmin_client_fetches_body_comp() {
     };
 
     let result = client
-        .get_body_comp(&token, "2026-03-28", "2026-03-28")
+        .get_body_comp(&token, "2026-03-28", "2026-03-28") // date-ok
         .await;
 
     let body_comps = result.unwrap();
@@ -933,7 +933,7 @@ async fn garmin_client_handles_api_error() {
     };
 
     let result: Result<Vec<api::integrations::garmin::GarminDailySummary>, String> = client
-        .get_daily_summary(&token, "2026-03-28", "2026-03-28")
+        .get_daily_summary(&token, "2026-03-28", "2026-03-28") // date-ok
         .await;
 
     assert!(result.is_err());
@@ -963,7 +963,7 @@ async fn garmin_client_handles_malformed_response() {
     };
 
     let result: Result<Vec<api::integrations::garmin::GarminDailySummary>, String> = client
-        .get_daily_summary(&token, "2026-03-28", "2026-03-28")
+        .get_daily_summary(&token, "2026-03-28", "2026-03-28") // date-ok
         .await;
 
     assert!(result.is_err());

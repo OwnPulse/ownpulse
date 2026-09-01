@@ -107,7 +107,7 @@ async fn test_health_record_delete_creates_audit_entry() {
         "record_type": "heart_rate",
         "value": 72.0,
         "unit": "bpm",
-        "start_time": "2026-03-21T10:00:00Z"
+        "start_time": "2026-03-21T10:00:00Z" // date-ok
     });
     let create_resp = app
         .app

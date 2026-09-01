@@ -107,6 +107,7 @@ struct APIModelsTests {
 
     @Test("AuthMethod.createdAt decodes from ISO 8601 string")
     func authMethodCreatedAtISO8601() throws {
+        // date-ok
         let json = """
         {
             "id": "uuid-1",

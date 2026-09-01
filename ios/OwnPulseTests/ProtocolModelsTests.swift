@@ -27,6 +27,7 @@ struct ProtocolModelsTests {
 
     @Test("ProtocolDetail decodes a full response with start_date populated")
     func decodeFullProtocolDetail() throws {
+        // date-ok
         let json = """
         {
             "id": "a1b2c3d4-0000-0000-0000-000000000001",
@@ -50,7 +51,7 @@ struct ProtocolModelsTests {
         #expect(detail.id == "a1b2c3d4-0000-0000-0000-000000000001")
         #expect(detail.name == "Morning routine")
         #expect(detail.status == .active)
-        #expect(detail.startDate == "2026-04-01")
+        #expect(detail.startDate == "2026-04-01") // date-ok
         #expect(detail.durationDays == 30)
         #expect(detail.lines.isEmpty)
     }
@@ -60,6 +61,7 @@ struct ProtocolModelsTests {
         // This is the case that broke production — the old model had
         // `startDate: String` (non-optional) and failed to decode the
         // response below. Regression test for the field's optionality.
+        // date-ok
         let json = """
         {
             "id": "a1b2c3d4-0000-0000-0000-000000000010",
@@ -91,6 +93,7 @@ struct ProtocolModelsTests {
         // iOS used to require it as `updatedAt: String`, which caused every
         // detail decode to fail. This test asserts the model no longer
         // requires it.
+        // date-ok
         let json = """
         {
             "id": "a1b2c3d4-0000-0000-0000-000000000020",
@@ -116,6 +119,7 @@ struct ProtocolModelsTests {
 
     @Test("ProtocolDetail decodes a full response with populated lines and doses")
     func decodeWithLinesAndDoses() throws {
+        // date-ok
         let json = """
         {
             "id": "a1b2c3d4-0000-0000-0000-000000000030",
@@ -176,6 +180,7 @@ struct ProtocolModelsTests {
 
     @Test("ActiveRunResponse decodes notify settings with notify_times array")
     func decodeActiveRunWithNotifyTimes() throws {
+        // date-ok
         let json = """
         {
             "id": "run-1",
@@ -206,6 +211,7 @@ struct ProtocolModelsTests {
 
     @Test("ActiveRunResponse decodes when notify is false and no times are configured")
     func decodeActiveRunNotifyDisabled() throws {
+        // date-ok
         let json = """
         {
             "id": "run-2",
@@ -236,6 +242,7 @@ struct ProtocolModelsTests {
 
     @Test("ProtocolListItem decodes a list entry with a null next_dose")
     func decodeListItemNullNextDose() throws {
+        // date-ok
         let json = """
         {
             "id": "a1b2c3d4-0000-0000-0000-000000000040",

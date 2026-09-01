@@ -753,7 +753,7 @@ async fn submit_response_valid_returns_201() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 7, "mood": 8}
     });
     let resp = app
@@ -770,7 +770,7 @@ async fn submit_response_valid_returns_201() {
 
     assert_eq!(resp.status(), 201);
     let json = common::body_json(resp).await;
-    assert_eq!(json["date"], "2025-01-15");
+    assert_eq!(json["date"], "2025-01-15"); // date-ok
 }
 
 #[tokio::test]
@@ -783,7 +783,7 @@ async fn submit_response_same_date_returns_200_upsert() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 7, "mood": 8}
     });
     let resp = app
@@ -801,7 +801,7 @@ async fn submit_response_same_date_returns_200_upsert() {
 
     // Submit again for the same date — should upsert
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 5, "mood": 6}
     });
     let resp = app
@@ -830,7 +830,7 @@ async fn submit_response_invalid_dimension_returns_400() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 7, "unknown": 5}
     });
     let resp = app
@@ -858,7 +858,7 @@ async fn submit_response_score_zero_returns_400() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 0}
     });
     let resp = app
@@ -886,7 +886,7 @@ async fn submit_response_score_eleven_returns_400() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 11}
     });
     let resp = app
@@ -958,7 +958,7 @@ async fn submit_response_non_member_returns_403() {
     let poll_id = poll["id"].as_str().unwrap();
 
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 5}
     });
     let resp = app
@@ -990,7 +990,7 @@ async fn owner_sees_responses_with_masked_email() {
 
     // Submit a response
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 7, "mood": 8}
     });
     app.app
@@ -1038,7 +1038,7 @@ async fn owner_filters_responses_by_date_range() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     // Submit responses for different dates
-    for date in &["2025-01-10", "2025-01-15", "2025-01-20"] {
+    for date in &["2025-01-10", "2025-01-15", "2025-01-20"] { // date-ok
         let body = json!({
             "date": date,
             "scores": {"energy": 7, "mood": 8}
@@ -1061,7 +1061,7 @@ async fn owner_filters_responses_by_date_range() {
         .clone()
         .oneshot(common::auth_request(
             "GET",
-            &format!("/api/v1/observer-polls/{poll_id}/responses?start=2025-01-12&end=2025-01-18"),
+            &format!("/api/v1/observer-polls/{poll_id}/responses?start=2025-01-12&end=2025-01-18"), // date-ok
             &owner_token,
             None,
         ))
@@ -1072,7 +1072,7 @@ async fn owner_filters_responses_by_date_range() {
     let json = common::body_json(resp).await;
     let responses = json["responses"].as_array().unwrap();
     assert_eq!(responses.len(), 1);
-    assert_eq!(responses[0]["date"], "2025-01-15");
+    assert_eq!(responses[0]["date"], "2025-01-15"); // date-ok
 }
 
 // =============================================================================
@@ -1089,7 +1089,7 @@ async fn observer_sees_own_responses() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 7, "mood": 8}
     });
     app.app
@@ -1130,7 +1130,7 @@ async fn observer_deletes_own_response() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 7, "mood": 8}
     });
     let resp = app
@@ -1202,7 +1202,7 @@ async fn observer_exports_all_responses() {
     let poll_id = setup_poll_with_observer(&app, &owner_token, &observer_token).await;
 
     let body = json!({
-        "date": "2025-01-15",
+        "date": "2025-01-15", // date-ok
         "scores": {"energy": 7, "mood": 8}
     });
     app.app

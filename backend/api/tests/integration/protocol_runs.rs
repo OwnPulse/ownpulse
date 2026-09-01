@@ -155,7 +155,7 @@ async fn test_start_run_with_custom_date() {
     let protocol_id = protocol["id"].as_str().unwrap();
 
     let run_body = json!({
-        "start_date": "2026-05-01",
+        "start_date": "2026-05-01", // date-ok
         "notify": true,
         "notify_time": "08:00"
     });
@@ -174,7 +174,7 @@ async fn test_start_run_with_custom_date() {
 
     assert_eq!(resp.status(), 201);
     let run = common::body_json(resp).await;
-    assert_eq!(run["start_date"], "2026-05-01");
+    assert_eq!(run["start_date"], "2026-05-01"); // date-ok
     assert_eq!(run["notify"], true);
     assert_eq!(run["notify_time"], "08:00");
 }
@@ -195,7 +195,7 @@ async fn test_multiple_runs_on_same_protocol() {
             "POST",
             &format!("/api/v1/protocols/{protocol_id}/runs"),
             &token,
-            Some(&json!({"start_date": "2026-01-01"})),
+            Some(&json!({"start_date": "2026-01-01"})), // date-ok
         ))
         .await
         .unwrap();
@@ -209,7 +209,7 @@ async fn test_multiple_runs_on_same_protocol() {
             "POST",
             &format!("/api/v1/protocols/{protocol_id}/runs"),
             &token,
-            Some(&json!({"start_date": "2026-03-01"})),
+            Some(&json!({"start_date": "2026-03-01"})), // date-ok
         ))
         .await
         .unwrap();
@@ -1376,7 +1376,7 @@ async fn test_log_dose_administered_at_off_date_returns_400() {
             Some(&json!({
                 "protocol_line_id": line_id,
                 "day_number": 0,
-                "administered_at": "2099-01-01T09:00:00Z"
+                "administered_at": "2099-01-01T09:00:00Z" // date-ok
             })),
         ))
         .await

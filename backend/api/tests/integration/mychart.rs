@@ -399,7 +399,7 @@ async fn mychart_resync_with_changed_display_text_updates_not_duplicates() {
                 "id": "obs-amend-1",
                 "status": "final",
                 "code": { "text": "Glucose" },
-                "effectiveDateTime": "2026-03-28",
+                "effectiveDateTime": "2026-03-28", // date-ok
                 "valueQuantity": { "value": 92.0, "unit": "mg/dL" }
             }
         }]
@@ -421,7 +421,7 @@ async fn mychart_resync_with_changed_display_text_updates_not_duplicates() {
                 "id": "obs-amend-1",
                 "status": "final",
                 "code": { "text": "Glucose, fasting" },
-                "effectiveDateTime": "2026-03-28",
+                "effectiveDateTime": "2026-03-28", // date-ok
                 "valueQuantity": { "value": 95.0, "unit": "mg/dL" }
             }
         }]

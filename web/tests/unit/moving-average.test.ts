@@ -10,16 +10,16 @@ describe("computeMovingAverage", () => {
   });
 
   it("returns the point itself for a single point", () => {
-    const points = [{ t: "2026-03-01T00:00:00Z", v: 10 }];
+    const points = [{ t: "2026-03-01T00:00:00Z", v: 10 }]; // date-ok
     const result = computeMovingAverage(points, 7);
-    expect(result).toEqual([{ t: "2026-03-01T00:00:00Z", v: 10 }]);
+    expect(result).toEqual([{ t: "2026-03-01T00:00:00Z", v: 10 }]); // date-ok
   });
 
   it("returns partial averages when array is shorter than window", () => {
     const points = [
-      { t: "2026-03-01T00:00:00Z", v: 2 },
-      { t: "2026-03-02T00:00:00Z", v: 4 },
-      { t: "2026-03-03T00:00:00Z", v: 6 },
+      { t: "2026-03-01T00:00:00Z", v: 2 }, // date-ok
+      { t: "2026-03-02T00:00:00Z", v: 4 }, // date-ok
+      { t: "2026-03-03T00:00:00Z", v: 6 }, // date-ok
     ];
     const result = computeMovingAverage(points, 7);
     expect(result).toHaveLength(3);
@@ -33,15 +33,15 @@ describe("computeMovingAverage", () => {
 
   it("computes correct 7-point moving average on known data", () => {
     const points = [
-      { t: "2026-03-01T00:00:00Z", v: 10 },
-      { t: "2026-03-02T00:00:00Z", v: 20 },
-      { t: "2026-03-03T00:00:00Z", v: 30 },
-      { t: "2026-03-04T00:00:00Z", v: 40 },
-      { t: "2026-03-05T00:00:00Z", v: 50 },
-      { t: "2026-03-06T00:00:00Z", v: 60 },
-      { t: "2026-03-07T00:00:00Z", v: 70 },
-      { t: "2026-03-08T00:00:00Z", v: 80 },
-      { t: "2026-03-09T00:00:00Z", v: 90 },
+      { t: "2026-03-01T00:00:00Z", v: 10 }, // date-ok
+      { t: "2026-03-02T00:00:00Z", v: 20 }, // date-ok
+      { t: "2026-03-03T00:00:00Z", v: 30 }, // date-ok
+      { t: "2026-03-04T00:00:00Z", v: 40 }, // date-ok
+      { t: "2026-03-05T00:00:00Z", v: 50 }, // date-ok
+      { t: "2026-03-06T00:00:00Z", v: 60 }, // date-ok
+      { t: "2026-03-07T00:00:00Z", v: 70 }, // date-ok
+      { t: "2026-03-08T00:00:00Z", v: 80 }, // date-ok
+      { t: "2026-03-09T00:00:00Z", v: 90 }, // date-ok
     ];
     const result = computeMovingAverage(points, 7);
     expect(result).toHaveLength(9);

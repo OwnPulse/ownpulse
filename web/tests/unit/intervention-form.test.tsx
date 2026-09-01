@@ -37,7 +37,7 @@ const testSavedMedicines = [
     unit: "mg",
     route: "oral",
     sort_order: 0,
-    created_at: "2026-03-01T00:00:00Z",
+    created_at: "2026-03-01T00:00:00Z", // date-ok
   },
   {
     id: "sm-2",
@@ -46,7 +46,7 @@ const testSavedMedicines = [
     unit: "IU",
     route: "oral",
     sort_order: 1,
-    created_at: "2026-03-01T00:00:00Z",
+    created_at: "2026-03-01T00:00:00Z", // date-ok
   },
 ];
 
@@ -66,7 +66,7 @@ const server = setupServer(
         unit: "g",
         route: "oral",
         sort_order: 2,
-        created_at: "2026-04-12T00:00:00Z",
+        created_at: "2026-04-12T00:00:00Z", // date-ok
       },
       { status: 201 },
     );
@@ -83,9 +83,9 @@ const server = setupServer(
         dose: 250,
         unit: "mcg",
         route: "SubQ",
-        administered_at: "2026-03-28T08:00:00Z",
+        administered_at: "2026-03-28T08:00:00Z", // date-ok
         fasted: false,
-        created_at: "2026-03-28T08:00:00Z",
+        created_at: "2026-03-28T08:00:00Z", // date-ok
       },
       { status: 201 },
     );

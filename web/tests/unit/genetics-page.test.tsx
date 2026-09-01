@@ -21,7 +21,7 @@ const emptySummary = {
 const populatedSummary = {
   total_variants: 650000,
   source: "23andMe",
-  uploaded_at: "2026-03-20T10:00:00Z",
+  uploaded_at: "2026-03-20T10:00:00Z", // date-ok
   chromosomes: { "1": 50000, "22": 30000 },
   annotated_count: 42,
 };

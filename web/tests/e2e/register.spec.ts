@@ -31,7 +31,7 @@ async function mockInviteCheck(
         valid,
         code,
         ...(valid
-          ? { created_by_name: "Admin", expires_at: "2027-01-01T00:00:00Z" }
+          ? { created_by_name: "Admin", expires_at: "2027-01-01T00:00:00Z" } // date-ok
           : { reason: "invalid" }),
       }),
     }),

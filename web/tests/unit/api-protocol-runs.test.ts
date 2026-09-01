@@ -25,13 +25,13 @@ describe("protocolsApi run methods", () => {
         id: "run-1",
         protocol_id: "proto-1",
         user_id: "user-1",
-        start_date: "2026-03-28",
+        start_date: "2026-03-28", // date-ok
         status: "active",
         notify: false,
         notify_times: [],
         repeat_reminders: false,
         repeat_interval_minutes: 30,
-        created_at: "2026-03-28T10:00:00Z",
+        created_at: "2026-03-28T10:00:00Z", // date-ok
       };
 
       let capturedBody: unknown;
@@ -45,12 +45,12 @@ describe("protocolsApi run methods", () => {
 
       const { protocolsApi } = await import("../../src/api/protocols");
       const result = await protocolsApi.startRun("proto-1", {
-        start_date: "2026-03-28",
+        start_date: "2026-03-28", // date-ok
         notify: false,
       });
 
       expect(result).toEqual(runResponse);
-      expect(capturedBody).toEqual({ start_date: "2026-03-28", notify: false });
+      expect(capturedBody).toEqual({ start_date: "2026-03-28", notify: false }); // date-ok
     });
 
     it("throws on 401 and triggers logout", async () => {
@@ -104,25 +104,25 @@ describe("protocolsApi run methods", () => {
           id: "run-1",
           protocol_id: "proto-1",
           user_id: "user-1",
-          start_date: "2026-03-28",
+          start_date: "2026-03-28", // date-ok
           status: "active",
           notify: false,
           notify_times: [],
           repeat_reminders: false,
           repeat_interval_minutes: 30,
-          created_at: "2026-03-28T10:00:00Z",
+          created_at: "2026-03-28T10:00:00Z", // date-ok
         },
         {
           id: "run-2",
           protocol_id: "proto-1",
           user_id: "user-1",
-          start_date: "2026-02-01",
+          start_date: "2026-02-01", // date-ok
           status: "completed",
           notify: true,
           notify_times: ["08:00"],
           repeat_reminders: false,
           repeat_interval_minutes: 30,
-          created_at: "2026-02-01T10:00:00Z",
+          created_at: "2026-02-01T10:00:00Z", // date-ok
         },
       ];
 
@@ -177,13 +177,13 @@ describe("protocolsApi run methods", () => {
             id: "run-1",
             protocol_id: "proto-1",
             user_id: "user-1",
-            start_date: "2026-03-28",
+            start_date: "2026-03-28", // date-ok
             status: "active",
             notify: false,
             notify_times: [],
             repeat_reminders: false,
             repeat_interval_minutes: 30,
-            created_at: "2026-03-28T10:00:00Z",
+            created_at: "2026-03-28T10:00:00Z", // date-ok
           },
           protocol_name: "BPC Stack",
           doses_today: 3,
@@ -242,13 +242,13 @@ describe("protocolsApi run methods", () => {
         id: "run-1",
         protocol_id: "proto-1",
         user_id: "user-1",
-        start_date: "2026-03-28",
+        start_date: "2026-03-28", // date-ok
         status: "paused",
         notify: false,
         notify_times: [],
         repeat_reminders: false,
         repeat_interval_minutes: 30,
-        created_at: "2026-03-28T10:00:00Z",
+        created_at: "2026-03-28T10:00:00Z", // date-ok
       };
 
       let capturedBody: unknown;

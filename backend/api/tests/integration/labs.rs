@@ -12,7 +12,7 @@ async fn test_create_lab_result() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     let body = json!({
-        "panel_date": "2026-03-15",
+        "panel_date": "2026-03-15", // date-ok
         "marker": "testosterone_total",
         "value": 650.0,
         "unit": "ng/dL",
@@ -50,7 +50,7 @@ async fn test_bulk_insert_dedups_by_source_id() {
 
     let first = json!({
         "records": [{
-            "panel_date": "2026-03-15",
+            "panel_date": "2026-03-15", // date-ok
             "marker": "Glucose",
             "value": 92.0,
             "unit": "mg/dL",
@@ -74,7 +74,7 @@ async fn test_bulk_insert_dedups_by_source_id() {
     // Same source_id, amended marker + value.
     let second = json!({
         "records": [{
-            "panel_date": "2026-03-15",
+            "panel_date": "2026-03-15", // date-ok
             "marker": "Glucose, fasting",
             "value": 95.0,
             "unit": "mg/dL",
@@ -114,7 +114,7 @@ async fn test_list_lab_results() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     let body = json!({
-        "panel_date": "2026-03-15",
+        "panel_date": "2026-03-15", // date-ok
         "marker": "creatinine",
         "value": 1.0,
         "unit": "mg/dL",

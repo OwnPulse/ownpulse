@@ -381,8 +381,8 @@ async fn seed_healthkit_write_queue_item(pool: &sqlx::PgPool, user_id: Uuid) {
     let value = serde_json::json!({
         "value": 82.5,
         "unit": "kg",
-        "start_time": "2026-03-20T10:00:00Z",
-        "end_time": "2026-03-20T10:00:00Z",
+        "start_time": "2026-03-20T10:00:00Z", // date-ok
+        "end_time": "2026-03-20T10:00:00Z", // date-ok
     });
 
     sqlx::query("DELETE FROM healthkit_write_queue WHERE id = $1")
@@ -478,12 +478,12 @@ async fn seed_sleep_record(pool: &sqlx::PgPool, user_id: Uuid) {
         "rem_minutes": 120,
         "awake_minutes": 60,
         "score": 82,
-        "date": "2026-03-10",
+        "date": "2026-03-10", // date-ok
     });
 
     sqlx::query(
         "INSERT INTO observations (user_id, type, name, start_time, end_time, value, source) \
-         VALUES ($1, 'sleep', 'sleep', '2026-03-09T23:00:00Z', '2026-03-10T07:00:00Z', $2, 'manual')",
+         VALUES ($1, 'sleep', 'sleep', '2026-03-09T23:00:00Z', '2026-03-10T07:00:00Z', $2, 'manual')", // date-ok
     )
     .bind(user_id)
     .bind(&value)

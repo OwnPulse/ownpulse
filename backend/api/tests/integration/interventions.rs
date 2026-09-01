@@ -17,7 +17,7 @@ async fn test_create_intervention() {
         "dose": 200.0,
         "unit": "mg",
         "route": "oral",
-        "administered_at": "2026-03-18T07:30:00Z"
+        "administered_at": "2026-03-18T07:30:00Z" // date-ok
     });
 
     let response = app
@@ -48,7 +48,7 @@ async fn test_list_interventions() {
         "substance": "magnesium",
         "dose": 400.0,
         "unit": "mg",
-        "administered_at": "2026-03-18T21:00:00Z"
+        "administered_at": "2026-03-18T21:00:00Z" // date-ok
     });
 
     let create_resp = app
@@ -92,7 +92,7 @@ async fn test_delete_intervention() {
         "substance": "vitamin_d",
         "dose": 5000.0,
         "unit": "IU",
-        "administered_at": "2026-03-18T08:00:00Z"
+        "administered_at": "2026-03-18T08:00:00Z" // date-ok
     });
 
     let create_resp = app
@@ -148,7 +148,7 @@ async fn create_intervention(app: &common::TestApp, token: &str) -> serde_json::
         "dose": 100.0,
         "unit": "mg",
         "route": "oral",
-        "administered_at": "2026-03-18T07:30:00Z"
+        "administered_at": "2026-03-18T07:30:00Z" // date-ok
     });
 
     let resp = app

@@ -33,13 +33,13 @@ struct DashboardViewModelTests {
     private func makeBatchResponse() -> BatchSeriesResponse {
         BatchSeriesResponse(series: [
             SeriesData(source: "checkins", field: "energy", unit: "", points: [
-                DataPoint(t: "2026-03-21", v: 6, n: 1),
-                DataPoint(t: "2026-03-22", v: 7, n: 1),
-                DataPoint(t: "2026-03-23", v: 8, n: 1),
+                DataPoint(t: "2026-03-21", v: 6, n: 1), // date-ok
+                DataPoint(t: "2026-03-22", v: 7, n: 1), // date-ok
+                DataPoint(t: "2026-03-23", v: 8, n: 1), // date-ok
             ]),
             SeriesData(source: "checkins", field: "mood", unit: "", points: [
-                DataPoint(t: "2026-03-21", v: 5, n: 1),
-                DataPoint(t: "2026-03-22", v: 6, n: 1),
+                DataPoint(t: "2026-03-21", v: 5, n: 1), // date-ok
+                DataPoint(t: "2026-03-22", v: 6, n: 1), // date-ok
             ]),
         ])
     }
@@ -51,14 +51,14 @@ struct DashboardViewModelTests {
                 insightType: "correlation",
                 headline: "Sleep correlates with mood",
                 detail: "Your mood scores are higher after 7+ hours of sleep.",
-                createdAt: "2026-03-28T10:00:00Z"
+                createdAt: "2026-03-28T10:00:00Z" // date-ok
             ),
             Insight(
                 id: "ins-2",
                 insightType: "trend",
                 headline: "Energy trending up",
                 detail: nil,
-                createdAt: "2026-03-28T10:00:00Z"
+                createdAt: "2026-03-28T10:00:00Z" // date-ok
             ),
         ]
     }
@@ -214,9 +214,9 @@ struct DashboardViewModelTests {
         let mock = MockNetworkClient()
         let heroResponse = BatchSeriesResponse(series: [
             SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
-                DataPoint(t: "2026-03-01", v: 60, n: 1),
-                DataPoint(t: "2026-03-15", v: 58, n: 1),
-                DataPoint(t: "2026-03-28", v: 56, n: 1),
+                DataPoint(t: "2026-03-01", v: 60, n: 1), // date-ok
+                DataPoint(t: "2026-03-15", v: 58, n: 1), // date-ok
+                DataPoint(t: "2026-03-28", v: 56, n: 1), // date-ok
             ]),
         ])
         mock.requestHandler = { _, _, _ in heroResponse }
@@ -238,8 +238,8 @@ struct DashboardViewModelTests {
         let mock = MockNetworkClient()
         let heroResponse = BatchSeriesResponse(series: [
             SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
-                DataPoint(t: "2026-03-01", v: 60.0, n: 1),
-                DataPoint(t: "2026-03-28", v: 59.99, n: 1),
+                DataPoint(t: "2026-03-01", v: 60.0, n: 1), // date-ok
+                DataPoint(t: "2026-03-28", v: 59.99, n: 1), // date-ok
             ]),
         ])
         mock.requestHandler = { _, _, _ in heroResponse }
@@ -257,8 +257,8 @@ struct DashboardViewModelTests {
         // Latest is below the average -> a decrease in resting HR -> good.
         let heroResponse = BatchSeriesResponse(series: [
             SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
-                DataPoint(t: "2026-03-01", v: 70, n: 1),
-                DataPoint(t: "2026-03-28", v: 55, n: 1),
+                DataPoint(t: "2026-03-01", v: 70, n: 1), // date-ok
+                DataPoint(t: "2026-03-28", v: 55, n: 1), // date-ok
             ]),
         ])
         mock.requestHandler = { _, _, _ in heroResponse }
@@ -281,8 +281,8 @@ struct DashboardViewModelTests {
         let mock = MockNetworkClient()
         let heroResponse = BatchSeriesResponse(series: [
             SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
-                DataPoint(t: "2026-03-01", v: 55, n: 1),
-                DataPoint(t: "2026-03-28", v: 70, n: 1),
+                DataPoint(t: "2026-03-01", v: 55, n: 1), // date-ok
+                DataPoint(t: "2026-03-28", v: 70, n: 1), // date-ok
             ]),
         ])
         mock.requestHandler = { _, _, _ in heroResponse }
@@ -316,8 +316,8 @@ struct DashboardViewModelTests {
         let mock = MockNetworkClient()
         let heroResponse = BatchSeriesResponse(series: [
             SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
-                DataPoint(t: "2026-03-01", v: 60, n: 1),
-                DataPoint(t: "2026-03-28", v: 56, n: 1),
+                DataPoint(t: "2026-03-01", v: 60, n: 1), // date-ok
+                DataPoint(t: "2026-03-28", v: 56, n: 1), // date-ok
             ]),
         ])
         mock.requestHandler = { _, _, _ in heroResponse }
@@ -380,8 +380,8 @@ struct DashboardViewModelTests {
         let summary = makeSummary()
         let heroResponse = BatchSeriesResponse(series: [
             SeriesData(source: "health_records", field: "resting_heart_rate", unit: "bpm", points: [
-                DataPoint(t: "2026-03-01", v: 60, n: 1),
-                DataPoint(t: "2026-03-28", v: 56, n: 1),
+                DataPoint(t: "2026-03-01", v: 60, n: 1), // date-ok
+                DataPoint(t: "2026-03-28", v: 56, n: 1), // date-ok
             ]),
         ])
         mock.requestHandler = { _, path, _ in
