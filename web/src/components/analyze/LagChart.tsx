@@ -4,6 +4,7 @@
 import { VisAxis, VisCrosshair, VisGroupedBar, VisTooltip, VisXYContainer } from "@unovis/react";
 import { useCallback } from "react";
 import type { LagEntry } from "../../api/stats";
+import { ACCENT_COLOR, PRIMARY_COLOR } from "../explore/chartMetricColors.generated";
 
 interface LagChartProps {
   lags: LagEntry[];
@@ -14,7 +15,7 @@ export function LagChart({ lags, bestLag }: LagChartProps) {
   const x = useCallback((_d: LagEntry, i: number) => i, []);
   const y = useCallback((d: LagEntry) => d.r, []);
   const color = useCallback(
-    (d: LagEntry) => (d.lag === bestLag ? "#c2654a" : "#3d8b8b"),
+    (d: LagEntry) => (d.lag === bestLag ? PRIMARY_COLOR : ACCENT_COLOR),
     [bestLag],
   );
   const tickFormat = useCallback(
