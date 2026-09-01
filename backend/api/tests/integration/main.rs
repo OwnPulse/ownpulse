@@ -26,6 +26,7 @@ mod mychart;
 mod observations;
 mod observer_polls;
 mod password_reset;
+mod protocol_adherence;
 mod protocol_runs;
 mod protocol_templates;
 mod protocols;
