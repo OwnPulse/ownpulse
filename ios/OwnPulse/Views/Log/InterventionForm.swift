@@ -8,6 +8,23 @@ struct InterventionForm: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            // Quick Pick (active protocol substances)
+            if !viewModel.activeSubstances.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Quick Pick")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.activeSubstances) { item in
+                                quickPickChip(item)
+                            }
+                        }
+                    }
+                }
+                .accessibilityIdentifier("quickPickSection")
+            }
+
             // Saved Medicines
             if !viewModel.savedMedicines.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -112,7 +129,37 @@ struct InterventionForm: View {
         }
         .task {
             await viewModel.loadSavedMedicines()
+            await viewModel.loadActiveSubstances()
         }
+    }
+
+    private func quickPickChip(_ item: ActiveSubstance) -> some View {
+        Button {
+            viewModel.applyActiveSubstance(item)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(quickPickLabel(item))
+                    .font(.caption)
+                Text(item.protocolName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Capsule().stroke(OPColor.teal, lineWidth: 1))
+        }
+        .accessibilityIdentifier("quickPickChip-\(item.id)")
+    }
+
+    private func quickPickLabel(_ item: ActiveSubstance) -> String {
+        var parts = [item.substance]
+        if let d = item.dose {
+            var dosePart = String(format: "%g", d)
+            if let u = item.unit { dosePart += u }
+            parts.append(dosePart)
+        }
+        if let r = item.route { parts.append(r) }
+        return parts.joined(separator: " ")
     }
 
     private func savedMedicineChip(_ medicine: SavedMedicine) -> some View {

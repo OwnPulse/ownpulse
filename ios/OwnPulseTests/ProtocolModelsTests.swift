@@ -254,4 +254,55 @@ struct ProtocolModelsTests {
         #expect(item.nextDose == nil)
         #expect(item.startDate == nil)
     }
+
+    // MARK: - ActiveSubstance decode regression test
+    //
+    // Pinned to the backend's `ActiveSubstanceItem`
+    // (`backend/api/src/models/protocol.rs`), which has no `protocol_id`
+    // field — unlike web's `ActiveSubstance` TS interface, which declares
+    // one the backend does not actually serialize.
+
+    @Test("ActiveSubstance decodes a full entry with dose/unit/route present")
+    func decodeActiveSubstanceFull() throws {
+        let json = """
+        [
+          {
+            "substance": "BPC-157",
+            "dose": 250.0,
+            "unit": "mcg",
+            "route": "subcutaneous",
+            "protocol_name": "Recovery Stack"
+          }
+        ]
+        """.data(using: .utf8)!
+
+        let items = try decoder.decode([ActiveSubstance].self, from: json)
+        let item = try #require(items.first)
+        #expect(item.substance == "BPC-157")
+        #expect(item.dose == 250.0)
+        #expect(item.unit == "mcg")
+        #expect(item.route == "subcutaneous")
+        #expect(item.protocolName == "Recovery Stack")
+    }
+
+    @Test("ActiveSubstance decodes with dose/unit/route absent")
+    func decodeActiveSubstanceNullFields() throws {
+        let json = """
+        [
+          {
+            "substance": "Creatine",
+            "dose": null,
+            "unit": null,
+            "route": null,
+            "protocol_name": "Stack"
+          }
+        ]
+        """.data(using: .utf8)!
+
+        let items = try decoder.decode([ActiveSubstance].self, from: json)
+        let item = try #require(items.first)
+        #expect(item.dose == nil)
+        #expect(item.unit == nil)
+        #expect(item.route == nil)
+    }
 }

@@ -75,6 +75,9 @@ final class LogViewModel {
     var fasted = false
     var interventionNotes = ""
     var savedMedicines: [SavedMedicine] = []
+    /// Substances from the user's currently active protocol runs, offered as
+    /// quick-pick chips above "My Medicines" on the intervention form.
+    var activeSubstances: [ActiveSubstance] = []
 
     static let doseUnits = ["mg", "mcg", "mL", "IU", "g", "drops", "puffs"]
     static let routes = ["oral", "sublingual", "subq", "IM", "IV", "topical", "inhaled", "nasal", "rectal", "transdermal"]
@@ -521,6 +524,28 @@ final class LogViewModel {
         if let d = medicine.dose { dose = String(d) }
         if let u = medicine.unit { doseUnit = u }
         if let r = medicine.route { route = r }
+    }
+
+    // MARK: - Active Substances (quick pick)
+
+    func loadActiveSubstances() async {
+        do {
+            let substances: [ActiveSubstance] = try await networkClient.request(
+                method: "GET",
+                path: Endpoints.activeSubstances,
+                body: nil as String?
+            )
+            activeSubstances = substances
+        } catch {
+            logger.error("Failed to load active substances: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    func applyActiveSubstance(_ item: ActiveSubstance) {
+        substance = item.substance
+        if let d = item.dose { dose = String(d) }
+        if let u = item.unit { doseUnit = u }
+        if let r = item.route { route = r }
     }
 
     // MARK: - Reset

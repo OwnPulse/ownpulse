@@ -282,4 +282,74 @@ struct LogViewModelTests {
         vm.selectedTab = .checkin
         #expect(vm.selectedTab == .checkin)
     }
+
+    // MARK: - Active Substances (quick pick)
+
+    @Test("loadActiveSubstances success populates the list")
+    func loadActiveSubstancesSuccess() async {
+        let mock = MockNetworkClient()
+        let items = [
+            ActiveSubstance(substance: "BPC-157", dose: 250, unit: "mcg", route: "subq", protocolName: "Recovery Stack")
+        ]
+        mock.requestHandler = { _, _, _ in items }
+
+        let vm = LogViewModel(networkClient: mock)
+        await vm.loadActiveSubstances()
+
+        #expect(vm.activeSubstances.count == 1)
+        #expect(mock.requestCalls[0].path == Endpoints.activeSubstances)
+        #expect(mock.requestCalls[0].method == "GET")
+    }
+
+    @Test("loadActiveSubstances failure leaves the list empty without crashing")
+    func loadActiveSubstancesFailure() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.serverError(statusCode: 500, body: "internal error") }
+
+        let vm = LogViewModel(networkClient: mock)
+        await vm.loadActiveSubstances()
+
+        #expect(vm.activeSubstances.isEmpty)
+    }
+
+    @Test("loadActiveSubstances unauthorized leaves the list empty without crashing")
+    func loadActiveSubstancesUnauthorized() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.unauthorized }
+
+        let vm = LogViewModel(networkClient: mock)
+        await vm.loadActiveSubstances()
+
+        #expect(vm.activeSubstances.isEmpty)
+    }
+
+    @Test("applyActiveSubstance fills substance, dose, unit, and route")
+    func applyActiveSubstanceFillsForm() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        let item = ActiveSubstance(substance: "BPC-157", dose: 250, unit: "mcg", route: "subq", protocolName: "Recovery Stack")
+
+        vm.applyActiveSubstance(item)
+
+        #expect(vm.substance == "BPC-157")
+        #expect(vm.dose == "250.0")
+        #expect(vm.doseUnit == "mcg")
+        #expect(vm.route == "subq")
+    }
+
+    @Test("applyActiveSubstance leaves fields unset when dose/unit/route are nil")
+    func applyActiveSubstanceHandlesNilFields() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        vm.doseUnit = "mg"
+        vm.route = "oral"
+        let item = ActiveSubstance(substance: "Creatine", dose: nil, unit: nil, route: nil, protocolName: "Stack")
+
+        vm.applyActiveSubstance(item)
+
+        #expect(vm.substance == "Creatine")
+        #expect(vm.dose == "")
+        #expect(vm.doseUnit == "mg")
+        #expect(vm.route == "oral")
+    }
 }

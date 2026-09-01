@@ -1486,6 +1486,32 @@
           }
         }
       }
+    },
+    {
+      "description": "a request to list active protocol substances for quick-pick",
+      "providerState": "an active protocol run with substances exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/active-substances",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "substance": "BPC-157",
+            "dose": 250.0,
+            "unit": "mcg",
+            "route": "subcutaneous",
+            "protocol_name": "Recovery Stack"
+          }
+        ]
+      }
     }
   ],
   "metadata": {

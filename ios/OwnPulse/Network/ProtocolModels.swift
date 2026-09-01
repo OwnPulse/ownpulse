@@ -243,11 +243,35 @@ struct StartRunRequest: Codable, Sendable {
     }
 }
 
+// MARK: - Active Substances (quick-pick on the Log form)
+
+/// One entry per line across the user's currently active protocol runs,
+/// used to pre-fill the intervention log form without retyping
+/// dose/unit/route. Modeled on the backend's `ActiveSubstanceItem`
+/// (`backend/api/src/models/protocol.rs`) — note that shape has no
+/// `protocol_id` field (unlike web's `ActiveSubstance` TS interface in
+/// `web/src/api/protocols.ts`, which declares one that the backend does not
+/// actually serialize); `id` below is synthesized client-side instead.
+struct ActiveSubstance: Codable, Sendable, Identifiable {
+    var id: String { "\(protocolName)-\(substance)-\(dose ?? 0)-\(unit ?? "")" }
+    let substance: String
+    let dose: Double?
+    let unit: String?
+    let route: String?
+    let protocolName: String
+
+    enum CodingKeys: String, CodingKey {
+        case substance, dose, unit, route
+        case protocolName = "protocol_name"
+    }
+}
+
 // MARK: - Endpoint Extensions
 
 extension Endpoints {
     static let protocols = "/api/v1/protocols"
     static let activeRuns = "/api/v1/protocols/runs/active"
+    static let activeSubstances = "/api/v1/protocols/active-substances"
 
     static func protocolDetail(_ id: String) -> String {
         "/api/v1/protocols/\(id)"
