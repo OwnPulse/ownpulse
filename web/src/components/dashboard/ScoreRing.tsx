@@ -1,15 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 
+import { DIMENSION_COLORS } from "../dimensionColors.generated";
 import styles from "./ScoreRing.module.css";
-
-const SCORE_COLORS: Record<string, string> = {
-  energy: "#c49a3c",
-  mood: "#c2654a",
-  focus: "#3d8b8b",
-  recovery: "#5a8a5a",
-  libido: "#7b61c2",
-};
 
 interface ScoreRingProps {
   label: string;
@@ -21,8 +14,12 @@ const STROKE = 5;
 const SIZE = (RADIUS + STROKE) * 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
+// label is a plain string prop (unlike SparklineRow's typed Dimension), so the
+// lookup can miss — widen for the index access rather than narrowing the prop.
+const dimensionColors: Record<string, string> = DIMENSION_COLORS;
+
 export function ScoreRing({ label, value }: ScoreRingProps) {
-  const color = SCORE_COLORS[label] ?? "#999";
+  const color = dimensionColors[label] ?? "#999";
   const progress = value != null ? value / 10 : 0;
   const offset = CIRCUMFERENCE * (1 - progress);
   const hasValue = value != null;
@@ -63,9 +60,9 @@ export function ScoreRing({ label, value }: ScoreRingProps) {
           />
         )}
       </svg>
-      <span className={styles.value} style={hasValue ? { color } : undefined}>
-        {hasValue ? value : "\u2014"}
-      </span>
+      {/* Not tinted with the dimension color: some tokens (e.g. energy) only
+          clear WCAG AA at 3:1 as a graphical ring stroke, not 4.5:1 as text. */}
+      <span className={styles.value}>{hasValue ? value : "\u2014"}</span>
       <span className={styles.label}>{label}</span>
     </div>
   );

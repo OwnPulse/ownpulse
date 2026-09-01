@@ -36,3 +36,20 @@
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
+
+.syncError {
+  font-size: var(--text-sm);
+  color: var(--color-error);
+  /* Sync error messages come straight from the upstream provider/backend and
+     can be arbitrarily long — clip instead of blowing out the row layout.
+     The full text is still available via the `title` tooltip. */
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.connectHint {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

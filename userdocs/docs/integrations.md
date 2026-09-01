@@ -4,7 +4,7 @@ OwnPulse can pull data from external services to complement your manual entries 
 
 ## Viewing connected sources
 
-The web **Sources** page lists the integrations you've connected, each shown as **Connected** with a **Disconnect** button. It only lists sources you've already authorized -- it does not show a catalog of available-but-not-yet-connected integrations, and it does not surface a separate "error" or sync-failure status.
+The web **Sources** page lists the integrations you've connected, each shown as **Connected** with a **Disconnect** button and, if a sync has ever failed, the error from that attempt. Garmin, Oura, and Google Calendar also get a **Sync now** button there to trigger a fetch immediately instead of waiting for the next scheduled run. It only lists sources you've already authorized -- it does not show a full catalog of available-but-not-yet-connected integrations, except for Google Calendar, which always gets a row (with connecting from the web not available yet -- see below).
 
 ## Connecting a new source
 
@@ -29,7 +29,7 @@ When multiple sources report the same metric (for example, heart rate from both 
 
 ## Sync schedule
 
-Connected Garmin and Oura integrations sync automatically every 15 minutes, fetching data since your last successful sync (or the last 7 days, on first connect). You do not need to manually trigger syncs. A `POST /integrations/garmin/sync` / `POST /integrations/oura/sync` endpoint exists for triggering a sync immediately instead of waiting for the next scheduled run, but there is no web or iOS button for it yet.
+Connected Garmin, Oura, and Google Calendar integrations sync automatically every 15 minutes, fetching data since your last successful sync (or the last 7 days, on first connect). You don't need to manually trigger syncs, but the web Sources page has a **Sync now** button next to each of these if you don't want to wait for the next scheduled run.
 
 If a sync attempt fails (for example, the third-party service is temporarily unavailable), OwnPulse leaves your last-synced timestamp where it was, so nothing from that time window is lost -- the next scheduled sync picks up from the same point and retries automatically.
 
@@ -37,7 +37,10 @@ If a sync attempt fails (for example, the third-party service is temporarily una
 
 Google Calendar integration reads your meeting schedule to compute two numbers per day -- **meeting count** and **total meeting minutes** -- so you can correlate schedule load with your health metrics. It is strictly read-only (OwnPulse never modifies your calendar) and strictly aggregate: event titles, descriptions, attendees, and locations are never read into or stored by OwnPulse -- OwnPulse asks Google to not even send them, rather than fetching and discarding them. All-day entries (holidays, out-of-office blocks), out-of-office/focus-time/working-location events, and meetings you declined aren't counted. Days are grouped by UTC date, which may occasionally shift a late-evening meeting onto the next day if you're west of UTC.
 
-This is separate from linking your Google account for sign-in (**Settings > Linked Accounts**) -- Google Calendar access is authorized independently, since it requires its own permission scope. There is no web or iOS **Connect** button for it yet; connecting currently requires visiting `/api/v1/auth/google-calendar/login` on your OwnPulse instance while signed in. Once connected, Google Calendar syncs automatically every 15 minutes (same schedule as Garmin/Oura) and the integration appears on the Sources page like any other connected source.
+This is separate from linking your Google account for sign-in (**Settings > Linked Accounts**) -- Google Calendar access is authorized independently, since it requires its own permission scope. Once connected, Google Calendar syncs automatically every 15 minutes (same schedule as Garmin/Oura) and the integration appears on the Sources page like any other connected source.
+
+!!! note "Connecting from the web isn't available yet"
+    The Sources page shows Google Calendar's Connect button as disabled with a "coming soon" label. Web browser navigation can't carry your session token the way the app's own API calls do, and the backend's connect route currently requires one on both the initial request and the return leg -- there's no working path today, regardless of how or when you signed in. This is tracked for a fix; once it lands, Connect will work from the web for any signed-in session.
 
 ## MyChart and other patient portals
 

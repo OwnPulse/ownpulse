@@ -143,9 +143,9 @@ struct ProtocolBuilderView: View {
             Section {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(OPColor.error)
                     Text(message)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(OPColor.error)
                         .font(.caption)
                 }
                 .accessibilityIdentifier("builderError")

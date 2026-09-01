@@ -24,7 +24,7 @@ struct SleepEntryForm: View {
             if viewModel.sleepMinutesOutOfRange {
                 Text("Minutes must be 0–59. Use the hours field for 60 or more.")
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(OPColor.error)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .accessibilityIdentifier("sleepMinutesHint")
             }

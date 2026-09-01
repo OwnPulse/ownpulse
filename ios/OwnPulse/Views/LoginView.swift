@@ -89,7 +89,7 @@ struct LoginView: View {
 
                     if let errorMessage = vm.errorMessage {
                         Text(errorMessage)
-                            .foregroundStyle(.red)
+                            .foregroundStyle(OPColor.error)
                             .font(.caption)
                             .multilineTextAlignment(.center)
                             .accessibilityIdentifier("loginError")

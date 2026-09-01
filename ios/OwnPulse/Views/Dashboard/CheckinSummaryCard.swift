@@ -22,7 +22,7 @@ struct CheckinSummaryCard: View {
             ScoreItem(label: "Mood", value: checkin.mood, color: OPColor.terracotta),
             ScoreItem(label: "Focus", value: checkin.focus, color: OPColor.teal),
             ScoreItem(label: "Recovery", value: checkin.recovery, color: OPColor.sage),
-            ScoreItem(label: "Libido", value: checkin.libido, color: Color.purple),
+            ScoreItem(label: "Libido", value: checkin.libido, color: OPColor.purple),
         ]
     }
 

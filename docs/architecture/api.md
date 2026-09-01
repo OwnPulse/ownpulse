@@ -507,6 +507,15 @@ sources ordered by descending record count:
 Metrics with only one source are omitted. The user resolves each conflict by
 writing a preference via `POST /source-preferences`.
 
+`preferred_source` is validated against the known set of health-record
+sources (`garmin`, `oura`, `manual`, `healthkit`) — `POST /source-preferences`
+returns `400` for any other value, since a preference naming a source that
+can never appear on a `health_records` row could otherwise sit silently
+inert. Preferences determine which row is canonical in aggregate reads (see
+`GET /explore/series` and `GET /dashboard/summary`); they do not affect
+`GET /health-records`, export, or friend-shared views, which always return
+every row.
+
 ### Integrations
 
 | Method | Path | Description | Phase |
@@ -943,6 +952,8 @@ Fetch a single time series with aggregation.
 
 Each point contains: `t` (bucket timestamp), `v` (average value), `n` (number of raw records in the bucket).
 
+For `source=health_records`, `n` and `v` reflect one row per dedup pair, not raw row counts: a duplicate pair (see "Source Preferences" below) collapses to whichever row is canonical (the user's preference if one names either side of the pair, otherwise the original/first-arriving row by default) — the other side is excluded from `n` and from the average/sum. `GET /health-records` returns the raw, uncollapsed rows.
+
 **Errors:** `400` if source or field is invalid.
 
 #### `POST /explore/series`
@@ -1362,6 +1373,7 @@ Observer exports all their responses across all polls.
 | POST | `/protocols/runs/:run_id/doses/skip` | Skip a dose on an active run | 1 |
 | DELETE | `/protocols/runs/:run_id/doses/:dose_id` | Undo a logged/skipped dose on a run | 1 |
 | GET | `/protocols/runs/todays-doses` | Today's scheduled doses across all of the user's active runs | 1 |
+| GET | `/protocols/active-substances` | Distinct substance/dose/unit/route across all of the user's active runs, for quick-pick UI | 1 |
 | GET | `/protocols/runs/:run_id/doses` | Dose status for every scheduled day of a run, in a `from_day..to_day` range | 1 |
 | GET | `/protocols/runs/missed-doses` | Scheduled-but-missed days across all of the user's active runs | 1 |
 | GET | `/protocols/runs/:run_id/adherence` | Adherence summary (scheduled/completed/skipped/missed) for a run, overall + per line | 1 |
@@ -1560,6 +1572,27 @@ whose `schedule_pattern` marks today's day number as active.
 `status` is `null` until a dose is logged or skipped for that line today, then
 `"completed"` or `"skipped"`. `protocol_line_id` is the id to send back to the
 log/skip endpoints above.
+
+#### `GET /protocols/active-substances`
+
+Distinct substance/dose/unit/route combinations across all of the user's
+currently active runs (`DISTINCT ON`, one row per unique combination even if
+multiple lines/runs share it), for a quick-pick substance list when logging
+an ad hoc intervention.
+
+**Response:** `200 OK`
+
+```json
+[
+  {
+    "substance": "BPC-157",
+    "dose": 250.0,
+    "unit": "mcg",
+    "route": "subcutaneous",
+    "protocol_name": "Recovery Stack"
+  }
+]
+```
 
 #### Canonical dose-status rule
 
@@ -1931,7 +1964,10 @@ All three endpoints share a `MetricRef` shape for identifying a metric:
 `{ "source": "string", "field": "string" }` (same source/field pairs as
 `/explore/series`). `resolution` is **required** on all three requests (one
 of `daily`, `weekly`, `monthly` — there is no default). `method` (where
-present) is `pearson` (default) or `spearman`.
+present) is `pearson` (default) or `spearman`. All three read
+`health_records` through the same `db::explore::query_series` path as
+`GET /explore/series`, so the source-preference dedup collapse described
+above applies here too.
 
 #### `POST /stats/correlate`
 

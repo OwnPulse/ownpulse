@@ -131,7 +131,7 @@ struct InterventionForm: View {
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 50)
-                .background(OPColor.teal)
+                .background(OPColor.terracotta)
                 .foregroundStyle(.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12))
             }
