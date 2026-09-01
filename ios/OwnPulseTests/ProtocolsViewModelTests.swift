@@ -496,7 +496,11 @@ struct ProtocolsViewModelTests {
 
         #expect(mock.requestCalls[0].method == "POST")
         #expect(mock.requestCalls[0].path == Endpoints.runSkipDose("run-1"))
-        #expect(mock.requestCalls.count == 4)
+        // Skip + adherence + run-doses + missed-doses + quiet protocol
+        // re-fetch — same shared refreshAfterDoseAction() as logDose (see
+        // logDoseWithRun above). This count drifted out of sync when
+        // loadMissedDoses() was added to that helper; keep it matching.
+        #expect(mock.requestCalls.count == 5)
     }
 
     // MARK: - Dose Reminder Rebuild Hook
