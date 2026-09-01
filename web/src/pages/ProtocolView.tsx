@@ -53,14 +53,20 @@ export default function ProtocolView() {
   });
 
   const activeRun = runs?.find((r) => r.status === "active") ?? null;
+  // Active-else-most-recent — the same choice the backend's own
+  // resolve_current_run_id makes for get_by_id/get_shared. `runs` is
+  // already ordered created_at DESC (see listRuns), so runs[0] is "most
+  // recent" without a separate sort. A paused or completed run still has a
+  // schedule and adherence worth showing — just not editable.
+  const displayRun = activeRun ?? runs?.[0] ?? null;
 
   const { data: adherence } = useQuery({
-    queryKey: ["run-adherence", activeRun?.id],
+    queryKey: ["run-adherence", displayRun?.id],
     queryFn: () => {
-      if (!activeRun) throw new Error("No active run");
-      return protocolsApi.runAdherence(activeRun.id);
+      if (!displayRun) throw new Error("No run");
+      return protocolsApi.runAdherence(displayRun.id);
     },
-    enabled: !!activeRun,
+    enabled: !!displayRun,
   });
 
   const shareMutation = useMutation({
@@ -111,7 +117,7 @@ export default function ProtocolView() {
   if (isLoading) return <main className="op-page">Loading...</main>;
   if (isError || !protocol) return <main className="op-page">Error loading protocol.</main>;
 
-  const elapsedPct = activeRun ? Math.round(activeRun.progress_pct) : 0;
+  const elapsedPct = displayRun ? Math.round(displayRun.progress_pct) : 0;
 
   return (
     <main className={`op-page ${styles.page}`}>
@@ -130,18 +136,18 @@ export default function ProtocolView() {
 
       <div className={styles.meta}>
         {protocol.duration_days} days
-        {activeRun ? ` · Run started ${activeRun.start_date}` : ""}
+        {displayRun ? ` · Run started ${displayRun.start_date}` : ""}
       </div>
 
       {/* Adherence header — server-computed, closed-days-only */}
-      {activeRun && (
+      {displayRun && (
         <div className={styles.progressSection}>
           <span className={styles.progressLabel}>{adherenceSummary(adherence)}</span>
         </div>
       )}
 
       {/* Elapsed-time progress bar (secondary to adherence) */}
-      {activeRun && (
+      {displayRun && (
         <div className={styles.progressSection}>
           <span className={styles.progressLabel}>{elapsedPct}% of run elapsed</span>
           <div className={styles.progressBar}>
@@ -227,13 +233,26 @@ export default function ProtocolView() {
         )}
       </section>
 
-      {/* Dose status grid — backed by the server's per-day dose status;
-          each scheduled cell is itself a Log/Skip/Undo control, so there is
-          no separate "today's doses" list on this page anymore. */}
+      {/* Dose status grid — backed by the server's per-day dose status. For
+          the active run, each scheduled cell is itself a Log/Skip/Undo
+          control, so there is no separate "today's doses" list on this
+          page. A paused/completed run still shows its history, read-only. */}
       <section className={styles.gridSection}>
         <h2>Schedule</h2>
-        {activeRun ? (
-          <DoseStatusGrid runId={activeRun.id} durationDays={protocol.duration_days} />
+        {displayRun ? (
+          <>
+            {displayRun.status !== "active" && (
+              <p className={styles.emptyDoses}>
+                This run is {displayRun.status} — showing read-only history.
+              </p>
+            )}
+            <DoseStatusGrid
+              runId={displayRun.id}
+              durationDays={protocol.duration_days}
+              lines={protocol.lines.map((l) => ({ id: l.id, substance: l.substance }))}
+              interactive={displayRun.status === "active"}
+            />
+          </>
         ) : (
           <p className={styles.emptyDoses}>Start a run to see your schedule.</p>
         )}

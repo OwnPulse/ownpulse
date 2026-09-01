@@ -257,4 +257,44 @@ test.describe("Protocol dose backfill via the schedule grid", () => {
     await expect(page.getByRole("button", { name: "Day 2, missed — log or skip" })).toBeVisible();
     await expect(page.getByRole("alert")).toContainText("hasn't happened yet");
   });
+
+  test("a paused run renders a view-only grid with adherence, no Log/Skip/Undo controls", async ({
+    page,
+  }) => {
+    const pausedRun = { ...activeRun, status: "paused" };
+    await page.route("**/api/v1/protocols/proto-1/runs", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([pausedRun]),
+      }),
+    );
+    await page.route("**/api/v1/protocols/runs/run-1/doses*", (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname.endsWith("/doses")) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            runDoseItem(0, "completed"),
+            runDoseItem(1, "missed"),
+            runDoseItem(2, "pending"),
+          ]),
+        });
+      }
+      return route.continue();
+    });
+
+    await page.goto("/protocols/proto-1");
+
+    await expect(page.getByRole("heading", { name: "BPC-157 Stack" })).toBeVisible();
+    await expect(page.getByText(/this run is paused — showing read-only history/i)).toBeVisible();
+    await expect(page.getByText(/adherence/)).toBeVisible();
+
+    // History is still visible, just not interactive.
+    await expect(page.getByRole("img", { name: "Day 1, completed" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Day 2, missed" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /log or skip/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /undo/ })).toHaveCount(0);
+  });
 });

@@ -12,8 +12,10 @@ import ProtocolView from "../../src/pages/ProtocolView";
 import { useAuthStore } from "../../src/store/auth";
 
 vi.mock("../../src/components/protocols/DoseStatusGrid", () => ({
-  DoseStatusGrid: ({ runId }: { runId: string }) => (
-    <div data-testid="dose-grid">Grid for {runId}</div>
+  DoseStatusGrid: ({ runId, interactive }: { runId: string; interactive: boolean }) => (
+    <div data-testid="dose-grid">
+      Grid for {runId} ({interactive ? "interactive" : "read-only"})
+    </div>
   ),
 }));
 
@@ -284,7 +286,7 @@ describe("ProtocolView with runs", () => {
       expect(screen.getByTestId("dose-grid")).toBeDefined();
     });
 
-    expect(screen.getByText("Grid for run-1")).toBeDefined();
+    expect(screen.getByText("Grid for run-1 (interactive)")).toBeDefined();
   });
 
   it("shows adherence summary from the adherence endpoint", async () => {
@@ -319,10 +321,10 @@ describe("ProtocolView with runs", () => {
     });
   });
 
-  it("shows a hint instead of the schedule grid when there is no active run", async () => {
+  it("shows a hint instead of the schedule grid only when there are no runs at all", async () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[1]])), // completed only
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([])),
     );
 
     renderWithProviders();
@@ -335,18 +337,59 @@ describe("ProtocolView with runs", () => {
     expect(screen.queryByTestId("dose-grid")).toBeNull();
   });
 
-  it("shows the same hint when the only run is paused", async () => {
+  it("falls back to the most recent run and renders a read-only grid when there is no active run (completed only)", async () => {
     server.use(
       http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
-      http.get("/api/v1/protocols/:id/runs", () =>
-        HttpResponse.json([{ ...runs[0], status: "paused" }]),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[1]])), // completed only
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
       ),
     );
 
     renderWithProviders();
 
     await waitFor(() => {
-      expect(screen.getByText("Start a run to see your schedule.")).toBeDefined();
+      expect(screen.getByTestId("dose-grid")).toBeDefined();
+    });
+
+    expect(screen.getByText("Grid for run-2 (read-only)")).toBeDefined();
+    expect(screen.getByText(/this run is completed — showing read-only history/i)).toBeDefined();
+  });
+
+  it("falls back to the most recent run and renders a read-only grid when the only run is paused", async () => {
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () =>
+        HttpResponse.json([{ ...runs[0], status: "paused" }]),
+      ),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
+      ),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText("Grid for run-1 (read-only)")).toBeDefined();
+    });
+    expect(screen.getByText(/this run is paused — showing read-only history/i)).toBeDefined();
+  });
+
+  it("prefers the active run over a more recent non-active run", async () => {
+    // runs[] is ordered created_at DESC like the real API — an older
+    // active run must still win over a newer completed one.
+    server.use(
+      http.get("/api/v1/protocols/:id", () => HttpResponse.json(protocol)),
+      http.get("/api/v1/protocols/:id/runs", () => HttpResponse.json([runs[1], runs[0]])),
+      http.get("/api/v1/protocols/runs/:runId/adherence", () =>
+        HttpResponse.json(adherenceResponse),
+      ),
+    );
+
+    renderWithProviders();
+
+    await waitFor(() => {
+      expect(screen.getByText("Grid for run-1 (interactive)")).toBeDefined();
     });
   });
 

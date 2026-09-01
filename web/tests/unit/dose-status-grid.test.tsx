@@ -34,11 +34,23 @@ function makeItem(day: number, overrides: Partial<Record<string, unknown>> = {})
   };
 }
 
-function renderGrid(runId = "run-1", durationDays = 3) {
+const defaultLines = [{ id: "line-1", substance: "BPC-157" }];
+
+function renderGrid(
+  runId = "run-1",
+  durationDays = 3,
+  lines: { id: string; substance: string }[] = defaultLines,
+  interactive = true,
+) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <DoseStatusGrid runId={runId} durationDays={durationDays} />
+      <DoseStatusGrid
+        runId={runId}
+        durationDays={durationDays}
+        lines={lines}
+        interactive={interactive}
+      />
     </QueryClientProvider>,
   );
 }
@@ -297,5 +309,108 @@ describe("DoseStatusGrid", () => {
     });
     expect(screen.queryByLabelText(/Day 2,/)).toBeNull();
     expect(screen.queryByLabelText(/Day 3,/)).toBeNull();
+  });
+
+  it("orders rows by the protocol's line list, not first-appearance in the doses response", async () => {
+    // "Second Line" is unscheduled on day 0 (absent from that day's data)
+    // but must still sort first, matching the `lines` prop order — not
+    // last, which first-appearance-in-response would produce.
+    server.use(
+      http.get("/api/v1/protocols/runs/:runId/doses", () =>
+        HttpResponse.json([
+          { ...makeItem(0, { status: "pending" }), protocol_line_id: "line-1" },
+          { ...makeItem(1, { status: "pending" }), protocol_line_id: "line-1" },
+          {
+            ...makeItem(1, { status: "pending" }),
+            protocol_line_id: "line-2",
+            substance: "TB-500",
+          },
+        ]),
+      ),
+    );
+
+    renderGrid("run-1", 2, [
+      { id: "line-2", substance: "TB-500" },
+      { id: "line-1", substance: "BPC-157" },
+    ]);
+
+    await waitFor(() => {
+      expect(screen.getByText("TB-500")).toBeDefined();
+    });
+
+    const labels = screen.getAllByTitle(/BPC-157|TB-500/).map((el) => el.textContent);
+    expect(labels).toEqual(["TB-500", "BPC-157"]);
+  });
+
+  it("renders a fully-off row for a line with every day paused/unscheduled", async () => {
+    // "TB-500" has no rows at all in the doses response (e.g. every day is
+    // paused) — it must still appear as a row instead of vanishing.
+    server.use(
+      http.get("/api/v1/protocols/runs/:runId/doses", () =>
+        HttpResponse.json([makeItem(0, { status: "pending" })]),
+      ),
+    );
+
+    renderGrid("run-1", 2, [
+      { id: "line-1", substance: "BPC-157" },
+      { id: "line-2", substance: "TB-500" },
+    ]);
+
+    await waitFor(() => {
+      // The row label renders even though the line has no data at all —
+      // it doesn't just silently disappear.
+      expect(screen.getByText("TB-500")).toBeDefined();
+    });
+    // line-1's actual scheduled cell still renders normally alongside it.
+    expect(screen.getByLabelText("Day 1, pending — log or skip")).toBeDefined();
+  });
+
+  describe("non-interactive (paused/completed run)", () => {
+    it("renders read-only cells with no Log/Skip/Undo controls", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/:runId/doses", () =>
+          HttpResponse.json([
+            makeItem(0, { status: "completed" }),
+            makeItem(1, { status: "missed" }),
+          ]),
+        ),
+      );
+
+      renderGrid("run-1", 2, defaultLines, false);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText("Day 1, completed")).toBeDefined();
+      });
+      expect(screen.getByLabelText("Day 2, missed")).toBeDefined();
+
+      // None of the interactive affordances exist.
+      expect(screen.queryByLabelText(/undo/)).toBeNull();
+      expect(screen.queryByLabelText(/log or skip/)).toBeNull();
+      expect(screen.queryByRole("button")).toBeNull();
+    });
+
+    it("does not open a popover or mutate on click", async () => {
+      let logCalled = false;
+      server.use(
+        http.get("/api/v1/protocols/runs/:runId/doses", () =>
+          HttpResponse.json([makeItem(0, { status: "missed" })]),
+        ),
+        http.post("/api/v1/protocols/runs/:runId/doses/log", () => {
+          logCalled = true;
+          return HttpResponse.json({});
+        }),
+      );
+
+      const user = userEvent.setup();
+      renderGrid("run-1", 1, defaultLines, false);
+
+      await waitFor(() => {
+        expect(screen.getByLabelText("Day 1, missed")).toBeDefined();
+      });
+      await user.click(screen.getByLabelText("Day 1, missed"));
+
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(logCalled).toBe(false);
+    });
   });
 });

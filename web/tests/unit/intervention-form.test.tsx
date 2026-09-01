@@ -2,7 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { setupServer } from "msw/node";
@@ -334,6 +334,7 @@ describe("InterventionForm", () => {
 
       await user.type(screen.getByLabelText(/substance/i), "BPC-157");
       await user.type(screen.getByLabelText(/dose/i), "250");
+      await user.type(screen.getByLabelText(/unit/i), "mcg");
 
       await waitFor(() => {
         expect(screen.getByLabelText(/count toward bpc stack/i)).toBeDefined();
@@ -350,6 +351,7 @@ describe("InterventionForm", () => {
 
       await user.type(screen.getByLabelText(/substance/i), "BPC-157");
       await user.type(screen.getByLabelText(/dose/i), "250");
+      await user.type(screen.getByLabelText(/unit/i), "mcg");
 
       await waitFor(() => {
         expect(screen.getByLabelText(/count toward bpc stack/i)).toBeChecked();
@@ -377,6 +379,47 @@ describe("InterventionForm", () => {
       await user.type(screen.getByLabelText(/dose/i), "999");
 
       // give the todays-doses query a beat to settle
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByLabelText(/count toward/i)).toBeNull();
+    });
+
+    it("does not show the checkbox when unit doesn't match (250mg vs the scheduled 250mcg)", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/todays-doses", () => HttpResponse.json([pendingToday])),
+      );
+      const user = userEvent.setup();
+      renderForm();
+
+      await user.type(screen.getByLabelText(/substance/i), "BPC-157");
+      await user.type(screen.getByLabelText(/dose/i), "250");
+      await user.type(screen.getByLabelText(/unit/i), "mg");
+
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByLabelText(/count toward/i)).toBeNull();
+    });
+
+    it("does not show the checkbox for a backdated entry (yesterday), even though substance+dose+unit match", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/todays-doses", () => HttpResponse.json([pendingToday])),
+      );
+      const user = userEvent.setup();
+      renderForm();
+
+      await user.type(screen.getByLabelText(/substance/i), "BPC-157");
+      await user.type(screen.getByLabelText(/dose/i), "250");
+      await user.type(screen.getByLabelText(/unit/i), "mcg");
+
+      // Backdate to yesterday. The backend's ±1-day logging tolerance would
+      // still accept this, silently marking *today's* scheduled dose
+      // completed from a stale entry — the checkbox must not offer that.
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const y = yesterday.getFullYear();
+      const m = String(yesterday.getMonth() + 1).padStart(2, "0");
+      const d = String(yesterday.getDate()).padStart(2, "0");
+      const timeInput = screen.getByLabelText(/administered at/i);
+      fireEvent.change(timeInput, { target: { value: `${y}-${m}-${d}T08:00` } });
+
       await new Promise((r) => setTimeout(r, 50));
       expect(screen.queryByLabelText(/count toward/i)).toBeNull();
     });

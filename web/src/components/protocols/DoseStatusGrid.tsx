@@ -10,9 +10,22 @@ import { protocolsApi } from "../../api/protocols";
 import { invalidateDoseQueries } from "../../lib/doseInvalidation";
 import styles from "./DoseStatusGrid.module.css";
 
+/** Enough of a protocol line to label a grid row — from `protocol.lines`,
+ *  not derived from the doses response, so a line with every day
+ *  paused/unscheduled still gets a (fully "off") row instead of vanishing,
+ *  and row order always matches the protocol's own `sort_order`. */
+interface GridLine {
+  id: string;
+  substance: string;
+}
+
 interface DoseStatusGridProps {
   runId: string;
   durationDays: number;
+  lines: GridLine[];
+  /** Log/Skip/Undo controls only make sense for the active run — a paused
+   *  or completed run still shows its history, but read-only. */
+  interactive: boolean;
 }
 
 const STATUS_SYMBOLS: Record<RunDoseItem["status"], string> = {
@@ -106,7 +119,7 @@ function DosePopover({
   );
 }
 
-export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
+export function DoseStatusGrid({ runId, durationDays, lines, interactive }: DoseStatusGridProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState<OpenPopover | null>(null);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
@@ -191,16 +204,14 @@ export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
   if (isError) return <p className={styles.status}>Error loading schedule.</p>;
   if (!data) return null;
 
-  // Rows preserve the order lines first appear in the response (which is
-  // itself ordered by the line's sort_order/day_number on the backend).
-  const lineOrder: string[] = [];
+  // Keyed by the protocol's own line list (sort_order), not first-appearance
+  // in the doses response — a line unscheduled on day 0 would otherwise sort
+  // last, and a line with every day paused/unscheduled wouldn't appear in
+  // the response at all and would vanish from the grid entirely.
   const byLine = new Map<string, Map<number, RunDoseItem>>();
-  const labelByLine = new Map<string, string>();
   for (const item of data) {
     if (!byLine.has(item.protocol_line_id)) {
       byLine.set(item.protocol_line_id, new Map());
-      lineOrder.push(item.protocol_line_id);
-      labelByLine.set(item.protocol_line_id, item.substance);
     }
     byLine.get(item.protocol_line_id)?.set(item.day_number, item);
   }
@@ -234,13 +245,12 @@ export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
         </div>
       ))}
 
-      {lineOrder.map((lineId) => {
-        const days = byLine.get(lineId);
-        const label = labelByLine.get(lineId) ?? "";
+      {lines.map((line) => {
+        const days = byLine.get(line.id);
         return (
-          <div className={styles.row} key={lineId}>
-            <div className={styles.rowLabel} title={label}>
-              {label}
+          <div className={styles.row} key={line.id}>
+            <div className={styles.rowLabel} title={line.substance}>
+              {line.substance}
             </div>
             {dayNumbers.map((d) => {
               const item = days?.get(d);
@@ -248,6 +258,21 @@ export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
                 return <div key={d} className={`${styles.cell} ${styles.off}`} />;
               }
               const isToday = item.date === todayStr;
+
+              if (!interactive) {
+                return (
+                  <div key={d} className={styles.cellWrapper}>
+                    <div
+                      role="img"
+                      className={`${styles.cell} ${styles[item.status]} ${isToday ? styles.today : ""}`}
+                      aria-label={`Day ${d + 1}, ${item.status}`}
+                    >
+                      {STATUS_SYMBOLS[item.status]}
+                    </div>
+                  </div>
+                );
+              }
+
               const actionable = item.status === "missed" || item.status === "pending";
               const activePopover =
                 open && open.protocolLineId === item.protocol_line_id && open.dayNumber === d

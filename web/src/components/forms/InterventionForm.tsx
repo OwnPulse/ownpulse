@@ -7,7 +7,7 @@ import { type CreateIntervention, interventionsApi } from "../../api/interventio
 import { type ActiveSubstance, protocolsApi } from "../../api/protocols";
 import { type SavedMedicine, savedMedicinesApi } from "../../api/savedMedicines";
 import { invalidateDoseQueries } from "../../lib/doseInvalidation";
-import { localNow } from "../../utils/datetime";
+import { localNow, localToday } from "../../utils/datetime";
 import forms from "./forms.module.css";
 import styles from "./InterventionForm.module.css";
 
@@ -71,17 +71,28 @@ export default function InterventionForm() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Today-only attribution: if the entered substance+dose matches a pending
-  // scheduled dose for today, offer to log it against that protocol run
-  // instead of creating a standalone intervention.
+  // Today-only attribution: if the entered substance+dose+unit matches a
+  // pending scheduled dose for today, offer to log it against that
+  // protocol run instead of creating a standalone intervention.
+  //
+  // Gated on administeredAt actually being today (local): a backdated entry
+  // (yesterday's timestamp) would otherwise still match and submit with
+  // *today's* day_number — the backend's ±1-day logging tolerance accepts
+  // that, silently marking today's dose completed from a stale entry.
+  // `administeredAt` is the raw "YYYY-MM-DDTHH:mm" value of the
+  // datetime-local input (already local, no parsing needed).
   const parsedDose = dose ? parseFloat(dose) : null;
-  const matchedDose = todaysDoses.data?.find(
-    (td) =>
-      td.status === "pending" &&
-      td.substance.trim().toLowerCase() === substance.trim().toLowerCase() &&
-      parsedDose != null &&
-      td.dose === parsedDose,
-  );
+  const administeredToday = administeredAt.slice(0, 10) === localToday();
+  const matchedDose = administeredToday
+    ? todaysDoses.data?.find(
+        (td) =>
+          td.status === "pending" &&
+          td.substance.trim().toLowerCase() === substance.trim().toLowerCase() &&
+          parsedDose != null &&
+          td.dose === parsedDose &&
+          (td.unit ?? "").trim().toLowerCase() === unit.trim().toLowerCase(),
+      )
+    : undefined;
 
   const [attributeToProtocol, setAttributeToProtocol] = useState(true);
   // Re-default to checked whenever the matched dose identity changes (not
