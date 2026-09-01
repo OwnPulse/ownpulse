@@ -99,7 +99,7 @@ describe("integrationsApi", () => {
   describe("sync", () => {
     it("returns the sync result on success", async () => {
       server.use(
-        http.post("/api/v1/integrations/google-calendar/sync", () =>
+        http.post("/api/v1/integrations/google_calendar/sync", () =>
           HttpResponse.json({ source: "google_calendar", records_inserted: 5 }),
         ),
       );
@@ -110,7 +110,7 @@ describe("integrationsApi", () => {
     it("rejects with a 401 ApiError and logs out an authenticated session when the refresh also 401s", async () => {
       server.use(
         http.post(
-          "/api/v1/integrations/google-calendar/sync",
+          "/api/v1/integrations/google_calendar/sync",
           () => new HttpResponse("Unauthorized", { status: 401 }),
         ),
         http.post("/api/v1/auth/refresh", () => new HttpResponse("Unauthorized", { status: 401 })),
@@ -126,7 +126,7 @@ describe("integrationsApi", () => {
     it("rejects with an ApiError carrying retryAfterSeconds on 429", async () => {
       server.use(
         http.post(
-          "/api/v1/integrations/google-calendar/sync",
+          "/api/v1/integrations/google_calendar/sync",
           () =>
             new HttpResponse(JSON.stringify({ error: "rate limited" }), {
               status: 429,
@@ -143,7 +143,7 @@ describe("integrationsApi", () => {
     it("rejects with an ApiError on 500", async () => {
       server.use(
         http.post(
-          "/api/v1/integrations/google-calendar/sync",
+          "/api/v1/integrations/google_calendar/sync",
           () => new HttpResponse("Error", { status: 500 }),
         ),
       );

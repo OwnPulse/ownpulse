@@ -1719,7 +1719,7 @@
       "providerState": "a connected google_calendar integration exists",
       "request": {
         "method": "POST",
-        "path": "/api/v1/integrations/google-calendar/sync",
+        "path": "/api/v1/integrations/google_calendar/sync",
         "headers": {
           "Authorization": "Bearer some-jwt-token"
         }
@@ -1732,6 +1732,26 @@
         "body": {
           "source": "google_calendar",
           "records_inserted": 3
+        }
+      }
+    },
+    {
+      "description": "a request to start the Google Calendar connect flow",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/auth/google-calendar/login",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=example&state=example"
         }
       }
     }
