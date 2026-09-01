@@ -65,6 +65,23 @@ Regenerate with `npm run build:tokens` in `tools/design-tokens`.
 | `shadow.sm` | `0 1px 2px rgba(0, 0, 0, 0.06)` |
 | `shadow.md` | `0 4px 12px rgba(0, 0, 0, 0.08)` |
 | `shadow.lg` | `0 8px 24px rgba(0, 0, 0, 0.12)` |
+| `dark.color.link` | `#d98a6e` |
+| `dark.color.link-hover` | `#e0a18a` |
+| `dark.color.success-fg` | `#3cb88a` |
+| `dark.color.bg` | `#1a1a18` |
+| `dark.color.bg-warm` | `#1a1a1e` |
+| `dark.color.surface` | `#1a1a18` |
+| `dark.color.surface-elevated` | `#252523` |
+| `dark.color.text` | `#eeeeea` |
+| `dark.color.text-secondary` | `#c2c2b9` |
+| `dark.color.text-muted` | `#9c9c93` |
+| `dark.color.border` | `#44443f` |
+| `dark.color.border-strong` | `#5e5e57` |
+| `dark.color.error-light` | `#3d2020` |
+| `dark.color.primary-light` | `rgba(178, 87, 60, 0.15)` |
+| `dark.shadow.sm` | `0 1px 2px rgba(0, 0, 0, 0.2)` |
+| `dark.shadow.md` | `0 4px 12px rgba(0, 0, 0, 0.3)` |
+| `dark.shadow.lg` | `0 8px 24px rgba(0, 0, 0, 0.4)` |
 | `chart.intervention` | `#7b61c2` |
 | `chart.metric.heart_rate` | `#d55e00` |
 | `chart.metric.hrv` | `#009e73` |

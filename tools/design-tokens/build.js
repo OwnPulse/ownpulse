@@ -5,8 +5,10 @@
 //
 // Reads the canonical token source (docs/design/tokens.json) and generates
 // reproducible outputs via Style Dictionary:
-//   - web/src/styles/_tokens.css                            CSS custom properties
+//   - web/src/styles/_tokens.css                            CSS custom properties (light :root +
+//                                                            both dark-mode blocks, from the `dark.*` group)
 //   - web/src/components/explore/chartMetricColors.generated.ts  per-metric chart colors (web)
+//   - web/src/components/dimensionColors.generated.ts       check-in dimension colors (web)
 //   - ios/OwnPulse/Theme/Tokens.swift                       OPColor.* + type/spacing/radii constants
 //   - ios/OwnPulse/Theme/ChartColors.swift                  per-metric chart colors (iOS)
 //   - docs/design/tokens-generated.md                       human-readable reference
@@ -127,11 +129,18 @@ const SWIFT_COLOR_MAP = {
   'color.dimension.gold': 'gold',
   'color.dimension.sage': 'sage',
   'color.dimension.purple': 'purple',
+  'color.dimension.energy': 'dimensionEnergy',
+  'color.dimension.mood': 'dimensionMood',
+  'color.dimension.focus': 'dimensionFocus',
+  'color.dimension.recovery': 'dimensionRecovery',
+  'color.dimension.libido': 'dimensionLibido',
   'color.surface.bg-warm': 'warmBg',
   'color.surface.elevated': 'cardLight',
   'color.feedback.success': 'success',
   'color.feedback.warning': 'warning',
   'color.feedback.error': 'error',
+  'dark.color.bg': 'darkBg',
+  'dark.color.surface-elevated': 'cardDark',
 };
 
 // Maps backend `record_type` field strings (as emitted by the explore API —
@@ -226,6 +235,51 @@ export function interventionColor(dictionary) {
   return token.original.value;
 }
 
+// Dark-mode override keys, in the order the two CSS blocks below emit them
+// (matches the order the hand-written variables.css blocks used to use).
+// Keyed to match the CSS custom-property name they override, e.g. 'bg' ->
+// --color-bg.
+export const DARK_COLOR_KEYS = [
+  'link',
+  'link-hover',
+  'success-fg',
+  'bg',
+  'bg-warm',
+  'surface',
+  'surface-elevated',
+  'text',
+  'text-secondary',
+  'text-muted',
+  'border',
+  'border-strong',
+  'error-light',
+  'primary-light',
+];
+export const DARK_SHADOW_KEYS = ['sm', 'md', 'lg'];
+
+// Extracts the dark-mode override group from the token dictionary as
+// { color: { bg: '#1a1a18', ... }, shadow: { sm: '...', ... } }, keyed to the
+// CSS custom-property name each overrides. Single source of truth for BOTH
+// dark-mode CSS blocks in _tokens.css ([data-theme="dark"] and the
+// prefers-color-scheme media query) — those used to be two hand-maintained
+// blocks in variables.css, kept in sync only by copy-paste discipline.
+export function darkTokens(dictionary) {
+  const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join('.'), t]));
+  const color = {};
+  for (const k of DARK_COLOR_KEYS) {
+    const token = byPath.get(`dark.color.${k}`);
+    if (!token) throw new Error(`dark.color.${k} missing from token source`);
+    color[k] = token.original.value;
+  }
+  const shadow = {};
+  for (const k of DARK_SHADOW_KEYS) {
+    const token = byPath.get(`dark.shadow.${k}`);
+    if (!token) throw new Error(`dark.shadow.${k} missing from token source`);
+    shadow[k] = token.original.value;
+  }
+  return { color, shadow };
+}
+
 // --- custom CSS format -----------------------------------------------------
 
 StyleDictionary.registerFormat({
@@ -243,7 +297,42 @@ StyleDictionary.registerFormat({
     // source lists them 900 -> 50). It is deterministic, not source-order;
     // either way CSS custom-property order is irrelevant to resolution.
     const body = lines.map((l) => `  ${l.name}: ${l.value};`).join('\n');
-    return `${HEADER_CSS}\n\n:root {\n${body}\n}\n`;
+
+    const { color: darkColor, shadow: darkShadow } = darkTokens(dictionary);
+    const darkDecls = [
+      ...Object.entries(darkColor).map(([k, v]) => [`--color-${k}`, v]),
+      ...Object.entries(darkShadow).map(([k, v]) => [`--shadow-${k}`, v]),
+    ];
+    const darkBlock = darkDecls.map(([name, v]) => `  ${name}: ${v};`).join('\n');
+    const darkBlockIndented = darkDecls.map(([name, v]) => `    ${name}: ${v};`).join('\n');
+
+    return `${HEADER_CSS}
+
+:root {
+${body}
+}
+
+/* Explicit dark mode. Values from the \`dark.*\` group in docs/design/tokens.json.
+   Selector is :root[data-theme="dark"], not the bare attribute selector,
+   because this file is @imported at the top of variables.css: that import
+   ordering puts these declarations BEFORE variables.css's own plain :root
+   rules (e.g. --color-link's light-mode default) in source order. A bare
+   [data-theme="dark"] would tie that plain :root rule on specificity and
+   lose to it (later wins on a tie) in explicit dark mode. Qualifying with
+   :root raises specificity so this block wins regardless of import order —
+   correct anyway, since data-theme is only ever set on documentElement
+   (:root) — see web/src/hooks/useTheme.ts. */
+:root[data-theme="dark"] {
+${darkBlock}
+}
+
+/* System preference auto-detection (when no explicit theme is set). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+${darkBlockIndented}
+  }
+}
+`;
   },
 });
 
