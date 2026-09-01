@@ -14,6 +14,7 @@ use sqlx::postgres::PgPoolOptions;
 use testcontainers::ImageExt;
 use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
+use tokio::sync::OnceCell;
 use uuid::Uuid;
 
 /// Create a `MigrationsReady` flag pre-set to `true` for tests where all
@@ -24,15 +25,128 @@ pub fn migrations_ready_flag() -> api::migration_check::MigrationsReady {
 
 /// Holds the Axum app, database pool, the SSE broadcast sender (so tests can
 /// subscribe a receiver and assert on which events a route does or doesn't
-/// publish), and the container handle (which keeps the ephemeral Postgres
-/// alive for the lifetime of the test).
+/// publish), and the per-test database name (dropped databases are not
+/// cleaned up — see `shared_container()` doc comment for why).
 pub struct TestApp {
     pub app: Router,
     pub pool: PgPool,
     pub config: api::config::Config,
     pub event_tx: tokio::sync::broadcast::Sender<(Uuid, api::models::explore::DataChangedEvent)>,
-    // The container is kept alive by holding this handle; dropping it stops Postgres.
-    pub _container: testcontainers::ContainerAsync<Postgres>,
+}
+
+/// One Postgres container is shared by every test in this binary. Each test
+/// gets its own database (`CREATE DATABASE ... TEMPLATE template_ownpulse`)
+/// instead of its own container — this is the fix for the `PortNotExposed`
+/// flakes and Docker resource exhaustion that came from ~500 tests each
+/// booting a container in parallel. Isolation moves from container-level to
+/// database-level: separate catalogs, sequences, and rows are still fully
+/// parallel-safe, and no state is shared between tests beyond the container
+/// itself and the read-only `template_ownpulse` database.
+struct SharedContainer {
+    // Keeps the container alive for the lifetime of the test binary process;
+    // never read directly.
+    _container: testcontainers::ContainerAsync<Postgres>,
+    host_port: u16,
+}
+
+static SHARED_CONTAINER: OnceCell<SharedContainer> = OnceCell::const_new();
+
+/// Get (or, on the first call, create) the shared Postgres container and its
+/// `template_ownpulse` database with all migrations applied.
+///
+/// `OnceCell::get_or_init` is single-flight: concurrent first-callers all
+/// await the same initialization future rather than racing to start their
+/// own containers.
+async fn shared_container() -> &'static SharedContainer {
+    SHARED_CONTAINER
+        .get_or_init(|| async {
+            // Raise max_connections: hundreds of tests each hold a small pool
+            // against this one container, well above the default of 100.
+            let container = Postgres::default()
+                .with_tag("17-alpine")
+                .with_cmd(["-c", "max_connections=500"])
+                .start()
+                .await
+                .expect("failed to start postgres container");
+
+            let host_port = container
+                .get_host_port_ipv4(5432)
+                .await
+                .expect("failed to get mapped port");
+
+            let admin_url = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+            let admin_pool = PgPoolOptions::new()
+                .max_connections(2)
+                .connect(&admin_url)
+                .await
+                .expect("failed to connect to testcontainers postgres");
+
+            sqlx::query("CREATE DATABASE template_ownpulse")
+                .execute(&admin_pool)
+                .await
+                .expect("failed to create template_ownpulse database");
+            admin_pool.close().await;
+
+            let template_url =
+                format!("postgres://postgres:postgres@127.0.0.1:{host_port}/template_ownpulse");
+            let template_pool = PgPoolOptions::new()
+                .max_connections(2)
+                .connect(&template_url)
+                .await
+                .expect("failed to connect to template_ownpulse database");
+
+            run_migrations(&template_pool).await;
+
+            // `CREATE DATABASE ... TEMPLATE` requires zero active connections
+            // to the template. Close this pool now; nothing connects to
+            // template_ownpulse again after this point.
+            template_pool.close().await;
+
+            SharedContainer {
+                _container: container,
+                host_port,
+            }
+        })
+        .await
+}
+
+/// Clone a fresh, uniquely-named database from `template_ownpulse` (which
+/// already has every migration applied) and return its connection URL.
+///
+/// Per-test databases are not dropped after the test — the container (and
+/// with it, every cloned database) is torn down when the test binary process
+/// exits. Dropping them individually would need every test to hold a
+/// reference to a teardown hook, which isn't worth the complexity for a
+/// throwaway container that lives only as long as the process.
+async fn provision_test_database() -> String {
+    let shared = shared_container().await;
+    let admin_url = format!(
+        "postgres://postgres:postgres@127.0.0.1:{}/postgres",
+        shared.host_port
+    );
+    let db_name = format!("test_{}", Uuid::new_v4().simple());
+
+    // A short-lived pool, just for the CREATE DATABASE statement. It's
+    // dropped as soon as this function returns, so it never holds a
+    // connection open against `postgres` for the lifetime of the test.
+    let admin_pool = PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&admin_url)
+        .await
+        .expect("failed to connect to testcontainers postgres");
+
+    sqlx::query(&format!(
+        "CREATE DATABASE \"{db_name}\" TEMPLATE template_ownpulse"
+    ))
+    .execute(&admin_pool)
+    .await
+    .expect("failed to clone test database from template");
+    admin_pool.close().await;
+
+    format!(
+        "postgres://postgres:postgres@127.0.0.1:{}/{db_name}",
+        shared.host_port
+    )
 }
 
 /// Build a test-friendly config with defaults suitable for integration tests.
@@ -80,29 +194,16 @@ fn test_config(database_url: &str) -> api::config::Config {
     }
 }
 
-/// Spin up an ephemeral Postgres via testcontainers, run all migrations, and
+/// Clone a fresh database from the shared container's migrated template, and
 /// return a ready-to-use [`TestApp`].
 pub async fn setup() -> TestApp {
-    let container = Postgres::default()
-        .with_tag("17-alpine")
-        .start()
-        .await
-        .expect("failed to start postgres container");
-
-    let host_port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("failed to get mapped port");
-
-    let database_url = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+    let database_url = provision_test_database().await;
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(2)
         .connect(&database_url)
         .await
-        .expect("failed to connect to testcontainers postgres");
-
-    run_migrations(&pool).await;
+        .expect("failed to connect to test database");
 
     let config = test_config(&database_url);
     let config_for_test_app = config.clone();
@@ -123,34 +224,21 @@ pub async fn setup() -> TestApp {
         pool,
         config: config_for_test_app,
         event_tx: event_tx_for_test,
-        _container: container,
     }
 }
 
-/// Spin up an ephemeral Postgres and build a TestApp using the provided config overrides.
+/// Clone a fresh database from the shared container's migrated template and
+/// build a TestApp using the provided config overrides.
 /// `config_fn` receives a mutable reference to the default config so callers can patch
 /// fields like `apple_client_id` or `apple_jwks_url` without repeating the whole struct.
 pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config)) -> TestApp {
-    let container = Postgres::default()
-        .with_tag("17-alpine")
-        .start()
-        .await
-        .expect("failed to start postgres container");
-
-    let host_port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("failed to get mapped port");
-
-    let database_url = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+    let database_url = provision_test_database().await;
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(2)
         .connect(&database_url)
         .await
-        .expect("failed to connect to testcontainers postgres");
-
-    run_migrations(&pool).await;
+        .expect("failed to connect to test database");
 
     let mut config = test_config(&database_url);
     config_fn(&mut config);
@@ -173,7 +261,6 @@ pub async fn setup_with_config(config_fn: impl FnOnce(&mut api::config::Config))
         pool,
         config: config_for_test_app,
         event_tx: event_tx_for_test,
-        _container: container,
     }
 }
 
@@ -281,26 +368,13 @@ pub async fn create_admin_user(app: &TestApp) -> (Uuid, String) {
 /// IP-based extractors need an `X-Forwarded-For` header in test requests
 /// since `ConnectInfo` is not available in oneshot tests.
 pub async fn setup_with_rate_limiting() -> TestApp {
-    let container = Postgres::default()
-        .with_tag("17-alpine")
-        .start()
-        .await
-        .expect("failed to start postgres container");
-
-    let host_port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("failed to get mapped port");
-
-    let database_url = format!("postgres://postgres:postgres@127.0.0.1:{host_port}/postgres");
+    let database_url = provision_test_database().await;
 
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(2)
         .connect(&database_url)
         .await
-        .expect("failed to connect to testcontainers postgres");
-
-    run_migrations(&pool).await;
+        .expect("failed to connect to test database");
 
     let config = test_config(&database_url);
     let web_origin = config.web_origin.clone();
@@ -332,7 +406,6 @@ pub async fn setup_with_rate_limiting() -> TestApp {
         pool,
         config: config_for_test_app,
         event_tx: event_tx_for_test,
-        _container: container,
     }
 }
 

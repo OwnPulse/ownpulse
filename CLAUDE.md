@@ -184,14 +184,14 @@ crypto.rs       AES-256-GCM; all token encrypt/decrypt goes through here
 - `cargo test --lib`
 
 **Integration tests** — in `tests/integration/`:
-- `testcontainers-rs` — every test module calls `common::setup_db()` which spins up an ephemeral Postgres container
+- `testcontainers-rs` — one shared Postgres container per test binary; each test gets its own isolated database, cloned from a pre-migrated `template_ownpulse` template via `common::setup()`
 - External APIs mocked with `wiremock` — fixtures in `tests/fixtures/<source>/`
-- Tests are fully parallel-safe — no shared state
+- Tests are fully parallel-safe — no shared state (database-level isolation, not container-level)
 - `cargo test --test integration`
 
 **Contract tests** — in `tests/contract/`:
 - `pact_verifier` reads `pact/contracts/*.json`
-- Spins up the API against a testcontainers Postgres
+- Spins up the API against a template-cloned database on the same shared testcontainers Postgres pattern as integration tests
 - `cargo test --test contract`
 
 **Test data generation:**
