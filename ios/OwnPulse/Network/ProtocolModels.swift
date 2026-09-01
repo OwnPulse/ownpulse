@@ -253,7 +253,15 @@ struct StartRunRequest: Codable, Sendable {
 /// `web/src/api/protocols.ts`, which declares one that the backend does not
 /// actually serialize); `id` below is synthesized client-side instead.
 struct ActiveSubstance: Codable, Sendable, Identifiable {
-    var id: String { "\(protocolName)-\(substance)-\(dose ?? 0)-\(unit ?? "")" }
+    // The backend's DISTINCT ON explicitly permits rows that differ only by
+    // route, so route must be part of the id or two such rows collide in a
+    // ForEach (duplicate ids -> duplicate accessibility ids, dropped rows).
+    // `dose.map(String.init) ?? "nil"` (not `dose ?? 0`) so a genuinely nil
+    // dose can't collide with a genuine 0-dose row either.
+    var id: String {
+        let doseComponent = dose.map { "\($0)" } ?? "nil"
+        return "\(protocolName)-\(substance)-\(doseComponent)-\(unit ?? "")-\(route ?? "")"
+    }
     let substance: String
     let dose: Double?
     let unit: String?

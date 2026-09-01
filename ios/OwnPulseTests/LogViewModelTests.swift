@@ -332,9 +332,22 @@ struct LogViewModelTests {
         vm.applyActiveSubstance(item)
 
         #expect(vm.substance == "BPC-157")
-        #expect(vm.dose == "250.0")
+        // %g-formatted ("250", not "250.0") — matches what the quick-pick
+        // chip's own label shows for the same value.
+        #expect(vm.dose == "250")
         #expect(vm.doseUnit == "mcg")
         #expect(vm.route == "subq")
+    }
+
+    @Test("applyActiveSubstance formats a fractional dose without a trailing zero mismatch")
+    func applyActiveSubstanceFormatsFractionalDose() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        let item = ActiveSubstance(substance: "Melatonin", dose: 2.5, unit: "mg", route: "oral", protocolName: "Sleep Stack")
+
+        vm.applyActiveSubstance(item)
+
+        #expect(vm.dose == "2.5")
     }
 
     @Test("applyActiveSubstance leaves fields unset when dose/unit/route are nil")
@@ -351,5 +364,19 @@ struct LogViewModelTests {
         #expect(vm.dose == "")
         #expect(vm.doseUnit == "mg")
         #expect(vm.route == "oral")
+    }
+
+    @Test("applySavedMedicine formats dose the same way (no 250.0 vs 250 mismatch)")
+    func applySavedMedicineFormatsDose() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        let medicine = SavedMedicine(
+            id: "med-1", substance: "Creatine", dose: 5, unit: "g", route: "oral",
+            sortOrder: 0, createdAt: "2026-03-01T00:00:00Z"
+        )
+
+        vm.applySavedMedicine(medicine)
+
+        #expect(vm.dose == "5")
     }
 }

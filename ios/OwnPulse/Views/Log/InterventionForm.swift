@@ -154,7 +154,7 @@ struct InterventionForm: View {
     private func quickPickLabel(_ item: ActiveSubstance) -> String {
         var parts = [item.substance]
         if let d = item.dose {
-            var dosePart = String(format: "%g", d)
+            var dosePart = LogViewModel.formatDose(d)
             if let u = item.unit { dosePart += u }
             parts.append(dosePart)
         }
@@ -185,7 +185,7 @@ struct InterventionForm: View {
     private func savedMedicineLabel(_ medicine: SavedMedicine) -> String {
         var parts = [medicine.substance]
         if let d = medicine.dose {
-            var dosePart = String(format: "%g", d)
+            var dosePart = LogViewModel.formatDose(d)
             if let u = medicine.unit { dosePart += u }
             parts.append(dosePart)
         }

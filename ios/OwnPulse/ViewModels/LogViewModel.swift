@@ -519,9 +519,18 @@ final class LogViewModel {
         }
     }
 
+    /// `%g` (trimmed of trailing zeros/decimal point) rather than
+    /// `String(Double)` — the latter always renders a `.0` (`250.0`) even
+    /// for a whole-number dose, which mismatches what the saved-medicine and
+    /// quick-pick chip labels themselves show for the same value ("250") and
+    /// silently changes the dose the user sees applied vs. what they tapped.
+    static func formatDose(_ dose: Double) -> String {
+        String(format: "%g", dose)
+    }
+
     func applySavedMedicine(_ medicine: SavedMedicine) {
         substance = medicine.substance
-        if let d = medicine.dose { dose = String(d) }
+        if let d = medicine.dose { dose = Self.formatDose(d) }
         if let u = medicine.unit { doseUnit = u }
         if let r = medicine.route { route = r }
     }
@@ -543,7 +552,7 @@ final class LogViewModel {
 
     func applyActiveSubstance(_ item: ActiveSubstance) {
         substance = item.substance
-        if let d = item.dose { dose = String(d) }
+        if let d = item.dose { dose = Self.formatDose(d) }
         if let u = item.unit { doseUnit = u }
         if let r = item.route { route = r }
     }

@@ -305,4 +305,28 @@ struct ProtocolModelsTests {
         #expect(item.unit == nil)
         #expect(item.route == nil)
     }
+
+    // MARK: - ActiveSubstance.id uniqueness
+    //
+    // The backend's DISTINCT ON explicitly permits rows for the same
+    // substance/protocol that differ only by route, and a nil dose must not
+    // collide with a genuine 0-dose row. Either collision would silently
+    // drop a row from a SwiftUI `ForEach` (and duplicate an accessibility
+    // identifier).
+
+    @Test("ActiveSubstance.id differs for rows that differ only by route")
+    func activeSubstanceIdDiffersByRoute() {
+        let oral = ActiveSubstance(substance: "BPC-157", dose: 250, unit: "mcg", route: "oral", protocolName: "Stack")
+        let subq = ActiveSubstance(substance: "BPC-157", dose: 250, unit: "mcg", route: "subcutaneous", protocolName: "Stack")
+
+        #expect(oral.id != subq.id)
+    }
+
+    @Test("ActiveSubstance.id differs between a nil dose and a zero dose")
+    func activeSubstanceIdDiffersNilVsZeroDose() {
+        let nilDose = ActiveSubstance(substance: "Creatine", dose: nil, unit: "g", route: "oral", protocolName: "Stack")
+        let zeroDose = ActiveSubstance(substance: "Creatine", dose: 0, unit: "g", route: "oral", protocolName: "Stack")
+
+        #expect(nilDose.id != zeroDose.id)
+    }
 }
