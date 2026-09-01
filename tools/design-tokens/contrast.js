@@ -11,9 +11,10 @@
 //   - graphical objects / UI components:    >= 3:1    (1.4.11 AA)
 //
 // Run via `npm run check:contrast`. Exits non-zero on any failure with a
-// report of the failing pair and its ratio. The dark-mode overrides in
-// web/src/styles/variables.css are hand-written (not modeled in the token
-// source), so they are out of scope here.
+// report of the failing pair and its ratio. The dark-mode palette (the
+// `dark.*` token group, generated into _tokens.css's two dark-mode CSS
+// blocks) is checked too, at the same thresholds — see
+// enumerateDarkPairings below.
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -268,6 +269,188 @@ export function compositeOver({ r, g, b, a }, baseHex) {
   return `#${toHex(ch(r, base.r))}${toHex(ch(g, base.g))}${toHex(ch(b, base.b))}`;
 }
 
+// Parses a `rgba(r, g, b, a)` CSS string (as used by dark.color.primary-light)
+// into { r, g, b, a } for compositeOver.
+export function parseRgbaString(str) {
+  const m = String(str).match(
+    /rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)/,
+  );
+  if (!m) throw new Error(`Not an rgba(...) string: ${str}`);
+  return { r: Number(m[1]), g: Number(m[2]), b: Number(m[3]), a: Number(m[4]) };
+}
+
+// --- dark-mode pairing enumeration ------------------------------------------
+
+// Build the list of pairings the DARK-mode palette implies, mirroring
+// enumeratePairings' categories but backed by the `dark.*` token group: dark
+// surfaces, dark text, and the dark-tuned foreground-accent aliases
+// (dark.color.link/.link-hover/.success-fg) that exist specifically so
+// primary/success-colored text stays readable on a dark background — see
+// their $description in docs/design/tokens.json.
+//
+// Deliberately narrower than a literal find-and-replace of enumeratePairings:
+// color.accent.default/.dark and color.feedback.warning/.error have NO
+// dark-tuned counterpart in the token source. They render at their unchanged
+// light-mode hex when used as foreground text on a dark surface (e.g.
+// InterpretationCard.module.css, SequencerGrid.module.css, and every
+// `color: var(--color-error)`/`var(--color-warning)` usage) and measurably
+// fail AA there today (accent.default ~3.6:1, feedback.error ~2.9:1 against
+// dark.bg — both below the required 4.5:1). That is a real, pre-existing gap
+// in the hand-written dark palette this PR is tokenizing verbatim, not
+// something a tokenization pass should silently paper over by inventing new
+// -fg tokens no design review has signed off on. Their ratios are still
+// computed and reported, informationally, by informationalDarkGaps below —
+// visible, not silently dropped, but not an assertion this PR fails on.
+export function enumerateDarkPairings(tokens) {
+  const c = tokens.color;
+  const d = tokens.dark?.color;
+  if (!d) return [];
+  const pairings = [];
+
+  const surfaces = [
+    ['dark.bg', d.bg.value],
+    ['dark.bg-warm', d['bg-warm'].value],
+    ['dark.surface', d.surface.value],
+    ['dark.surface-elevated', d['surface-elevated'].value],
+  ];
+
+  const textColors = [
+    ['dark.text', d.text.value],
+    ['dark.text-secondary', d['text-secondary'].value],
+    ['dark.text-muted', d['text-muted'].value],
+  ];
+  for (const [fgName, fg] of textColors) {
+    for (const [bgName, bg] of surfaces) {
+      pairings.push({
+        name: `${fgName} text on ${bgName}`,
+        fg,
+        bg,
+        threshold: THRESHOLD_NORMAL_TEXT,
+        kind: 'normal-text',
+      });
+    }
+  }
+
+  // The dark-tuned foreground accents — the entire reason these tokens exist.
+  const interactiveText = [
+    ['dark.link', d.link.value],
+    ['dark.link-hover', d['link-hover'].value],
+    ['dark.success-fg', d['success-fg'].value],
+  ];
+  for (const [fgName, fg] of interactiveText) {
+    for (const [bgName, bg] of surfaces) {
+      pairings.push({
+        name: `${fgName} text on ${bgName}`,
+        fg,
+        bg,
+        threshold: THRESHOLD_NORMAL_TEXT,
+        kind: 'normal-text',
+      });
+    }
+  }
+
+  // dark.error-light is the dark-mode tint behind inline error banners;
+  // dark.text sits on it as body copy.
+  pairings.push({
+    name: 'dark.text on dark.error-light',
+    fg: d.text.value,
+    bg: d['error-light'].value,
+    threshold: THRESHOLD_NORMAL_TEXT,
+    kind: 'normal-text',
+  });
+
+  // Dimension colors and the intervention marker have no dark variant — same
+  // hex as light, checked as graphical objects (3:1) against dark surfaces.
+  const graphicalBg = [
+    ['dark.bg', d.bg.value],
+    ['dark.surface-elevated', d['surface-elevated'].value],
+  ];
+  if (c.dimension) {
+    for (const key of ['energy', 'mood', 'focus', 'recovery', 'libido']) {
+      for (const [bgName, bg] of graphicalBg) {
+        pairings.push({
+          name: `dimension.${key} on ${bgName}`,
+          fg: c.dimension[key].value,
+          bg,
+          threshold: THRESHOLD_GRAPHICAL,
+          kind: 'graphical',
+        });
+      }
+    }
+  }
+  if (tokens.chart?.intervention) {
+    for (const [bgName, bg] of graphicalBg) {
+      pairings.push({
+        name: `chart.intervention on ${bgName}`,
+        fg: tokens.chart.intervention.value,
+        bg,
+        threshold: THRESHOLD_GRAPHICAL,
+        kind: 'graphical',
+      });
+    }
+  }
+
+  // Solid brand/feedback fills with white text are theme-invariant — the fill
+  // color itself has no dark override — but re-asserted here so a future
+  // dark-specific override to primary/error can't silently break button text.
+  pairings.push(
+    {
+      name: 'white text on primary.default fill (dark)',
+      fg: '#ffffff',
+      bg: c.primary.default.value,
+      threshold: THRESHOLD_NORMAL_TEXT,
+      kind: 'normal-text',
+    },
+    {
+      name: 'white text on feedback.error fill (dark)',
+      fg: '#ffffff',
+      bg: c.feedback.error.value,
+      threshold: THRESHOLD_NORMAL_TEXT,
+      kind: 'normal-text',
+    },
+  );
+
+  return pairings;
+}
+
+// Known, pre-existing dark-mode contrast gaps: real component pairings that
+// fail AA in dark mode today but have no dark-tuned token to check instead
+// (see the comment on enumerateDarkPairings). Reported like
+// informationalBorders — visible in `check:contrast` output, not asserted —
+// so this tokenization pass doesn't fail CI over an unrelated, larger
+// restyle, but also doesn't hide the gap.
+function informationalDarkGaps(tokens) {
+  const c = tokens.color;
+  const d = tokens.dark?.color;
+  if (!d) return [];
+  const surfaces = [
+    ['dark.bg', d.bg.value],
+    ['dark.surface-elevated', d['surface-elevated'].value],
+  ];
+  const rows = [];
+  const knownGapText = [
+    ['accent.default', c.accent.default.value],
+    ['accent.dark', c.accent.dark.value],
+    ['feedback.warning', c.feedback.warning.value],
+    ['feedback.error', c.feedback.error.value],
+  ];
+  for (const [fgName, fg] of knownGapText) {
+    for (const [bgName, bg] of surfaces) {
+      rows.push({ name: `${fgName} text on ${bgName}`, fg, bg, ratio: contrastRatio(fg, bg) });
+    }
+  }
+  // .op-pill / .op-btn-secondary:hover: primary.hover text on the dark
+  // primary-light tint composited over dark.bg (components.css:79,159).
+  const tintOnDarkBg = compositeOver(parseRgbaString(d['primary-light'].value), d.bg.value);
+  rows.push({
+    name: 'primary.hover text on primary-light tint (over dark.bg)',
+    fg: c.primary.hover.value,
+    bg: tintOnDarkBg,
+    ratio: contrastRatio(c.primary.hover.value, tintOnDarkBg),
+  });
+  return rows;
+}
+
 // Curated pairings for components whose backgrounds are hand-written rgba TINTS
 // in the web CSS rather than tokens (the token checker can't see those values),
 // composited over the page surfaces they sit on. The foreground IS a token, so
@@ -316,7 +499,11 @@ function loadTokens() {
 // Evaluate every pairing (token-derived + curated component pairings). Returns
 // { results, failures } where each result is { ...pairing, ratio, pass }.
 export function checkContrast(tokens = loadTokens()) {
-  const all = [...enumeratePairings(tokens), ...componentPairings(tokens)];
+  const all = [
+    ...enumeratePairings(tokens),
+    ...componentPairings(tokens),
+    ...enumerateDarkPairings(tokens),
+  ];
   const results = all.map((p) => {
     const ratio = contrastRatio(p.fg, p.bg);
     return { ...p, ratio, pass: ratio >= p.threshold };
@@ -366,6 +553,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log('\nInformational (decorative borders, not asserted — WCAG 1.4.11 exempt):');
   for (const b of informationalBorders(tokens)) {
     console.log(`INFO  ${fmtRatio(b.ratio).padStart(7)}  ${b.name}  [${b.fg} on ${b.bg}]`);
+  }
+
+  console.log(
+    '\nInformational (known pre-existing dark-mode gaps, not asserted — see enumerateDarkPairings):',
+  );
+  for (const g of informationalDarkGaps(tokens)) {
+    console.log(`INFO  ${fmtRatio(g.ratio).padStart(7)}  ${g.name}  [${g.fg} on ${g.bg}]`);
   }
 
   console.log('');
