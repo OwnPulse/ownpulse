@@ -223,7 +223,7 @@ struct WearableConnectionsView: View {
         if let error = vm.connectError {
             Text(error)
                 .font(.caption)
-                .foregroundStyle(.red)
+                .foregroundStyle(OPColor.error)
                 .accessibilityIdentifier("wearableConnectError")
         }
 

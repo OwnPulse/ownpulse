@@ -3,27 +3,22 @@
 
 import SwiftUI
 
+/// The value/track color always comes from the caller's per-dimension
+/// `accentColor` (see brand.md's TrendIndicator rule: color never carries
+/// good/bad meaning on its own). A prior version derived the track color from
+/// the score value itself (red below 1/3, gold below 2/3, sage above) — that
+/// implied low scores are "bad" and high scores "good", which doesn't hold
+/// for every dimension and isn't this app's call to make.
 struct ScoreSlider: View {
     let label: String
     @Binding var value: Int
     var range: ClosedRange<Int> = 1...10
     var accentColor: Color = OPColor.terracotta
 
-    private var normalizedProgress: Double {
-        let rangeSize = Double(range.upperBound - range.lowerBound)
-        guard rangeSize > 0 else { return 0 }
-        return Double(value - range.lowerBound) / rangeSize
-    }
-
-    private var trackColor: Color {
-        let t = normalizedProgress
-        if t < 0.33 {
-            return Color.red.opacity(0.6)
-        } else if t < 0.66 {
-            return OPColor.gold.opacity(0.7)
-        } else {
-            return OPColor.sage.opacity(0.7)
-        }
+    /// "N/max" — matches web's check-in score display. Internal (not
+    /// private) so tests can verify the format without ViewInspector.
+    var valueLabel: String {
+        "\(value)/\(range.upperBound)"
     }
 
     var body: some View {
@@ -35,9 +30,9 @@ struct ScoreSlider: View {
 
                 Spacer()
 
-                Text("\(value)")
+                Text(valueLabel)
                     .font(.system(.title3, design: .rounded, weight: .bold))
-                    .foregroundStyle(trackColor)
+                    .foregroundStyle(accentColor)
                     .contentTransition(.numericText())
             }
 
@@ -54,7 +49,7 @@ struct ScoreSlider: View {
                 in: Double(range.lowerBound)...Double(range.upperBound),
                 step: 1
             )
-            .tint(trackColor)
+            .tint(accentColor)
             .sensoryFeedback(.selection, trigger: value)
             .accessibilityIdentifier("scoreSlider-\(label.lowercased())")
         }

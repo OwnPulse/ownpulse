@@ -23,7 +23,7 @@ struct CheckinForm: View {
             ScoreSlider(
                 label: "Energy",
                 value: $viewModel.energy,
-                accentColor: OPColor.gold
+                accentColor: OPColor.dimensionEnergy
             )
 
             ScoreSlider(
