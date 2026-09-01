@@ -28,7 +28,6 @@ export function StartRunModal({
     { key: 0, time: "08:00" },
   ]);
   const entryKeyRef = useRef(1);
-  const [repeatReminders, setRepeatReminders] = useState(false);
 
   const mutation = useMutation({
     mutationFn: (data: CreateRunRequest) => protocolsApi.startRun(protocolId, data),
@@ -50,7 +49,6 @@ export function StartRunModal({
     };
     if (notify) {
       data.notify_times = notifyEntries.map((e) => e.time);
-      data.repeat_reminders = repeatReminders;
     }
     mutation.mutate(data);
   };
@@ -126,58 +124,42 @@ export function StartRunModal({
           </div>
 
           {notify && (
-            <>
-              <div className={styles.field}>
-                <span className={styles.label}>Notification Times</span>
-                <div className={styles.notifyTimes}>
-                  {notifyEntries.map((entry) => (
-                    <div
-                      key={entry.key}
-                      style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
-                    >
-                      <input
-                        type="time"
-                        value={entry.time}
-                        onChange={(e) => updateNotifyTime(entry.key, e.target.value)}
-                        aria-label={`Notification time`}
-                      />
-                      {notifyEntries.length > 1 && (
-                        <button
-                          type="button"
-                          className="op-btn op-btn-ghost op-btn-sm"
-                          onClick={() => removeNotifyTime(entry.key)}
-                          aria-label="Remove time"
-                        >
-                          &times;
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <button
-                  type="button"
-                  className="op-btn op-btn-ghost op-btn-sm"
-                  onClick={addNotifyTime}
-                  style={{ marginTop: "0.25rem" }}
-                >
-                  + Add time
-                </button>
+            <div className={styles.field}>
+              <span className={styles.label}>Notification Times</span>
+              <div className={styles.notifyTimes}>
+                {notifyEntries.map((entry) => (
+                  <div
+                    key={entry.key}
+                    style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
+                  >
+                    <input
+                      type="time"
+                      value={entry.time}
+                      onChange={(e) => updateNotifyTime(entry.key, e.target.value)}
+                      aria-label={`Notification time`}
+                    />
+                    {notifyEntries.length > 1 && (
+                      <button
+                        type="button"
+                        className="op-btn op-btn-ghost op-btn-sm"
+                        onClick={() => removeNotifyTime(entry.key)}
+                        aria-label="Remove time"
+                      >
+                        &times;
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-
-              <div className={styles.field}>
-                <div className={styles.checkboxRow}>
-                  <input
-                    id="run-repeat"
-                    type="checkbox"
-                    checked={repeatReminders}
-                    onChange={(e) => setRepeatReminders(e.target.checked)}
-                  />
-                  <label htmlFor="run-repeat" className={styles.checkboxLabel}>
-                    Repeat if not logged (every 30 min)
-                  </label>
-                </div>
-              </div>
-            </>
+              <button
+                type="button"
+                className="op-btn op-btn-ghost op-btn-sm"
+                onClick={addNotifyTime}
+                style={{ marginTop: "0.25rem" }}
+              >
+                + Add time
+              </button>
+            </div>
           )}
 
           {mutation.isError && (

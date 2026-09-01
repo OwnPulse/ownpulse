@@ -16,6 +16,9 @@ export default function NotificationSettings() {
   const nextId = useRef(1);
   const [defaultNotify, setDefaultNotify] = useState(false);
   const [notifyTimes, setNotifyTimes] = useState<TimeEntry[]>([{ id: 0, value: "08:00" }]);
+  // repeat-until-logged reminders have no UI control (descoped — the
+  // backend still persists these fields, so round-trip them unchanged
+  // rather than silently resetting whatever value is already saved).
   const [repeatReminders, setRepeatReminders] = useState(false);
   const [repeatInterval, setRepeatInterval] = useState(30);
 
@@ -102,72 +105,38 @@ export default function NotificationSettings() {
       </div>
 
       {defaultNotify && (
-        <>
-          <div className={forms.field}>
-            <span className={forms.label}>Notification Times</span>
-            {notifyTimes.map((entry, index) => (
-              <div
-                key={entry.id}
-                style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}
-              >
-                <input
-                  type="time"
-                  value={entry.value}
-                  onChange={(e) => handleTimeChange(entry.id, e.target.value)}
-                  className={forms.input}
-                  aria-label={`Notification time ${index + 1}`}
-                  style={{ flex: 1 }}
-                />
-                {notifyTimes.length > 1 && (
-                  <button
-                    type="button"
-                    className="op-btn op-btn-ghost op-btn-sm"
-                    onClick={() => handleRemoveTime(entry.id)}
-                    aria-label={`Remove time ${index + 1}`}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
-            <button
-              type="button"
-              className="op-btn op-btn-secondary op-btn-sm"
-              onClick={handleAddTime}
-            >
-              Add Time
-            </button>
-          </div>
-
-          <div className={forms.checkboxField}>
-            <input
-              type="checkbox"
-              id="repeat-reminders"
-              checked={repeatReminders}
-              onChange={(e) => setRepeatReminders(e.target.checked)}
-            />
-            <label htmlFor="repeat-reminders" className={forms.checkboxLabel}>
-              Repeat reminders if dose not logged
-            </label>
-          </div>
-
-          {repeatReminders && (
-            <div className={forms.field}>
-              <label className={forms.label} htmlFor="repeat-interval">
-                Repeat interval (minutes)
-              </label>
+        <div className={forms.field}>
+          <span className={forms.label}>Notification Times</span>
+          {notifyTimes.map((entry, index) => (
+            <div key={entry.id} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
               <input
-                id="repeat-interval"
-                type="number"
-                min="5"
-                max="120"
-                value={repeatInterval}
-                onChange={(e) => setRepeatInterval(Number(e.target.value))}
+                type="time"
+                value={entry.value}
+                onChange={(e) => handleTimeChange(entry.id, e.target.value)}
                 className={forms.input}
+                aria-label={`Notification time ${index + 1}`}
+                style={{ flex: 1 }}
               />
+              {notifyTimes.length > 1 && (
+                <button
+                  type="button"
+                  className="op-btn op-btn-ghost op-btn-sm"
+                  onClick={() => handleRemoveTime(entry.id)}
+                  aria-label={`Remove time ${index + 1}`}
+                >
+                  Remove
+                </button>
+              )}
             </div>
-          )}
-        </>
+          ))}
+          <button
+            type="button"
+            className="op-btn op-btn-secondary op-btn-sm"
+            onClick={handleAddTime}
+          >
+            Add Time
+          </button>
+        </div>
       )}
 
       <div className={forms.actions}>

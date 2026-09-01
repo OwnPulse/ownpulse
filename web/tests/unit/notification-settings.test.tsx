@@ -76,7 +76,7 @@ describe("NotificationSettings", () => {
     });
   });
 
-  it("shows time pickers and repeat settings when notify is enabled", async () => {
+  it("shows time pickers when notify is enabled", async () => {
     server.use(
       http.get("/api/v1/notifications/preferences", () => {
         return HttpResponse.json({
@@ -92,7 +92,9 @@ describe("NotificationSettings", () => {
     await waitFor(() => {
       expect(screen.getByLabelText(/notification time 1/i)).toBeDefined();
     });
-    expect(screen.getByLabelText(/repeat reminders if dose not logged/i)).toBeDefined();
+    // repeat-until-logged has no UI control — it was descoped, though the
+    // backend still persists it (see NotificationSettings.tsx).
+    expect(screen.queryByLabelText(/repeat reminders if dose not logged/i)).toBeNull();
   });
 
   it("toggles notification enable checkbox", async () => {
@@ -185,7 +187,7 @@ describe("NotificationSettings", () => {
     });
   });
 
-  it("shows repeat interval field when repeat reminders enabled", async () => {
+  it("round-trips repeat_reminders/repeat_interval_minutes unchanged on save (no UI control)", async () => {
     server.use(
       http.get("/api/v1/notifications/preferences", () => {
         return HttpResponse.json({
@@ -197,10 +199,25 @@ describe("NotificationSettings", () => {
       }),
     );
 
+    let capturedBody: unknown;
+    server.use(
+      http.put("/api/v1/notifications/preferences", async ({ request }) => {
+        capturedBody = await request.json();
+        return HttpResponse.json(capturedBody);
+      }),
+    );
+
+    const user = userEvent.setup();
     renderComponent();
+
     await waitFor(() => {
-      expect(screen.getByLabelText(/repeat interval/i)).toBeDefined();
+      expect(screen.getByRole("button", { name: /save notification settings/i })).toBeDefined();
     });
-    expect(screen.getByLabelText(/repeat interval/i)).toHaveValue(15);
+
+    await user.click(screen.getByRole("button", { name: /save notification settings/i }));
+
+    await waitFor(() => {
+      expect(capturedBody).toMatchObject({ repeat_reminders: true, repeat_interval_minutes: 15 });
+    });
   });
 });

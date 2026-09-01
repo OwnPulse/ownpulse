@@ -54,21 +54,39 @@ You can pause and resume a run at any time. You can also start multiple runs of 
 
 ## Tracking doses
 
-Once a run is active, the protocol view shows each scheduled dose with its status:
+Once a run is active, the protocol view shows a **schedule grid** with one cell per scheduled (substance, day) pair. Each cell has one of four statuses:
 
 - **Completed** -- you logged the dose
-- **Missed** -- the scheduled time passed without a log
 - **Skipped** -- you explicitly marked the dose as skipped
+- **Missed** -- a scheduled day in the past with no log or skip -- this is derived, not something you set directly
+- **Pending** -- a scheduled day today or in the future, not yet logged
 
-To log a dose, open the protocol and tap **Log** next to the scheduled entry. To skip a dose (for example, if you are traveling or feeling unwell), tap **Skip**. Both actions are timestamped.
+Every **Missed** or **Pending** cell is itself a control. Click it to open a small popover with **Log** and **Skip** options:
 
-A progress bar at the top of the protocol shows your overall adherence -- completed doses out of total scheduled doses so far.
+- **Log** accepts an optional time and notes. If you leave the time blank, OwnPulse uses the line's configured timing (AM/PM/etc).
+- **Skip** accepts an optional reason (for example, "traveling"). The reason is stored with the skip -- OwnPulse never judges or filters what you write here.
+
+This is how you **backfill**: if you missed logging a dose two days ago, open the grid and log or skip that day's cell directly -- there's no special "backdate" mode, the same popover handles it.
+
+Already-logged cells (**Completed** or **Skipped**) show an **Undo** action instead, which deletes the dose entry so you can re-log it or leave it unset.
+
+### Adherence
+
+The protocol view shows an adherence summary above the grid, for example "83% adherence · 20 done · 2 skipped · 2 missed". This is computed by the server, over **closed days only** -- scheduled days strictly before today. Today and future days never count toward adherence, even if you've already logged them early. Days inside a paused interval are excluded entirely (pausing a run stops the adherence clock, it does not accrue missed doses).
+
+Skipped doses are excluded from the adherence percentage's denominator -- skipping a dose for a legitimate reason does not count against you. If nothing has closed yet (a run that just started, or every closed day was skipped), the summary reads "No closed days yet" instead of a percentage.
+
+A separate, secondary progress bar shows elapsed time through the run (days passed / total duration) -- this is just a clock, unrelated to adherence.
 
 ## Today's doses
 
 The main Dashboard includes a **Today's Doses** widget that aggregates every dose scheduled for today across all your active runs. Each entry shows the substance, dose, unit, and timing. You can **Log** or **Skip** directly from the dashboard without opening the full protocol view.
 
 The widget shows a **pending count badge** when you have doses waiting to be logged. Once all doses for the day are complete, it displays an "All done" confirmation. Pending doses are visually highlighted so you can quickly see what still needs attention.
+
+### Reviewing missed doses
+
+If you have missed doses from earlier days across any of your active runs, the widget shows a **"N missed dose(s) from earlier days -- Review"** toggle below today's list. Expanding it lists each missed dose with its date, protocol, and substance, with the same **Log** / **Skip** actions as the schedule grid -- so you can backfill without leaving the dashboard. The review list is capped at 200 entries; for a complete history on one run, use that protocol's schedule grid.
 
 ## Dose reminders
 

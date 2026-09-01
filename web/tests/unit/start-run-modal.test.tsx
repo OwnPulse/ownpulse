@@ -111,7 +111,7 @@ describe("StartRunModal", () => {
     });
   });
 
-  it("shows notification options when checkbox is checked", async () => {
+  it("shows notification times when checkbox is checked (no repeat-reminders control)", async () => {
     server.use(http.post("/api/v1/protocols/:id/runs", () => new Promise(() => {})));
 
     renderModal();
@@ -123,7 +123,8 @@ describe("StartRunModal", () => {
     await user.click(screen.getByLabelText("Enable notifications"));
 
     expect(screen.getByText("Notification Times")).toBeDefined();
-    expect(screen.getByText("Repeat if not logged (every 30 min)")).toBeDefined();
+    // repeat-until-logged reminders were descoped — no UI control for them.
+    expect(screen.queryByText(/repeat if not logged/i)).toBeNull();
   });
 
   it("shows error on API failure", async () => {

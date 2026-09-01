@@ -2,13 +2,23 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { TodaysDose } from "../../api/protocols";
+import type { MissedDoseItem, TodaysDose } from "../../api/protocols";
 import { protocolsApi } from "../../api/protocols";
 import styles from "./TodaysDoses.module.css";
 
+// Shared shape between TodaysDose and MissedDoseItem — both structurally
+// carry these three fields, which is all the log/skip mutations need.
+interface Loggable {
+  run_id: string;
+  protocol_line_id: string;
+  day_number: number;
+}
+
 export function TodaysDoses() {
   const queryClient = useQueryClient();
+  const [missedExpanded, setMissedExpanded] = useState(false);
 
   const {
     data: todaysDoses,
@@ -25,36 +35,48 @@ export function TodaysDoses() {
       })),
   });
 
+  const { data: missedDoses } = useQuery({
+    queryKey: ["missed-doses"],
+    queryFn: () => protocolsApi.missedDoses(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const invalidateAll = () => {
+    queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
+    queryClient.invalidateQueries({ queryKey: ["missed-doses"] });
+    queryClient.invalidateQueries({ queryKey: ["active-runs"] });
+    queryClient.invalidateQueries({ queryKey: ["protocols"] });
+  };
+
   const logDose = useMutation({
-    mutationFn: (td: TodaysDose) =>
-      protocolsApi.logRunDose(td.run_id, {
-        protocol_line_id: td.protocol_line_id,
-        day_number: td.day_number,
+    mutationFn: (item: Loggable) =>
+      protocolsApi.logRunDose(item.run_id, {
+        protocol_line_id: item.protocol_line_id,
+        day_number: item.day_number,
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
-      queryClient.invalidateQueries({ queryKey: ["protocols"] });
-    },
+    onSuccess: invalidateAll,
   });
 
   const skipDose = useMutation({
-    mutationFn: (td: TodaysDose) =>
-      protocolsApi.skipRunDose(td.run_id, {
-        protocol_line_id: td.protocol_line_id,
-        day_number: td.day_number,
+    mutationFn: (item: Loggable) =>
+      protocolsApi.skipRunDose(item.run_id, {
+        protocol_line_id: item.protocol_line_id,
+        day_number: item.day_number,
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
-      queryClient.invalidateQueries({ queryKey: ["protocols"] });
-    },
+    onSuccess: invalidateAll,
   });
 
   if (isLoading) return null;
   if (isError) return null;
-  if (!todaysDoses || todaysDoses.length === 0) return null;
 
-  const pendingCount = todaysDoses.filter((d) => d.status === "pending").length;
-  const allDone = todaysDoses.length > 0 && pendingCount === 0;
+  const missedCount = missedDoses?.length ?? 0;
+  if ((!todaysDoses || todaysDoses.length === 0) && missedCount === 0) return null;
+
+  const doses: TodaysDose[] = todaysDoses ?? [];
+  const pendingCount = doses.filter((d) => d.status === "pending").length;
+  const allDone = doses.length > 0 && pendingCount === 0;
+
+  const busy = logDose.isPending || skipDose.isPending;
 
   return (
     <section className={`op-card ${styles.section}`}>
@@ -63,15 +85,15 @@ export function TodaysDoses() {
         {pendingCount > 0 && <span className={styles.pendingBadge}>{pendingCount} pending</span>}
       </div>
 
-      {allDone && (
+      {doses.length > 0 && allDone && (
         <p className={styles.allDoneText}>
           All done <span className={styles.greenCheck}>&#x2713;</span>
         </p>
       )}
 
-      {!allDone && (
+      {doses.length > 0 && !allDone && (
         <div className={styles.doseList}>
-          {todaysDoses.map((td) => (
+          {doses.map((td) => (
             <div
               key={`${td.protocol_line_id}-${td.day_number}`}
               className={`${styles.doseItem} ${td.status === "pending" ? styles.dosePending : ""}`}
@@ -83,7 +105,7 @@ export function TodaysDoses() {
                 </span>
                 <span className={styles.doseMeta}>
                   {td.protocol_name}
-                  {td.time_of_day ? ` \u00b7 ${td.time_of_day}` : ""}
+                  {td.time_of_day ? ` · ${td.time_of_day}` : ""}
                 </span>
               </div>
               {td.status === "pending" ? (
@@ -92,7 +114,7 @@ export function TodaysDoses() {
                     type="button"
                     className="op-btn op-btn-primary op-btn-sm"
                     onClick={() => logDose.mutate(td)}
-                    disabled={logDose.isPending || skipDose.isPending}
+                    disabled={busy}
                   >
                     Log
                   </button>
@@ -100,7 +122,7 @@ export function TodaysDoses() {
                     type="button"
                     className="op-btn op-btn-ghost op-btn-sm"
                     onClick={() => skipDose.mutate(td)}
-                    disabled={logDose.isPending || skipDose.isPending}
+                    disabled={busy}
                   >
                     Skip
                   </button>
@@ -114,6 +136,54 @@ export function TodaysDoses() {
               )}
             </div>
           ))}
+        </div>
+      )}
+
+      {missedCount > 0 && (
+        <div className={styles.missedSection}>
+          <button
+            type="button"
+            className={styles.missedToggle}
+            onClick={() => setMissedExpanded((e) => !e)}
+            aria-expanded={missedExpanded}
+          >
+            {missedCount} missed dose{missedCount === 1 ? "" : "s"} from earlier days — Review
+          </button>
+          {missedExpanded && (
+            <div className={styles.doseList}>
+              {(missedDoses as MissedDoseItem[]).map((md) => (
+                <div key={`${md.protocol_line_id}-${md.day_number}`} className={styles.doseItem}>
+                  <div className={styles.doseInfo}>
+                    <span className={styles.doseSubstance}>
+                      {md.substance} {md.dose}
+                      {md.unit}
+                    </span>
+                    <span className={styles.doseMeta}>
+                      {md.protocol_name} · {md.date}
+                    </span>
+                  </div>
+                  <div className={styles.doseActions}>
+                    <button
+                      type="button"
+                      className="op-btn op-btn-primary op-btn-sm"
+                      onClick={() => logDose.mutate(md)}
+                      disabled={busy}
+                    >
+                      Log
+                    </button>
+                    <button
+                      type="button"
+                      className="op-btn op-btn-ghost op-btn-sm"
+                      onClick={() => skipDose.mutate(md)}
+                      disabled={busy}
+                    >
+                      Skip
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

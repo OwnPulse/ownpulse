@@ -63,6 +63,9 @@ const server = setupServer(
   http.get("/api/v1/protocols/runs/todays-doses", () => {
     return HttpResponse.json(pendingDoses);
   }),
+  http.get("/api/v1/protocols/runs/missed-doses", () => {
+    return HttpResponse.json([]);
+  }),
   http.post("/api/v1/protocols/runs/:runId/doses/log", () => {
     return HttpResponse.json({
       id: "dose-new",
@@ -294,5 +297,128 @@ describe("TodaysDoses", () => {
     const link = screen.getByText("View all protocols");
     expect(link).toBeDefined();
     expect(link.getAttribute("href")).toBe("/protocols");
+  });
+
+  describe("missed-doses expander", () => {
+    const missedItem = {
+      protocol_id: "p1",
+      protocol_name: "BPC Stack",
+      run_id: "run-1",
+      protocol_line_id: "pl-3",
+      substance: "BPC-157",
+      dose: 250,
+      unit: "mcg",
+      route: "SubQ",
+      time_of_day: "08:00",
+      day_number: 2,
+      date: "2026-03-27",
+      status: "missed",
+    };
+
+    it("does not render the expander when there are no missed doses", async () => {
+      renderWithProviders(<TodaysDoses />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/BPC-157/)).toBeDefined();
+      });
+
+      expect(screen.queryByText(/missed dose/i)).toBeNull();
+    });
+
+    it("shows a review toggle when there are missed doses", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/missed-doses", () => HttpResponse.json([missedItem])),
+      );
+
+      renderWithProviders(<TodaysDoses />);
+
+      await waitFor(() => {
+        expect(screen.getByText("1 missed dose from earlier days — Review")).toBeDefined();
+      });
+    });
+
+    it("pluralizes the count for multiple missed doses", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/missed-doses", () =>
+          HttpResponse.json([missedItem, { ...missedItem, protocol_line_id: "pl-4" }]),
+        ),
+      );
+
+      renderWithProviders(<TodaysDoses />);
+
+      await waitFor(() => {
+        expect(screen.getByText("2 missed doses from earlier days — Review")).toBeDefined();
+      });
+    });
+
+    it("expands to show per-item rows with Log/Skip on click", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/missed-doses", () => HttpResponse.json([missedItem])),
+      );
+
+      const user = userEvent.setup();
+      renderWithProviders(<TodaysDoses />);
+
+      await waitFor(() => {
+        expect(screen.getByText("1 missed dose from earlier days — Review")).toBeDefined();
+      });
+
+      // Collapsed by default — no per-item row yet.
+      expect(screen.queryByText("2026-03-27")).toBeNull();
+
+      await user.click(screen.getByText("1 missed dose from earlier days — Review"));
+
+      expect(screen.getByText(/2026-03-27/)).toBeDefined();
+      const logButtons = screen.getAllByRole("button", { name: "Log" });
+      const skipButtons = screen.getAllByRole("button", { name: "Skip" });
+      expect(logButtons.length).toBeGreaterThan(0);
+      expect(skipButtons.length).toBeGreaterThan(0);
+    });
+
+    it("logging a missed dose posts to the item's run id and day number", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/missed-doses", () => HttpResponse.json([missedItem])),
+      );
+
+      let capturedRunId: string | undefined;
+      let capturedBody: unknown;
+      server.use(
+        http.post("/api/v1/protocols/runs/:runId/doses/log", async ({ params, request }) => {
+          capturedRunId = params.runId as string;
+          capturedBody = await request.json();
+          return HttpResponse.json({
+            id: "dose-backfill",
+            protocol_line_id: "pl-3",
+            day_number: 2,
+            status: "completed",
+            intervention_id: "iv-2",
+            logged_at: "2026-03-27T08:00:00Z",
+            created_at: "2026-03-27T08:00:00Z",
+          });
+        }),
+      );
+
+      const user = userEvent.setup();
+      renderWithProviders(<TodaysDoses />);
+
+      await waitFor(() => {
+        expect(screen.getByText("1 missed dose from earlier days — Review")).toBeDefined();
+      });
+      await user.click(screen.getByText("1 missed dose from earlier days — Review"));
+
+      await waitFor(() => {
+        expect(screen.getAllByRole("button", { name: "Log" }).length).toBeGreaterThan(0);
+      });
+
+      // The missed row's own Log button is the last one rendered (today's
+      // pending doses render first).
+      const logButtons = screen.getAllByRole("button", { name: "Log" });
+      await user.click(logButtons[logButtons.length - 1]);
+
+      await waitFor(() => {
+        expect(capturedRunId).toBe("run-1");
+      });
+      expect(capturedBody).toMatchObject({ protocol_line_id: "pl-3", day_number: 2 });
+    });
   });
 });

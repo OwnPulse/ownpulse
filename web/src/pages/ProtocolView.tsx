@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import type { Protocol, ProtocolRun, TodaysDose, UpdateRunRequest } from "../api/protocols";
+import type { AdherenceResponse, ProtocolRun, UpdateRunRequest } from "../api/protocols";
 import { protocolsApi } from "../api/protocols";
 import { DoseStatusGrid } from "../components/protocols/DoseStatusGrid";
 import { StartRunModal } from "../components/protocols/StartRunModal";
@@ -16,63 +16,11 @@ function runStatusBadgeClass(status: ProtocolRun["status"]): string {
   return styles.badgeCompleted;
 }
 
-function computeProgress(protocol: Protocol): { completed: number; total: number } {
-  let completed = 0;
-  let total = 0;
-  for (const line of protocol.lines) {
-    for (let d = 0; d < protocol.duration_days; d++) {
-      if (line.schedule_pattern[d]) {
-        total++;
-        const dose = line.doses.find((dd) => dd.day_number === d);
-        if (dose && dose.status === "completed") completed++;
-      }
-    }
-  }
-  return { completed, total };
-}
-
-// run.start_date is a plain YYYY-MM-DD calendar date — it names a day in the
-// user's local timezone (the day the run's first dose is due), not a UTC
-// instant. Parsing it with `new Date(y, m-1, d)` (local) and diffing against
-// local midnight-of-today keeps day rollover aligned with the user's actual
-// day. Parsing it as UTC (`new Date(dateStr)`) and diffing against
-// `Date.now()` shifts the boundary by the UTC offset instead — a UTC-10 user
-// wouldn't roll into the next day until 2pm local, and a UTC+13 user would
-// see "no doses scheduled" for the first 13h of a run.
-function parseLocalDate(dateStr: string): Date {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d);
-}
-
-function startOfToday(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-}
-
-function computeTodaysDoses(protocol: Protocol, run: ProtocolRun | null): TodaysDose[] {
-  if (!run) return [];
-  const runStart = parseLocalDate(run.start_date);
-  const todayDay = Math.round((startOfToday().getTime() - runStart.getTime()) / 86400000);
-  if (todayDay < 0 || todayDay >= protocol.duration_days) return [];
-
-  return protocol.lines
-    .filter((line) => line.schedule_pattern[todayDay])
-    .map((line) => {
-      const dose = line.doses.find((d) => d.day_number === todayDay);
-      return {
-        protocol_id: protocol.id,
-        protocol_name: protocol.name,
-        protocol_line_id: line.id,
-        run_id: run.id,
-        substance: line.substance,
-        dose: line.dose,
-        unit: line.unit,
-        route: line.route,
-        time_of_day: line.time_of_day,
-        day_number: todayDay,
-        status: dose?.status ?? "pending",
-      };
-    });
+function adherenceSummary(adherence: AdherenceResponse | undefined): string {
+  if (!adherence) return "";
+  if (adherence.adherence_pct == null) return "No closed days yet";
+  const pct = Math.round(adherence.adherence_pct);
+  return `${pct}% adherence · ${adherence.completed} done · ${adherence.skipped} skipped · ${adherence.missed} missed`;
 }
 
 export default function ProtocolView() {
@@ -106,36 +54,13 @@ export default function ProtocolView() {
 
   const activeRun = runs?.find((r) => r.status === "active") ?? null;
 
-  const logDose = useMutation({
-    mutationFn: (data: { protocolLineId: string; dayNumber: number }) => {
+  const { data: adherence } = useQuery({
+    queryKey: ["run-adherence", activeRun?.id],
+    queryFn: () => {
       if (!activeRun) throw new Error("No active run");
-      return protocolsApi.logRunDose(activeRun.id, {
-        protocol_line_id: data.protocolLineId,
-        day_number: data.dayNumber,
-      });
+      return protocolsApi.runAdherence(activeRun.id);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["protocols", id] });
-      queryClient.invalidateQueries({ queryKey: ["protocols"] });
-      queryClient.invalidateQueries({ queryKey: ["active-runs"] });
-      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
-    },
-  });
-
-  const skipDose = useMutation({
-    mutationFn: (data: { protocolLineId: string; dayNumber: number }) => {
-      if (!activeRun) throw new Error("No active run");
-      return protocolsApi.skipRunDose(activeRun.id, {
-        protocol_line_id: data.protocolLineId,
-        day_number: data.dayNumber,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["protocols", id] });
-      queryClient.invalidateQueries({ queryKey: ["protocols"] });
-      queryClient.invalidateQueries({ queryKey: ["active-runs"] });
-      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
-    },
+    enabled: !!activeRun,
   });
 
   const shareMutation = useMutation({
@@ -186,9 +111,7 @@ export default function ProtocolView() {
   if (isLoading) return <main className="op-page">Loading...</main>;
   if (isError || !protocol) return <main className="op-page">Error loading protocol.</main>;
 
-  const progress = computeProgress(protocol);
-  const todaysDoses = computeTodaysDoses(protocol, activeRun);
-  const pct = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
+  const elapsedPct = activeRun ? Math.round(activeRun.progress_pct) : 0;
 
   return (
     <main className={`op-page ${styles.page}`}>
@@ -207,18 +130,25 @@ export default function ProtocolView() {
 
       <div className={styles.meta}>
         {protocol.duration_days} days
-        {activeRun ? ` \u00b7 Run started ${activeRun.start_date}` : ""}
+        {activeRun ? ` · Run started ${activeRun.start_date}` : ""}
       </div>
 
-      {/* Progress bar */}
-      <div className={styles.progressSection}>
-        <span className={styles.progressLabel}>
-          {progress.completed}/{progress.total} doses completed ({pct}%)
-        </span>
-        <div className={styles.progressBar}>
-          <div className={styles.progressFill} style={{ width: `${pct}%` }} />
+      {/* Adherence header — server-computed, closed-days-only */}
+      {activeRun && (
+        <div className={styles.progressSection}>
+          <span className={styles.progressLabel}>{adherenceSummary(adherence)}</span>
         </div>
-      </div>
+      )}
+
+      {/* Elapsed-time progress bar (secondary to adherence) */}
+      {activeRun && (
+        <div className={styles.progressSection}>
+          <span className={styles.progressLabel}>{elapsedPct}% of run elapsed</span>
+          <div className={styles.progressBar}>
+            <div className={styles.progressFill} style={{ width: `${elapsedPct}%` }} />
+          </div>
+        </div>
+      )}
 
       {/* Runs section */}
       <section className={styles.runsSection}>
@@ -297,75 +227,16 @@ export default function ProtocolView() {
         )}
       </section>
 
-      {/* Dose status grid */}
+      {/* Dose status grid — backed by the server's per-day dose status;
+          each scheduled cell is itself a Log/Skip/Undo control, so there is
+          no separate "today's doses" list on this page anymore. */}
       <section className={styles.gridSection}>
         <h2>Schedule</h2>
-        <DoseStatusGrid
-          lines={protocol.lines}
-          startDate={activeRun?.start_date ?? protocol.start_date ?? protocol.created_at}
-          durationDays={protocol.duration_days}
-        />
-      </section>
-
-      {/* Today's doses \u2014 always rendered so a paused/no run state has a
-          visible explanation instead of silently disappearing. */}
-      <section className={styles.dosesSection}>
-        <h2>Today&rsquo;s Doses</h2>
-        {!activeRun && <p className={styles.emptyDoses}>Start a run to log doses</p>}
-        {activeRun && todaysDoses.length === 0 && (
-          <p className={styles.emptyDoses}>No doses scheduled for today.</p>
+        {activeRun ? (
+          <DoseStatusGrid runId={activeRun.id} durationDays={protocol.duration_days} />
+        ) : (
+          <p className={styles.emptyDoses}>Start a run to see your schedule.</p>
         )}
-        {activeRun &&
-          todaysDoses.map((td) => (
-            <div key={td.protocol_line_id} className={`op-card ${styles.doseItem}`}>
-              <div className={styles.doseInfo}>
-                <span className={styles.doseSubstance}>
-                  {td.substance} {td.dose}
-                  {td.unit}
-                </span>
-                <span className={styles.doseMeta}>
-                  {td.route}
-                  {td.time_of_day ? ` \u00b7 ${td.time_of_day}` : ""}
-                </span>
-              </div>
-              {td.status === "pending" ? (
-                <div className={styles.doseActions}>
-                  <button
-                    type="button"
-                    className="op-btn op-btn-primary op-btn-sm"
-                    onClick={() =>
-                      logDose.mutate({
-                        protocolLineId: td.protocol_line_id,
-                        dayNumber: td.day_number,
-                      })
-                    }
-                    disabled={logDose.isPending}
-                  >
-                    Log
-                  </button>
-                  <button
-                    type="button"
-                    className="op-btn op-btn-ghost op-btn-sm"
-                    onClick={() =>
-                      skipDose.mutate({
-                        protocolLineId: td.protocol_line_id,
-                        dayNumber: td.day_number,
-                      })
-                    }
-                    disabled={skipDose.isPending}
-                  >
-                    Skip
-                  </button>
-                </div>
-              ) : (
-                <span
-                  className={`${styles.doseStatus} ${td.status === "completed" ? styles.statusCompleted : styles.statusSkipped}`}
-                >
-                  {td.status}
-                </span>
-              )}
-            </div>
-          ))}
       </section>
 
       {/* Actions */}

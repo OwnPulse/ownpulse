@@ -54,6 +54,9 @@ const server = setupServer(
   http.get("/api/v1/protocols/active-substances", () => {
     return HttpResponse.json(activeSubstances);
   }),
+  http.get("/api/v1/protocols/runs/todays-doses", () => {
+    return HttpResponse.json([]);
+  }),
   http.get("/api/v1/saved-medicines", () => {
     return HttpResponse.json(testSavedMedicines);
   }),
@@ -304,5 +307,158 @@ describe("InterventionForm", () => {
     // Wait for queries to settle
     await new Promise((r) => setTimeout(r, 100));
     expect(screen.queryByTestId("saved-medicines-section")).toBeNull();
+  });
+
+  describe("protocol attribution", () => {
+    const pendingToday = {
+      protocol_id: "p1",
+      protocol_name: "BPC Stack",
+      protocol_line_id: "pl-1",
+      run_id: "run-1",
+      substance: "BPC-157",
+      dose: 250,
+      unit: "mcg",
+      route: "SubQ",
+      time_of_day: "08:00",
+      day_number: 3,
+      status: "pending",
+    };
+
+    it("shows the attribution checkbox when substance+dose match a pending today's dose", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/todays-doses", () => HttpResponse.json([pendingToday])),
+      );
+      const user = userEvent.setup();
+      renderForm();
+
+      await user.type(screen.getByLabelText(/substance/i), "BPC-157");
+      await user.type(screen.getByLabelText(/dose/i), "250");
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/count toward bpc stack/i)).toBeDefined();
+      });
+      expect(screen.getByLabelText(/count toward bpc stack/i)).toBeChecked();
+    });
+
+    it("does not show the checkbox when dose doesn't match", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/todays-doses", () => HttpResponse.json([pendingToday])),
+      );
+      const user = userEvent.setup();
+      renderForm();
+
+      await user.type(screen.getByLabelText(/substance/i), "BPC-157");
+      await user.type(screen.getByLabelText(/dose/i), "999");
+
+      // give the todays-doses query a beat to settle
+      await new Promise((r) => setTimeout(r, 50));
+      expect(screen.queryByLabelText(/count toward/i)).toBeNull();
+    });
+
+    it("logs against the protocol run instead of creating a standalone intervention when checked", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/todays-doses", () => HttpResponse.json([pendingToday])),
+      );
+
+      let logCalled = false;
+      let capturedBody: unknown;
+      let interventionCalled = false;
+      server.use(
+        http.post("/api/v1/protocols/runs/:runId/doses/log", async ({ params, request }) => {
+          logCalled = true;
+          expect(params.runId).toBe("run-1");
+          capturedBody = await request.json();
+          return HttpResponse.json({
+            id: "dose-1",
+            protocol_line_id: "pl-1",
+            day_number: 3,
+            status: "completed",
+            intervention_id: "iv-1",
+            logged_at: "2026-03-28T08:00:00Z",
+            run_id: "run-1",
+            skip_reason: null,
+          });
+        }),
+        http.post("/api/v1/interventions", () => {
+          interventionCalled = true;
+          return HttpResponse.json({}, { status: 201 });
+        }),
+      );
+
+      const user = userEvent.setup();
+      renderForm();
+
+      await user.type(screen.getByLabelText(/substance/i), "BPC-157");
+      await user.type(screen.getByLabelText(/dose/i), "250");
+      await user.type(screen.getByLabelText(/unit/i), "mcg");
+      await user.type(screen.getByLabelText(/route/i), "SubQ");
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/count toward bpc stack/i)).toBeChecked();
+      });
+
+      await user.click(screen.getByRole("button", { name: /log intervention/i }));
+
+      await waitFor(() => {
+        expect(logCalled).toBe(true);
+      });
+      expect(interventionCalled).toBe(false);
+      expect(capturedBody).toMatchObject({
+        protocol_line_id: "pl-1",
+        day_number: 3,
+      });
+    });
+
+    it("creates a standalone intervention when the checkbox is unchecked", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/todays-doses", () => HttpResponse.json([pendingToday])),
+      );
+
+      let interventionCalled = false;
+      let logCalled = false;
+      server.use(
+        http.post("/api/v1/interventions", () => {
+          interventionCalled = true;
+          return HttpResponse.json(
+            {
+              id: "iv-1",
+              user_id: "user-1",
+              substance: "BPC-157",
+              dose: 250,
+              unit: "mcg",
+              route: "SubQ",
+              administered_at: "2026-03-28T08:00:00Z",
+              fasted: false,
+              created_at: "2026-03-28T08:00:00Z",
+            },
+            { status: 201 },
+          );
+        }),
+        http.post("/api/v1/protocols/runs/:runId/doses/log", () => {
+          logCalled = true;
+          return HttpResponse.json({});
+        }),
+      );
+
+      const user = userEvent.setup();
+      renderForm();
+
+      await user.type(screen.getByLabelText(/substance/i), "BPC-157");
+      await user.type(screen.getByLabelText(/dose/i), "250");
+      await user.type(screen.getByLabelText(/unit/i), "mcg");
+      await user.type(screen.getByLabelText(/route/i), "SubQ");
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/count toward bpc stack/i)).toBeDefined();
+      });
+      await user.click(screen.getByLabelText(/count toward bpc stack/i));
+
+      await user.click(screen.getByRole("button", { name: /log intervention/i }));
+
+      await waitFor(() => {
+        expect(interventionCalled).toBe(true);
+      });
+      expect(logCalled).toBe(false);
+    });
   });
 });
