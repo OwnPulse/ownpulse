@@ -148,6 +148,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0035_health_records_duplicate_of_index.sql",
         include_str!("../../../db/migrations/0035_health_records_duplicate_of_index.sql"),
     ),
+    (
+        "0036_oauth_states.sql",
+        include_str!("../../../db/migrations/0036_oauth_states.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]

@@ -11,6 +11,28 @@ use crate::error::ApiError;
 
 use super::jwt::decode_access_token;
 
+/// Decode a bearer token and load the active user's id/role. Factored out
+/// of [`extract_active_user`] so the same validation is available to code
+/// that already has a raw token string in hand rather than request parts.
+async fn decode_and_load_active_user(
+    token: &str,
+    state: &AppState,
+) -> Result<(Uuid, String), ApiError> {
+    let claims = decode_access_token(token, &state.config.jwt_secret, &state.config.web_origin)
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    // Check user status in the database — disabled/deleted users are rejected immediately
+    let user = users::find_by_id(&state.pool, claims.sub)
+        .await
+        .map_err(|_| ApiError::Unauthorized)?;
+
+    if user.status != "active" {
+        return Err(ApiError::Forbidden);
+    }
+
+    Ok((user.id, user.role))
+}
+
 /// Shared helper: decode JWT, query the DB to verify the user exists and is active.
 async fn extract_active_user(
     parts: &mut Parts,
@@ -26,19 +48,7 @@ async fn extract_active_user(
         .strip_prefix("Bearer ")
         .ok_or(ApiError::Unauthorized)?;
 
-    let claims = decode_access_token(token, &state.config.jwt_secret, &state.config.web_origin)
-        .map_err(|_| ApiError::Unauthorized)?;
-
-    // Check user status in the database — disabled/deleted users are rejected immediately
-    let user = users::find_by_id(&state.pool, claims.sub)
-        .await
-        .map_err(|_| ApiError::Unauthorized)?;
-
-    if user.status != "active" {
-        return Err(ApiError::Forbidden);
-    }
-
-    Ok((user.id, user.role))
+    decode_and_load_active_user(token, state).await
 }
 
 /// Axum extractor that validates the `Authorization: Bearer <token>` header
