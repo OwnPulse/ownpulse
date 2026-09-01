@@ -68,6 +68,10 @@ struct MissedDosesListView: View {
 
             HStack(spacing: 12) {
                 Button("Log") {
+                    // logDose/skipDose already refresh missedDoses (and
+                    // adherence/run-doses) internally on success — see
+                    // ProtocolsViewModel.refreshAfterDoseAction. On failure
+                    // the row stays put and the error below explains why.
                     Task {
                         await viewModel.logDose(
                             protocolId: item.protocolId,
@@ -75,7 +79,6 @@ struct MissedDosesListView: View {
                             lineId: item.protocolLineId,
                             dayNumber: item.dayNumber
                         )
-                        await viewModel.loadMissedDoses()
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -91,12 +94,18 @@ struct MissedDosesListView: View {
                             lineId: item.protocolLineId,
                             dayNumber: item.dayNumber
                         )
-                        await viewModel.loadMissedDoses()
                     }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .accessibilityIdentifier("skipMissedDoseButton-\(item.protocolLineId)-\(item.dayNumber)")
+            }
+
+            if let error = viewModel.doseActionError {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(OPColor.terracotta)
+                    .accessibilityIdentifier("missedDoseError-\(item.protocolLineId)-\(item.dayNumber)")
             }
         }
         .padding(.vertical, 4)

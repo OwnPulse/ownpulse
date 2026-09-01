@@ -37,7 +37,8 @@ struct ProtocolsViewModelTests {
         progressPct: Double = 18.0,
         dosesToday: Int = 2,
         dosesCompletedToday: Int = 0,
-        notify: Bool = false
+        notify: Bool = false,
+        createdAt: String = "2026-03-28T10:00:00Z"
     ) -> ActiveRunResponse {
         ActiveRunResponse(
             id: id,
@@ -54,7 +55,7 @@ struct ProtocolsViewModelTests {
             progressPct: progressPct,
             dosesToday: dosesToday,
             dosesCompletedToday: dosesCompletedToday,
-            createdAt: "2026-03-28T10:00:00Z"
+            createdAt: createdAt
         )
     }
 
@@ -63,7 +64,8 @@ struct ProtocolsViewModelTests {
         name: String = "Test Protocol",
         status: ProtocolStatus = .active,
         durationDays: Int = 28,
-        lines: [ProtocolLine] = []
+        lines: [ProtocolLine] = [],
+        runs: [ActiveRunResponse]? = nil
     ) -> ProtocolDetail {
         ProtocolDetail(
             id: id,
@@ -75,7 +77,8 @@ struct ProtocolsViewModelTests {
             durationDays: durationDays,
             shareToken: nil,
             createdAt: "2026-03-01T00:00:00Z",
-            lines: lines
+            lines: lines,
+            runs: runs
         )
     }
 
@@ -420,44 +423,61 @@ struct ProtocolsViewModelTests {
         #expect(result == false)
     }
 
+    // MARK: - Dose Action Refresh Fixtures
+    //
+    // logDose/skipDose/undoDose now refresh adherence + run-doses +
+    // missed-doses (in addition to the protocol detail) whenever a runId is
+    // used — see `ProtocolsViewModel.refreshAfterDoseAction`. A
+    // requestHandler that only branches on "doses/log" and falls back to a
+    // ProtocolDetail for everything else crashes (`MockNetworkClient`'s
+    // forced cast) the moment one of those three additional GETs runs. This
+    // dispatcher returns the right fixture type for each path so dose-action
+    // tests exercise the real refresh fan-out instead of avoiding it.
+    private static func doseActionHandler(
+        logDoseResponse: ProtocolDose = Self.makeDose(),
+        protocolDetail: ProtocolDetail = Self.makeDetail(),
+        adherence: AdherenceResponse = AdherenceResponse(
+            runId: "run-1", scheduledSoFar: 0, completed: 0, skipped: 0, missed: 0, adherencePct: nil, lines: []
+        ),
+        runDoses: [RunDoseDay] = [],
+        missedDoses: [MissedDoseItem] = []
+    ) -> (String, String, (any Encodable & Sendable)?) throws -> Any {
+        { method, path, _ in
+            if method == "POST" && path.contains("doses/log") { return logDoseResponse }
+            if path.contains("missed-doses") { return missedDoses }
+            if path.contains("/adherence") { return adherence }
+            if method == "GET" && path.contains("/doses") { return runDoses }
+            return protocolDetail
+        }
+    }
+
     // MARK: - Log Dose
 
-    @Test("logDose with runId uses run endpoint")
+    @Test("logDose with runId uses run endpoint and refreshes adherence/doses/missed")
     func logDoseWithRun() async {
         let mock = MockNetworkClient()
-        let dose = Self.makeDose()
-        let detail = Self.makeDetail()
-        mock.requestHandler = { method, path, _ in
-            if method == "POST" && path.contains("doses/log") {
-                return dose
-            }
-            return detail
-        }
+        mock.requestHandler = Self.doseActionHandler()
 
         let vm = ProtocolsViewModel(networkClient: mock)
         await vm.logDose(protocolId: "proto-1", runId: "run-1", lineId: "line-1", dayNumber: 0)
 
-        #expect(mock.requestCalls.count == 2)
         #expect(mock.requestCalls[0].method == "POST")
         #expect(mock.requestCalls[0].path == Endpoints.runLogDose("run-1"))
-        #expect(mock.requestCalls[1].method == "GET")
+        // Log + adherence + run-doses + missed-doses + quiet protocol re-fetch.
+        #expect(mock.requestCalls.count == 5)
+        #expect(mock.requestCalls.dropFirst().allSatisfy { $0.method == "GET" })
     }
 
-    @Test("logDose without runId uses legacy endpoint")
+    @Test("logDose without runId uses legacy endpoint and skips the run-scoped refresh")
     func logDoseLegacy() async {
         let mock = MockNetworkClient()
-        let dose = Self.makeDose()
-        let detail = Self.makeDetail()
-        mock.requestHandler = { method, path, _ in
-            if method == "POST" && path.contains("doses/log") {
-                return dose
-            }
-            return detail
-        }
+        mock.requestHandler = Self.doseActionHandler()
 
         let vm = ProtocolsViewModel(networkClient: mock)
         await vm.logDose(protocolId: "proto-1", runId: nil, lineId: "line-1", dayNumber: 0)
 
+        // No runId — only the log call and the quiet protocol re-fetch, no
+        // adherence/run-doses/missed-doses calls.
         #expect(mock.requestCalls.count == 2)
         #expect(mock.requestCalls[0].method == "POST")
         #expect(mock.requestCalls[0].path == Endpoints.protocolLogDose("proto-1"))
@@ -465,19 +485,18 @@ struct ProtocolsViewModelTests {
 
     // MARK: - Skip Dose
 
-    @Test("skipDose with runId uses run endpoint")
+    @Test("skipDose with runId uses run endpoint and refreshes adherence/doses/missed")
     func skipDoseWithRun() async {
         let mock = MockNetworkClient()
-        let detail = Self.makeDetail()
         mock.requestNoContentHandler = { _, _, _ in }
-        mock.requestHandler = { _, _, _ in detail }
+        mock.requestHandler = Self.doseActionHandler()
 
         let vm = ProtocolsViewModel(networkClient: mock)
         await vm.skipDose(protocolId: "proto-1", runId: "run-1", lineId: "line-1", dayNumber: 0)
 
-        #expect(mock.requestCalls.count == 2)
         #expect(mock.requestCalls[0].method == "POST")
         #expect(mock.requestCalls[0].path == Endpoints.runSkipDose("run-1"))
+        #expect(mock.requestCalls.count == 4)
     }
 
     // MARK: - Dose Reminder Rebuild Hook
@@ -617,6 +636,118 @@ struct ProtocolsViewModelTests {
         }
     }
 
+    @Test("loadRunDoses clears stale doses when switching to a different run")
+    func loadRunDosesClearsOnDifferentRun() async {
+        let mock = MockNetworkClient()
+        let runOneDay = RunDoseDay(
+            dayNumber: 0, date: "2026-04-01", protocolLineId: "line-1", substance: "Run One",
+            dose: nil, unit: nil, route: nil, timeOfDay: nil, status: .missed,
+            doseId: nil, interventionId: nil, skipReason: nil, loggedAt: nil
+        )
+        mock.requestHandler = { _, _, _ in [runOneDay] }
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadRunDoses(runId: "run-1")
+        #expect(vm.runDoses.map(\.substance) == ["Run One"])
+
+        // Switching to a different run should clear the previous run's rows
+        // immediately (asserted via the state captured mid-flight below)
+        // rather than showing them under the new run's loading spinner.
+        var sawClearedDuringLoad = false
+        mock.asyncRequestHandler = { _, _, _ in
+            sawClearedDuringLoad = vm.runDoses.isEmpty
+            return [RunDoseDay]()
+        }
+        await vm.loadRunDoses(runId: "run-2")
+
+        #expect(sawClearedDuringLoad == true)
+    }
+
+    @Test("loadRunDoses does not clear doses when refreshing the same run")
+    func loadRunDosesKeepsDataOnSameRunRefresh() async {
+        let mock = MockNetworkClient()
+        let day = RunDoseDay(
+            dayNumber: 0, date: "2026-04-01", protocolLineId: "line-1", substance: "Creatine",
+            dose: nil, unit: nil, route: nil, timeOfDay: nil, status: .missed,
+            doseId: nil, interventionId: nil, skipReason: nil, loggedAt: nil
+        )
+        mock.requestHandler = { _, _, _ in [day] }
+        let vm = ProtocolsViewModel(networkClient: mock)
+        await vm.loadRunDoses(runId: "run-1")
+
+        var sawDataDuringReload = false
+        mock.asyncRequestHandler = { _, _, _ in
+            sawDataDuringReload = !vm.runDoses.isEmpty
+            return [day]
+        }
+        await vm.loadRunDoses(runId: "run-1")
+
+        #expect(sawDataDuringReload == true)
+    }
+
+    // MARK: - Current Run (paused-run adherence/grid fallback)
+
+    @Test("currentRun prefers the active run when one exists")
+    func currentRunPrefersActive() async {
+        let mock = MockNetworkClient()
+        let vm = ProtocolsViewModel(networkClient: mock)
+        let active = Self.makeActiveRun(id: "run-active", createdAt: "2026-03-01T00:00:00Z")
+        vm.activeRuns = [active]
+        let detail = Self.makeDetail(runs: [
+            Self.makeActiveRun(id: "run-old", createdAt: "2026-01-01T00:00:00Z")
+        ])
+
+        #expect(vm.currentRun(for: detail)?.id == "run-active")
+    }
+
+    @Test("currentRun falls back to the most recently created run when none is active")
+    func currentRunFallsBackToMostRecent() async {
+        let mock = MockNetworkClient()
+        let vm = ProtocolsViewModel(networkClient: mock)
+        vm.activeRuns = []
+        let detail = Self.makeDetail(runs: [
+            Self.makeActiveRun(id: "run-older", createdAt: "2026-01-01T00:00:00Z"),
+            Self.makeActiveRun(id: "run-newer", createdAt: "2026-02-01T00:00:00Z")
+        ])
+
+        #expect(vm.currentRun(for: detail)?.id == "run-newer")
+    }
+
+    @Test("currentRun returns nil when there are no runs at all")
+    func currentRunNilWhenNoRuns() async {
+        let mock = MockNetworkClient()
+        let vm = ProtocolsViewModel(networkClient: mock)
+        vm.activeRuns = []
+        let detail = Self.makeDetail(runs: nil)
+
+        #expect(vm.currentRun(for: detail) == nil)
+    }
+
+    // MARK: - Dose Action Error Surfacing
+
+    @Test("logDose failure populates doseActionError with a status-specific message")
+    func logDoseFailurePopulatesError() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.serverError(statusCode: 409, body: "conflict") }
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        let result = await vm.logDose(protocolId: "proto-1", runId: "run-1", lineId: "line-1", dayNumber: 0)
+
+        #expect(result == false)
+        #expect(vm.doseActionError?.contains("already been logged") == true)
+    }
+
+    @Test("logDose success clears any previous doseActionError")
+    func logDoseSuccessClearsError() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = Self.doseActionHandler()
+
+        let vm = ProtocolsViewModel(networkClient: mock)
+        vm.doseActionError = "stale error from a previous attempt"
+        await vm.logDose(protocolId: "proto-1", runId: "run-1", lineId: "line-1", dayNumber: 0)
+
+        #expect(vm.doseActionError == nil)
+    }
+
     // MARK: - Missed Doses
 
     @Test("loadMissedDoses success stores items")
@@ -682,20 +813,20 @@ struct ProtocolsViewModelTests {
         #expect(result == false)
     }
 
-    @Test("undoDose success reloads the protocol")
+    @Test("undoDose success refreshes adherence/doses/missed and the protocol")
     func undoDoseSuccess() async {
         let mock = MockNetworkClient()
-        let detail = Self.makeDetail()
         mock.requestNoContentHandler = { _, _, _ in }
-        mock.requestHandler = { _, _, _ in detail }
+        mock.requestHandler = Self.doseActionHandler()
 
         let vm = ProtocolsViewModel(networkClient: mock)
         let result = await vm.undoDose(protocolId: "proto-1", runId: "run-1", doseId: "dose-1")
 
         #expect(result == true)
-        #expect(mock.requestCalls.count == 2)
         #expect(mock.requestCalls[0].method == "DELETE")
-        #expect(mock.requestCalls[1].method == "GET")
+        // Delete + adherence + run-doses + missed-doses + quiet protocol re-fetch.
+        #expect(mock.requestCalls.count == 5)
+        #expect(mock.requestCalls.dropFirst().allSatisfy { $0.method == "GET" })
     }
 
     @Test("undoDose failure does not reload the protocol")
@@ -717,15 +848,13 @@ struct ProtocolsViewModelTests {
     @Test("logDose always sends tz_offset_minutes and optional administeredAt/notes")
     func logDoseSendsTZOffsetAndBackfillFields() async {
         let mock = MockNetworkClient()
-        let dose = Self.makeDose()
-        let detail = Self.makeDetail()
         var capturedBody: LogDoseRequest?
+        let handler = Self.doseActionHandler()
         mock.requestHandler = { method, path, body in
             if method == "POST" && path.contains("doses/log") {
                 capturedBody = body as? LogDoseRequest
-                return dose
             }
-            return detail
+            return try handler(method, path, body)
         }
 
         let vm = ProtocolsViewModel(networkClient: mock)
@@ -748,12 +877,11 @@ struct ProtocolsViewModelTests {
     @Test("skipDose sends an optional skip reason")
     func skipDoseSendsReason() async {
         let mock = MockNetworkClient()
-        let detail = Self.makeDetail()
         var capturedBody: SkipDoseRequest?
         mock.requestNoContentHandler = { _, _, body in
             capturedBody = body as? SkipDoseRequest
         }
-        mock.requestHandler = { _, _, _ in detail }
+        mock.requestHandler = Self.doseActionHandler()
 
         let vm = ProtocolsViewModel(networkClient: mock)
         await vm.skipDose(protocolId: "proto-1", runId: "run-1", lineId: "line-1", dayNumber: 0, skipReason: "traveling")

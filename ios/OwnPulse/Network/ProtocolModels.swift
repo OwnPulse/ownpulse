@@ -43,6 +43,12 @@ struct ProtocolDetail: Codable, Sendable, Identifiable {
     let shareToken: String?
     let createdAt: String
     let lines: [ProtocolLine]
+    /// Embedded runs for this protocol (`ProtocolResponse.runs` on the
+    /// backend). Optional so older fixtures/decodes without the field don't
+    /// break — used to fall back to the most-recently-created run when there
+    /// is no *active* run (e.g. a paused run), matching the backend's own
+    /// active-else-most-recent scoping in `get_by_id`/`get_shared`.
+    let runs: [ActiveRunResponse]? = nil
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -52,7 +58,7 @@ struct ProtocolDetail: Codable, Sendable, Identifiable {
         case durationDays = "duration_days"
         case shareToken = "share_token"
         case createdAt = "created_at"
-        case lines
+        case lines, runs
     }
 }
 
@@ -334,6 +340,15 @@ struct ActiveRunResponse: Codable, Sendable, Identifiable {
     let dosesToday: Int
     let dosesCompletedToday: Int
     let createdAt: String
+    /// `completed_closed / (scheduled_closed - skipped_closed) * 100`, same
+    /// definition as `AdherenceResponse.adherencePct`. Populated on
+    /// `GET /protocols/runs/active` and run-creation responses; `nil` on
+    /// placeholder-only paths, e.g. the `runs` embedded in
+    /// `GET /protocols/:id` (used for the paused-run adherence fallback —
+    /// see `ProtocolsViewModel.currentRun(for:)`), which the backend
+    /// currently leaves unpopulated. See docs/architecture/api.md.
+    let adherencePct: Double?
+    let dosesMissed: Int?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -351,6 +366,50 @@ struct ActiveRunResponse: Codable, Sendable, Identifiable {
         case dosesToday = "doses_today"
         case dosesCompletedToday = "doses_completed_today"
         case createdAt = "created_at"
+        case adherencePct = "adherence_pct"
+        case dosesMissed = "doses_missed"
+    }
+
+    // Explicit memberwise init (with defaults for the two adherence fields)
+    // so existing test call sites built before those fields were added keep
+    // compiling. Codable's `init(from:)`/`encode(to:)` are still
+    // compiler-synthesized since neither is hand-written here.
+    init(
+        id: String,
+        protocolId: String,
+        protocolName: String?,
+        startDate: String,
+        durationDays: Int?,
+        status: String,
+        notify: Bool,
+        notifyTime: String?,
+        notifyTimes: [String]?,
+        repeatReminders: Bool,
+        repeatIntervalMinutes: Int?,
+        progressPct: Double,
+        dosesToday: Int,
+        dosesCompletedToday: Int,
+        createdAt: String,
+        adherencePct: Double? = nil,
+        dosesMissed: Int? = nil
+    ) {
+        self.id = id
+        self.protocolId = protocolId
+        self.protocolName = protocolName
+        self.startDate = startDate
+        self.durationDays = durationDays
+        self.status = status
+        self.notify = notify
+        self.notifyTime = notifyTime
+        self.notifyTimes = notifyTimes
+        self.repeatReminders = repeatReminders
+        self.repeatIntervalMinutes = repeatIntervalMinutes
+        self.progressPct = progressPct
+        self.dosesToday = dosesToday
+        self.dosesCompletedToday = dosesCompletedToday
+        self.createdAt = createdAt
+        self.adherencePct = adherencePct
+        self.dosesMissed = dosesMissed
     }
 }
 

@@ -101,8 +101,11 @@ struct ProtocolDetailView: View {
                 // Progress
                 progressSection(proto)
 
-                // Adherence + Dose Backfill (only meaningful once a run exists)
-                if let runId = viewModel.activeRun(for: proto.id)?.id {
+                // Adherence + Dose Backfill (only meaningful once a run exists).
+                // Falls back to the most-recently-created run when there's no
+                // *active* one (e.g. a paused run) — see
+                // `ProtocolsViewModel.currentRun(for:)`.
+                if let runId = viewModel.currentRun(for: proto)?.id {
                     adherenceSection()
                     DoseGridSection(protocolId: proto.id, runId: runId, viewModel: viewModel)
                 }
@@ -193,7 +196,17 @@ struct ProtocolDetailView: View {
             case .loaded:
                 if let adherence = viewModel.adherence {
                     if let pct = adherence.adherencePct {
-                        Text("\(Int(pct.rounded()))% adherence · \(adherence.completed) done · \(adherence.skipped) skipped · \(adherence.missed) missed")
+                        // 1 decimal place, matching the server's own rounding
+                        // (`crate::dose_status::adherence_pct`) — do not
+                        // re-round to an Int here.
+                        Text("\(pct, specifier: "%.1f")% adherence · \(adherence.completed) done · \(adherence.skipped) skipped · \(adherence.missed) missed")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    } else if adherence.scheduledSoFar > 0 {
+                        // pct is also null when every closed day was
+                        // skipped (denominator == 0 despite days having
+                        // closed) — distinct from "nothing scheduled yet".
+                        Text("No doses counted yet · \(adherence.skipped) skipped")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     } else {
@@ -236,7 +249,7 @@ struct ProtocolDetailView: View {
                         Spacer()
 
                         if doseInfo.status == .pending {
-                            let runId = viewModel.activeRun(for: proto.id)?.id
+                            let runId = viewModel.currentRun(for: proto)?.id
                             Button("Log") {
                                 Task {
                                     await viewModel.logDose(
@@ -483,16 +496,29 @@ struct DoseGridSection: View {
             Text("Dose Log")
                 .font(.headline)
 
-            if viewModel.runDoses.isEmpty {
-                Text("No scheduled doses yet.")
+            switch viewModel.runDosesState {
+            case .idle, .loading:
+                ProgressView()
+                    .accessibilityIdentifier("doseGridLoading")
+            case .error(let message):
+                // Distinct from the empty-list case below — a fetch failure
+                // is not the same as "nothing scheduled yet".
+                Text(message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-            } else {
-                let days = viewModel.runDoses.sorted { $0.dayNumber > $1.dayNumber }
-                ForEach(days) { day in
-                    doseRow(day)
-                    if day.id != days.last?.id {
-                        Divider()
+                    .accessibilityIdentifier("doseGridError")
+            case .loaded:
+                if viewModel.runDoses.isEmpty {
+                    Text("No scheduled doses yet.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    let days = viewModel.runDoses.sorted { $0.dayNumber > $1.dayNumber }
+                    ForEach(days) { day in
+                        doseRow(day)
+                        if day.id != days.last?.id {
+                            Divider()
+                        }
                     }
                 }
             }
@@ -500,7 +526,12 @@ struct DoseGridSection: View {
         .opCard()
         .accessibilityIdentifier("doseGrid")
         .task(id: runId) {
-            await reload()
+            // Initial load for this run — subsequent refreshes after a
+            // log/skip/undo happen inside the view model itself
+            // (`refreshAfterDoseAction`), not via a view-level reload call.
+            async let a: Void = viewModel.loadRunDoses(runId: runId)
+            async let b: Void = viewModel.loadAdherence(runId: runId)
+            _ = await (a, b)
         }
         .sheet(item: $actionTarget) { day in
             doseActionSheet(day)
@@ -526,8 +557,9 @@ struct DoseGridSection: View {
                         if let doseId = day.doseId {
                             Button(role: .destructive) {
                                 Task {
-                                    _ = await viewModel.undoDose(protocolId: protocolId, runId: runId, doseId: doseId)
-                                    await reload()
+                                    // undoDose already refreshes adherence/run-doses/
+                                    // missed-doses + a quiet protocol re-fetch.
+                                    await viewModel.undoDose(protocolId: protocolId, runId: runId, doseId: doseId)
                                 }
                             } label: {
                                 Label("Undo", systemImage: "arrow.uturn.backward")
@@ -583,20 +615,29 @@ struct DoseGridSection: View {
                     TextField("Reason", text: $skipReasonText, axis: .vertical)
                         .accessibilityIdentifier("skipReasonField-\(day.protocolLineId)-\(day.dayNumber)")
                 }
+                if let error = viewModel.doseActionError {
+                    Section {
+                        Text(error)
+                            .foregroundStyle(OPColor.terracotta)
+                            .accessibilityIdentifier("doseActionError-\(day.protocolLineId)-\(day.dayNumber)")
+                    }
+                }
                 Section {
                     Button(role: .destructive) {
                         let reason = skipReasonText.trimmingCharacters(in: .whitespaces)
                         Task {
-                            await viewModel.skipDose(
+                            let success = await viewModel.skipDose(
                                 protocolId: protocolId,
                                 runId: runId,
                                 lineId: day.protocolLineId,
                                 dayNumber: day.dayNumber,
                                 skipReason: reason.isEmpty ? nil : reason
                             )
-                            await reload()
+                            // Only dismiss on success — a failure (e.g. 409
+                            // already-logged) should stay visible with the
+                            // error above rather than silently vanish.
+                            if success { actionTarget = nil }
                         }
-                        actionTarget = nil
                     } label: {
                         Text("Skip")
                             .frame(maxWidth: .infinity)
@@ -613,25 +654,19 @@ struct DoseGridSection: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Log") {
                         Task {
-                            await viewModel.logDose(
+                            let success = await viewModel.logDose(
                                 protocolId: protocolId,
                                 runId: runId,
                                 lineId: day.protocolLineId,
                                 dayNumber: day.dayNumber
                             )
-                            await reload()
+                            if success { actionTarget = nil }
                         }
-                        actionTarget = nil
                     }
                     .accessibilityIdentifier("confirmLogDoseButton-\(day.protocolLineId)-\(day.dayNumber)")
                 }
             }
         }
         .presentationDetents([.medium, .large])
-    }
-
-    private func reload() async {
-        await viewModel.loadRunDoses(runId: runId)
-        await viewModel.loadAdherence(runId: runId)
     }
 }

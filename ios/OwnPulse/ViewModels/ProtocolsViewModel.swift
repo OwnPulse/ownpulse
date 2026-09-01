@@ -66,6 +66,15 @@ final class ProtocolsViewModel {
     var missedDosesState: LoadState = .idle
     var missedDoses: [MissedDoseItem] = []
 
+    /// User-facing message for the most recent log/skip/undo failure — the
+    /// backend genuinely 400s/404s/409s these (out-of-window
+    /// `administered_at`, a future day, a bad tz offset, an already-logged
+    /// day, a dose that doesn't belong to the run). Call sites (the dose
+    /// grid's confirmation sheet, the missed-doses list rows) surface this
+    /// and must NOT dismiss/optimistically-update on failure. Cleared at the
+    /// start of every dose action.
+    var doseActionError: String?
+
     // MARK: - Create State
 
     var createState: CreateState = .idle
@@ -221,6 +230,7 @@ final class ProtocolsViewModel {
         TimeZone.current.secondsFromGMT() / 60
     }
 
+    @discardableResult
     func logDose(
         protocolId: String,
         runId: String?,
@@ -228,7 +238,8 @@ final class ProtocolsViewModel {
         dayNumber: Int,
         administeredAt: Date? = nil,
         notes: String? = nil
-    ) async {
+    ) async -> Bool {
+        doseActionError = nil
         let formatter = ISO8601DateFormatter()
         let body = LogDoseRequest(
             protocolLineId: lineId,
@@ -251,19 +262,24 @@ final class ProtocolsViewModel {
                     body: body
                 )
             }
-            await loadProtocol(id: protocolId)
+            await refreshAfterDoseAction(protocolId: protocolId, runId: runId)
+            return true
         } catch {
             logger.error("Failed to log dose: \(error.localizedDescription, privacy: .public)")
+            doseActionError = Self.friendlyDoseErrorMessage(error)
+            return false
         }
     }
 
+    @discardableResult
     func skipDose(
         protocolId: String,
         runId: String?,
         lineId: String,
         dayNumber: Int,
         skipReason: String? = nil
-    ) async {
+    ) async -> Bool {
+        doseActionError = nil
         let body = SkipDoseRequest(protocolLineId: lineId, dayNumber: dayNumber, skipReason: skipReason)
         do {
             if let runId {
@@ -279,16 +295,19 @@ final class ProtocolsViewModel {
                     body: body
                 )
             }
-            await loadProtocol(id: protocolId)
+            await refreshAfterDoseAction(protocolId: protocolId, runId: runId)
+            return true
         } catch {
             logger.error("Failed to skip dose: \(error.localizedDescription, privacy: .public)")
+            doseActionError = Self.friendlyDoseErrorMessage(error)
+            return false
         }
     }
 
     /// Deletes (undoes) a logged/skipped dose. Does not itself refresh any
-    /// state — callers reload whichever list they're displaying (protocol
-    /// detail, run doses, missed doses) afterward.
+    /// state — `undoDose` below does that.
     func deleteDose(runId: String, doseId: String) async -> Bool {
+        doseActionError = nil
         do {
             try await networkClient.requestNoContent(
                 method: "DELETE",
@@ -298,24 +317,103 @@ final class ProtocolsViewModel {
             return true
         } catch {
             logger.error("Failed to delete dose: \(error.localizedDescription, privacy: .public)")
+            doseActionError = Self.friendlyDoseErrorMessage(error)
             return false
         }
     }
 
     /// Convenience wrapper used by the protocol-detail dose grid: deletes the
-    /// dose, then reloads the protocol detail so the grid/adherence reflect
-    /// the undo.
+    /// dose, then quietly refreshes (see `refreshAfterDoseAction`).
+    @discardableResult
     func undoDose(protocolId: String, runId: String, doseId: String) async -> Bool {
         let success = await deleteDose(runId: runId, doseId: doseId)
         if success {
-            await loadProtocol(id: protocolId)
+            await refreshAfterDoseAction(protocolId: protocolId, runId: runId)
         }
         return success
     }
 
+    /// Translates a dose-action failure into a message a user can act on,
+    /// instead of the generic `localizedDescription` (which for
+    /// `NetworkError.serverError` is just "the operation couldn't be
+    /// completed"). No response body/health-data content is surfaced — only
+    /// a fixed string per status code.
+    private static func friendlyDoseErrorMessage(_ error: Error) -> String {
+        guard let networkError = error as? NetworkError else {
+            return "Couldn't save — check your connection and try again."
+        }
+        switch networkError {
+        case .serverError(let statusCode, _):
+            switch statusCode {
+            case 400:
+                return "That day is outside the allowed window for this action. Check the date and try again."
+            case 404:
+                return "This dose or run couldn't be found — it may have been deleted elsewhere."
+            case 409:
+                return "A dose has already been logged or skipped for this day."
+            case 422:
+                return "That request was missing required information."
+            default:
+                return "Couldn't save (error \(statusCode)). Please try again."
+            }
+        case .unauthorized:
+            return "Your session expired — please sign in again."
+        case .decodingFailed, .noData:
+            return "Couldn't read the server's response. Please try again."
+        }
+    }
+
+    /// After a successful log/skip/undo: refreshes the run-scoped views
+    /// (adherence, dose grid, missed-doses banner) whenever a `runId` was
+    /// used, and quietly re-fetches the protocol detail — WITHOUT resetting
+    /// `detailState` to `.loading`, so the screen doesn't blank to a
+    /// `ProgressView` and tear down the grid/adherence card mid-refresh.
+    /// Covers both the new dose-grid confirmation sheet and the legacy
+    /// Today's Doses card, which previously only refetched protocol detail
+    /// and left the grid/adherence stale above it.
+    private func refreshAfterDoseAction(protocolId: String, runId: String?) async {
+        if let runId {
+            async let a: Void = loadAdherence(runId: runId)
+            async let b: Void = loadRunDoses(runId: runId)
+            async let c: Void = loadMissedDoses()
+            _ = await (a, b, c)
+        }
+        await refreshProtocolDetailQuietly(protocolId: protocolId)
+    }
+
+    /// Re-fetches protocol detail and swaps in `selectedProtocol` on
+    /// success, without touching `detailState` — used after a dose action so
+    /// Today's Doses/lines reflect the new status without a loading flash.
+    /// A failure here is logged but does not surface `doseActionError`
+    /// (that's reserved for the action the user just took); the detail view
+    /// simply keeps showing its last-known-good state.
+    private func refreshProtocolDetailQuietly(protocolId: String) async {
+        do {
+            let detail: ProtocolDetail = try await networkClient.request(
+                method: "GET",
+                path: Endpoints.protocolDetail(protocolId),
+                body: nil as String?
+            )
+            selectedProtocol = detail
+        } catch {
+            logger.error("Failed to refresh protocol after dose action: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     // MARK: - Adherence / Dose Backfill
 
+    /// Which run's adherence/doses are currently held, so a load for a
+    /// *different* run clears the stale data immediately (otherwise the grid
+    /// briefly shows the previous protocol's rows while the new run loads),
+    /// while a same-run refresh (e.g. after logging a dose) doesn't flash
+    /// empty in between.
+    private var loadedAdherenceRunId: String?
+    private var loadedRunDosesRunId: String?
+
     func loadAdherence(runId: String) async {
+        if loadedAdherenceRunId != runId {
+            adherence = nil
+        }
         adherenceState = .loading
         do {
             let result: AdherenceResponse = try await networkClient.request(
@@ -325,6 +423,7 @@ final class ProtocolsViewModel {
             )
             adherence = result
             adherenceState = .loaded
+            loadedAdherenceRunId = runId
         } catch {
             logger.error("Failed to load adherence: \(error.localizedDescription, privacy: .public)")
             adherenceState = .error("Failed to load adherence")
@@ -332,6 +431,9 @@ final class ProtocolsViewModel {
     }
 
     func loadRunDoses(runId: String, fromDay: Int? = nil, toDay: Int? = nil) async {
+        if loadedRunDosesRunId != runId {
+            runDoses = []
+        }
         runDosesState = .loading
         do {
             let result: [RunDoseDay] = try await networkClient.request(
@@ -341,6 +443,7 @@ final class ProtocolsViewModel {
             )
             runDoses = result
             runDosesState = .loaded
+            loadedRunDosesRunId = runId
         } catch {
             logger.error("Failed to load run doses: \(error.localizedDescription, privacy: .public)")
             runDosesState = .error("Failed to load doses")
@@ -450,6 +553,20 @@ final class ProtocolsViewModel {
 
     func activeRun(for protocolId: String) -> ActiveRunResponse? {
         activeRuns.first { $0.protocolId == protocolId }
+    }
+
+    /// The run to show adherence/dose-grid data for: the active run if one
+    /// exists, else the protocol's most-recently-created run (matching the
+    /// backend's own active-else-most-recent scoping in `get_by_id`/
+    /// `get_shared`). Without this fallback, a *paused* run (which
+    /// `activeRuns` — sourced from `GET /protocols/runs/active` — excludes)
+    /// showed neither its adherence nor its dose grid, even though the
+    /// backend computes both for a run in any status.
+    func currentRun(for protocol: ProtocolDetail) -> ActiveRunResponse? {
+        if let active = activeRun(for: protocol.id) {
+            return active
+        }
+        return protocol.runs?.max { $0.createdAt < $1.createdAt }
     }
 }
 

@@ -9,6 +9,10 @@
 # ProtocolDetailView.DoseGridSection), so this flow exercises the same
 # confirmation-sheet path a genuinely missed day would use, without depending
 # on a pre-seeded backend fixture with a day in the past.
+#
+# startRunButton only renders on the protocol LIST row (ProtocolCardView) —
+# not inside the detail view — so the run must be started before navigating
+# into the protocol, not after.
 appId: health.ownpulse.app
 ---
 - assertVisible:
@@ -39,15 +43,20 @@ appId: health.ownpulse.app
       id: "protocolFilterPicker"
     timeout: 10000
 
+# Start the run from the list card — startRunButton-<protocol_id> only
+# exists on ProtocolCardView, before navigating into the detail screen.
+- assertVisible:
+    id: "startRunButton-.*"
+- tapOn:
+    id: "startRunButton-.*"
+- extendedWaitUntil:
+    notVisible:
+      id: "startRunButton-.*"
+    timeout: 10000
+
 - tapOn: "Backfill Test Protocol"
 - assertVisible:
     id: "protocolHeader"
-
-# Start a run so the dose grid and adherence sections render.
-# startRunButton's identifier suffix is the server-generated protocol id, so
-# match by regex rather than a literal (unpredictable) UUID.
-- tapOn:
-    id: "startRunButton-.*"
 - extendedWaitUntil:
     visible:
       id: "doseGrid"
