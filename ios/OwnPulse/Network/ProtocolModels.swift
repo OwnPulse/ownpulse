@@ -48,7 +48,14 @@ struct ProtocolDetail: Codable, Sendable, Identifiable {
     /// break — used to fall back to the most-recently-created run when there
     /// is no *active* run (e.g. a paused run), matching the backend's own
     /// active-else-most-recent scoping in `get_by_id`/`get_shared`.
-    let runs: [ActiveRunResponse]? = nil
+    ///
+    /// `var`, not `let`, deliberately: a stored `let` with an inline default
+    /// value is excluded entirely from Swift's synthesized memberwise
+    /// init — callers couldn't pass `runs:` at all, only ever get `nil`. A
+    /// `var` with a default is included as an *optional* init parameter,
+    /// which is what every test constructing this type by hand needs. Never
+    /// mutated after decode/init.
+    var runs: [ActiveRunResponse]? = nil
 
     enum CodingKeys: String, CodingKey {
         case id

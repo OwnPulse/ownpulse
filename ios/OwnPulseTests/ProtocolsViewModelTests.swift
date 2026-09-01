@@ -652,9 +652,14 @@ struct ProtocolsViewModelTests {
         // Switching to a different run should clear the previous run's rows
         // immediately (asserted via the state captured mid-flight below)
         // rather than showing them under the new run's loading spinner.
-        var sawClearedDuringLoad = false
+        // `asyncRequestHandler` is `@Sendable`, so it runs outside this
+        // test's (implicit MainActor) isolation — the flag needs
+        // `nonisolated(unsafe)` to be mutated from it, and reading the
+        // MainActor-isolated view model's `runDoses` needs an explicit
+        // `await`.
+        nonisolated(unsafe) var sawClearedDuringLoad = false
         mock.asyncRequestHandler = { _, _, _ in
-            sawClearedDuringLoad = vm.runDoses.isEmpty
+            sawClearedDuringLoad = await vm.runDoses.isEmpty
             return [RunDoseDay]()
         }
         await vm.loadRunDoses(runId: "run-2")
@@ -674,9 +679,9 @@ struct ProtocolsViewModelTests {
         let vm = ProtocolsViewModel(networkClient: mock)
         await vm.loadRunDoses(runId: "run-1")
 
-        var sawDataDuringReload = false
+        nonisolated(unsafe) var sawDataDuringReload = false
         mock.asyncRequestHandler = { _, _, _ in
-            sawDataDuringReload = !vm.runDoses.isEmpty
+            sawDataDuringReload = await !vm.runDoses.isEmpty
             return [day]
         }
         await vm.loadRunDoses(runId: "run-1")
