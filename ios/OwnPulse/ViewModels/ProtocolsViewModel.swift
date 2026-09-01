@@ -562,11 +562,14 @@ final class ProtocolsViewModel {
     /// `activeRuns` — sourced from `GET /protocols/runs/active` — excludes)
     /// showed neither its adherence nor its dose grid, even though the
     /// backend computes both for a run in any status.
-    func currentRun(for protocol: ProtocolDetail) -> ActiveRunResponse? {
-        if let active = activeRun(for: protocol.id) {
+    // `protocol` is a reserved keyword in Swift — using it unescaped as a
+    // parameter's internal name is a parse error. `proto` matches the
+    // naming ProtocolDetailView already uses for a `ProtocolDetail` value.
+    func currentRun(for proto: ProtocolDetail) -> ActiveRunResponse? {
+        if let active = activeRun(for: proto.id) {
             return active
         }
-        return protocol.runs?.max { $0.createdAt < $1.createdAt }
+        return proto.runs?.max { $0.createdAt < $1.createdAt }
     }
 }
 
