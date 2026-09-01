@@ -3,20 +3,27 @@
 
 import Foundation
 import HealthKit
+import os
 
 struct MedicationDoseRecord: Sendable {
     let substance: String
-    let dose: Double
+    /// Nil when Apple Health has no recorded quantity for the dose event.
+    /// Never substitute a placeholder — an invented dose misrepresents the
+    /// user's data.
+    let dose: Double?
     let unit: String
-    let route: String
+    /// Nil when the medication's form doesn't imply an unambiguous route.
+    let route: String?
     let administeredAt: Date
     let sourceId: String
     let conceptIdentifier: String
 }
 
-// The medication APIs require the iOS 26 SDK (Xcode 26+, Swift 6.1+).
-// Gate at compile time so this file is inert when built with Xcode 16.x / Swift 6.0.
+// The medication APIs require the iOS 26 SDK, so this file compiles only
+// with Swift 6.3 or newer.
 #if swift(>=6.3)
+
+private let logger = Logger(subsystem: "health.ownpulse.app", category: "medication-sync")
 
 @available(iOS 26.0, *)
 protocol MedicationSyncProviderProtocol: Sendable {
@@ -30,8 +37,9 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
     private let store = HKHealthStore()
 
     // Concept identifier → medication info, refreshed each sync.
-    // Form stored as String so the route mapper has no HealthKit dependency.
-    private var medicationCache: [String: (name: String, form: String)] = [:]
+    // @unchecked Sendable is safe because `medicationCache` is only mutated
+    // inside `queryDoseEvents`, which SyncEngine awaits sequentially.
+    private var medicationCache: [String: (name: String, form: HKMedicationGeneralForm)] = [:]
 
     func requestAuthorization() async throws {
         try await store.requestPerObjectReadAuthorization(
@@ -85,13 +93,12 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
                     let conceptID = doseEvent.medicationConceptIdentifier.description
                     let cached = cache[conceptID]
                     let substance = cached?.name ?? "Unknown Medication"
-                    let route = Self.mapFormToRoute(cached?.form)
 
                     return MedicationDoseRecord(
                         substance: substance,
-                        dose: doseEvent.doseQuantity ?? 1.0,
+                        dose: doseEvent.doseQuantity,
                         unit: doseEvent.unit.unitString,
-                        route: route,
+                        route: Self.mapFormToRoute(cached?.form),
                         administeredAt: doseEvent.startDate,
                         sourceId: doseEvent.uuid.uuidString,
                         conceptIdentifier: conceptID
@@ -100,10 +107,16 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
 
                 var anchorData: Data?
                 if let newAnchor {
-                    anchorData = try? NSKeyedArchiver.archivedData(
-                        withRootObject: newAnchor,
-                        requiringSecureCoding: true
-                    )
+                    do {
+                        anchorData = try NSKeyedArchiver.archivedData(
+                            withRootObject: newAnchor,
+                            requiringSecureCoding: true
+                        )
+                    } catch {
+                        // A nil anchor forces a full re-read next sync; the
+                        // posted-IDs guard absorbs it, but log the cause.
+                        logger.warning("Dose-event anchor archive failed: \(error.localizedDescription, privacy: .public)")
+                    }
                 }
 
                 continuation.resume(returning: (records: records, newAnchor: anchorData))
@@ -119,11 +132,11 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
         let descriptor = HKUserAnnotatedMedicationQueryDescriptor()
         let medications = try await descriptor.result(for: store)
 
-        var cache: [String: (name: String, form: String)] = [:]
+        var cache: [String: (name: String, form: HKMedicationGeneralForm)] = [:]
         for med in medications {
             let id = med.medication.identifier.description
             let name = med.nickname ?? med.medication.displayText
-            cache[id] = (name: name, form: String(med.medication.generalForm.rawValue))
+            cache[id] = (name: name, form: med.medication.generalForm)
         }
         medicationCache = cache
     }
@@ -131,13 +144,9 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
     /// No ADR-0008 cycle-prevention predicate here: `requestAuthorization`
     /// above requests per-object *read* only (never write), so there is no
     /// path by which this app writes a `HKMedicationDoseEvent` — the cycle
-    /// the predicate guards against cannot occur for this type today. This
-    /// whole file is also gated behind `#if swift(>=6.3)` and the pinned CI
-    /// toolchain is Swift 6.0, so it is never compiled or type-checked
-    /// until a future toolchain bump — if dose-event write-back is ever
-    /// added, apply `HealthKitProvider.makeReadPredicate()` here and verify
-    /// it against a real build first, rather than carrying an unverified
-    /// AND today.
+    /// the predicate guards against cannot occur for this type today. If
+    /// dose-event write-back is ever added, apply
+    /// `HealthKitProvider.makeReadPredicate()` here.
     private func takenDosesPredicate() -> NSPredicate {
         NSPredicate(
             format: "%K == %d",
@@ -146,25 +155,24 @@ final class MedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked S
         )
     }
 
-    static func mapFormToRoute(_ form: String?) -> String {
-        guard let form else { return "oral" }
+    /// Maps a medication's general form to an administration route, or nil
+    /// when the form doesn't imply one (for example, sprays can be nasal,
+    /// oral, or topical). Nil is preferable to a guess.
+    static func mapFormToRoute(_ form: HKMedicationGeneralForm?) -> String? {
+        guard let form else { return nil }
         switch form {
-        case "Capsule", "Liquid", "Powder", "Tablet":
+        case .capsule, .liquid, .powder, .tablet:
             return "oral"
-        case "Injection":
+        case .injection:
             return "injection"
-        case "Inhaler":
+        case .inhaler:
             return "inhalation"
-        case "Cream", "Gel", "Lotion", "Ointment", "Patch", "Topical", "Foam":
+        case .cream, .gel, .lotion, .ointment, .patch, .topical, .foam:
             return "topical"
-        case "Suppository":
+        case .suppository:
             return "rectal"
-        case "Spray":
-            return "nasal"
-        case "Drops":
-            return "sublingual"
         default:
-            return "oral"
+            return nil
         }
     }
 }

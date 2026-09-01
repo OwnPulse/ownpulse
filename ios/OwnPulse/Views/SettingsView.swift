@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import AuthenticationServices
+import HealthKit
 import SwiftUI
 import os
 
@@ -17,16 +18,50 @@ final class SettingsViewModel {
     var notificationsEnabled = false
     var notificationStatusText = "Unknown"
     var notificationError: String?
+    var medicationCount = 0
+    var medicationConnectError: String?
 
     private let networkClient: NetworkClientProtocol
     private let notificationManager: NotificationManagerProtocol
+    private let medicationSyncProvider: (any Sendable)?
 
     init(
         networkClient: NetworkClientProtocol,
-        notificationManager: NotificationManagerProtocol? = nil
+        notificationManager: NotificationManagerProtocol? = nil,
+        medicationSyncProvider: (any Sendable)? = nil
     ) {
         self.networkClient = networkClient
         self.notificationManager = notificationManager ?? NotificationManager(networkClient: networkClient)
+        self.medicationSyncProvider = medicationSyncProvider
+    }
+
+    func connectMedications() async {
+        #if swift(>=6.3)
+        guard #available(iOS 26.0, *),
+              let provider = medicationSyncProvider as? MedicationSyncProviderProtocol else { return }
+        do {
+            medicationConnectError = nil
+            try await provider.requestAuthorization()
+            await refreshMedicationCount()
+        } catch let error as HKError where error.code == .errorUserCanceled {
+            // Declining the permission sheet is a choice, not a failure.
+        } catch {
+            logger.error("Medication connect failed: \(error.localizedDescription, privacy: .public)")
+            medicationConnectError = "Couldn't connect medications. Try again."
+        }
+        #endif
+    }
+
+    func refreshMedicationCount() async {
+        #if swift(>=6.3)
+        guard #available(iOS 26.0, *),
+              let provider = medicationSyncProvider as? MedicationSyncProviderProtocol else { return }
+        do {
+            medicationCount = try await provider.authorizedMedicationCount()
+        } catch {
+            logger.error("Medication count refresh failed: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
     }
 
     func loadAuthMethods() async {
@@ -144,7 +179,6 @@ struct SettingsView: View {
     @State private var showUnlinkConfirmation = false
     @State private var unlinkProvider: String?
     @State private var hkAuthorized = false
-    @State private var medicationCount: Int = 0
     @State private var clinicalRecordsSyncEnabled = ClinicalRecordSettings.isSyncEnabled
     @State private var telemetryEnabled = TelemetrySettings.isEnabled
     @State private var weightUnit: WeightUnitPreference = UserPreferences.weightUnit
@@ -227,8 +261,9 @@ struct SettingsView: View {
             #if swift(>=6.3)
             if #available(iOS 26.0, *) {
                 Section("Medications") {
+                    let medicationCount = viewModel?.medicationCount ?? 0
                     Button {
-                        Task { await connectMedications() }
+                        Task { await viewModel?.connectMedications() }
                     } label: {
                         Label(
                             medicationCount > 0
@@ -242,8 +277,14 @@ struct SettingsView: View {
                     Text("Dose events logged in Apple Health sync as interventions.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    if let medicationConnectError = viewModel?.medicationConnectError {
+                        Text(medicationConnectError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("medicationConnectError")
+                    }
                 }
-                .task { await refreshMedicationCount() }
             }
             #endif
 
@@ -401,12 +442,14 @@ struct SettingsView: View {
             if viewModel == nil {
                 viewModel = SettingsViewModel(
                     networkClient: dependencies.networkClient,
-                    notificationManager: dependencies.notificationManager
+                    notificationManager: dependencies.notificationManager,
+                    medicationSyncProvider: dependencies.medicationSyncProvider
                 )
             }
             Task {
                 await viewModel?.loadAuthMethods()
                 await viewModel?.loadNotificationStatus()
+                await viewModel?.refreshMedicationCount()
             }
         }
         .confirmationDialog("Sign out?", isPresented: $showLogoutConfirmation) {
@@ -538,24 +581,4 @@ struct SettingsView: View {
         }
     }
 
-    #if swift(>=6.3)
-    @available(iOS 26.0, *)
-    private func connectMedications() async {
-        guard let provider = dependencies.medicationSyncProvider as? MedicationSyncProviderProtocol else { return }
-        do {
-            try await provider.requestAuthorization()
-            await refreshMedicationCount()
-        } catch {
-            // User dismissed or denied — not an error
-        }
-    }
-    #endif
-
-    private func refreshMedicationCount() async {
-        #if swift(>=6.3)
-        guard #available(iOS 26.0, *) else { return }
-        guard let provider = dependencies.medicationSyncProvider as? MedicationSyncProviderProtocol else { return }
-        medicationCount = (try? await provider.authorizedMedicationCount()) ?? 0
-        #endif
-    }
 }

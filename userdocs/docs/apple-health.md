@@ -39,6 +39,17 @@ When data arrives from Apple Health that overlaps with data already in OwnPulse 
 
 OwnPulse syncs the following categories with Apple Health: heart rate, resting heart rate, heart rate variability, blood oxygen, respiratory rate, body temperature, weight, body fat percentage, step count, active energy, sleep analysis, and workouts. Additional categories may be added in future updates.
 
+## Medications (iOS 26+)
+
+On devices running iOS 26 or later, OwnPulse can import medication doses you log in the Apple Health app:
+
+1. In the OwnPulse iOS app, go to **Settings** and tap **Connect Medications**.
+2. iOS presents a per-medication permission screen — choose which medications OwnPulse may read.
+
+Doses marked **Taken** in Apple Health then appear in OwnPulse as interventions. The dose and unit are carried over when Apple Health recorded them; the administration route is inferred from the medication's form (for example, tablets are recorded as oral) and left blank when the form is ambiguous. This import is read-only: OwnPulse never writes medication data back to Apple Health. Medications you decline on the permission screen are never read.
+
+To stop or narrow the import later, open the Apple Health app and change which medications OwnPulse can read under **Profile > Apps and Services > OwnPulse**.
+
 ## Troubleshooting
 
 If sync appears stuck, open the OwnPulse iOS app and check the sync status on the Settings screen. If the last sync time is stale, try tapping **Sync Now**. If that does not help, verify HealthKit permissions in iOS Settings and ensure background app refresh is enabled for OwnPulse.

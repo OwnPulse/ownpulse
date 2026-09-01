@@ -340,7 +340,7 @@ Consumer contracts live in `pact/contracts/`. When adding or changing an endpoin
 - Swift 6, SwiftUI, iOS 18 minimum
 - **No third-party dependencies except GRDB** (offline queue) and Swift Testing
 - Charts: **Swift Charts** (native, Phase 3b+) — no third-party charting library
-- Unit tests: **Swift Testing** framework (Xcode 16) — not XCTest
+- Unit tests: **Swift Testing** framework — not XCTest
 - UI tests: **XCUITest** for complex flows, **Maestro** for E2E
 - SwiftUI testing: **ViewInspector** for testing views without simulator
 - HealthKit abstracted behind `HealthKitProvider` protocol — `MockHealthKitProvider` in tests
@@ -363,8 +363,9 @@ Flows live in `ios/maestro/flows/`. File names match the user story: `log-interv
 
 **Linux jobs** (backend, web): plain GitHub-hosted `ubuntu-latest` runners.
 
-**macOS/iOS jobs**: plain GitHub-hosted `macos-15` runners, with a simulator created
-at job start (the image ships no pre-provisioned iOS simulator devices).
+**macOS/iOS jobs**: plain GitHub-hosted `macos-26` runners (Xcode 26.6 / Swift 6.3
+pinned via `DEVELOPER_DIR`), with a simulator created at job start so the device
+is deterministic regardless of what the image pre-provisions.
 
 ARC (Actions Runner Controller) and a self-hosted Mac mini + Tart VM fleet are
 **planned but not yet built** — `arc-runner-set` and `macos-tart` labels do not
@@ -375,7 +376,7 @@ otherwise as stale. When that infra lands, it will be a committed change to
 ```
 backend.yml    fmt + clippy + sqlx check + tests (incl. contract) + build   runs-on: ubuntu-latest
 web.yml        biome + tsc + vitest + playwright + build                    runs-on: ubuntu-latest
-ios.yml        xcodebuild test + Release WMO compile                        runs-on: macos-15
+ios.yml        xcodebuild test + Release WMO compile                        runs-on: macos-26
 deploy.yml     helm upgrade when backend + web pass on main                 runs-on: ubuntu-latest
 ```
 

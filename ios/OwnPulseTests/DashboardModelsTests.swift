@@ -273,6 +273,27 @@ struct DashboardModelsTests {
         #expect(dict?["fasted"] as? Bool == true)
     }
 
+    @Test("CreateIntervention omits nil dose and route from the payload")
+    func encodeCreateInterventionNilDoseRoute() throws {
+        let intervention = CreateIntervention(
+            substance: "Magnesium",
+            dose: nil,
+            unit: "count",
+            route: nil,
+            // date-ok
+            administeredAt: "2026-03-28T08:00:00Z",
+            fasted: false,
+            notes: "Synced from Apple Health"
+        )
+
+        let data = try encoder.encode(intervention)
+        let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        #expect(dict?.keys.contains("dose") == false)
+        #expect(dict?.keys.contains("route") == false)
+        #expect(dict?["substance"] as? String == "Magnesium")
+    }
+
     // MARK: - CreateObservation
 
     @Test("CreateObservation encodes with JSONB value")

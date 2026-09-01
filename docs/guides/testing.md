@@ -62,7 +62,7 @@ Framework: Playwright
 
 ### Unit Tests
 
-Framework: Swift Testing (Xcode 16)
+Framework: Swift Testing
 
 - Parallel by default.
 - HealthKit abstracted behind `HealthKitProvider` protocol; use `MockHealthKitProvider` in tests.
@@ -77,6 +77,16 @@ Framework: Maestro
 - YAML-based flows in `ios/maestro/flows/`.
 - Flows are deterministic: use `assertVisible` to confirm state before acting.
 - Run: `maestro test ios/maestro/flows/`
+
+**Exemption — medication connect (iOS 26+):** the flow Settings → Connect
+Medications → doses appear as interventions has no Maestro coverage. The
+HealthKit per-object permission sheet is a system dialog Maestro cannot
+drive, and the simulator has no way to seed medication dose events. Verify
+manually on an iOS 26 device or simulator with medications configured in the
+Health app: connect from Settings, log a dose as Taken in Health, run Sync
+Now, and confirm the intervention appears. Unit tests cover the view-model
+error paths (`SettingsViewModelTests`) and the sync loop
+(`MedicationSyncTests`).
 
 ## Contract Tests (Cross-Service)
 

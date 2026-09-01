@@ -324,7 +324,7 @@ final class LogViewModel {
 
         let body = CreateIntervention(
             substance: substance.trimmingCharacters(in: .whitespaces),
-            dose: Double(dose) ?? 0,
+            dose: Double(dose),
             unit: doseUnit,
             route: route,
             administeredAt: formatter.string(from: interventionDate),

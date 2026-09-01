@@ -212,7 +212,7 @@ actor SyncEngine {
                 // an entry (and eventually the whole queue) during a single
                 // brief outage.
                 if Self.isDeterministicRejection(error) {
-                    try? offlineQueue.recordFailedAttempt(id: entry.id)
+                    _ = try? offlineQueue.recordFailedAttempt(id: entry.id)
                 }
             }
         }
@@ -655,47 +655,66 @@ actor SyncEngine {
     }
 
     #if swift(>=6.3)
+    /// Anchor-store key for the HealthKit dose-event query anchor.
+    static let medicationAnchorKey = "medication_dose_event"
+    /// Anchor-store key for dose-event IDs already uploaded in a sync pass
+    /// whose anchor was never saved. The interventions endpoint has no
+    /// server-side dedup, so re-uploading a dose event after a partial
+    /// failure would create a duplicate intervention. Stored in the anchors
+    /// table deliberately — it is sync-cursor state with the anchor's
+    /// lifecycle, not a new kind of persistence.
+    static let medicationPostedIDsKey = "medication_dose_posted_ids"
+
     @available(iOS 26.0, *)
     private func syncMedicationDoses(_ provider: MedicationSyncProviderProtocol) async throws {
-        let anchorKey = "medication_dose_event"
-        let anchor = try anchorStore.anchor(forRecordType: anchorKey)
+        let anchor = try anchorStore.anchor(forRecordType: Self.medicationAnchorKey)
         let result = try await provider.queryDoseEvents(anchor: anchor)
 
-        guard !result.records.isEmpty else {
-            if let newAnchor = result.newAnchor {
-                try anchorStore.saveAnchor(newAnchor, forRecordType: anchorKey)
+        var postedIDs: Set<String> = []
+        if let data = try anchorStore.anchor(forRecordType: Self.medicationPostedIDsKey) {
+            do {
+                postedIDs = try JSONDecoder().decode(Set<String>.self, from: data)
+            } catch {
+                // An empty set re-enables duplicate uploads for the lost
+                // IDs, so make the reset diagnosable.
+                engineLogger.warning("medication posted-IDs decode failed; resetting: \(error.localizedDescription, privacy: .public)")
             }
-            return
         }
 
         let formatter = ISO8601DateFormatter()
 
-        for batch in stride(from: 0, to: result.records.count, by: batchSize).map({
-            Array(result.records[$0..<min($0 + batchSize, result.records.count)])
-        }) {
-            let interventions = batch.map { record in
-                CreateIntervention(
-                    substance: record.substance,
-                    dose: record.dose,
-                    unit: record.unit,
-                    route: record.route,
-                    administeredAt: formatter.string(from: record.administeredAt),
-                    fasted: false,
-                    notes: "Synced from Apple Health"
-                )
-            }
-
-            for intervention in interventions {
-                let _: InterventionResponse = try await networkClient.request(
-                    method: "POST",
-                    path: Endpoints.interventions,
-                    body: intervention
-                )
-            }
+        for record in result.records where !postedIDs.contains(record.sourceId) {
+            let intervention = CreateIntervention(
+                substance: record.substance,
+                dose: record.dose,
+                unit: record.unit,
+                route: record.route,
+                administeredAt: formatter.string(from: record.administeredAt),
+                fasted: false,
+                notes: "Synced from Apple Health"
+            )
+            let _: InterventionResponse = try await networkClient.request(
+                method: "POST",
+                path: Endpoints.interventions,
+                body: intervention
+            )
+            // Record each upload before moving on so a failure later in the
+            // loop can't cause this record to upload twice on the next pass.
+            postedIDs.insert(record.sourceId)
+            try anchorStore.saveAnchor(
+                JSONEncoder().encode(postedIDs),
+                forRecordType: Self.medicationPostedIDsKey
+            )
         }
 
+        // A saved anchor covers every record in this result, so the posted
+        // set is no longer needed.
         if let newAnchor = result.newAnchor {
-            try anchorStore.saveAnchor(newAnchor, forRecordType: anchorKey)
+            try anchorStore.saveAnchor(newAnchor, forRecordType: Self.medicationAnchorKey)
+            try anchorStore.saveAnchor(
+                JSONEncoder().encode(Set<String>()),
+                forRecordType: Self.medicationPostedIDsKey
+            )
         }
     }
     #endif

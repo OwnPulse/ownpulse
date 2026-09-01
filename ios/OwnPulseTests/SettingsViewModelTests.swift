@@ -2,6 +2,7 @@
 // Copyright (C) OwnPulse Contributors
 
 import Foundation
+import HealthKit
 import Testing
 @testable import OwnPulse
 
@@ -234,4 +235,77 @@ struct SettingsViewModelTests {
 
         #expect(notifMock.requestPermissionCallCount == 0)
     }
+
+    // MARK: - Medication connect
+
+    #if swift(>=6.3)
+    @Test("connectMedications surfaces no error when the user cancels the permission sheet")
+    func connectMedicationsUserCancel() async throws {
+        guard #available(iOS 26.0, *) else { return }
+        let provider = StubMedicationSyncProvider()
+        provider.authorizationError = HKError(.errorUserCanceled)
+        let vm = SettingsViewModel(
+            networkClient: MockNetworkClient(),
+            notificationManager: MockNotificationManager(),
+            medicationSyncProvider: provider
+        )
+
+        await vm.connectMedications()
+
+        #expect(vm.medicationConnectError == nil)
+        #expect(vm.medicationCount == 0)
+    }
+
+    @Test("connectMedications surfaces an error message on a real failure")
+    func connectMedicationsFailure() async throws {
+        guard #available(iOS 26.0, *) else { return }
+        let provider = StubMedicationSyncProvider()
+        provider.authorizationError = HKError(.errorHealthDataUnavailable)
+        let vm = SettingsViewModel(
+            networkClient: MockNetworkClient(),
+            notificationManager: MockNotificationManager(),
+            medicationSyncProvider: provider
+        )
+
+        await vm.connectMedications()
+
+        #expect(vm.medicationConnectError != nil)
+    }
+
+    @Test("connectMedications success clears the error and refreshes the count")
+    func connectMedicationsSuccess() async throws {
+        guard #available(iOS 26.0, *) else { return }
+        let provider = StubMedicationSyncProvider()
+        provider.medicationCount = 3
+        let vm = SettingsViewModel(
+            networkClient: MockNetworkClient(),
+            notificationManager: MockNotificationManager(),
+            medicationSyncProvider: provider
+        )
+        vm.medicationConnectError = "stale"
+
+        await vm.connectMedications()
+
+        #expect(vm.medicationConnectError == nil)
+        #expect(vm.medicationCount == 3)
+    }
+    #endif
 }
+
+#if swift(>=6.3)
+@available(iOS 26.0, *)
+private final class StubMedicationSyncProvider: MedicationSyncProviderProtocol, @unchecked Sendable {
+    var authorizationError: Error?
+    var medicationCount = 0
+
+    func requestAuthorization() async throws {
+        if let authorizationError { throw authorizationError }
+    }
+
+    func authorizedMedicationCount() async throws -> Int { medicationCount }
+
+    func queryDoseEvents(anchor: Data?) async throws -> (records: [MedicationDoseRecord], newAnchor: Data?) {
+        ([], nil)
+    }
+}
+#endif

@@ -162,6 +162,7 @@
 		CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ECA76F6599478222F387A59 /* Migrations.swift */; };
 		CB7113819FE643F657F85BA4 /* WeightFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B884B5CFC88D057CB131E9E /* WeightFormatter.swift */; };
 		CE8F11EADF231BD14AE6AE70 /* ManualHealthRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB52960E04C11D854448908C /* ManualHealthRecordTests.swift */; };
+		2C02D4914F6D6D21E7ACE7C6 /* MedicationSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDDC50F7BAB61AC5A18D194C /* MedicationSyncTests.swift */; };
 		D0B7CFAB1CC74E64A963FEAC /* MockDoseReminderRebuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3A65E4F0F53D106EC1734D2 /* MockDoseReminderRebuilder.swift */; };
 		D0F99DBBAD7A3204D17D2C4E /* SyncProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3140A26FC1E3242A80B7C45 /* SyncProgress.swift */; };
 		D21355A23B90DBB5E44704FC /* MockUserNotificationCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66E273B7CC69F76A9752A169 /* MockUserNotificationCenter.swift */; };
@@ -428,6 +429,7 @@
 		FA51786CB1DA24A54DD873B3 /* HealthKitTypeMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitTypeMap.swift; sourceTree = "<group>"; };
 		FB36AD0A05D7874D89C8D38A /* BackgroundTaskHost.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundTaskHost.swift; sourceTree = "<group>"; };
 		FB52960E04C11D854448908C /* ManualHealthRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualHealthRecordTests.swift; sourceTree = "<group>"; };
+		FDDC50F7BAB61AC5A18D194C /* MedicationSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MedicationSyncTests.swift; sourceTree = "<group>"; };
 		FE023A02BCE62A3305D2CFBC /* AppConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfigTests.swift; sourceTree = "<group>"; };
 		FF257A99875E1CC4B2E60656 /* HealthOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthOverviewView.swift; sourceTree = "<group>"; };
 		FFBC7A34027D30D960D2A518 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -564,6 +566,7 @@
 				EA6CDB995889C8AA38471B44 /* LogTerminologyTests.swift */,
 				4BBEEEB77231155980E6056B /* LogViewModelTests.swift */,
 				FB52960E04C11D854448908C /* ManualHealthRecordTests.swift */,
+				FDDC50F7BAB61AC5A18D194C /* MedicationSyncTests.swift */,
 				F79BD244D13BDC73AF9E06C1 /* MockAuthService.swift */,
 				D3A65E4F0F53D106EC1734D2 /* MockDoseReminderRebuilder.swift */,
 				D5ECF4C4691493011E79B690 /* MockFeatureFlagService.swift */,
@@ -1169,6 +1172,7 @@
 				3B7C75B5EF4DD69E050F0435 /* LogViewModelTests.swift in Sources */,
 				6CCCBF48696234499FC0585E /* LoginViewModelTests.swift in Sources */,
 				CE8F11EADF231BD14AE6AE70 /* ManualHealthRecordTests.swift in Sources */,
+				2C02D4914F6D6D21E7ACE7C6 /* MedicationSyncTests.swift in Sources */,
 				264F1827147C1C6A3B09B8AE /* MockAuthService.swift in Sources */,
 				D0B7CFAB1CC74E64A963FEAC /* MockDoseReminderRebuilder.swift in Sources */,
 				281AF7A8CA053E4DA1D1FC81 /* MockFeatureFlagService.swift in Sources */,

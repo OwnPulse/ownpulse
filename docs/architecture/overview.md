@@ -35,8 +35,11 @@ One set of Helm charts (`helm/`) works across all environments. See [ADR-0006](.
 
 ## CI/CD
 
-- Linux jobs (backend, web): ARC ephemeral runner pods on the k3s cluster.
-- iOS jobs: Self-hosted Mac mini M4 with Tart VMs. See [ADR-0007](../decisions/0007-macos-ci.md).
+- Linux jobs (backend, web): GitHub-hosted `ubuntu-latest` runners. (ARC ephemeral
+  runner pods on the k3s cluster are planned, not built — see CLAUDE.md.)
+- iOS jobs: GitHub-hosted `macos-26` runners, Xcode pinned via `DEVELOPER_DIR`.
+  (The self-hosted Mac mini + Tart fleet in [ADR-0007](../decisions/0007-macos-ci.md)
+  is planned, not built.)
 - Deploy: `helm upgrade` on merge to main when backend + web CI passes.
 
 ## Key ADRs
