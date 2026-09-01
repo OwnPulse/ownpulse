@@ -67,7 +67,7 @@ struct CheckinForm: View {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Text("Save Check-in")
+                        Text("Log Check-in")
                             .fontWeight(.semibold)
                     }
                 }
