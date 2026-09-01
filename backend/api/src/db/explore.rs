@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::db::health_records::SOURCE_PREFERENCE_EXCLUSION;
 use crate::models::explore::{
     Aggregation, CalendarField, CheckinField, DataPoint, HealthRecordField, InterventionMarker,
     MetricSource, ObserverPollField, Resolution, SeriesResponse, SleepField,
@@ -130,13 +131,14 @@ async fn query_health_record_avg(
 ) -> Result<Vec<AggRow>, sqlx::Error> {
     let record_type = field.record_type();
     sqlx::query_as::<_, AggRow>(&format!(
-        "SELECT date_trunc('{interval}', start_time) AS bucket,
-                AVG(value) AS avg_val,
+        "SELECT date_trunc('{interval}', hr.start_time) AS bucket,
+                AVG(hr.value) AS avg_val,
                 COUNT(*) AS cnt
-         FROM health_records
-         WHERE user_id = $1 AND record_type = $2
-           AND start_time >= $3 AND start_time <= $4
-           AND value IS NOT NULL
+         FROM health_records hr
+         WHERE hr.user_id = $1 AND hr.record_type = $2
+           AND hr.start_time >= $3 AND hr.start_time <= $4
+           AND hr.value IS NOT NULL
+           AND {SOURCE_PREFERENCE_EXCLUSION}
          GROUP BY bucket
          ORDER BY bucket ASC"
     ))
@@ -158,13 +160,14 @@ async fn query_health_record_sum(
 ) -> Result<Vec<AggRow>, sqlx::Error> {
     let record_type = field.record_type();
     sqlx::query_as::<_, AggRow>(&format!(
-        "SELECT date_trunc('{interval}', start_time) AS bucket,
-                SUM(value) AS avg_val,
+        "SELECT date_trunc('{interval}', hr.start_time) AS bucket,
+                SUM(hr.value) AS avg_val,
                 COUNT(*) AS cnt
-         FROM health_records
-         WHERE user_id = $1 AND record_type = $2
-           AND start_time >= $3 AND start_time <= $4
-           AND value IS NOT NULL
+         FROM health_records hr
+         WHERE hr.user_id = $1 AND hr.record_type = $2
+           AND hr.start_time >= $3 AND hr.start_time <= $4
+           AND hr.value IS NOT NULL
+           AND {SOURCE_PREFERENCE_EXCLUSION}
          GROUP BY bucket
          ORDER BY bucket ASC"
     ))
@@ -188,14 +191,15 @@ async fn query_health_record_sleep_duration(
 ) -> Result<Vec<AggRow>, sqlx::Error> {
     let record_type = field.record_type();
     sqlx::query_as::<_, AggRow>(&format!(
-        "SELECT date_trunc('{interval}', start_time) AS bucket,
-                SUM(EXTRACT(EPOCH FROM (end_time - start_time)) / 60) AS avg_val,
+        "SELECT date_trunc('{interval}', hr.start_time) AS bucket,
+                SUM(EXTRACT(EPOCH FROM (hr.end_time - hr.start_time)) / 60) AS avg_val,
                 COUNT(*) AS cnt
-         FROM health_records
-         WHERE user_id = $1 AND record_type = $2
-           AND start_time >= $3 AND start_time <= $4
-           AND end_time IS NOT NULL
-           AND value IN (1, 3, 4, 5)
+         FROM health_records hr
+         WHERE hr.user_id = $1 AND hr.record_type = $2
+           AND hr.start_time >= $3 AND hr.start_time <= $4
+           AND hr.end_time IS NOT NULL
+           AND hr.value IN (1, 3, 4, 5)
+           AND {SOURCE_PREFERENCE_EXCLUSION}
          GROUP BY bucket
          ORDER BY bucket ASC"
     ))
@@ -218,12 +222,13 @@ async fn query_health_record_count(
 ) -> Result<Vec<AggRow>, sqlx::Error> {
     let record_type = field.record_type();
     sqlx::query_as::<_, AggRow>(&format!(
-        "SELECT date_trunc('{interval}', start_time) AS bucket,
+        "SELECT date_trunc('{interval}', hr.start_time) AS bucket,
                 COUNT(*)::double precision AS avg_val,
                 COUNT(*) AS cnt
-         FROM health_records
-         WHERE user_id = $1 AND record_type = $2
-           AND start_time >= $3 AND start_time <= $4
+         FROM health_records hr
+         WHERE hr.user_id = $1 AND hr.record_type = $2
+           AND hr.start_time >= $3 AND hr.start_time <= $4
+           AND {SOURCE_PREFERENCE_EXCLUSION}
          GROUP BY bucket
          ORDER BY bucket ASC"
     ))

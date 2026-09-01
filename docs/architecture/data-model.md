@@ -60,7 +60,7 @@ All wearable and device measurements (heart rate, HRV, weight, blood glucose, sl
 Before inserting any health record, the API checks for existing records within a **60-second window** and **2% value tolerance** from a different source. When a potential duplicate is detected:
 
 - The new record is still inserted, but with its `duplicate_of` column set to reference the existing record's ID. Records are never silently dropped.
-- The `source_preferences` table determines which source is preferred for each metric type. The preferred source's record is treated as canonical.
+- Duplicates are collapsed to one canonical row for default aggregate reads (`/explore/series`, `/dashboard/summary`, `/stats/*`) — applied at query time, not by mutating or dropping rows. This collapse is unconditional: absent any `source_preferences` row, the original (first-arriving) record is canonical by default, so a pair is never double-counted even with no preference set. The `source_preferences` table lets the user override that default per metric type by naming either side of the pair; naming a source that isn't part of the pair is a no-op. `GET /health-records`, all export paths, and the friend-shared data view always return every row regardless of preference.
 - A structured warning is logged containing both record IDs and their respective sources, enabling audit and debugging.
 
 ### `interventions`
