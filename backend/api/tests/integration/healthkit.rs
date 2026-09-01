@@ -153,10 +153,11 @@ async fn test_healthkit_sync_dedups_partial_overlap() {
 
     // Seed one existing row directly in the DB.
     sqlx::query(
+        // date-ok
         "INSERT INTO health_records
             (user_id, source, record_type, value, unit, start_time, source_id)
          VALUES ($1, 'healthkit', 'heart_rate', 72.0, 'bpm',
-                 '2026-04-17T10:00:00Z', 'seed-existing')", // date-ok
+                 '2026-04-17T10:00:00Z', 'seed-existing')",
     )
     .bind(user_id)
     .execute(&app.pool)
@@ -362,10 +363,11 @@ async fn test_healthkit_sync_cross_source_dedup_bulk() {
 
     // Seed a Garmin-sourced row: heart_rate 58 bpm at 07:01:15Z.
     let garmin_id: Uuid = sqlx::query_scalar(
+        // date-ok
         "INSERT INTO health_records
             (user_id, source, record_type, value, unit, start_time, source_id)
          VALUES ($1, 'garmin', 'heart_rate', 58.0, 'bpm',
-                 '2026-04-18T07:01:15Z', 'garmin-xyz') // date-ok
+                 '2026-04-18T07:01:15Z', 'garmin-xyz')
          RETURNING id",
     )
     .bind(user_id)

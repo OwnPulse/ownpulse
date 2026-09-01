@@ -15,11 +15,17 @@
 #     (rustfmt moves a trailing comment after a line ending in `{` down to
 #     its own line, so both directions have to work); below, for the same
 #     reason in reverse
-#   - a multi-line string/JSON fixture block (opened by a bare `"""` or a
-#     backtick template literal), where the line immediately *before* the
-#     block starts is a standalone `// date-ok` comment — a trailing comment
-#     can't be placed inside the literal itself without corrupting it, so
-#     the annotation goes above
+#   - a multi-line string literal block — a Swift `"""` fixture, a backtick
+#     template literal, OR a plain Rust `"..."` string that spans several
+#     physical lines (Rust allows a literal newline inside a regular string,
+#     e.g. a multi-line SQL query passed to sqlx::query) — where the line
+#     immediately *before* the block starts is a standalone `// date-ok`
+#     comment. A trailing comment can't be placed inside the literal itself
+#     without corrupting it (this bit a SQL query once: a same-line `//`
+#     landed mid-string and postgres choked on it as a syntax error), so the
+#     annotation goes above. Block boundaries are detected by an odd count of
+#     unescaped `"` characters on a line — works for `"""` (3, odd) and for a
+#     plain `"` opening/closing an ordinary multi-line string alike.
 #   Both forms are judged case by case: prefer fixing the test to use a
 #   relative-time helper; only annotate when the literal date is genuinely
 #   the fixed subject under test (e.g. a deterministic scheduler fixture).
@@ -67,11 +73,15 @@ while IFS= read -r file; do
         prev_bare_ok = (i > 1) && is_bare_date_ok(lines[i-1])
         next_bare_ok = (i < last) && is_bare_date_ok(lines[i+1])
 
+        # Count unescaped double-quote characters (strip escaped \" pairs
+        # first -- an escaped quote does not open or close anything). A bare
+        # """ still nets an odd count (3), so this also covers Swift blocks.
         tmp = cur
-        triple = gsub(/"""/, "\"\"\"", tmp)
+        gsub(/\\"/, "", tmp)
+        dq = gsub(/"/, "\"", tmp)
         tmp2 = cur
         backtick = gsub(/`/, "`", tmp2)
-        opens_or_closes = (triple % 2 == 1) || (backtick % 2 == 1)
+        opens_or_closes = (dq % 2 == 1) || (backtick % 2 == 1)
 
         if (in_block) {
           if (is_date_line(cur) && !block_exempt) {

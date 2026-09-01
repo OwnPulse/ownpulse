@@ -603,8 +603,9 @@ async fn seed_sleep_record(pool: &sqlx::PgPool, user_id: Uuid) {
     });
 
     sqlx::query(
+        // date-ok
         "INSERT INTO observations (user_id, type, name, start_time, end_time, value, source) \
-         VALUES ($1, 'sleep', 'sleep', '2026-03-09T23:00:00Z', '2026-03-10T07:00:00Z', $2, 'manual')", // date-ok
+         VALUES ($1, 'sleep', 'sleep', '2026-03-09T23:00:00Z', '2026-03-10T07:00:00Z', $2, 'manual')",
     )
     .bind(user_id)
     .bind(&value)
