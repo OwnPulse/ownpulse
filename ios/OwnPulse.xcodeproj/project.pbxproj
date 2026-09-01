@@ -114,6 +114,7 @@
 		8EA1C78D5AF3FFBC69812146 /* SyncEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B516C3CA42E3AFBDE677B93C /* SyncEngine.swift */; };
 		8F9A3FFABF9F96698F59D107 /* FlowTrackerAPICallTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA02D46C1C969D56AC5EA785 /* FlowTrackerAPICallTests.swift */; };
 		91AF349E43599A1DE816466B /* HealthOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF257A99875E1CC4B2E60656 /* HealthOverviewView.swift */; };
+		94C6CE0F9269808CC51976B5 /* MissedDosesListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66182AE5641DD7BE44310214 /* MissedDosesListView.swift */; };
 		9519D180B0C76631460935C6 /* ObservationForm.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9E217D8B04976F84F4CDA7 /* ObservationForm.swift */; };
 		963D0B4BAB0197BC20FC27D9 /* SyncSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63B9EF0C056066E4BAE8A768 /* SyncSchedulerTests.swift */; };
 		98F1DCBAC487A9E1C1EF8BF1 /* BackgroundTaskHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48AD37C03C60F5BFBB1AB5F4 /* BackgroundTaskHandlerTests.swift */; };
@@ -307,6 +308,7 @@
 		6451E992A37FCC6A0004D6F4 /* OwnPulseUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = OwnPulseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		649703259D6C4F6BFE3BB74D /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
 		65DAD68A0C130D24E5D2ACF8 /* MockOfflineQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockOfflineQueue.swift; sourceTree = "<group>"; };
+		66182AE5641DD7BE44310214 /* MissedDosesListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MissedDosesListView.swift; sourceTree = "<group>"; };
 		66E0BF01696C616018AEA71C /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		66E273B7CC69F76A9752A169 /* MockUserNotificationCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockUserNotificationCenter.swift; sourceTree = "<group>"; };
 		67D23FC791398F05350DBFB4 /* ExploreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExploreModels.swift; sourceTree = "<group>"; };
@@ -775,6 +777,7 @@
 		C3CBFAB39C3E2DE03B0FA4DF /* Protocols */ = {
 			isa = PBXGroup;
 			children = (
+				66182AE5641DD7BE44310214 /* MissedDosesListView.swift */,
 				9A37D95FB57D8BB5C7C8FB6B /* ProtocolBuilderView.swift */,
 				3FF6D8B6C509F8643B88BCD4 /* ProtocolDetailView.swift */,
 				AD9E6D37084D7640B257E988 /* ProtocolsListView.swift */,
@@ -1078,6 +1081,7 @@
 				28CA3D3620ACB6EBA5A2269B /* MedicationSyncProvider.swift in Sources */,
 				9E72E02192CCDF3E34F8599E /* MetricDetailView.swift in Sources */,
 				CA14DF707725B5FF0F8788FC /* Migrations.swift in Sources */,
+				94C6CE0F9269808CC51976B5 /* MissedDosesListView.swift in Sources */,
 				14E81CAFFCED3283B3286208 /* MovingAverage.swift in Sources */,
 				0096FB3EA767286ED3FF2FDF /* MyChartConnect.swift in Sources */,
 				EFCC871589CB4A92769DE49F /* NetworkClient.swift in Sources */,

@@ -574,8 +574,12 @@ struct LogViewModelTests {
         }
     }
 
-    // date-ok
     private static func makeDose() -> ProtocolDose {
-        ProtocolDose(id: "dose-1", protocolLineId: "line-1", dayNumber: 0, status: .completed, interventionId: "int-1", loggedAt: "2026-03-28T08:00:00Z")
+        ProtocolDose(
+            id: "dose-1", protocolLineId: "line-1", dayNumber: 0, status: .completed,
+            // date-ok
+            interventionId: "int-1", loggedAt: "2026-03-28T08:00:00Z",
+            runId: "run-1", skipReason: nil
+        )
     }
 }

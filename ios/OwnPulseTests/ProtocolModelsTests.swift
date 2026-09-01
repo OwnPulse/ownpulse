@@ -7,7 +7,10 @@ import Testing
 
 @Suite("Protocol Models")
 struct ProtocolModelsTests {
-    private let decoder = JSONDecoder()
+    // Exercise the production decoder config (fractional-second ISO8601
+    // fallback) rather than a bare JSONDecoder(), so these fixtures catch
+    // date-decoding regressions the real NetworkClient would hit.
+    private let decoder = NetworkClient.makeDecoder()
 
     // MARK: - ProtocolDetail decode regression tests
     //
@@ -136,6 +139,133 @@ struct ProtocolModelsTests {
         let item = try decoder.decode(ProtocolListItem.self, from: json)
         #expect(item.nextDose == nil)
         #expect(item.startDate == nil)
+    }
+
+    // MARK: - Dose backfill / adherence decode tests
+    //
+    // Fixtures below are copied verbatim from docs/architecture/api.md so a
+    // future drift between the documented response shape and the actual
+    // backend response is caught here rather than silently mismatched on
+    // both sides.
+
+    @Test("LogDoseRequest response body decodes with run_id and skip_reason")
+    func decodeLogDoseResponse() throws {
+        // date-ok
+        let json = """
+        { "id": "uuid", "protocol_line_id": "uuid", "day_number": 3, "status": "completed", "intervention_id": "uuid", "logged_at": "2026-04-03T08:30:00Z", "run_id": "uuid", "skip_reason": null }
+        """.data(using: .utf8)!
+
+        let dose = try decoder.decode(ProtocolDose.self, from: json)
+        #expect(dose.status == .completed)
+        #expect(dose.runId == "uuid")
+        #expect(dose.skipReason == nil)
+    }
+
+    @Test("RunDoseDay decodes a missed day from GET /protocols/runs/:run_id/doses")
+    func decodeRunDoseDayMissed() throws {
+        // date-ok
+        let json = """
+        [ { "day_number": 3, "date": "2026-04-04", "protocol_line_id": "uuid", "substance": "BPC-157", "dose": 250.0, "unit": "mcg", "route": "subcutaneous", "time_of_day": "AM", "status": "missed", "dose_id": null, "intervention_id": null, "skip_reason": null, "logged_at": null } ]
+        """.data(using: .utf8)!
+
+        let days = try decoder.decode([RunDoseDay].self, from: json)
+        let day = try #require(days.first)
+        #expect(day.status == .missed)
+        #expect(day.dayNumber == 3)
+        #expect(day.dose == 250.0)
+        #expect(day.doseId == nil)
+    }
+
+    @Test("MissedDoseItem decodes the missed-doses list response")
+    func decodeMissedDoseItem() throws {
+        // date-ok
+        let json = """
+        [ { "protocol_id": "uuid", "protocol_name": "BPC-157 — 4 weeks", "run_id": "uuid", "protocol_line_id": "uuid", "substance": "BPC-157", "dose": 250.0, "unit": "mcg", "route": "subcutaneous", "time_of_day": "AM", "day_number": 2, "date": "2026-04-03", "status": "missed" } ]
+        """.data(using: .utf8)!
+
+        let items = try decoder.decode([MissedDoseItem].self, from: json)
+        let item = try #require(items.first)
+        #expect(item.protocolName == "BPC-157 — 4 weeks")
+        #expect(item.status == .missed)
+        // date-ok
+        #expect(item.date == "2026-04-03")
+    }
+
+    @Test("AdherenceResponse decodes overall totals and per-line breakdown, pct nullable")
+    func decodeAdherenceResponse() throws {
+        let json = """
+        {
+          "run_id": "uuid",
+          "scheduled_so_far": 8,
+          "completed": 3,
+          "skipped": 2,
+          "missed": 3,
+          "adherence_pct": 50.0,
+          "lines": [
+            {
+              "protocol_line_id": "uuid",
+              "substance": "BPC-157",
+              "scheduled_so_far": 5,
+              "completed": 2,
+              "skipped": 1,
+              "missed": 2,
+              "adherence_pct": 50.0
+            }
+          ]
+        }
+        """.data(using: .utf8)!
+
+        let adherence = try decoder.decode(AdherenceResponse.self, from: json)
+        #expect(adherence.adherencePct == 50.0)
+        #expect(adherence.lines.count == 1)
+        #expect(adherence.lines[0].substance == "BPC-157")
+    }
+
+    @Test("AdherenceResponse decodes null adherence_pct (no closed days yet)")
+    func decodeAdherenceResponseNullPct() throws {
+        let json = """
+        {
+          "run_id": "uuid",
+          "scheduled_so_far": 0,
+          "completed": 0,
+          "skipped": 0,
+          "missed": 0,
+          "adherence_pct": null,
+          "lines": []
+        }
+        """.data(using: .utf8)!
+
+        let adherence = try decoder.decode(AdherenceResponse.self, from: json)
+        #expect(adherence.adherencePct == nil)
+    }
+
+    // MARK: - Request encoding
+
+    @Test("LogDoseRequest encodes tz_offset_minutes and optional administered_at/notes")
+    func encodeLogDoseRequest() throws {
+        let request = LogDoseRequest(
+            protocolLineId: "line-1",
+            dayNumber: 3,
+            // date-ok
+            administeredAt: "2026-04-03T09:15:00Z",
+            notes: "logged a bit late",
+            tzOffsetMinutes: -420
+        )
+        let data = try JSONEncoder().encode(request)
+        let obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(obj["tz_offset_minutes"] as? Int == -420)
+        // date-ok
+        #expect(obj["administered_at"] as? String == "2026-04-03T09:15:00Z")
+        #expect(obj["notes"] as? String == "logged a bit late")
+        #expect(obj["protocol_line_id"] as? String == "line-1")
+    }
+
+    @Test("SkipDoseRequest encodes skip_reason")
+    func encodeSkipDoseRequest() throws {
+        let request = SkipDoseRequest(protocolLineId: "line-1", dayNumber: 1, skipReason: "traveling")
+        let data = try JSONEncoder().encode(request)
+        let obj = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        #expect(obj["skip_reason"] as? String == "traveling")
     }
 
     // MARK: - ActiveSubstance decode regression test

@@ -1135,7 +1135,9 @@
           "day_number": 0,
           "status": "completed",
           "intervention_id": "44444444-4444-4444-4444-444444444444",
-          "logged_at": "2026-03-28T08:00:00Z"
+          "logged_at": "2026-03-28T08:00:00Z",
+          "run_id": null,
+          "skip_reason": null
         },
         "matchingRules": {
           "$.body.id": {
@@ -1486,6 +1488,61 @@
           }
         }
       }
+    },
+    {
+      "description": "a request to get dose status for a run's scheduled days",
+      "providerState": "a protocol run with adherence data exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/protocols/runs/aaaaaaaa-3333-3333-3333-333333333333/doses?from_day=2&to_day=2",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "day_number": 2,
+            "date": "2026-03-28",
+            "protocol_line_id": "aaaaaaaa-2222-2222-2222-222222222222",
+            "substance": "Creatine",
+            "dose": 5.0,
+            "unit": "g",
+            "route": "oral",
+            "time_of_day": null,
+            "status": "missed",
+            "dose_id": null,
+            "intervention_id": null,
+            "skip_reason": null,
+            "logged_at": null
+          }
+        ],
+        "matchingRules": {
+          "$.body[0].date": {
+            "match": "type"
+          }
+        }
+      },
+      "_note": "Verified by the in-flight backend PR seeding run-doses fixtures (CURRENT_DATE-3 seed): day 2 is the single missed day in range."
+    },
+    {
+      "description": "a request to undo a logged dose",
+      "providerState": "a protocol run with a logged dose exists",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/protocols/runs/aaaaaaaa-3333-3333-3333-333333333333/doses/bbbbbbbb-4444-4444-4444-444444444444",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 204
+      },
+      "_note": "Verified by the in-flight backend PR adding the 'a protocol run with a logged dose exists' provider state handler."
     },
     {
       "description": "a request to list active protocol substances for quick-pick",
