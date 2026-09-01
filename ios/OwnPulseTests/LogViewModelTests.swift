@@ -282,4 +282,296 @@ struct LogViewModelTests {
         vm.selectedTab = .checkin
         #expect(vm.selectedTab == .checkin)
     }
+
+    // MARK: - Active Substances (quick pick)
+
+    @Test("loadActiveSubstances success populates the list")
+    func loadActiveSubstancesSuccess() async {
+        let mock = MockNetworkClient()
+        let items = [
+            ActiveSubstance(substance: "BPC-157", dose: 250, unit: "mcg", route: "subq", protocolName: "Recovery Stack")
+        ]
+        mock.requestHandler = { _, _, _ in items }
+
+        let vm = LogViewModel(networkClient: mock)
+        await vm.loadActiveSubstances()
+
+        #expect(vm.activeSubstances.count == 1)
+        #expect(mock.requestCalls[0].path == Endpoints.activeSubstances)
+        #expect(mock.requestCalls[0].method == "GET")
+    }
+
+    @Test("loadActiveSubstances failure leaves the list empty without crashing")
+    func loadActiveSubstancesFailure() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.serverError(statusCode: 500, body: "internal error") }
+
+        let vm = LogViewModel(networkClient: mock)
+        await vm.loadActiveSubstances()
+
+        #expect(vm.activeSubstances.isEmpty)
+    }
+
+    @Test("loadActiveSubstances unauthorized leaves the list empty without crashing")
+    func loadActiveSubstancesUnauthorized() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.unauthorized }
+
+        let vm = LogViewModel(networkClient: mock)
+        await vm.loadActiveSubstances()
+
+        #expect(vm.activeSubstances.isEmpty)
+    }
+
+    @Test("applyActiveSubstance fills substance, dose, unit, and route")
+    func applyActiveSubstanceFillsForm() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        let item = ActiveSubstance(substance: "BPC-157", dose: 250, unit: "mcg", route: "subq", protocolName: "Recovery Stack")
+
+        vm.applyActiveSubstance(item)
+
+        #expect(vm.substance == "BPC-157")
+        // %g-formatted ("250", not "250.0") — matches what the quick-pick
+        // chip's own label shows for the same value.
+        #expect(vm.dose == "250")
+        #expect(vm.doseUnit == "mcg")
+        #expect(vm.route == "subq")
+    }
+
+    @Test("applyActiveSubstance formats a fractional dose without a trailing zero mismatch")
+    func applyActiveSubstanceFormatsFractionalDose() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        let item = ActiveSubstance(substance: "Melatonin", dose: 2.5, unit: "mg", route: "oral", protocolName: "Sleep Stack")
+
+        vm.applyActiveSubstance(item)
+
+        #expect(vm.dose == "2.5")
+    }
+
+    @Test("applyActiveSubstance leaves fields unset when dose/unit/route are nil")
+    func applyActiveSubstanceHandlesNilFields() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        vm.doseUnit = "mg"
+        vm.route = "oral"
+        let item = ActiveSubstance(substance: "Creatine", dose: nil, unit: nil, route: nil, protocolName: "Stack")
+
+        vm.applyActiveSubstance(item)
+
+        #expect(vm.substance == "Creatine")
+        #expect(vm.dose == "")
+        #expect(vm.doseUnit == "mg")
+        #expect(vm.route == "oral")
+    }
+
+    @Test("applySavedMedicine formats dose the same way (no 250.0 vs 250 mismatch)")
+    func applySavedMedicineFormatsDose() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        let medicine = SavedMedicine(
+            id: "med-1", substance: "Creatine", dose: 5, unit: "g", route: "oral",
+            sortOrder: 0, createdAt: "2026-03-01T00:00:00Z"
+        )
+
+        vm.applySavedMedicine(medicine)
+
+        #expect(vm.dose == "5")
+    }
+
+    // MARK: - Today's Doses / Attribution Parity
+
+    private static func makeTodaysDose(
+        protocolId: String = "proto-1",
+        protocolName: String = "Recovery Stack",
+        runId: String = "run-1",
+        protocolLineId: String = "line-1",
+        substance: String = "BPC-157",
+        dose: Double? = 250,
+        unit: String? = "mcg",
+        route: String? = "subq",
+        dayNumber: Int = 0,
+        status: DoseStatus? = nil
+    ) -> TodaysDose {
+        TodaysDose(
+            protocolId: protocolId, protocolName: protocolName, runId: runId,
+            protocolLineId: protocolLineId, substance: substance, dose: dose,
+            unit: unit, route: route, timeOfDay: nil, dayNumber: dayNumber, status: status
+        )
+    }
+
+    @Test("loadTodaysDoses success populates the list")
+    func loadTodaysDosesSuccess() async {
+        let mock = MockNetworkClient()
+        let items = [Self.makeTodaysDose()]
+        mock.requestHandler = { _, _, _ in items }
+
+        let vm = LogViewModel(networkClient: mock)
+        await vm.loadTodaysDoses()
+
+        #expect(vm.todaysDoses.count == 1)
+        #expect(mock.requestCalls[0].path == Endpoints.todaysDoses)
+        #expect(mock.requestCalls[0].method == "GET")
+    }
+
+    @Test("loadTodaysDoses failure leaves the list empty without crashing")
+    func loadTodaysDosesFailure() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.serverError(statusCode: 500, body: "internal error") }
+
+        let vm = LogViewModel(networkClient: mock)
+        await vm.loadTodaysDoses()
+
+        #expect(vm.todaysDoses.isEmpty)
+    }
+
+    @Test("matchingTodaysDose finds a pending dose with the same substance/dose/unit")
+    func matchingTodaysDoseFindsPending() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        vm.todaysDoses = [Self.makeTodaysDose(status: nil)]
+        vm.substance = "bpc-157" // case-insensitive
+        vm.dose = "250"
+        vm.doseUnit = "mcg"
+
+        #expect(vm.matchingTodaysDose?.protocolLineId == "line-1")
+    }
+
+    @Test("matchingTodaysDose ignores an already-completed dose")
+    func matchingTodaysDoseIgnoresCompleted() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        vm.todaysDoses = [Self.makeTodaysDose(status: .completed)]
+        vm.substance = "BPC-157"
+        vm.dose = "250"
+        vm.doseUnit = "mcg"
+
+        #expect(vm.matchingTodaysDose == nil)
+    }
+
+    @Test("matchingTodaysDose requires substance, dose, and unit to all match")
+    func matchingTodaysDoseRequiresExactMatch() {
+        let mock = MockNetworkClient()
+        let vm = LogViewModel(networkClient: mock)
+        vm.todaysDoses = [Self.makeTodaysDose()]
+
+        vm.substance = "BPC-157"
+        vm.dose = "300" // wrong dose
+        vm.doseUnit = "mcg"
+        #expect(vm.matchingTodaysDose == nil)
+
+        vm.dose = "250"
+        vm.doseUnit = "mg" // wrong unit
+        #expect(vm.matchingTodaysDose == nil)
+
+        vm.doseUnit = "mcg"
+        #expect(vm.matchingTodaysDose != nil)
+    }
+
+    @Test("submitIntervention with a matching pending dose and countTowardProtocol on logs via the run-scoped endpoint")
+    func submitInterventionAttributesToProtocol() async {
+        let mock = MockNetworkClient()
+        var capturedPath = ""
+        var capturedBody: LogDoseRequest?
+        mock.requestHandler = { _, path, body in
+            // A successful attribution log also triggers a
+            // `loadTodaysDoses()` refresh — that GET must return
+            // `[TodaysDose]`, not the dose-log POST's `ProtocolDose`, or
+            // `MockNetworkClient`'s type cast fatally crashes the process.
+            if path == Endpoints.todaysDoses {
+                return [TodaysDose]()
+            }
+            capturedPath = path
+            capturedBody = body as? LogDoseRequest
+            return Self.makeDose()
+        }
+
+        let vm = LogViewModel(networkClient: mock)
+        vm.todaysDoses = [Self.makeTodaysDose()]
+        vm.substance = "BPC-157"
+        vm.dose = "250"
+        vm.doseUnit = "mcg"
+        vm.interventionNotes = "took it with breakfast"
+        #expect(vm.countTowardProtocol == true) // default on
+
+        await vm.submitIntervention()
+
+        #expect(vm.submitState == .success("Intervention logged"))
+        #expect(capturedPath == Endpoints.runLogDose("run-1"))
+        #expect(capturedBody?.protocolLineId == "line-1")
+        #expect(capturedBody?.dayNumber == 0)
+        #expect(capturedBody?.notes == "took it with breakfast")
+        #expect(capturedBody?.administeredAt != nil)
+        // Substance/dose/notes reset after a successful submit, same as the
+        // free-floating path.
+        #expect(vm.substance == "")
+        #expect(vm.countTowardProtocol == true)
+    }
+
+    @Test("submitIntervention with a matching dose but countTowardProtocol off logs a free-floating intervention")
+    func submitInterventionMatchButToggleOffCreatesIntervention() async {
+        let mock = MockNetworkClient()
+        var capturedPath = ""
+        mock.requestHandler = { _, path, _ in
+            capturedPath = path
+            return InterventionResponse(id: "int-1", substance: "BPC-157")
+        }
+
+        let vm = LogViewModel(networkClient: mock)
+        vm.todaysDoses = [Self.makeTodaysDose()]
+        vm.substance = "BPC-157"
+        vm.dose = "250"
+        vm.doseUnit = "mcg"
+        vm.countTowardProtocol = false
+
+        await vm.submitIntervention()
+
+        #expect(vm.submitState == .success("Intervention logged"))
+        #expect(capturedPath == Endpoints.interventions)
+    }
+
+    @Test("submitIntervention with no matching dose logs a free-floating intervention")
+    func submitInterventionNoMatchCreatesIntervention() async {
+        let mock = MockNetworkClient()
+        var capturedPath = ""
+        mock.requestHandler = { _, path, _ in
+            capturedPath = path
+            return InterventionResponse(id: "int-1", substance: "Caffeine")
+        }
+
+        let vm = LogViewModel(networkClient: mock)
+        vm.substance = "Caffeine"
+        vm.dose = "100"
+        vm.doseUnit = "mg"
+
+        await vm.submitIntervention()
+
+        #expect(vm.submitState == .success("Intervention logged"))
+        #expect(capturedPath == Endpoints.interventions)
+    }
+
+    @Test("submitIntervention attribution-path failure transitions to error state")
+    func submitInterventionAttributionFailure() async {
+        let mock = MockNetworkClient()
+        mock.requestHandler = { _, _, _ in throw NetworkError.serverError(statusCode: 409, body: "already logged") }
+
+        let vm = LogViewModel(networkClient: mock)
+        vm.todaysDoses = [Self.makeTodaysDose()]
+        vm.substance = "BPC-157"
+        vm.dose = "250"
+        vm.doseUnit = "mcg"
+
+        await vm.submitIntervention()
+
+        if case .error(let msg) = vm.submitState {
+            #expect(msg.contains("Failed to log intervention"))
+        } else {
+            Issue.record("Expected error state")
+        }
+    }
+
+    private static func makeDose() -> ProtocolDose {
+        ProtocolDose(id: "dose-1", protocolLineId: "line-1", dayNumber: 0, status: .completed, interventionId: "int-1", loggedAt: "2026-03-28T08:00:00Z")
+    }
 }

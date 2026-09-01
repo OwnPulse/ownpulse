@@ -8,6 +8,23 @@ struct InterventionForm: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            // Quick Pick (active protocol substances)
+            if !viewModel.activeSubstances.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Quick Pick")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(viewModel.activeSubstances) { item in
+                                quickPickChip(item)
+                            }
+                        }
+                    }
+                }
+                .accessibilityIdentifier("quickPickSection")
+            }
+
             // Saved Medicines
             if !viewModel.savedMedicines.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -58,9 +75,13 @@ struct InterventionForm: View {
                 .accessibilityIdentifier("doseUnitPicker")
             }
 
-            // Route
+            // Route — includes the current value even when it isn't one of
+            // the fixed options (e.g. applied from a saved-medicine/quick-pick
+            // chip with a route like "subcutaneous" that isn't in `routes`),
+            // otherwise the picker renders blank while the unmatched value is
+            // still what gets submitted.
             Picker("Route", selection: $viewModel.route) {
-                ForEach(LogViewModel.routes, id: \.self) { route in
+                ForEach(routeOptions, id: \.self) { route in
                     Text(route.capitalized).tag(route)
                 }
             }
@@ -87,6 +108,14 @@ struct InterventionForm: View {
                 .textFieldStyle(.roundedBorder)
                 .accessibilityIdentifier("interventionNotesField")
 
+            // Attribution parity: the entered substance+dose matches a
+            // pending scheduled dose today — offer counting it toward the
+            // protocol instead of logging a free-floating intervention.
+            if let match = viewModel.matchingTodaysDose {
+                Toggle("Count toward \(match.protocolName)", isOn: $viewModel.countTowardProtocol)
+                    .accessibilityIdentifier("countTowardProtocolToggle")
+            }
+
             // Submit
             Button {
                 Task { await viewModel.submitIntervention() }
@@ -112,7 +141,47 @@ struct InterventionForm: View {
         }
         .task {
             await viewModel.loadSavedMedicines()
+            await viewModel.loadActiveSubstances()
+            await viewModel.loadTodaysDoses()
         }
+    }
+
+    /// The fixed route list, plus the currently-selected value if it isn't
+    /// already one of them — see the picker's comment above.
+    private var routeOptions: [String] {
+        guard !viewModel.route.isEmpty, !LogViewModel.routes.contains(viewModel.route) else {
+            return LogViewModel.routes
+        }
+        return LogViewModel.routes + [viewModel.route]
+    }
+
+    private func quickPickChip(_ item: ActiveSubstance) -> some View {
+        Button {
+            viewModel.applyActiveSubstance(item)
+        } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(quickPickLabel(item))
+                    .font(.caption)
+                Text(item.protocolName)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Capsule().stroke(OPColor.teal, lineWidth: 1))
+        }
+        .accessibilityIdentifier("quickPickChip-\(item.id)")
+    }
+
+    private func quickPickLabel(_ item: ActiveSubstance) -> String {
+        var parts = [item.substance]
+        if let d = item.dose {
+            var dosePart = LogViewModel.formatDose(d)
+            if let u = item.unit { dosePart += u }
+            parts.append(dosePart)
+        }
+        if let r = item.route { parts.append(r) }
+        return parts.joined(separator: " ")
     }
 
     private func savedMedicineChip(_ medicine: SavedMedicine) -> some View {
@@ -138,7 +207,7 @@ struct InterventionForm: View {
     private func savedMedicineLabel(_ medicine: SavedMedicine) -> String {
         var parts = [medicine.substance]
         if let d = medicine.dose {
-            var dosePart = String(format: "%g", d)
+            var dosePart = LogViewModel.formatDose(d)
             if let u = medicine.unit { dosePart += u }
             parts.append(dosePart)
         }

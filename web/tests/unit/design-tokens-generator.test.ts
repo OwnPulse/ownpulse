@@ -197,23 +197,48 @@ describe("brandColors", () => {
   });
 });
 
-describe("dimension/OPColor.purple parity (CSS <-> Swift)", () => {
+// Extracts the r/g/b components of a `--color-<key>: #rrggbb;` declaration
+// from generated CSS text, for cross-checking against a Swift Color literal.
+function cssColorRgb(css: string, cssKey: string): { r: number; g: number; b: number } {
+  const match = css.match(new RegExp(`--color-${cssKey}: (#[0-9a-f]{6});`));
+  expect(match, `--color-${cssKey} not found in _tokens.css`).not.toBeNull();
+  const hex = match?.[1] ?? "";
+  return {
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+describe("dimension/OPColor parity (CSS <-> Swift)", () => {
   it("--color-libido in _tokens.css and OPColor.purple in Tokens.swift resolve to the same hex", () => {
     // OPColor.purple is sourced from color.dimension.purple (not .libido) in
     // SWIFT_COLOR_MAP, but the two tokens share a value, so they must still
     // agree — this guards against the map ever pointing at the wrong token.
     const css = read(cssPath);
     const swift = read(swiftPath);
-    const cssMatch = css.match(/--color-libido: (#[0-9a-f]{6});/);
-    expect(cssMatch).not.toBeNull();
-    const hex = cssMatch?.[1] ?? "";
-    const { r, g, b } = {
-      r: Number.parseInt(hex.slice(1, 3), 16),
-      g: Number.parseInt(hex.slice(3, 5), 16),
-      b: Number.parseInt(hex.slice(5, 7), 16),
-    };
+    const { r, g, b } = cssColorRgb(css, "libido");
     expect(swift).toContain(
       `static let purple = Color(red: ${r} / 255, green: ${g} / 255, blue: ${b} / 255)`,
+    );
+  });
+
+  it.each([
+    ["energy", "dimensionEnergy"],
+    ["mood", "dimensionMood"],
+    ["focus", "dimensionFocus"],
+    ["recovery", "dimensionRecovery"],
+    ["libido", "dimensionLibido"],
+  ] as const)("--color-%s in _tokens.css and OPColor.%s in Tokens.swift resolve to the same hex", (cssKey, swiftName) => {
+    // Each color.dimension.<key> is emitted TWICE — once into
+    // dimensionColors.generated.ts's DIMENSION_COLORS (web) and once into
+    // Tokens.swift's OPColor.dimension<Key> (iOS, via SWIFT_COLOR_MAP) — so
+    // the two platforms can't silently diverge on a dimension's own color.
+    const css = read(cssPath);
+    const swift = read(swiftPath);
+    const { r, g, b } = cssColorRgb(css, cssKey);
+    expect(swift).toContain(
+      `static let ${swiftName} = Color(red: ${r} / 255, green: ${g} / 255, blue: ${b} / 255)`,
     );
   });
 });
