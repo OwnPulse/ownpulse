@@ -185,10 +185,11 @@ fn decode_base64_standard(input: &str) -> Result<Vec<u8>, ()> {
 /// target) and `/auth/garmin|oura/login` (which each make a synchronous
 /// upstream call this bucket protects our shared app quota from), it
 /// requires a valid session already and makes no upstream call — it just
-/// builds a redirect URL. Sharing this IP-keyed bucket with `/auth/login`
-/// would mean repeated clicks on a broken Connect button (e.g. before the
-/// `?token=` query-param support landed) could burn through the same
-/// 10-req/min budget as the user's own login attempts, locking them out.
+/// records an OAuth state row and returns Google's auth URL as JSON.
+/// Sharing this IP-keyed bucket with `/auth/login` would mean a buggy or
+/// retried web client hitting the Sources page repeatedly could burn
+/// through the same 10-req/min budget as the user's own login attempts,
+/// locking them out.
 fn rate_limited_auth_routes() -> Router<AppState> {
     Router::new()
         .route("/auth/login", post(auth::login))

@@ -1145,12 +1145,15 @@ async fn google_calendar_manual_sync_underscore_alias_reaches_same_handler() {
     // building the URL from the `source` id returned by `GET /integrations`
     // (which is always underscore-separated) must land on a real route
     // rather than 404ing on a path that only exists with a hyphen.
-    let app = common::setup_with_config(|cfg| {
-        cfg.google_client_id = Some("test-google-id".to_string());
-        cfg.google_client_secret = Some("test-google-secret".to_string());
-    })
-    .await;
-
+    //
+    // Deliberately unconfigured (no google_client_id/secret) rather than
+    // asserting the unconnected-user 404: axum's own unmatched-route
+    // fallback is *also* a 404, so that status wouldn't prove the alias
+    // reaches `google_calendar::sync` at all. 501 is only reachable through
+    // the handler's config check (which runs before the connection check),
+    // so it's a real discriminator that this is the same handler, not a
+    // coincidentally-matching generic 404.
+    let app = common::setup().await;
     let (_, token) = common::create_test_user(&app).await;
 
     let response = app
@@ -1163,9 +1166,7 @@ async fn google_calendar_manual_sync_underscore_alias_reaches_same_handler() {
         .await
         .unwrap();
 
-    // Same outcome as the hyphenated path for an unconnected user — proves
-    // this reaches `google_calendar::sync`, not a 404 from an unmatched route.
-    assert_eq!(response.status(), 404);
+    assert_eq!(response.status(), 501);
 }
 
 #[tokio::test]
