@@ -11,9 +11,14 @@
 
 import { describe, expect, it } from "vitest";
 
-import { CHART_COLORS, colorForMetric } from "../../src/components/explore/chartColors";
+import {
+  CHART_COLORS,
+  colorForMetric,
+  INTERVENTION_COLOR,
+} from "../../src/components/explore/chartColors";
 import {
   FALLBACK_COLORS,
+  INTERVENTION_COLOR as GENERATED_INTERVENTION_COLOR,
   METRIC_ALIASES,
   METRIC_COLORS,
 } from "../../src/components/explore/chartMetricColors.generated";
@@ -103,5 +108,15 @@ describe("colorForMetric — unknown metrics fall back deterministically", () =>
 describe("CHART_COLORS export surface", () => {
   it("remains the fallback cycle for legacy callers", () => {
     expect(CHART_COLORS).toEqual(FALLBACK_COLORS);
+  });
+});
+
+describe("INTERVENTION_COLOR export surface", () => {
+  it("re-exports the generated chart.intervention token value", () => {
+    expect(INTERVENTION_COLOR).toBe(GENERATED_INTERVENTION_COLOR);
+  });
+
+  it("is not the old off-palette flat-UI purple", () => {
+    expect(INTERVENTION_COLOR).not.toBe("#9b59b6");
   });
 });

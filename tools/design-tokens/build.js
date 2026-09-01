@@ -31,6 +31,12 @@ const HEADER_SWIFT = `// SPDX-License-Identifier: AGPL-3.0-or-later
 // GENERATED FILE — DO NOT EDIT BY HAND.
 // Source: docs/design/tokens.json. Regenerate with \`npm run build:tokens\` in tools/design-tokens.`;
 
+const HEADER_TS = `// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) OwnPulse Contributors
+//
+// GENERATED FILE — DO NOT EDIT BY HAND.
+// Source: docs/design/tokens.json. Regenerate with \`npm run build:tokens\` in tools/design-tokens.`;
+
 // --- helpers ---------------------------------------------------------------
 
 function hexToRgbComponents(hex) {
@@ -120,8 +126,12 @@ const SWIFT_COLOR_MAP = {
   'color.accent.default': 'teal',
   'color.dimension.gold': 'gold',
   'color.dimension.sage': 'sage',
+  'color.dimension.purple': 'purple',
   'color.surface.bg-warm': 'warmBg',
   'color.surface.elevated': 'cardLight',
+  'color.feedback.success': 'success',
+  'color.feedback.warning': 'warning',
+  'color.feedback.error': 'error',
 };
 
 // Maps backend `record_type` field strings (as emitted by the explore API —
@@ -185,6 +195,35 @@ export function chartMetricColors(dictionary) {
   }
 
   return { metrics: ordered, fallback, aliases };
+}
+
+// The five check-in subjective-score dimensions, in canonical display order.
+// Each mirrors an existing brand token (see the $description on each
+// color.dimension.* entry in tokens.json) rather than introducing new hues.
+export const DIMENSION_KEYS = ['energy', 'mood', 'focus', 'recovery', 'libido'];
+
+// Extracts the check-in dimension colors from the token dictionary as a plain
+// object keyed lowercase: { energy: '#c49a3c', mood: '#b2573c', ... }. Single
+// source of truth for the web `DIMENSION_COLORS` map (dimensionColors.generated.ts)
+// so CheckinForm, ScoreRing, and SparklineRow can no longer drift from each other.
+export function dimensionColors(dictionary) {
+  const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join('.'), t]));
+  const ordered = {};
+  for (const k of DIMENSION_KEYS) {
+    const token = byPath.get(`color.dimension.${k}`);
+    if (!token) throw new Error(`color.dimension.${k} missing from token source`);
+    ordered[k] = token.original.value;
+  }
+  return ordered;
+}
+
+// Extracts the intervention marker color (chart.intervention) from the token
+// dictionary. Single source of truth for INTERVENTION_COLOR re-exported from
+// both chartMetricColors.generated.ts and chartColors.ts.
+export function interventionColor(dictionary) {
+  const token = dictionary.allTokens.find((t) => t.path.join('.') === 'chart.intervention');
+  if (!token) throw new Error('chart.intervention missing from token source');
+  return token.original.value;
 }
 
 // --- custom CSS format -----------------------------------------------------
@@ -280,11 +319,8 @@ StyleDictionary.registerFormat({
     const aliasLines = Object.entries(aliases)
       .map(([k, v]) => `  ${tsKey(k)}: ${JSON.stringify(v)},`)
       .join('\n');
-    return `// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) OwnPulse Contributors
-//
-// GENERATED FILE — DO NOT EDIT BY HAND.
-// Source: docs/design/tokens.json. Regenerate with \`npm run build:tokens\` in tools/design-tokens.
+    const intervention = interventionColor(dictionary);
+    return `${HEADER_TS}
 
 /** Per-metric chart colors, keyed by canonical metric name. */
 export const METRIC_COLORS: Record<string, string> = {
@@ -299,6 +335,36 @@ ${fallbackLines}
 /** Backend \`record_type\` field names that are synonyms for a canonical metric key. */
 export const METRIC_ALIASES: Record<string, string> = {
 ${aliasLines}
+};
+
+/** Marker color for intervention (substance/medication/supplement) events overlaid on charts. */
+export const INTERVENTION_COLOR: string = ${JSON.stringify(intervention)};
+`;
+  },
+});
+
+// --- custom dimension-color TS format (web) --------------------------------
+
+StyleDictionary.registerFormat({
+  name: 'ownpulse/dimension-colors-ts',
+  format: ({ dictionary }) => {
+    const colors = dimensionColors(dictionary);
+    const unionType = DIMENSION_KEYS.map((k) => JSON.stringify(k)).join(' | ');
+    const mapLines = Object.entries(colors)
+      .map(([k, v]) => `  ${k}: ${JSON.stringify(v)},`)
+      .join('\n');
+    return `${HEADER_TS}
+
+/** The five check-in subjective-score dimensions. */
+export type DimensionName = ${unionType};
+
+/**
+ * Check-in dimension colors, keyed lowercase by dimension name. Single source
+ * of truth for CheckinForm, ScoreRing, and SparklineRow so the five dimension
+ * colors cannot drift between components.
+ */
+export const DIMENSION_COLORS: Record<DimensionName, string> = {
+${mapLines}
 };
 `;
   },
@@ -401,6 +467,11 @@ export async function buildTokens() {
         buildPath: resolve(repoRoot, 'web/src/components/explore') + '/',
         files: [{ destination: 'chartMetricColors.generated.ts', format: 'ownpulse/chart-metric-ts' }],
       },
+      dimensionTs: {
+        transformGroup: 'js',
+        buildPath: resolve(repoRoot, 'web/src/components') + '/',
+        files: [{ destination: 'dimensionColors.generated.ts', format: 'ownpulse/dimension-colors-ts' }],
+      },
       swift: {
         transformGroup: 'js',
         buildPath: resolve(repoRoot, 'ios/OwnPulse/Theme') + '/',
@@ -419,6 +490,18 @@ export async function buildTokens() {
 
   await sd.hasInitialized;
   await sd.buildAllPlatforms();
+}
+
+// Resolved token dictionary with no platform-specific transforms applied,
+// for tests exercising dimensionColors()/interventionColor()/chartMetricColors()
+// against the real token source rather than a hand-rolled fixture.
+export async function loadDictionary() {
+  const sd = new StyleDictionary({
+    source: [tokensPath],
+    platforms: { js: { transformGroup: 'js' } },
+  });
+  await sd.hasInitialized;
+  return sd.getPlatformTokens('js');
 }
 
 // Run only when executed directly (`node build.js`), not when imported by a test.

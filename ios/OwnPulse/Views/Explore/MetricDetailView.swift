@@ -291,7 +291,7 @@ struct MetricDetailView: View {
 
     private static let metricColors: [Color] = [
         OPColor.terracotta, OPColor.teal, OPColor.sage, OPColor.gold,
-        Color.purple,
+        OPColor.purple,
     ]
 
     private func colorForMetric(_ field: String) -> Color {
