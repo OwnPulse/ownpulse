@@ -339,13 +339,13 @@ struct MyChartConnectView: View {
             case let .connected(imported):
                 Section {
                     Label("Connected — imported \(imported) lab result\(imported == 1 ? "" : "s").", systemImage: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
+                        .foregroundStyle(OPColor.success)
                         .accessibilityIdentifier("myChartConnectedLabel")
                 }
             case let .error(message):
                 Section {
                     Label(message, systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(OPColor.error)
                         .accessibilityIdentifier("myChartErrorLabel")
                 }
             default:

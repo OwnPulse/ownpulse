@@ -73,7 +73,9 @@ const server = setupServer(
       day_number: 3,
       status: "completed",
       intervention_id: "iv-1",
+      // date-ok
       logged_at: "2026-03-28T08:00:00Z",
+      // date-ok
       created_at: "2026-03-28T08:00:00Z",
     });
   }),
@@ -304,6 +306,7 @@ describe("TodaysDoses", () => {
       route: "SubQ",
       time_of_day: "08:00",
       day_number: 2,
+      // date-ok
       date: "2026-03-27",
       status: "missed",
     };
@@ -357,6 +360,7 @@ describe("TodaysDoses", () => {
       });
 
       // Collapsed by default — no per-item row yet.
+      // date-ok
       expect(screen.queryByText("2026-03-27")).toBeNull();
 
       await user.click(screen.getByText("1 missed dose — Review"));
@@ -385,7 +389,9 @@ describe("TodaysDoses", () => {
             day_number: 2,
             status: "completed",
             intervention_id: "iv-2",
+            // date-ok
             logged_at: "2026-03-27T08:00:00Z",
+            // date-ok
             created_at: "2026-03-27T08:00:00Z",
           });
         }),

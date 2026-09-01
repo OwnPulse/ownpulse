@@ -179,6 +179,17 @@ fn decode_base64_standard(input: &str) -> Result<Vec<u8>, ()> {
 }
 
 /// User-initiated auth routes that need spam protection via rate limiting.
+///
+/// `/auth/google-calendar/login` deliberately does NOT live here (see
+/// `base_routes`): unlike `/auth/login` (an anonymous credential-guessing
+/// target) and `/auth/garmin|oura/login` (which each make a synchronous
+/// upstream call this bucket protects our shared app quota from), it
+/// requires a valid session already and makes no upstream call — it just
+/// records an OAuth state row and returns Google's auth URL as JSON.
+/// Sharing this IP-keyed bucket with `/auth/login` would mean a buggy or
+/// retried web client hitting the Sources page repeatedly could burn
+/// through the same 10-req/min budget as the user's own login attempts,
+/// locking them out.
 fn rate_limited_auth_routes() -> Router<AppState> {
     Router::new()
         .route("/auth/login", post(auth::login))
@@ -190,10 +201,6 @@ fn rate_limited_auth_routes() -> Router<AppState> {
         .route("/auth/reset-password", post(auth::reset_password))
         .route("/auth/garmin/login", get(garmin::garmin_login))
         .route("/auth/oura/login", get(oura::oura_login))
-        .route(
-            "/auth/google-calendar/login",
-            get(google_calendar::google_calendar_login),
-        )
 }
 
 /// OAuth callback routes that are server-initiated redirects protected by
@@ -341,6 +348,12 @@ fn invite_check_routes() -> Router<AppState> {
 
 fn base_routes() -> Router<AppState> {
     Router::new()
+        // Google Calendar connect — not rate-limited alongside `/auth/login`;
+        // see the comment on `rate_limited_auth_routes` for why.
+        .route(
+            "/auth/google-calendar/login",
+            get(google_calendar::google_calendar_login),
+        )
         // Config (unauthenticated)
         .route("/config", get(config::get_config))
         // Waitlist (unauthenticated)
@@ -415,6 +428,15 @@ fn base_routes() -> Router<AppState> {
         .route("/integrations/oura/sync", post(oura::sync))
         .route(
             "/integrations/google-calendar/sync",
+            post(google_calendar::sync),
+        )
+        // Alias using the `integration_tokens.source` / `GET /integrations`
+        // spelling (underscore) rather than the historical hyphenated path
+        // above — added so a client building this URL from the source id
+        // (as it already can for every other source, none of which contain
+        // a separator) lands on a route that exists instead of a 404.
+        .route(
+            "/integrations/google_calendar/sync",
             post(google_calendar::sync),
         )
         .route("/integrations/:source", delete(integrations::disconnect))

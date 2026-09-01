@@ -454,7 +454,7 @@ struct SettingsView: View {
             if let error = vm.notificationError {
                 Text(error)
                     .font(.caption)
-                    .foregroundStyle(.red)
+                    .foregroundStyle(OPColor.error)
                     .accessibilityIdentifier("notificationError")
             }
 
@@ -518,7 +518,7 @@ struct SettingsView: View {
                 if let error = vm.linkError {
                     Text(error)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(OPColor.error)
                         .accessibilityIdentifier("linkError")
                 }
             }

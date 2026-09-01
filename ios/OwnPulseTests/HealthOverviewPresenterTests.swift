@@ -34,6 +34,7 @@ struct HealthOverviewPresenterTests {
 
     private func marker(_ substance: String) -> InterventionMarker {
         InterventionMarker(
+            // date-ok
             t: "2026-04-10T00:00:00Z",
             substance: substance,
             dose: nil,

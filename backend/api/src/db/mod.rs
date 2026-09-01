@@ -20,6 +20,7 @@ pub mod integration_tokens;
 pub mod interventions;
 pub mod invites;
 pub mod lab_results;
+pub mod oauth_states;
 pub mod observations;
 pub mod observer_polls;
 pub mod password_reset_tokens;

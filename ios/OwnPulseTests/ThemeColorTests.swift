@@ -64,4 +64,26 @@ struct ThemeColorTests {
         let ratio = contrastRatio(.white, bg)
         #expect(ratio >= 4.5, "white on googleBlue was \(ratio):1, below WCAG AA 4.5:1")
     }
+
+    @Test("dimensionEnergy clears the 3:1 WCAG AA graphical-object floor on the warm background")
+    func dimensionEnergyPassesContrastOnWarmBg() {
+        let fg = resolved(OPColor.dimensionEnergy, style: .light)
+        let bg = resolved(OPColor.warmBg, style: .light)
+        let ratio = contrastRatio(fg, bg)
+        #expect(ratio >= 3.0, "dimensionEnergy on warmBg was \(ratio):1, below WCAG AA 3:1")
+    }
+
+    @Test("dimensionEnergy clears the 3:1 WCAG AA graphical-object floor on the elevated card surface")
+    func dimensionEnergyPassesContrastOnCardLight() {
+        let fg = resolved(OPColor.dimensionEnergy, style: .light)
+        let bg = resolved(OPColor.cardLight, style: .light)
+        let ratio = contrastRatio(fg, bg)
+        #expect(ratio >= 3.0, "dimensionEnergy on cardLight was \(ratio):1, below WCAG AA 3:1")
+    }
+
+    @Test("OPCardModifier's corner radius matches web's card radius (radii.lg, 12pt)")
+    func cardCornerRadiusMatchesWebToken() {
+        #expect(OPCardModifier.cornerRadius == OPRadius.lg)
+        #expect(OPCardModifier.cornerRadius == 12)
+    }
 }

@@ -20,6 +20,7 @@ const doseRow = {
   day_number: 3,
   status: "completed",
   intervention_id: "iv-1",
+  // date-ok
   logged_at: "2026-03-28T08:00:00Z",
   run_id: "run-1",
   skip_reason: null,
@@ -76,6 +77,7 @@ describe("protocolsApi dose/adherence methods", () => {
         protocol_line_id: "line-1",
         day_number: 3,
         tz_offset_minutes: -60,
+        // date-ok
         administered_at: "2026-03-28T08:00:00Z",
         notes: "with food",
       });
@@ -84,6 +86,7 @@ describe("protocolsApi dose/adherence methods", () => {
         protocol_line_id: "line-1",
         day_number: 3,
         tz_offset_minutes: -60,
+        // date-ok
         administered_at: "2026-03-28T08:00:00Z",
         notes: "with food",
       });
@@ -258,6 +261,7 @@ describe("protocolsApi dose/adherence methods", () => {
   describe("runDoses", () => {
     const runDoseItem = {
       day_number: 3,
+      // date-ok
       date: "2026-03-31",
       protocol_line_id: "line-1",
       substance: "BPC-157",
@@ -356,6 +360,7 @@ describe("protocolsApi dose/adherence methods", () => {
       route: "SubQ",
       time_of_day: "AM",
       day_number: 2,
+      // date-ok
       date: "2026-03-30",
       status: "missed",
     };

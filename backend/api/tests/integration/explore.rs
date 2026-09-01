@@ -65,6 +65,7 @@ async fn test_explore_metrics_includes_lab_markers() {
 
     // Seed a lab result
     let body = json!({
+        // date-ok
         "panel_date": "2026-03-15",
         "marker": "testosterone_total",
         "value": 650.0,
@@ -159,6 +160,7 @@ async fn test_explore_series_checkin_daily() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=checkins&field=energy&start=2026-03-14T00:00:00Z&end=2026-03-18T00:00:00Z&resolution=daily",
             &token,
             None,
@@ -206,6 +208,7 @@ async fn test_explore_series_health_records() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=health_records&field=heart_rate&start=2026-03-14T00:00:00Z&end=2026-03-21T00:00:00Z&resolution=daily",
             &token,
             None,
@@ -251,6 +254,7 @@ async fn test_explore_series_weekly_aggregation() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=checkins&field=energy&start=2026-02-28T00:00:00Z&end=2026-03-15T00:00:00Z&resolution=weekly",
             &token,
             None,
@@ -274,6 +278,7 @@ async fn test_explore_series_invalid_source() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=invalid&field=energy&start=2026-03-01T00:00:00Z&end=2026-03-15T00:00:00Z&resolution=daily",
             &token,
             None,
@@ -293,6 +298,7 @@ async fn test_explore_series_invalid_field() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=checkins&field=nonexistent&start=2026-03-01T00:00:00Z&end=2026-03-15T00:00:00Z&resolution=daily",
             &token,
             None,
@@ -331,6 +337,7 @@ async fn test_explore_series_date_range_filtering() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=checkins&field=energy&start=2026-03-08T00:00:00Z&end=2026-03-12T23:59:59Z&resolution=daily",
             &token,
             None,
@@ -354,6 +361,7 @@ async fn test_explore_batch_series() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     // Seed data
+    // date-ok
     let checkin = json!({ "date": "2026-03-15", "energy": 7, "mood": 8 });
     app.app
         .clone()
@@ -371,7 +379,9 @@ async fn test_explore_batch_series() {
             { "source": "checkins", "field": "energy" },
             { "source": "checkins", "field": "mood" }
         ],
+        // date-ok
         "start": "2026-03-14T00:00:00Z",
+        // date-ok
         "end": "2026-03-16T00:00:00Z",
         "resolution": "daily"
     });
@@ -406,7 +416,9 @@ async fn test_explore_batch_series_too_many_metrics() {
 
     let body = json!({
         "metrics": metrics,
+        // date-ok
         "start": "2026-03-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-15T00:00:00Z",
         "resolution": "daily"
     });
@@ -435,7 +447,9 @@ async fn test_explore_batch_series_invalid_metric() {
             { "source": "checkins", "field": "energy" },
             { "source": "invalid_source", "field": "foo" }
         ],
+        // date-ok
         "start": "2026-03-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-15T00:00:00Z",
         "resolution": "daily"
     });
@@ -814,6 +828,7 @@ async fn test_checkins_date_filtering() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/checkins?start=2026-03-12&end=2026-03-18",
             &token,
             None,
@@ -825,6 +840,7 @@ async fn test_checkins_date_filtering() {
     let json = common::body_json(resp).await;
     let items = json.as_array().unwrap();
     assert_eq!(items.len(), 1);
+    // date-ok
     assert_eq!(items[0]["date"], "2026-03-15");
 }
 
@@ -863,6 +879,7 @@ async fn test_labs_date_filtering() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/labs?start=2026-03-12&end=2026-03-18",
             &token,
             None,
@@ -874,6 +891,7 @@ async fn test_labs_date_filtering() {
     let json = common::body_json(resp).await;
     let items = json.as_array().unwrap();
     assert_eq!(items.len(), 1);
+    // date-ok
     assert_eq!(items[0]["panel_date"], "2026-03-15");
 }
 
@@ -933,6 +951,7 @@ async fn test_explore_series_lab_data() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=labs&field=creatinine&start=2026-03-09T00:00:00Z&end=2026-03-13T00:00:00Z&resolution=daily",
             &token,
             None,
@@ -982,6 +1001,7 @@ async fn test_explore_series_sleep_data() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=sleep&field=duration_minutes&start=2026-03-14T00:00:00Z&end=2026-03-18T00:00:00Z&resolution=daily",
             &token,
             None,
@@ -1033,6 +1053,7 @@ async fn test_explore_interventions_markers() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/interventions?start=2026-03-09T00:00:00Z&end=2026-03-13T00:00:00Z",
             &token,
             None,
@@ -1085,6 +1106,7 @@ async fn test_explore_interventions_date_filtering() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/interventions?start=2026-03-10T00:00:00Z&end=2026-03-20T00:00:00Z",
             &token,
             None,
@@ -1106,6 +1128,7 @@ async fn test_explore_interventions_unauthenticated() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/interventions?start=2026-03-01T00:00:00Z&end=2026-03-31T00:00:00Z",
             "invalid-token",
             None,
@@ -1125,6 +1148,7 @@ async fn test_explore_interventions_empty_result() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/interventions?start=2026-03-01T00:00:00Z&end=2026-03-31T00:00:00Z",
             &token,
             None,
@@ -1319,6 +1343,7 @@ async fn test_explore_series_observer_polls() {
         .oneshot(common::auth_request(
             "GET",
             &format!(
+                // date-ok
                 "/api/v1/explore/series?source=observer_polls&field={field}&start=2026-03-14T00:00:00Z&end=2026-03-18T00:00:00Z&resolution=daily"
             ),
             &token,
@@ -1369,6 +1394,7 @@ async fn test_explore_series_observer_polls_not_owned() {
         .oneshot(common::auth_request(
             "GET",
             &format!(
+                // date-ok
                 "/api/v1/explore/series?source=observer_polls&field={field}&start=2026-03-01T00:00:00Z&end=2026-03-31T00:00:00Z&resolution=daily"
             ),
             &other_token,
@@ -1394,6 +1420,7 @@ async fn test_explore_series_observer_polls_invalid_field_format() {
         .clone()
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=observer_polls&field=bad-field&start=2026-03-01T00:00:00Z&end=2026-03-31T00:00:00Z&resolution=daily",
             &token,
             None,
@@ -1407,6 +1434,7 @@ async fn test_explore_series_observer_polls_invalid_field_format() {
         .app
         .oneshot(common::auth_request(
             "GET",
+            // date-ok
             "/api/v1/explore/series?source=observer_polls&field=not-a-uuid:energy&start=2026-03-01T00:00:00Z&end=2026-03-31T00:00:00Z&resolution=daily",
             &token,
             None,
@@ -1447,7 +1475,9 @@ async fn test_explore_batch_series_with_observer_polls() {
             { "source": "checkins", "field": "energy" },
             { "source": "observer_polls", "field": format!("{poll_id}:energy") }
         ],
+        // date-ok
         "start": "2026-03-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-31T00:00:00Z",
         "resolution": "daily"
     });
@@ -1481,6 +1511,7 @@ async fn test_batch_series_happy_path() {
     let (_user_id, token) = common::create_test_user(&app).await;
 
     // Seed data
+    // date-ok
     let checkin = json!({ "date": "2026-03-15", "energy": 7, "mood": 8 });
     app.app
         .clone()
@@ -1498,7 +1529,9 @@ async fn test_batch_series_happy_path() {
             { "source": "checkins", "field": "energy" },
             { "source": "checkins", "field": "mood" }
         ],
+        // date-ok
         "start": "2026-03-14T00:00:00Z",
+        // date-ok
         "end": "2026-03-16T00:00:00Z",
         "resolution": "daily"
     });
@@ -1531,7 +1564,9 @@ async fn test_batch_series_unauthenticated() {
 
     let body = json!({
         "metrics": [{ "source": "checkins", "field": "energy" }],
+        // date-ok
         "start": "2026-03-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-15T00:00:00Z",
         "resolution": "daily"
     });
@@ -1557,7 +1592,9 @@ async fn test_batch_series_empty_metrics() {
 
     let body = json!({
         "metrics": [],
+        // date-ok
         "start": "2026-03-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-15T00:00:00Z",
         "resolution": "daily"
     });
@@ -1587,7 +1624,9 @@ async fn test_batch_series_too_many_metrics() {
 
     let body = json!({
         "metrics": metrics,
+        // date-ok
         "start": "2026-03-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-15T00:00:00Z",
         "resolution": "daily"
     });
@@ -1618,7 +1657,9 @@ async fn test_batch_series_ten_metrics_allowed() {
 
     let body = json!({
         "metrics": metrics,
+        // date-ok
         "start": "2026-03-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-15T00:00:00Z",
         "resolution": "daily"
     });
@@ -1650,7 +1691,9 @@ async fn test_batch_series_invalid_metric() {
             { "source": "checkins", "field": "energy" },
             { "source": "invalid_source", "field": "foo" }
         ],
+        // date-ok
         "start": "2026-03-01T00:00:00Z",
+        // date-ok
         "end": "2026-03-15T00:00:00Z",
         "resolution": "daily"
     });

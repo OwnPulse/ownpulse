@@ -24,8 +24,10 @@ const interventionsList = [
     dose: 200,
     unit: "mg",
     route: "oral",
+    // date-ok
     administered_at: "2026-03-02T08:00:00Z",
     fasted: false,
+    // date-ok
     created_at: "2026-03-02T08:00:00Z",
   },
   {
@@ -35,8 +37,10 @@ const interventionsList = [
     dose: 5000,
     unit: "IU",
     route: "oral",
+    // date-ok
     administered_at: "2026-03-03T08:00:00Z",
     fasted: false,
+    // date-ok
     created_at: "2026-03-03T08:00:00Z",
   },
 ];

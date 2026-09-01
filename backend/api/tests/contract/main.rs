@@ -199,6 +199,24 @@ impl ProviderStateExecutor for StateExecutor {
                 let mut store = self.tokens.lock().expect("token store lock");
                 store.user_token = Some(token);
             }
+            "a protocol run with a logged dose exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_logged_dose(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "an active protocol run with substances exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_active_substances_run(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
             "sleep records exist" => {
                 let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
                 seed_sleep_record(&self.pool, user_id).await;
@@ -381,7 +399,9 @@ async fn seed_healthkit_write_queue_item(pool: &sqlx::PgPool, user_id: Uuid) {
     let value = serde_json::json!({
         "value": 82.5,
         "unit": "kg",
+        // date-ok
         "start_time": "2026-03-20T10:00:00Z",
+        // date-ok
         "end_time": "2026-03-20T10:00:00Z",
     });
 
@@ -467,6 +487,109 @@ async fn seed_adherence_run(
     .expect("seed contract-test adherence run");
 }
 
+/// Seed a protocol + line + active run (reusing `seed_adherence_run`'s fixed
+/// ids — the iOS undo-dose fixture's request path targets the same run,
+/// `aaaaaaaa-3333-…`, and the dose-status fixture returned alongside it in
+/// the same iOS PR references the same line, `aaaaaaaa-2222-…`) plus one
+/// logged `protocol_doses` row at a fixed id, for the ios-backend contract's
+/// "undo a logged dose" interaction.
+async fn seed_logged_dose(pool: &sqlx::PgPool, user_id: Uuid) {
+    seed_adherence_run(
+        pool,
+        user_id,
+        "aaaaaaaa-1111-1111-1111-111111111111",
+        "aaaaaaaa-2222-2222-2222-222222222222",
+        "aaaaaaaa-3333-3333-3333-333333333333",
+    )
+    .await;
+
+    let dose_id: Uuid = "bbbbbbbb-4444-4444-4444-444444444444"
+        .parse()
+        .expect("valid UUID");
+    let line_id: Uuid = "aaaaaaaa-2222-2222-2222-222222222222"
+        .parse()
+        .expect("valid UUID");
+    let run_id: Uuid = "aaaaaaaa-3333-3333-3333-333333333333"
+        .parse()
+        .expect("valid UUID");
+
+    // This provider state's fixed dose id is only reachable from this one
+    // call in any given test run, but re-run `DELETE`-then-`INSERT` anyway,
+    // matching `seed_healthkit_write_queue_item`'s idempotency pattern —
+    // cheap insurance against the `UNIQUE (protocol_line_id, run_id,
+    // day_number)` constraint if this state is ever invoked more than once.
+    sqlx::query("DELETE FROM protocol_doses WHERE id = $1")
+        .bind(dose_id)
+        .execute(pool)
+        .await
+        .expect("clear existing contract-test dose row");
+
+    sqlx::query(
+        "INSERT INTO protocol_doses (id, protocol_line_id, run_id, day_number, status, logged_at) \
+         VALUES ($1, $2, $3, 0, 'completed', now())",
+    )
+    .bind(dose_id)
+    .bind(line_id)
+    .bind(run_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test logged dose");
+}
+
+/// Seed a protocol ("Recovery Stack") + line (BPC-157, 250 mcg,
+/// subcutaneous) + active run for the ios-backend contract's "list active
+/// protocol substances for quick-pick" interaction. `active_substances` is
+/// scoped to the caller's own active runs (see `db::active_substances`), so
+/// a dedicated user per call — same as every other seeder here — keeps the
+/// exact-match response body to exactly the one row the contract expects.
+async fn seed_active_substances_run(pool: &sqlx::PgPool, user_id: Uuid) {
+    let protocol_id: Uuid = "cccccccc-1111-1111-1111-111111111111"
+        .parse()
+        .expect("valid UUID");
+    let line_id: Uuid = "cccccccc-2222-2222-2222-222222222222"
+        .parse()
+        .expect("valid UUID");
+    let run_id: Uuid = "cccccccc-3333-3333-3333-333333333333"
+        .parse()
+        .expect("valid UUID");
+
+    sqlx::query(
+        "INSERT INTO protocols (id, user_id, name, duration_days) \
+         VALUES ($1, $2, 'Recovery Stack', 30) \
+         ON CONFLICT (id) DO UPDATE SET user_id = excluded.user_id",
+    )
+    .bind(protocol_id)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test active-substances protocol");
+
+    sqlx::query(
+        "INSERT INTO protocol_lines \
+            (id, protocol_id, substance, dose, unit, route, schedule_pattern) \
+         VALUES ($1, $2, 'BPC-157', 250.0, 'mcg', 'subcutaneous', \
+                 '[true, true, true, true, true, true, true]'::jsonb) \
+         ON CONFLICT (id) DO NOTHING",
+    )
+    .bind(line_id)
+    .bind(protocol_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test active-substances line");
+
+    sqlx::query(
+        "INSERT INTO protocol_runs (id, protocol_id, user_id, start_date, status) \
+         VALUES ($1, $2, $3, CURRENT_DATE, 'active') \
+         ON CONFLICT (id) DO UPDATE SET user_id = excluded.user_id",
+    )
+    .bind(run_id)
+    .bind(protocol_id)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test active-substances run");
+}
+
 /// Seed a sleep observation so the web contract's `GET /api/v1/sleep` returns
 /// a non-empty array.  Sleep records are stored in the `observations` table
 /// with `type = 'sleep'`.
@@ -478,10 +601,12 @@ async fn seed_sleep_record(pool: &sqlx::PgPool, user_id: Uuid) {
         "rem_minutes": 120,
         "awake_minutes": 60,
         "score": 82,
+        // date-ok
         "date": "2026-03-10",
     });
 
     sqlx::query(
+        // date-ok
         "INSERT INTO observations (user_id, type, name, start_time, end_time, value, source) \
          VALUES ($1, 'sleep', 'sleep', '2026-03-09T23:00:00Z', '2026-03-10T07:00:00Z', $2, 'manual')",
     )
@@ -710,6 +835,119 @@ async fn verify_ios_adherence_contract() {
         contract,
         FilterInfo::Description(IOS_ADHERENCE_INTERACTIONS.to_string()),
         Some(2),
+    )
+    .await;
+}
+
+/// Count interactions in `contract_path` whose `description` exactly equals
+/// one of `descriptions`. Reads and parses the pact JSON directly, entirely
+/// independent of the regex `FilterInfo` that `verify_contract` passes to
+/// `pact_verifier` — the point is to give the not-yet-landed tests below a
+/// genuine second source of truth for `expected_verified` rather than
+/// re-deriving the same number from the same filter twice (which would
+/// trivially agree with itself even if the filter regex were wrong).
+fn interaction_count(contract_path: &std::path::Path, descriptions: &[&str]) -> usize {
+    let raw = std::fs::read_to_string(contract_path).expect("read contract file");
+    let json: Value = serde_json::from_str(&raw).expect("parse contract JSON");
+    json["interactions"]
+        .as_array()
+        .expect("interactions is an array")
+        .iter()
+        .filter(|interaction| {
+            interaction["description"]
+                .as_str()
+                .is_some_and(|d| descriptions.contains(&d))
+        })
+        .count()
+}
+
+/// Exact interaction descriptions added by `feat/ios-dose-backfill-adherence`
+/// (PR #318, unmerged at the time this test was written) to
+/// `ios-backend.json`. Backs [`verify_ios_dose_status_contract`].
+const IOS_DOSE_STATUS_DESCRIPTIONS: &[&str] = &[
+    "a request to get dose status for a run's scheduled days",
+    "a request to undo a logged dose",
+];
+
+/// Regex matching the same two interactions, for `pact_verifier`'s
+/// `FilterInfo::Description`.
+const IOS_DOSE_STATUS_INTERACTIONS: &str =
+    "^a request to (get dose status for a run's scheduled days|undo a logged dose)$";
+
+/// Active iOS Pact gate for the run-doses (dose-status) and undo-dose
+/// endpoints (`GET /protocols/runs/:run_id/doses`,
+/// `DELETE /protocols/runs/:run_id/doses/:dose_id`).
+///
+/// These two interactions ship on `feat/ios-dose-backfill-adherence`
+/// (PR #318) — that PR, not this one, owns the `ios-backend.json` change
+/// that adds them. On `main` today, `ios-backend.json` doesn't contain them
+/// yet, so instead of a hardcoded `expected_verified` (which would fail
+/// before the interactions exist), `expected_verified` is computed by
+/// [`interaction_count`] from whatever contract file is actually loaded:
+/// `0` today (test passes vacuously — there is nothing to verify yet), `2`
+/// once PR #318 merges and the interactions land, at which point this
+/// becomes a real verification. The provider state it depends on,
+/// "a protocol run with a logged dose exists" (`seed_logged_dose`), already
+/// exists so that day-one verification works without a follow-up PR; "get
+/// dose status for a run's scheduled days" reuses the existing "a protocol
+/// run with adherence data exists" state (`seed_adherence_run`) unchanged.
+#[tokio::test]
+async fn verify_ios_dose_status_contract() {
+    let contract = contracts_dir().join("ios-backend.json");
+    assert!(
+        contract.exists(),
+        "iOS contract file not found at {}",
+        contract.display()
+    );
+
+    let expected = interaction_count(&contract, IOS_DOSE_STATUS_DESCRIPTIONS);
+
+    let app = common::setup().await;
+    verify_contract(
+        &app,
+        contract,
+        FilterInfo::Description(IOS_DOSE_STATUS_INTERACTIONS.to_string()),
+        Some(expected),
+    )
+    .await;
+}
+
+/// Exact interaction description added by `feat/ios-quick-pick` (PR #319,
+/// unmerged at the time this test was written) to `ios-backend.json`. Backs
+/// [`verify_ios_quick_pick_contract`].
+const IOS_QUICK_PICK_DESCRIPTIONS: &[&str] =
+    &["a request to list active protocol substances for quick-pick"];
+
+/// Regex matching the same interaction, for `pact_verifier`'s
+/// `FilterInfo::Description`.
+const IOS_QUICK_PICK_INTERACTIONS: &str =
+    "^a request to list active protocol substances for quick-pick$";
+
+/// Active iOS Pact gate for `GET /protocols/active-substances`.
+///
+/// Ships on `feat/ios-quick-pick` (PR #319) — see the doc comment on
+/// [`verify_ios_dose_status_contract`] for why `expected_verified` is
+/// computed via [`interaction_count`] rather than hardcoded: `0` on `main`
+/// today, `1` once PR #319 merges. The provider state it depends on, "an
+/// active protocol run with substances exists" (`seed_active_substances_run`),
+/// already exists so verification is live from day one of the merge.
+#[tokio::test]
+async fn verify_ios_quick_pick_contract() {
+    let contract = contracts_dir().join("ios-backend.json");
+    assert!(
+        contract.exists(),
+        "iOS contract file not found at {}",
+        contract.display()
+    );
+
+    let expected = interaction_count(&contract, IOS_QUICK_PICK_DESCRIPTIONS);
+
+    let app = common::setup().await;
+    verify_contract(
+        &app,
+        contract,
+        FilterInfo::Description(IOS_QUICK_PICK_INTERACTIONS.to_string()),
+        Some(expected),
     )
     .await;
 }

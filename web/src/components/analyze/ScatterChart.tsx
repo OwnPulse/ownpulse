@@ -3,6 +3,7 @@
 
 import { VisAxis, VisCrosshair, VisScatter, VisTooltip, VisXYContainer } from "@unovis/react";
 import { useCallback } from "react";
+import { PRIMARY_COLOR } from "../explore/chartMetricColors.generated";
 
 interface ScatterDatum {
   a: number;
@@ -31,7 +32,7 @@ export function ScatterChart({ data, labelA, labelB }: ScatterChartProps) {
   return (
     <div style={{ width: "100%", height: 400 }}>
       <VisXYContainer<ScatterDatum> data={data} height={400}>
-        <VisScatter<ScatterDatum> x={x} y={y} size={8} color="#c2654a" />
+        <VisScatter<ScatterDatum> x={x} y={y} size={8} color={PRIMARY_COLOR} />
         <VisAxis<ScatterDatum> type="x" label={labelA} gridLine={false} />
         <VisAxis<ScatterDatum> type="y" label={labelB} gridLine={false} />
         <VisCrosshair<ScatterDatum> template={tooltipTemplate} />

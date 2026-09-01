@@ -81,14 +81,22 @@ On new integration connect, the backend runs a one-time overlap scan:
 
 ### Source Preferences
 
-The user selects the preferred source per metric type. Preferences are stored in `source_preferences` and applied at query time (not at ingest). Both records are kept; the non-preferred source is deprioritized in the default view.
+The user selects the preferred source per metric type. Preferences are stored in `source_preferences` and applied at query time (not at ingest): rows are never mutated or deleted, so no other read path needs to change.
+
+**Duplicates are collapsed to one canonical row in charts, stats, and dashboards; `source_preferences` chooses which. Export and record lists always keep both.** Specifically:
+
+- Every dedup pair (`duplicate_of`) collapses to exactly one visible row for aggregate reads — `GET /explore/series`, `POST /explore/series` (batch), `POST /explore/batch-series`, `GET /dashboard/summary`, and the `/stats/*` correlation endpoints (they all read through `db::explore::query_series`, or `db::health_records::SOURCE_PREFERENCE_EXCLUSION` directly for the dashboard count). This collapse is unconditional, not merely "when a preference exists": with **no** preference set at all (every user's default state), the pair still collapses to one row — the original, first-arriving record — rather than double-counting both (two sources reporting the same sleep session would otherwise inflate a night's sleep to ~16h). If a preference exists and names either side of the pair, that named source's row is shown instead of the default original; a preference naming a source absent from the pair is a no-op (falls back to the default).
+- `duplicate_of` is stamped on whichever row arrives **second** — it does not, by itself, indicate which row is non-canonical. `SOURCE_PREFERENCE_EXCLUSION` walks to the actual dedup partner in both directions so the result doesn't depend on arrival order.
+
+**Always kept raw (both rows returned, unconditionally):** `GET /health-records`, `GET /export/json`, `GET /export/csv`, and the friend-shared data view (`GET /friends/:id/data`, which reads `db::health_records::list` directly) — provenance is never dropped from a user's own data, their export, or what they choose to share with a friend.
 
 ### Deduplication Rules
 
 - Duplicate detection window: 60 seconds and 2% value tolerance.
 - Duplicates are never silently dropped.
 - When a duplicate is detected: log a structured warning with both record IDs and sources, insert the record with a `duplicate_of` reference.
-- `source_preferences` determines which record is shown by default.
+- `source_preferences` determines which record is canonical in aggregate reads; absent a preference, the original (first-arriving) record is canonical by default (see "Source Preferences" above for the exact read paths this applies to and the ones that stay raw).
+- `POST /source-preferences` validates `preferred_source` against the known set of health-record sources (`garmin`, `oura`, `manual`, `healthkit`) — an unrecognized value is rejected with `400`, not silently stored inert.
 
 On the `POST /healthkit/sync` bulk path, this rule is enforced via **batched cross-source dedup**: one preflight `UNNEST`-driven `SELECT` looks up the closest existing non-`healthkit` record for every row in the batch, followed by one `INSERT ... SELECT FROM UNNEST(...)` that writes the whole batch with each row's `duplicate_of` set from the preflight result. Two DB round trips per batch, regardless of batch size — the rule holds for 100-record batches at the same fidelity as the previous per-record path.
 

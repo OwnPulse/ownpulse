@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SparklineRow } from "../../src/components/dashboard/SparklineRow";
+import { DIMENSION_COLORS } from "../../src/components/dimensionColors.generated";
 import { useAuthStore } from "../../src/store/auth";
 
 // Mock unovis (SVG/D3 doesn't render in jsdom)
@@ -26,12 +27,19 @@ const sparklineResponse = {
       field: "energy",
       unit: "score",
       points: [
+        // date-ok
         { t: "2026-03-21T00:00:00Z", v: 5, n: 1 },
+        // date-ok
         { t: "2026-03-22T00:00:00Z", v: 6, n: 1 },
+        // date-ok
         { t: "2026-03-23T00:00:00Z", v: 7, n: 1 },
+        // date-ok
         { t: "2026-03-24T00:00:00Z", v: 7, n: 1 },
+        // date-ok
         { t: "2026-03-25T00:00:00Z", v: 8, n: 1 },
+        // date-ok
         { t: "2026-03-26T00:00:00Z", v: 8, n: 1 },
+        // date-ok
         { t: "2026-03-27T00:00:00Z", v: 9, n: 1 },
       ],
     },
@@ -40,12 +48,19 @@ const sparklineResponse = {
       field: "mood",
       unit: "score",
       points: [
+        // date-ok
         { t: "2026-03-21T00:00:00Z", v: 8, n: 1 },
+        // date-ok
         { t: "2026-03-22T00:00:00Z", v: 7, n: 1 },
+        // date-ok
         { t: "2026-03-23T00:00:00Z", v: 6, n: 1 },
+        // date-ok
         { t: "2026-03-24T00:00:00Z", v: 5, n: 1 },
+        // date-ok
         { t: "2026-03-25T00:00:00Z", v: 5, n: 1 },
+        // date-ok
         { t: "2026-03-26T00:00:00Z", v: 4, n: 1 },
+        // date-ok
         { t: "2026-03-27T00:00:00Z", v: 4, n: 1 },
       ],
     },
@@ -53,6 +68,7 @@ const sparklineResponse = {
       source: "checkins",
       field: "focus",
       unit: "score",
+      // date-ok
       points: [{ t: "2026-03-27T00:00:00Z", v: 6, n: 1 }],
     },
     {
@@ -66,7 +82,9 @@ const sparklineResponse = {
       field: "libido",
       unit: "score",
       points: [
+        // date-ok
         { t: "2026-03-21T00:00:00Z", v: 5, n: 1 },
+        // date-ok
         { t: "2026-03-27T00:00:00Z", v: 5, n: 1 },
       ],
     },
@@ -168,6 +186,20 @@ describe("SparklineRow", () => {
     // On error, SparklineRow returns null
     expect(screen.queryByTestId("sparkline-row")).toBeNull();
     expect(container.innerHTML).toBe("");
+  });
+
+  it("tints each dimension's left border with its DIMENSION_COLORS entry", async () => {
+    render(<SparklineRow />, { wrapper: createWrapper() });
+    await waitFor(() => {
+      expect(screen.getByTestId("sparkline-row")).toBeDefined();
+    });
+    // jsdom normalizes inline hex colors to rgb() on the computed style.
+    const rgb = (hex: string) =>
+      `rgb(${[1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16)).join(", ")})`;
+    for (const key of ["energy", "mood", "focus", "recovery", "libido"] as const) {
+      const item = screen.getByTestId(`sparkline-${key}`);
+      expect(item.style.borderLeftColor).toBe(rgb(DIMENSION_COLORS[key]));
+    }
   });
 
   it("renders vis-line components for dimensions with data", async () => {

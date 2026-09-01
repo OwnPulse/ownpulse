@@ -5,8 +5,10 @@
 //
 // Reads the canonical token source (docs/design/tokens.json) and generates
 // reproducible outputs via Style Dictionary:
-//   - web/src/styles/_tokens.css                            CSS custom properties
+//   - web/src/styles/_tokens.css                            CSS custom properties (light :root +
+//                                                            both dark-mode blocks, from the `dark.*` group)
 //   - web/src/components/explore/chartMetricColors.generated.ts  per-metric chart colors (web)
+//   - web/src/components/dimensionColors.generated.ts       check-in dimension colors (web)
 //   - ios/OwnPulse/Theme/Tokens.swift                       OPColor.* + type/spacing/radii constants
 //   - ios/OwnPulse/Theme/ChartColors.swift                  per-metric chart colors (iOS)
 //   - docs/design/tokens-generated.md                       human-readable reference
@@ -26,6 +28,12 @@ const HEADER_CSS = `/* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* Source: docs/design/tokens.json. Regenerate with \`npm run build:tokens\` in tools/design-tokens. */`;
 
 const HEADER_SWIFT = `// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) OwnPulse Contributors
+//
+// GENERATED FILE — DO NOT EDIT BY HAND.
+// Source: docs/design/tokens.json. Regenerate with \`npm run build:tokens\` in tools/design-tokens.`;
+
+const HEADER_TS = `// SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) OwnPulse Contributors
 //
 // GENERATED FILE — DO NOT EDIT BY HAND.
@@ -120,8 +128,19 @@ const SWIFT_COLOR_MAP = {
   'color.accent.default': 'teal',
   'color.dimension.gold': 'gold',
   'color.dimension.sage': 'sage',
+  'color.dimension.purple': 'purple',
+  'color.dimension.energy': 'dimensionEnergy',
+  'color.dimension.mood': 'dimensionMood',
+  'color.dimension.focus': 'dimensionFocus',
+  'color.dimension.recovery': 'dimensionRecovery',
+  'color.dimension.libido': 'dimensionLibido',
   'color.surface.bg-warm': 'warmBg',
   'color.surface.elevated': 'cardLight',
+  'color.feedback.success': 'success',
+  'color.feedback.warning': 'warning',
+  'color.feedback.error': 'error',
+  'dark.color.bg': 'darkBg',
+  'dark.color.surface-elevated': 'cardDark',
 };
 
 // Maps backend `record_type` field strings (as emitted by the explore API —
@@ -187,6 +206,94 @@ export function chartMetricColors(dictionary) {
   return { metrics: ordered, fallback, aliases };
 }
 
+// The five check-in subjective-score dimensions, in canonical display order.
+// Each mirrors an existing brand token (see the $description on each
+// color.dimension.* entry in tokens.json) rather than introducing new hues.
+export const DIMENSION_KEYS = ['energy', 'mood', 'focus', 'recovery', 'libido'];
+
+// Extracts the check-in dimension colors from the token dictionary as a plain
+// object keyed lowercase: { energy: '#c49a3c', mood: '#b2573c', ... }. Single
+// source of truth for the web `DIMENSION_COLORS` map (dimensionColors.generated.ts)
+// so CheckinForm, ScoreRing, and SparklineRow can no longer drift from each other.
+export function dimensionColors(dictionary) {
+  const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join('.'), t]));
+  const ordered = {};
+  for (const k of DIMENSION_KEYS) {
+    const token = byPath.get(`color.dimension.${k}`);
+    if (!token) throw new Error(`color.dimension.${k} missing from token source`);
+    ordered[k] = token.original.value;
+  }
+  return ordered;
+}
+
+// Extracts the intervention marker color (chart.intervention) from the token
+// dictionary. Single source of truth for INTERVENTION_COLOR re-exported from
+// both chartMetricColors.generated.ts and chartColors.ts.
+export function interventionColor(dictionary) {
+  const token = dictionary.allTokens.find((t) => t.path.join('.') === 'chart.intervention');
+  if (!token) throw new Error('chart.intervention missing from token source');
+  return token.original.value;
+}
+
+// Dark-mode override keys, in the order the two CSS blocks below emit them
+// (matches the order the hand-written variables.css blocks used to use).
+// Keyed to match the CSS custom-property name they override, e.g. 'bg' ->
+// --color-bg.
+export const DARK_COLOR_KEYS = [
+  'link',
+  'link-hover',
+  'success-fg',
+  'bg',
+  'bg-warm',
+  'surface',
+  'surface-elevated',
+  'text',
+  'text-secondary',
+  'text-muted',
+  'border',
+  'border-strong',
+  'error-light',
+  'primary-light',
+];
+export const DARK_SHADOW_KEYS = ['sm', 'md', 'lg'];
+
+// Extracts the dark-mode override group from the token dictionary as
+// { color: { bg: '#1a1a18', ... }, shadow: { sm: '...', ... } }, keyed to the
+// CSS custom-property name each overrides. Single source of truth for BOTH
+// dark-mode CSS blocks in _tokens.css ([data-theme="dark"] and the
+// prefers-color-scheme media query) — those used to be two hand-maintained
+// blocks in variables.css, kept in sync only by copy-paste discipline.
+export function darkTokens(dictionary) {
+  const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join('.'), t]));
+  const color = {};
+  for (const k of DARK_COLOR_KEYS) {
+    const token = byPath.get(`dark.color.${k}`);
+    if (!token) throw new Error(`dark.color.${k} missing from token source`);
+    color[k] = token.original.value;
+  }
+  const shadow = {};
+  for (const k of DARK_SHADOW_KEYS) {
+    const token = byPath.get(`dark.shadow.${k}`);
+    if (!token) throw new Error(`dark.shadow.${k} missing from token source`);
+    shadow[k] = token.original.value;
+  }
+  return { color, shadow };
+}
+
+// Extracts the brand primary/accent colors (color.primary.default,
+// color.accent.default) from the token dictionary. Single source of truth for
+// PRIMARY_COLOR/ACCENT_COLOR in chartMetricColors.generated.ts, which the
+// analyze charts (LagChart, ScatterChart, BeforeAfterChart) consume instead of
+// each hardcoding its own stale pre-token copy of the brand hexes.
+export function brandColors(dictionary) {
+  const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join('.'), t]));
+  const primary = byPath.get('color.primary.default');
+  const accent = byPath.get('color.accent.default');
+  if (!primary) throw new Error('color.primary.default missing from token source');
+  if (!accent) throw new Error('color.accent.default missing from token source');
+  return { primary: primary.original.value, accent: accent.original.value };
+}
+
 // --- custom CSS format -----------------------------------------------------
 
 StyleDictionary.registerFormat({
@@ -204,7 +311,42 @@ StyleDictionary.registerFormat({
     // source lists them 900 -> 50). It is deterministic, not source-order;
     // either way CSS custom-property order is irrelevant to resolution.
     const body = lines.map((l) => `  ${l.name}: ${l.value};`).join('\n');
-    return `${HEADER_CSS}\n\n:root {\n${body}\n}\n`;
+
+    const { color: darkColor, shadow: darkShadow } = darkTokens(dictionary);
+    const darkDecls = [
+      ...Object.entries(darkColor).map(([k, v]) => [`--color-${k}`, v]),
+      ...Object.entries(darkShadow).map(([k, v]) => [`--shadow-${k}`, v]),
+    ];
+    const darkBlock = darkDecls.map(([name, v]) => `  ${name}: ${v};`).join('\n');
+    const darkBlockIndented = darkDecls.map(([name, v]) => `    ${name}: ${v};`).join('\n');
+
+    return `${HEADER_CSS}
+
+:root {
+${body}
+}
+
+/* Explicit dark mode. Values from the \`dark.*\` group in docs/design/tokens.json.
+   Selector is :root[data-theme="dark"], not the bare attribute selector,
+   because this file is @imported at the top of variables.css: that import
+   ordering puts these declarations BEFORE variables.css's own plain :root
+   rules (e.g. --color-link's light-mode default) in source order. A bare
+   [data-theme="dark"] would tie that plain :root rule on specificity and
+   lose to it (later wins on a tie) in explicit dark mode. Qualifying with
+   :root raises specificity so this block wins regardless of import order —
+   correct anyway, since data-theme is only ever set on documentElement
+   (:root) — see web/src/hooks/useTheme.ts. */
+:root[data-theme="dark"] {
+${darkBlock}
+}
+
+/* System preference auto-detection (when no explicit theme is set). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+${darkBlockIndented}
+  }
+}
+`;
   },
 });
 
@@ -280,11 +422,9 @@ StyleDictionary.registerFormat({
     const aliasLines = Object.entries(aliases)
       .map(([k, v]) => `  ${tsKey(k)}: ${JSON.stringify(v)},`)
       .join('\n');
-    return `// SPDX-License-Identifier: AGPL-3.0-or-later
-// Copyright (C) OwnPulse Contributors
-//
-// GENERATED FILE — DO NOT EDIT BY HAND.
-// Source: docs/design/tokens.json. Regenerate with \`npm run build:tokens\` in tools/design-tokens.
+    const intervention = interventionColor(dictionary);
+    const { primary, accent } = brandColors(dictionary);
+    return `${HEADER_TS}
 
 /** Per-metric chart colors, keyed by canonical metric name. */
 export const METRIC_COLORS: Record<string, string> = {
@@ -299,6 +439,42 @@ ${fallbackLines}
 /** Backend \`record_type\` field names that are synonyms for a canonical metric key. */
 export const METRIC_ALIASES: Record<string, string> = {
 ${aliasLines}
+};
+
+/** Marker color for intervention (substance/medication/supplement) events overlaid on charts. */
+export const INTERVENTION_COLOR: string = ${JSON.stringify(intervention)};
+
+/** Brand primary color (color.primary.default), for analyze-chart emphasis series. */
+export const PRIMARY_COLOR: string = ${JSON.stringify(primary)};
+
+/** Brand accent color (color.accent.default), for analyze-chart baseline series. */
+export const ACCENT_COLOR: string = ${JSON.stringify(accent)};
+`;
+  },
+});
+
+// --- custom dimension-color TS format (web) --------------------------------
+
+StyleDictionary.registerFormat({
+  name: 'ownpulse/dimension-colors-ts',
+  format: ({ dictionary }) => {
+    const colors = dimensionColors(dictionary);
+    const unionType = DIMENSION_KEYS.map((k) => JSON.stringify(k)).join(' | ');
+    const mapLines = Object.entries(colors)
+      .map(([k, v]) => `  ${k}: ${JSON.stringify(v)},`)
+      .join('\n');
+    return `${HEADER_TS}
+
+/** The five check-in subjective-score dimensions. */
+export type DimensionName = ${unionType};
+
+/**
+ * Check-in dimension colors, keyed lowercase by dimension name. Single source
+ * of truth for CheckinForm, ScoreRing, and SparklineRow so the five dimension
+ * colors cannot drift between components.
+ */
+export const DIMENSION_COLORS: Record<DimensionName, string> = {
+${mapLines}
 };
 `;
   },
@@ -401,6 +577,11 @@ export async function buildTokens() {
         buildPath: resolve(repoRoot, 'web/src/components/explore') + '/',
         files: [{ destination: 'chartMetricColors.generated.ts', format: 'ownpulse/chart-metric-ts' }],
       },
+      dimensionTs: {
+        transformGroup: 'js',
+        buildPath: resolve(repoRoot, 'web/src/components') + '/',
+        files: [{ destination: 'dimensionColors.generated.ts', format: 'ownpulse/dimension-colors-ts' }],
+      },
       swift: {
         transformGroup: 'js',
         buildPath: resolve(repoRoot, 'ios/OwnPulse/Theme') + '/',
@@ -419,6 +600,18 @@ export async function buildTokens() {
 
   await sd.hasInitialized;
   await sd.buildAllPlatforms();
+}
+
+// Resolved token dictionary with no platform-specific transforms applied,
+// for tests exercising dimensionColors()/interventionColor()/chartMetricColors()
+// against the real token source rather than a hand-rolled fixture.
+export async function loadDictionary() {
+  const sd = new StyleDictionary({
+    source: [tokensPath],
+    platforms: { js: { transformGroup: 'js' } },
+  });
+  await sd.hasInitialized;
+  return sd.getPlatformTokens('js');
 }
 
 // Run only when executed directly (`node build.js`), not when imported by a test.

@@ -32,6 +32,7 @@ async fn test_healthkit_sync_inserts_new_records() {
                 "record_type": "heart_rate",
                 "value": 72.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-17T10:00:00Z",
                 "source_id": "hk-uuid-1"
             },
@@ -40,6 +41,7 @@ async fn test_healthkit_sync_inserts_new_records() {
                 "record_type": "heart_rate",
                 "value": 74.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-17T10:01:00Z",
                 "source_id": "hk-uuid-2"
             },
@@ -48,6 +50,7 @@ async fn test_healthkit_sync_inserts_new_records() {
                 "record_type": "steps",
                 "value": 1200.0,
                 "unit": "count",
+                // date-ok
                 "start_time": "2026-04-17T10:02:00Z",
                 "source_id": "hk-uuid-3"
             }
@@ -94,6 +97,7 @@ async fn test_healthkit_sync_is_idempotent_on_replay() {
                 "record_type": "heart_rate",
                 "value": 72.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-17T10:00:00Z",
                 "source_id": "replay-1"
             },
@@ -102,6 +106,7 @@ async fn test_healthkit_sync_is_idempotent_on_replay() {
                 "record_type": "heart_rate",
                 "value": 74.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-17T10:01:00Z",
                 "source_id": "replay-2"
             }
@@ -153,10 +158,9 @@ async fn test_healthkit_sync_dedups_partial_overlap() {
 
     // Seed one existing row directly in the DB.
     sqlx::query(
-        "INSERT INTO health_records
-            (user_id, source, record_type, value, unit, start_time, source_id)
-         VALUES ($1, 'healthkit', 'heart_rate', 72.0, 'bpm',
-                 '2026-04-17T10:00:00Z', 'seed-existing')",
+        // date-ok
+        "INSERT INTO health_records (user_id, source, record_type, value, unit, start_time, source_id)
+         VALUES ($1, 'healthkit', 'heart_rate', 72.0, 'bpm', '2026-04-17T10:00:00Z', 'seed-existing')",
     )
     .bind(user_id)
     .execute(&app.pool)
@@ -171,6 +175,7 @@ async fn test_healthkit_sync_dedups_partial_overlap() {
                 "record_type": "heart_rate",
                 "value": 70.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-17T09:59:00Z",
                 "source_id": "fresh-1"
             },
@@ -179,6 +184,7 @@ async fn test_healthkit_sync_dedups_partial_overlap() {
                 "record_type": "heart_rate",
                 "value": 72.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-17T10:00:00Z",
                 "source_id": "seed-existing"
             },
@@ -187,6 +193,7 @@ async fn test_healthkit_sync_dedups_partial_overlap() {
                 "record_type": "heart_rate",
                 "value": 74.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-17T10:01:00Z",
                 "source_id": "fresh-2"
             }
@@ -230,6 +237,7 @@ async fn test_healthkit_sync_forces_source_healthkit() {
                 "record_type": "heart_rate",
                 "value": 72.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-17T10:00:00Z",
                 "source_id": "spoof-1"
             }
@@ -298,6 +306,7 @@ async fn test_healthkit_sync_unauthenticated() {
                 "record_type": "heart_rate",
                 "value": 72.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-17T10:00:00Z",
                 "source_id": "noauth-1"
             }
@@ -362,10 +371,9 @@ async fn test_healthkit_sync_cross_source_dedup_bulk() {
 
     // Seed a Garmin-sourced row: heart_rate 58 bpm at 07:01:15Z.
     let garmin_id: Uuid = sqlx::query_scalar(
-        "INSERT INTO health_records
-            (user_id, source, record_type, value, unit, start_time, source_id)
-         VALUES ($1, 'garmin', 'heart_rate', 58.0, 'bpm',
-                 '2026-04-18T07:01:15Z', 'garmin-xyz')
+        // date-ok
+        "INSERT INTO health_records (user_id, source, record_type, value, unit, start_time, source_id)
+         VALUES ($1, 'garmin', 'heart_rate', 58.0, 'bpm', '2026-04-18T07:01:15Z', 'garmin-xyz')
          RETURNING id",
     )
     .bind(user_id)
@@ -385,6 +393,7 @@ async fn test_healthkit_sync_cross_source_dedup_bulk() {
                 "record_type": "heart_rate",
                 "value": 58.3,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-18T07:01:16Z",
                 "source_id": "hk-abc"
             },
@@ -393,6 +402,7 @@ async fn test_healthkit_sync_cross_source_dedup_bulk() {
                 "record_type": "heart_rate",
                 "value": 70.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-18T07:01:15Z",
                 "source_id": "hk-far"
             }
@@ -478,6 +488,7 @@ async fn test_healthkit_sync_mixed_sources_all_forced_to_healthkit() {
                 "record_type": "heart_rate",
                 "value": 70.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-18T08:00:00Z",
                 "source_id": "mixed-garmin"
             },
@@ -486,6 +497,7 @@ async fn test_healthkit_sync_mixed_sources_all_forced_to_healthkit() {
                 "record_type": "heart_rate",
                 "value": 72.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-18T08:01:00Z",
                 "source_id": "mixed-manual"
             },
@@ -494,6 +506,7 @@ async fn test_healthkit_sync_mixed_sources_all_forced_to_healthkit() {
                 "record_type": "heart_rate",
                 "value": 74.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-18T08:02:00Z",
                 "source_id": "mixed-hk"
             }
@@ -549,6 +562,7 @@ async fn test_healthkit_sync_in_batch_duplicates() {
                 "record_type": "heart_rate",
                 "value": 80.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-18T09:00:00Z",
                 "source_id": "in-batch-dup"
             },
@@ -557,6 +571,7 @@ async fn test_healthkit_sync_in_batch_duplicates() {
                 "record_type": "heart_rate",
                 "value": 80.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-18T09:00:00Z",
                 "source_id": "in-batch-dup"
             }
@@ -612,6 +627,7 @@ async fn test_healthkit_sync_null_source_id_does_not_dedup() {
                 "record_type": "heart_rate",
                 "value": 90.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-18T10:00:00Z",
                 "source_id": null
             },
@@ -620,6 +636,7 @@ async fn test_healthkit_sync_null_source_id_does_not_dedup() {
                 "record_type": "heart_rate",
                 "value": 90.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-18T10:00:00Z",
                 "source_id": null
             }
@@ -675,6 +692,7 @@ async fn test_healthkit_sync_rejects_oversized_batch() {
                 // *did* let this through, records would all pass the unique
                 // constraint and land — guaranteeing a visible 500/201
                 // mismatch vs. the expected 400.
+                // date-ok
                 "start_time": format!("2026-04-18T11:{:02}:{:02}Z", i / 60, i % 60),
                 "source_id": format!("oversize-{i}")
             })
@@ -725,7 +743,9 @@ async fn test_write_queue_shape_after_manual_record_insert() {
         "record_type": "body_mass",
         "value": 82.5,
         "unit": "kg",
+        // date-ok
         "start_time": "2026-04-19T08:00:00Z",
+        // date-ok
         "end_time": "2026-04-19T08:00:00Z"
     });
 
@@ -780,7 +800,9 @@ async fn test_write_queue_shape_after_manual_record_insert() {
     );
     assert_eq!(value["value"], 82.5);
     assert_eq!(value["unit"], "kg");
+    // date-ok
     assert_eq!(value["start_time"], "2026-04-19T08:00:00Z");
+    // date-ok
     assert_eq!(value["end_time"], "2026-04-19T08:00:00Z");
 }
 
@@ -800,6 +822,7 @@ async fn test_write_queue_shape_with_null_value_fields() {
         "record_type": "workout",
         "value": null,
         "unit": null,
+        // date-ok
         "start_time": "2026-04-19T08:00:00Z",
         "end_time": null
     });
@@ -844,6 +867,7 @@ async fn test_write_queue_shape_with_null_value_fields() {
     );
     assert!(value["value"].is_null());
     assert!(value["unit"].is_null());
+    // date-ok
     assert_eq!(value["start_time"], "2026-04-19T08:00:00Z");
     assert!(value["end_time"].is_null());
 }
@@ -866,6 +890,7 @@ async fn test_healthkit_sync_all_duplicate_batch_does_not_publish_event() {
                 "record_type": "heart_rate",
                 "value": 72.0,
                 "unit": "bpm",
+                // date-ok
                 "start_time": "2026-04-20T10:00:00Z",
                 "source_id": "replay-event-check"
             }

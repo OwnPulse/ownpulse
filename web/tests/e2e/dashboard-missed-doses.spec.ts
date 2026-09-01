@@ -50,6 +50,7 @@ const missedItem = {
   route: "SubQ",
   time_of_day: "08:00",
   day_number: 2,
+  // date-ok
   date: "2026-03-27",
   status: "missed",
 };
@@ -78,6 +79,7 @@ test.describe("Dashboard — missed doses review", () => {
           day_number: 2,
           status: "completed",
           intervention_id: "iv-2",
+          // date-ok
           logged_at: "2026-03-27T08:00:00Z",
           run_id: "run-1",
           skip_reason: null,
@@ -93,6 +95,7 @@ test.describe("Dashboard — missed doses review", () => {
     await expect(reviewToggle).toBeVisible();
     await reviewToggle.click();
 
+    // date-ok
     await expect(page.getByText("2026-03-27")).toBeVisible();
     await page.getByRole("button", { name: "Log", exact: true }).click();
 
@@ -120,11 +123,13 @@ test.describe("Dashboard — missed doses review", () => {
     await expect(reviewToggle).toBeVisible();
     await reviewToggle.click();
 
+    // date-ok
     await expect(page.getByText("2026-03-27")).toBeVisible();
     await page.getByRole("button", { name: "Log", exact: true }).click();
 
     // The write failed — the item must still be there, not optimistically
     // removed.
+    // date-ok
     await expect(page.getByText("2026-03-27")).toBeVisible();
     await expect(reviewToggle).toBeVisible();
   });

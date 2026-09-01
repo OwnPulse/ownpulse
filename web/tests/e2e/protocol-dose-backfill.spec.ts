@@ -27,10 +27,13 @@ const protocol = {
   name: "BPC-157 Stack",
   description: "Healing protocol",
   status: "active",
+  // date-ok
   start_date: "2026-03-01",
   duration_days: 5,
   share_token: null,
+  // date-ok
   created_at: "2026-03-01T00:00:00Z",
+  // date-ok
   updated_at: "2026-03-01T00:00:00Z",
   lines: [
     {
@@ -53,6 +56,7 @@ const activeRun = {
   protocol_id: "proto-1",
   protocol_name: "BPC-157 Stack",
   user_id: "user-1",
+  // date-ok
   start_date: "2026-03-01",
   duration_days: 5,
   status: "active",
@@ -65,6 +69,7 @@ const activeRun = {
   doses_completed_today: 0,
   adherence_pct: null,
   doses_missed: null,
+  // date-ok
   created_at: "2026-03-01T10:00:00Z",
 };
 
@@ -154,6 +159,7 @@ test.describe("Protocol dose backfill via the schedule grid", () => {
           day_number: 1,
           status: "completed",
           intervention_id: "iv-1",
+          // date-ok
           logged_at: "2026-03-02T09:00:00Z",
           run_id: "run-1",
           skip_reason: null,
@@ -239,6 +245,7 @@ test.describe("Protocol dose backfill via the schedule grid", () => {
     });
 
     await page.route("**/api/v1/protocols/runs/run-1/doses/log", (route) =>
+      // date-ok
       route.fulfill({ status: 400, body: "day 1 (2026-03-02) hasn't happened yet" }),
     );
 

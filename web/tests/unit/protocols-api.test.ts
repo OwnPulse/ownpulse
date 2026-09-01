@@ -19,11 +19,14 @@ describe("protocolsApi", () => {
     const createdProtocol = {
       id: "p1",
       name: "Test Protocol",
+      // date-ok
       start_date: "2026-04-01",
       duration_days: 14,
       status: "active",
       lines: [],
+      // date-ok
       created_at: "2026-03-27T00:00:00Z",
+      // date-ok
       updated_at: "2026-03-27T00:00:00Z",
     };
 
@@ -37,6 +40,7 @@ describe("protocolsApi", () => {
 
     const payload = {
       name: "Test Protocol",
+      // date-ok
       start_date: "2026-04-01",
       duration_days: 14,
       lines: [

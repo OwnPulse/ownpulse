@@ -14,6 +14,7 @@ async fn test_create_observation() {
     let body = json!({
         "type": "event_instant",
         "name": "cold_plunge",
+        // date-ok
         "start_time": "2026-03-18T06:30:00Z",
         "value": {"notes": "3 minutes at 4C"},
         "source": "manual"
@@ -45,6 +46,7 @@ async fn test_invalid_observation_type() {
     let body = json!({
         "type": "invalid_type",
         "name": "something",
+        // date-ok
         "start_time": "2026-03-18T10:00:00Z",
         "source": "manual"
     });

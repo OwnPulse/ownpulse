@@ -30,6 +30,7 @@ async function mockInviteCheck(
       body: JSON.stringify({
         valid,
         code,
+        // date-ok
         ...(valid
           ? { created_by_name: "Admin", expires_at: "2027-01-01T00:00:00Z" }
           : { reason: "invalid" }),

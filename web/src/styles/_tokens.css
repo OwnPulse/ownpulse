@@ -12,6 +12,11 @@
   --color-gold: #c49a3c;
   --color-sage: #5a8a5a;
   --color-purple: #7b61c2;
+  --color-energy: #a78333;
+  --color-mood: #b2573c;
+  --color-focus: #377c7c;
+  --color-recovery: #5a8a5a;
+  --color-libido: #7b61c2;
   --color-neutral-50: #f7f7f4;
   --color-neutral-100: #eeeeea;
   --color-neutral-200: #deded6;
@@ -55,4 +60,57 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Explicit dark mode. Values from the `dark.*` group in docs/design/tokens.json.
+   Selector is :root[data-theme="dark"], not the bare attribute selector,
+   because this file is @imported at the top of variables.css: that import
+   ordering puts these declarations BEFORE variables.css's own plain :root
+   rules (e.g. --color-link's light-mode default) in source order. A bare
+   [data-theme="dark"] would tie that plain :root rule on specificity and
+   lose to it (later wins on a tie) in explicit dark mode. Qualifying with
+   :root raises specificity so this block wins regardless of import order —
+   correct anyway, since data-theme is only ever set on documentElement
+   (:root) — see web/src/hooks/useTheme.ts. */
+:root[data-theme="dark"] {
+  --color-link: #d98a6e;
+  --color-link-hover: #e0a18a;
+  --color-success-fg: #3cb88a;
+  --color-bg: #1a1a18;
+  --color-bg-warm: #1a1a1e;
+  --color-surface: #1a1a18;
+  --color-surface-elevated: #252523;
+  --color-text: #eeeeea;
+  --color-text-secondary: #c2c2b9;
+  --color-text-muted: #9c9c93;
+  --color-border: #44443f;
+  --color-border-strong: #5e5e57;
+  --color-error-light: #3d2020;
+  --color-primary-light: rgba(178, 87, 60, 0.15);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* System preference auto-detection (when no explicit theme is set). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-link: #d98a6e;
+    --color-link-hover: #e0a18a;
+    --color-success-fg: #3cb88a;
+    --color-bg: #1a1a18;
+    --color-bg-warm: #1a1a1e;
+    --color-surface: #1a1a18;
+    --color-surface-elevated: #252523;
+    --color-text: #eeeeea;
+    --color-text-secondary: #c2c2b9;
+    --color-text-muted: #9c9c93;
+    --color-border: #44443f;
+    --color-border-strong: #5e5e57;
+    --color-error-light: #3d2020;
+    --color-primary-light: rgba(178, 87, 60, 0.15);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  }
 }

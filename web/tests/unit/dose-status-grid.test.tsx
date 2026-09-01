@@ -135,6 +135,7 @@ describe("DoseStatusGrid", () => {
           day_number: 0,
           status: "completed",
           intervention_id: "iv-1",
+          // date-ok
           logged_at: "2026-03-01T08:00:00Z",
           run_id: "run-1",
           skip_reason: null,
