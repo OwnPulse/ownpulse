@@ -47,16 +47,6 @@ const loggedDose = {
   created_at: "2026-03-28T08:00:00Z",
 };
 
-const skippedDose = {
-  id: "dose-skip",
-  protocol_line_id: "pl-1",
-  day_number: 3,
-  status: "skipped" as const,
-  intervention_id: null,
-  logged_at: "2026-03-28T08:00:00Z",
-  created_at: "2026-03-28T08:00:00Z",
-};
-
 const server = setupServer(
   http.get("/api/v1/protocols/runs/todays-doses", () => {
     return HttpResponse.json(todaysDosesList);
@@ -64,8 +54,9 @@ const server = setupServer(
   http.post("/api/v1/protocols/runs/:runId/doses/log", () => {
     return HttpResponse.json(loggedDose);
   }),
+  // 204 No Content — `skip_dose_on_run` doesn't return a dose row.
   http.post("/api/v1/protocols/runs/:runId/doses/skip", () => {
-    return HttpResponse.json(skippedDose);
+    return new HttpResponse(null, { status: 204 });
   }),
   refresh401Handler,
 );
@@ -155,13 +146,17 @@ describe("protocolsApi - todays doses", () => {
   });
 
   describe("skipRunDose", () => {
-    it("skips a dose on a run", async () => {
+    it("skips a dose on a run (204 No Content — no dose row returned)", async () => {
+      server.use(
+        http.post("/api/v1/protocols/runs/:runId/doses/skip", () => {
+          return new HttpResponse(null, { status: 204 });
+        }),
+      );
       const result = await protocolsApi.skipRunDose("run-1", {
         protocol_line_id: "pl-1",
         day_number: 3,
       });
-      expect(result.id).toBe("dose-skip");
-      expect(result.status).toBe("skipped");
+      expect(result).toBeUndefined();
     });
 
     it("handles 401 error", async () => {

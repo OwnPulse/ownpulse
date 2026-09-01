@@ -131,13 +131,15 @@ describe("protocolsApi dose/adherence methods", () => {
   });
 
   describe("skipRunDose", () => {
-    it("POSTs /api/v1/protocols/runs/:runId/doses/skip with the optional skip_reason", async () => {
+    it("POSTs /api/v1/protocols/runs/:runId/doses/skip with the optional skip_reason and returns nothing (204)", async () => {
       let capturedBody: unknown;
       server.use(
         http.post("/api/v1/protocols/runs/:runId/doses/skip", async ({ params, request }) => {
           expect(params.runId).toBe("run-1");
           capturedBody = await request.json();
-          return HttpResponse.json({ ...doseRow, status: "skipped", skip_reason: "traveling" });
+          // `skip_dose_on_run` in the backend returns 204 No Content — no
+          // dose row, unlike log.
+          return new HttpResponse(null, { status: 204 });
         }),
       );
 
@@ -148,7 +150,7 @@ describe("protocolsApi dose/adherence methods", () => {
         skip_reason: "traveling",
       });
 
-      expect(result.status).toBe("skipped");
+      expect(result).toBeUndefined();
       expect(capturedBody).toEqual({
         protocol_line_id: "line-1",
         day_number: 3,

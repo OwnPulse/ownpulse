@@ -161,18 +161,10 @@ describe("DoseStatusGrid", () => {
 
     let capturedBody: unknown;
     server.use(
+      // 204 No Content — `skip_dose_on_run` doesn't return a dose row.
       http.post("/api/v1/protocols/runs/:runId/doses/skip", async ({ request }) => {
         capturedBody = await request.json();
-        return HttpResponse.json({
-          id: "dose-1",
-          protocol_line_id: "line-1",
-          day_number: 0,
-          status: "skipped",
-          intervention_id: null,
-          logged_at: "2026-03-01T08:00:00Z",
-          run_id: "run-1",
-          skip_reason: "traveling",
-        });
+        return new HttpResponse(null, { status: 204 });
       }),
     );
 
@@ -198,16 +190,18 @@ describe("DoseStatusGrid", () => {
     });
   });
 
-  it("undoes a completed dose via DELETE", async () => {
+  it("undo requires a second, confirming click before it DELETEs", async () => {
     server.use(
       http.get("/api/v1/protocols/runs/:runId/doses", () =>
         HttpResponse.json([makeItem(0, { status: "completed", dose_id: "dose-1" })]),
       ),
     );
 
+    let deleteCalls = 0;
     let deletedDoseId: string | undefined;
     server.use(
       http.delete("/api/v1/protocols/runs/:runId/doses/:doseId", ({ params }) => {
+        deleteCalls++;
         deletedDoseId = params.doseId as string;
         return new HttpResponse(null, { status: 204 });
       }),
@@ -219,10 +213,89 @@ describe("DoseStatusGrid", () => {
     await waitFor(() => {
       expect(screen.getByLabelText("Day 1, completed — undo")).toBeDefined();
     });
+
+    // First click only arms the confirmation — no DELETE yet.
     await user.click(screen.getByLabelText("Day 1, completed — undo"));
+    expect(deleteCalls).toBe(0);
+    const confirmButton = screen.getByLabelText("Day 1, completed — confirm undo");
+    expect(confirmButton).toBeDefined();
+
+    await user.click(confirmButton);
 
     await waitFor(() => {
       expect(deletedDoseId).toBe("dose-1");
     });
+    expect(deleteCalls).toBe(1);
+  });
+
+  it("shows the mutation error inside the popover and keeps it open", async () => {
+    server.use(
+      http.get("/api/v1/protocols/runs/:runId/doses", () =>
+        HttpResponse.json([makeItem(0, { status: "missed" })]),
+      ),
+      http.post(
+        "/api/v1/protocols/runs/:runId/doses/log",
+        () => new HttpResponse("day already closed", { status: 400 }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderGrid("run-1", 1);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Day 1, missed — log or skip")).toBeDefined();
+    });
+    await user.click(screen.getByLabelText("Day 1, missed — log or skip"));
+    await user.click(screen.getByRole("button", { name: "Log", exact: true }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toContain("day already closed");
+    });
+    // The popover is still open — the failed write wasn't silently swallowed.
+    expect(screen.getByRole("dialog", { name: "Log day 1" })).toBeDefined();
+  });
+
+  it("closes the popover on Escape", async () => {
+    server.use(
+      http.get("/api/v1/protocols/runs/:runId/doses", () =>
+        HttpResponse.json([makeItem(0, { status: "missed" })]),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderGrid("run-1", 1);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Day 1, missed — log or skip")).toBeDefined();
+    });
+    await user.click(screen.getByLabelText("Day 1, missed — log or skip"));
+    expect(screen.getByRole("dialog", { name: "Log day 1" })).toBeDefined();
+
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("dialog", { name: "Log day 1" })).toBeNull();
+  });
+
+  it("does not render actionable cells for days beyond the server's default range", async () => {
+    // The server default (no explicit from_day/to_day) is 0..=min(today,
+    // duration-1) — a run-doses response that only covers today (day 0 of
+    // a 3-day grid) must not make days 1-2 actionable client-side; they
+    // should render as inert "off" cells instead.
+    server.use(
+      http.get("/api/v1/protocols/runs/:runId/doses", ({ request }) => {
+        const url = new URL(request.url);
+        // Confirms the grid doesn't force an explicit to_day beyond today.
+        expect(url.searchParams.get("to_day")).toBeNull();
+        return HttpResponse.json([makeItem(0, { status: "completed" })]);
+      }),
+    );
+
+    renderGrid("run-1", 3);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Day 1, completed — undo")).toBeDefined();
+    });
+    expect(screen.queryByLabelText(/Day 2,/)).toBeNull();
+    expect(screen.queryByLabelText(/Day 3,/)).toBeNull();
   });
 });

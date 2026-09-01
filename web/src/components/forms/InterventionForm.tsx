@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { type CreateIntervention, interventionsApi } from "../../api/interventions";
 import { type ActiveSubstance, protocolsApi } from "../../api/protocols";
 import { type SavedMedicine, savedMedicinesApi } from "../../api/savedMedicines";
+import { invalidateDoseQueries } from "../../lib/doseInvalidation";
 import { localNow } from "../../utils/datetime";
 import forms from "./forms.module.css";
 import styles from "./InterventionForm.module.css";
@@ -91,6 +92,11 @@ export default function InterventionForm() {
     setAttributeToProtocol(true);
   }, [matchedDose?.run_id, matchedDose?.day_number]);
 
+  // The protocol-run log endpoint has no `fasted` field — submitting in
+  // this mode would silently drop whatever the checkbox says, so disable
+  // it instead of lying about what got saved.
+  const attributingToProtocol = !!matchedDose && attributeToProtocol;
+
   const resetForm = () => {
     setSubstance("");
     setDose("");
@@ -118,10 +124,7 @@ export default function InterventionForm() {
         notes: notes || undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
-      queryClient.invalidateQueries({ queryKey: ["missed-doses"] });
-      queryClient.invalidateQueries({ queryKey: ["active-runs"] });
-      queryClient.invalidateQueries({ queryKey: ["protocols"] });
+      invalidateDoseQueries(queryClient);
       resetForm();
     },
   });
@@ -255,7 +258,9 @@ export default function InterventionForm() {
           <div className={styles.chipContainer}>
             {substances.map((s) => (
               <button
-                key={`${s.protocol_id}-${s.substance}`}
+                // Matches the backend's DISTINCT ON (substance, dose, unit,
+                // route) tuple — `ActiveSubstance` has no protocol_id.
+                key={`${s.substance}-${s.dose}-${s.unit}-${s.route}`}
                 type="button"
                 className={styles.chip}
                 onClick={() => handleChipClick(s)}
@@ -346,12 +351,18 @@ export default function InterventionForm() {
           type="checkbox"
           id="intervention-fasted"
           checked={fasted}
+          disabled={attributingToProtocol}
           onChange={(e) => setFasted(e.target.checked)}
         />
         <label htmlFor="intervention-fasted" className={forms.checkboxLabel}>
           Fasted
         </label>
       </div>
+      {attributingToProtocol && (
+        <p className={forms.hint}>
+          Fasted isn&rsquo;t recorded when logging against a protocol dose.
+        </p>
+      )}
       <div className={forms.field}>
         <label className={forms.label} htmlFor="intervention-notes">
           Notes

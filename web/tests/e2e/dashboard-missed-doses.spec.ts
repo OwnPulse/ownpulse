@@ -88,7 +88,7 @@ test.describe("Dashboard — missed doses review", () => {
     await page.goto("/");
 
     const reviewToggle = page.getByRole("button", {
-      name: "1 missed dose from earlier days — Review",
+      name: "1 missed dose — Review",
     });
     await expect(reviewToggle).toBeVisible();
     await reviewToggle.click();
@@ -115,7 +115,7 @@ test.describe("Dashboard — missed doses review", () => {
     await page.goto("/");
 
     const reviewToggle = page.getByRole("button", {
-      name: "1 missed dose from earlier days — Review",
+      name: "1 missed dose — Review",
     });
     await expect(reviewToggle).toBeVisible();
     await reviewToggle.click();

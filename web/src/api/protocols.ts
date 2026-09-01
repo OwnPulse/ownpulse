@@ -9,7 +9,9 @@ export interface ProtocolDose {
   day_number: number;
   status: "completed" | "skipped" | "pending";
   intervention_id: string | null;
-  logged_at: string | null;
+  // Always set — `ProtocolDoseRow.logged_at` in the backend is a
+  // non-nullable `DateTime<Utc>`.
+  logged_at: string;
   // No `created_at` here — `ProtocolDoseRow` in the backend never serves it.
   // The run this dose belongs to; `null` for legacy protocol-level doses
   // logged before runs existed.
@@ -115,9 +117,10 @@ export interface ProtocolRun {
   duration_days: number | null;
   status: "active" | "paused" | "completed";
   notify: boolean;
-  notify_times: string[];
+  notify_time: string | null;
+  notify_times: string[] | null;
   repeat_reminders: boolean;
-  repeat_interval_minutes: number;
+  repeat_interval_minutes: number | null;
   progress_pct: number;
   doses_today: number;
   doses_completed_today: number;
@@ -198,13 +201,14 @@ export interface TemplateListItem {
   line_count: number;
 }
 
+// No `protocol_id` — `ActiveSubstanceItem` in the backend doesn't serve one
+// (the query is `DISTINCT ON (substance, dose, unit, route)`, not per-protocol).
 export interface ActiveSubstance {
   substance: string;
   dose: number | null;
   unit: string | null;
   route: string | null;
   protocol_name: string;
-  protocol_id: string;
 }
 
 /** One entry of `GET /protocols/runs/:run_id/doses` — a scheduled (line,
@@ -305,8 +309,10 @@ export const protocolsApi = {
       ...data,
       tz_offset_minutes: data.tz_offset_minutes ?? -new Date().getTimezoneOffset(),
     }),
+  // 204 No Content — `skip_dose_on_run` in the backend doesn't return the
+  // dose row (unlike log).
   skipRunDose: (runId: string, data: SkipDoseRequest) =>
-    api.post<ProtocolDose>(`/api/v1/protocols/runs/${runId}/doses/skip`, data),
+    api.post<void>(`/api/v1/protocols/runs/${runId}/doses/skip`, data),
   deleteRunDose: (runId: string, doseId: string) =>
     api.delete<void>(`/api/v1/protocols/runs/${runId}/doses/${doseId}`),
   runDoses: (runId: string, range?: { fromDay?: number; toDay?: number }) => {

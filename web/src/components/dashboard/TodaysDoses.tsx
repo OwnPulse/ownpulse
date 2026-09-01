@@ -4,8 +4,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import type { MissedDoseItem, TodaysDose } from "../../api/protocols";
+import type { TodaysDose } from "../../api/protocols";
 import { protocolsApi } from "../../api/protocols";
+import { invalidateDoseQueries } from "../../lib/doseInvalidation";
 import styles from "./TodaysDoses.module.css";
 
 // Shared shape between TodaysDose and MissedDoseItem — both structurally
@@ -14,6 +15,12 @@ interface Loggable {
   run_id: string;
   protocol_line_id: string;
   day_number: number;
+}
+
+/** `dose`/`unit` are nullable server-side — render only what's present. */
+function doseAmountLabel(dose: number | null, unit: string | null): string {
+  if (dose == null) return "";
+  return unit != null ? ` ${dose}${unit}` : ` ${dose}`;
 }
 
 export function TodaysDoses() {
@@ -41,20 +48,13 @@ export function TodaysDoses() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ["todays-doses"] });
-    queryClient.invalidateQueries({ queryKey: ["missed-doses"] });
-    queryClient.invalidateQueries({ queryKey: ["active-runs"] });
-    queryClient.invalidateQueries({ queryKey: ["protocols"] });
-  };
-
   const logDose = useMutation({
     mutationFn: (item: Loggable) =>
       protocolsApi.logRunDose(item.run_id, {
         protocol_line_id: item.protocol_line_id,
         day_number: item.day_number,
       }),
-    onSuccess: invalidateAll,
+    onSuccess: () => invalidateDoseQueries(queryClient),
   });
 
   const skipDose = useMutation({
@@ -63,13 +63,14 @@ export function TodaysDoses() {
         protocol_line_id: item.protocol_line_id,
         day_number: item.day_number,
       }),
-    onSuccess: invalidateAll,
+    onSuccess: () => invalidateDoseQueries(queryClient),
   });
 
   if (isLoading) return null;
   if (isError) return null;
 
-  const missedCount = missedDoses?.length ?? 0;
+  const missedList = missedDoses ?? [];
+  const missedCount = missedList.length;
   if ((!todaysDoses || todaysDoses.length === 0) && missedCount === 0) return null;
 
   const doses: TodaysDose[] = todaysDoses ?? [];
@@ -100,8 +101,8 @@ export function TodaysDoses() {
             >
               <div className={styles.doseInfo}>
                 <span className={styles.doseSubstance}>
-                  {td.substance} {td.dose}
-                  {td.unit}
+                  {td.substance}
+                  {doseAmountLabel(td.dose, td.unit)}
                 </span>
                 <span className={styles.doseMeta}>
                   {td.protocol_name}
@@ -147,16 +148,16 @@ export function TodaysDoses() {
             onClick={() => setMissedExpanded((e) => !e)}
             aria-expanded={missedExpanded}
           >
-            {missedCount} missed dose{missedCount === 1 ? "" : "s"} from earlier days — Review
+            {missedCount} missed dose{missedCount === 1 ? "" : "s"} — Review
           </button>
           {missedExpanded && (
             <div className={styles.doseList}>
-              {(missedDoses as MissedDoseItem[]).map((md) => (
+              {missedList.map((md) => (
                 <div key={`${md.protocol_line_id}-${md.day_number}`} className={styles.doseItem}>
                   <div className={styles.doseInfo}>
                     <span className={styles.doseSubstance}>
-                      {md.substance} {md.dose}
-                      {md.unit}
+                      {md.substance}
+                      {doseAmountLabel(md.dose, md.unit)}
                     </span>
                     <span className={styles.doseMeta}>
                       {md.protocol_name} · {md.date}

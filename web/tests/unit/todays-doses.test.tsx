@@ -77,16 +77,9 @@ const server = setupServer(
       created_at: "2026-03-28T08:00:00Z",
     });
   }),
+  // 204 No Content — `skip_dose_on_run` doesn't return a dose row.
   http.post("/api/v1/protocols/runs/:runId/doses/skip", () => {
-    return HttpResponse.json({
-      id: "dose-skip",
-      protocol_line_id: "pl-1",
-      day_number: 3,
-      status: "skipped",
-      intervention_id: null,
-      logged_at: "2026-03-28T08:00:00Z",
-      created_at: "2026-03-28T08:00:00Z",
-    });
+    return new HttpResponse(null, { status: 204 });
   }),
 );
 
@@ -333,7 +326,7 @@ describe("TodaysDoses", () => {
       renderWithProviders(<TodaysDoses />);
 
       await waitFor(() => {
-        expect(screen.getByText("1 missed dose from earlier days — Review")).toBeDefined();
+        expect(screen.getByText("1 missed dose — Review")).toBeDefined();
       });
     });
 
@@ -347,7 +340,7 @@ describe("TodaysDoses", () => {
       renderWithProviders(<TodaysDoses />);
 
       await waitFor(() => {
-        expect(screen.getByText("2 missed doses from earlier days — Review")).toBeDefined();
+        expect(screen.getByText("2 missed doses — Review")).toBeDefined();
       });
     });
 
@@ -360,13 +353,13 @@ describe("TodaysDoses", () => {
       renderWithProviders(<TodaysDoses />);
 
       await waitFor(() => {
-        expect(screen.getByText("1 missed dose from earlier days — Review")).toBeDefined();
+        expect(screen.getByText("1 missed dose — Review")).toBeDefined();
       });
 
       // Collapsed by default — no per-item row yet.
       expect(screen.queryByText("2026-03-27")).toBeNull();
 
-      await user.click(screen.getByText("1 missed dose from earlier days — Review"));
+      await user.click(screen.getByText("1 missed dose — Review"));
 
       expect(screen.getByText(/2026-03-27/)).toBeDefined();
       const logButtons = screen.getAllByRole("button", { name: "Log" });
@@ -402,9 +395,9 @@ describe("TodaysDoses", () => {
       renderWithProviders(<TodaysDoses />);
 
       await waitFor(() => {
-        expect(screen.getByText("1 missed dose from earlier days — Review")).toBeDefined();
+        expect(screen.getByText("1 missed dose — Review")).toBeDefined();
       });
-      await user.click(screen.getByText("1 missed dose from earlier days — Review"));
+      await user.click(screen.getByText("1 missed dose — Review"));
 
       await waitFor(() => {
         expect(screen.getAllByRole("button", { name: "Log" }).length).toBeGreaterThan(0);

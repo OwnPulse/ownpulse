@@ -102,18 +102,27 @@
   border-color: var(--color-primary);
 }
 
+.confirming {
+  border-color: var(--color-error);
+}
+
+/* Positioned via inline style (JS-computed viewport coordinates) — rendered
+   through a portal into document.body, not inside .grid, since .grid's
+   overflow-x: auto forces overflow-y: auto too, which would clip an
+   in-flow popover on the bottom rows. */
 .popover {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 10;
-  margin-top: 0.25rem;
+  z-index: 100;
   padding: 0.5rem;
   min-width: 12rem;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.popoverError {
+  color: var(--color-error);
+  margin: 0;
 }
 
 .popoverTabs {

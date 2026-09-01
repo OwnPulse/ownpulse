@@ -10,6 +10,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import InterventionForm from "../../src/components/forms/InterventionForm";
 import { useAuthStore } from "../../src/store/auth";
 
+// No `protocol_id` — matches `ActiveSubstanceItem` in the backend, which
+// doesn't serve one (the query is DISTINCT ON substance/dose/unit/route).
 const activeSubstances = [
   {
     substance: "BPC-157",
@@ -17,7 +19,6 @@ const activeSubstances = [
     unit: "mcg",
     route: "SubQ",
     protocol_name: "BPC Stack",
-    protocol_id: "proto-1",
   },
   {
     substance: "TB-500",
@@ -25,7 +26,6 @@ const activeSubstances = [
     unit: "mg",
     route: "SubQ",
     protocol_name: "BPC Stack",
-    protocol_id: "proto-1",
   },
 ];
 
@@ -103,11 +103,12 @@ function renderForm() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
+  const result = render(
     <QueryClientProvider client={queryClient}>
       <InterventionForm />
     </QueryClientProvider>,
   );
+  return { ...result, queryClient };
 }
 
 describe("InterventionForm", () => {
@@ -340,6 +341,31 @@ describe("InterventionForm", () => {
       expect(screen.getByLabelText(/count toward bpc stack/i)).toBeChecked();
     });
 
+    it("disables Fasted and shows a hint while attributing to a protocol (the log-dose endpoint has no fasted field)", async () => {
+      server.use(
+        http.get("/api/v1/protocols/runs/todays-doses", () => HttpResponse.json([pendingToday])),
+      );
+      const user = userEvent.setup();
+      renderForm();
+
+      await user.type(screen.getByLabelText(/substance/i), "BPC-157");
+      await user.type(screen.getByLabelText(/dose/i), "250");
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/count toward bpc stack/i)).toBeChecked();
+      });
+
+      expect(screen.getByLabelText(/^fasted$/i)).toBeDisabled();
+      expect(
+        screen.getByText(/fasted isn.t recorded when logging against a protocol dose/i),
+      ).toBeDefined();
+
+      // Unchecking attribution restores the standalone-intervention flow,
+      // where fasted is meaningful again.
+      await user.click(screen.getByLabelText(/count toward bpc stack/i));
+      expect(screen.getByLabelText(/^fasted$/i)).not.toBeDisabled();
+    });
+
     it("does not show the checkbox when dose doesn't match", async () => {
       server.use(
         http.get("/api/v1/protocols/runs/todays-doses", () => HttpResponse.json([pendingToday])),
@@ -386,7 +412,8 @@ describe("InterventionForm", () => {
       );
 
       const user = userEvent.setup();
-      renderForm();
+      const { queryClient } = renderForm();
+      queryClient.setQueryData(["interventions"], []);
 
       await user.type(screen.getByLabelText(/substance/i), "BPC-157");
       await user.type(screen.getByLabelText(/dose/i), "250");
@@ -407,6 +434,10 @@ describe("InterventionForm", () => {
         protocol_line_id: "pl-1",
         day_number: 3,
       });
+      // Logging against a protocol run creates an intervention row too —
+      // the interventions list must be invalidated, not just the dose/todays
+      // caches.
+      expect(queryClient.getQueryState(["interventions"])?.isInvalidated).toBe(true);
     });
 
     it("creates a standalone intervention when the checkbox is unchecked", async () => {

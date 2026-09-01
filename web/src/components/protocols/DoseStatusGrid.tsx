@@ -2,9 +2,12 @@
 // Copyright (C) OwnPulse Contributors
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { RunDoseItem } from "../../api/protocols";
 import { protocolsApi } from "../../api/protocols";
+import { invalidateDoseQueries } from "../../lib/doseInvalidation";
 import styles from "./DoseStatusGrid.module.css";
 
 interface DoseStatusGridProps {
@@ -19,47 +22,132 @@ const STATUS_SYMBOLS: Record<RunDoseItem["status"], string> = {
   pending: "·",
 };
 
-// Query keys other views depend on for "what's due" and adherence numbers —
-// any write here (log/skip/undo) has to invalidate all four or they'd show
-// stale counts until their own next refetch.
-const INVALIDATE_KEYS = (runId: string) => [
-  ["todays-doses"],
-  ["active-runs"],
-  ["run-adherence", runId],
-  ["run-doses", runId],
-];
-
 interface OpenPopover {
   dayNumber: number;
   protocolLineId: string;
   mode: "log" | "skip";
 }
 
+interface Anchor {
+  top: number;
+  left: number;
+}
+
+// Roughly the popover's rendered width (12rem min-width + padding) — used to
+// keep it from opening off the right edge of the viewport.
+const POPOVER_WIDTH = 208;
+
+function anchorFromTrigger(el: HTMLElement): Anchor {
+  const rect = el.getBoundingClientRect();
+  const left = Math.min(rect.left, Math.max(8, window.innerWidth - POPOVER_WIDTH - 8));
+  return { top: rect.bottom + 4, left };
+}
+
+/**
+ * Renders into `document.body` via a portal, at fixed viewport coordinates,
+ * instead of being absolutely positioned inside the grid — the grid sets
+ * `overflow-x: auto`, which (per the CSS spec) forces `overflow-y` to
+ * `auto` too, clipping an in-flow absolutely-positioned popover on the
+ * bottom rows. Also owns Escape/outside-click dismissal and initial focus,
+ * since every popover instance needs the same dialog behavior.
+ */
+function DosePopover({
+  anchor,
+  label,
+  onClose,
+  children,
+}: {
+  anchor: Anchor;
+  label: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  // `onClose` (the parent's `closePopover`) is a fresh function reference
+  // on every parent render (e.g. each keystroke in the notes field) — a ref
+  // lets the listeners below always call the latest version without the
+  // effect re-running on every render, which would re-steal focus onto the
+  // first field mid-typing.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>("button, input, textarea")?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCloseRef.current();
+    };
+    const handlePointerDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onCloseRef.current();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+    // Mount-only: this instance stays mounted for the popover's whole open
+    // lifetime (React reconciles it in place at the same JSX position while
+    // the same cell's popover stays open), so re-running per-render would
+    // steal focus back to the first field on every keystroke.
+  }, []);
+
+  return createPortal(
+    <div
+      ref={ref}
+      className={styles.popover}
+      style={{ position: "fixed", top: anchor.top, left: anchor.left }}
+      role="dialog"
+      aria-label={label}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
 export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState<OpenPopover | null>(null);
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
   const [skipReason, setSkipReason] = useState("");
+  const [confirmUndo, setConfirmUndo] = useState<{
+    protocolLineId: string;
+    dayNumber: number;
+  } | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["run-doses", runId],
-    queryFn: () => protocolsApi.runDoses(runId, { fromDay: 0, toDay: durationDays - 1 }),
-    enabled: durationDays > 0,
+    // No explicit day range — matches the server (and iOS's) default of
+    // `0..=min(today, duration-1)`, so a future day simply isn't in the
+    // response and renders as an inert "off" cell rather than an
+    // actionable one the backend will then 400 on logging.
+    queryFn: () => protocolsApi.runDoses(runId),
   });
 
   const closePopover = () => {
     setOpen(null);
+    setAnchor(null);
     setTime("");
     setNotes("");
     setSkipReason("");
+    logMutation.reset();
+    skipMutation.reset();
   };
 
-  const invalidateAll = () => {
-    for (const key of INVALIDATE_KEYS(runId)) {
-      queryClient.invalidateQueries({ queryKey: key });
-    }
+  const openPopover = (e: React.MouseEvent<HTMLButtonElement>, item: RunDoseItem) => {
+    setAnchor(anchorFromTrigger(e.currentTarget));
+    setOpen({ dayNumber: item.day_number, protocolLineId: item.protocol_line_id, mode: "log" });
+    setTime("");
+    setNotes("");
+    setSkipReason("");
+    logMutation.reset();
+    skipMutation.reset();
   };
+
+  const invalidateAll = () => invalidateDoseQueries(queryClient);
 
   const logMutation = useMutation({
     mutationFn: (item: RunDoseItem) => {
@@ -121,6 +209,19 @@ export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
   const today = new Date();
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
+  const isConfirmingUndo = (item: RunDoseItem) =>
+    confirmUndo?.protocolLineId === item.protocol_line_id &&
+    confirmUndo?.dayNumber === item.day_number;
+
+  const handleUndoClick = (item: RunDoseItem) => {
+    if (isConfirmingUndo(item)) {
+      undoMutation.mutate(item);
+      setConfirmUndo(null);
+    } else {
+      setConfirmUndo({ protocolLineId: item.protocol_line_id, dayNumber: item.day_number });
+    }
+  };
+
   return (
     <div
       className={styles.grid}
@@ -154,16 +255,17 @@ export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
                   : null;
 
               if (!actionable) {
+                const confirming = isConfirmingUndo(item);
                 return (
                   <div key={d} className={styles.cellWrapper}>
                     <button
                       type="button"
-                      className={`${styles.cell} ${styles[item.status]} ${isToday ? styles.today : ""}`}
-                      aria-label={`Day ${d + 1}, ${item.status} — undo`}
-                      onClick={() => undoMutation.mutate(item)}
+                      className={`${styles.cell} ${styles[item.status]} ${isToday ? styles.today : ""} ${confirming ? styles.confirming : ""}`}
+                      aria-label={`Day ${d + 1}, ${item.status} — ${confirming ? "confirm undo" : "undo"}`}
+                      onClick={() => handleUndoClick(item)}
                       disabled={undoMutation.isPending}
                     >
-                      {STATUS_SYMBOLS[item.status]}
+                      {confirming ? "?" : STATUS_SYMBOLS[item.status]}
                     </button>
                   </div>
                 );
@@ -175,18 +277,12 @@ export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
                     type="button"
                     className={`${styles.cell} ${styles[item.status]} ${isToday ? styles.today : ""}`}
                     aria-label={`Day ${d + 1}, ${item.status} — log or skip`}
-                    onClick={() =>
-                      setOpen(
-                        activePopover
-                          ? null
-                          : { dayNumber: d, protocolLineId: item.protocol_line_id, mode: "log" },
-                      )
-                    }
+                    onClick={(e) => (activePopover ? closePopover() : openPopover(e, item))}
                   >
                     {STATUS_SYMBOLS[item.status]}
                   </button>
-                  {activePopover && (
-                    <div className={styles.popover} role="dialog" aria-label={`Log day ${d + 1}`}>
+                  {activePopover && anchor && (
+                    <DosePopover anchor={anchor} label={`Log day ${d + 1}`} onClose={closePopover}>
                       <div className={styles.popoverTabs}>
                         <button
                           type="button"
@@ -220,6 +316,11 @@ export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
                           />
+                          {logMutation.isError && (
+                            <p className={styles.popoverError} role="alert">
+                              Error: {logMutation.error.message}
+                            </p>
+                          )}
                           <div className={styles.popoverActions}>
                             <button
                               type="button"
@@ -247,6 +348,11 @@ export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
                             value={skipReason}
                             onChange={(e) => setSkipReason(e.target.value)}
                           />
+                          {skipMutation.isError && (
+                            <p className={styles.popoverError} role="alert">
+                              Error: {skipMutation.error.message}
+                            </p>
+                          )}
                           <div className={styles.popoverActions}>
                             <button
                               type="button"
@@ -266,7 +372,7 @@ export function DoseStatusGrid({ runId, durationDays }: DoseStatusGridProps) {
                           </div>
                         </div>
                       )}
-                    </div>
+                    </DosePopover>
                   )}
                 </div>
               );

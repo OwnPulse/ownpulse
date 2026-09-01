@@ -1568,20 +1568,7 @@
         }
       },
       "response": {
-        "status": 200,
-        "headers": {
-          "Content-Type": "application/json"
-        },
-        "body": {
-          "id": "44444444-4444-4444-4444-444444444444",
-          "protocol_line_id": "33333333-3333-3333-3333-333333333333",
-          "day_number": 3,
-          "status": "skipped",
-          "intervention_id": null,
-          "logged_at": "2026-03-28T08:00:00Z",
-          "run_id": "22222222-2222-2222-2222-222222222222",
-          "skip_reason": "traveling"
-        }
+        "status": 204
       }
     },
     {

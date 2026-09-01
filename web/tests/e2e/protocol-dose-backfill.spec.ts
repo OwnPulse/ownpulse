@@ -176,7 +176,50 @@ test.describe("Protocol dose backfill via the schedule grid", () => {
     expect(loggedBody).toMatchObject({ protocol_line_id: "line-1", day_number: 1 });
   });
 
-  test("shows the popover still open after a failed log attempt (error path)", async ({ page }) => {
+  test("undo requires a confirming second click before it deletes the dose", async ({ page }) => {
+    let deleteCalled = false;
+
+    await page.route("**/api/v1/protocols/runs/run-1/doses*", (route) => {
+      const url = new URL(route.request().url());
+      if (url.pathname.endsWith("/doses")) {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            runDoseItem(0, "completed"),
+            runDoseItem(1, "pending"),
+            runDoseItem(2, "pending"),
+            runDoseItem(3, "pending"),
+            runDoseItem(4, "pending"),
+          ]),
+        });
+      }
+      return route.continue();
+    });
+
+    await page.route("**/api/v1/protocols/runs/run-1/doses/dose-0", (route) => {
+      deleteCalled = true;
+      return route.fulfill({ status: 204 });
+    });
+
+    await page.goto("/protocols/proto-1");
+
+    const completedCell = page.getByRole("button", { name: "Day 1, completed — undo" });
+    await expect(completedCell).toBeVisible();
+
+    await completedCell.click();
+    await expect(
+      page.getByRole("button", { name: "Day 1, completed — confirm undo" }),
+    ).toBeVisible();
+    expect(deleteCalled).toBe(false);
+
+    await page.getByRole("button", { name: "Day 1, completed — confirm undo" }).click();
+    await expect(async () => expect(deleteCalled).toBe(true)).toPass();
+  });
+
+  test("shows a visible error and keeps the popover open after a failed log attempt", async ({
+    page,
+  }) => {
     await page.route("**/api/v1/protocols/runs/run-1/doses*", (route) => {
       const url = new URL(route.request().url());
       if (url.pathname.endsWith("/doses")) {
@@ -196,7 +239,7 @@ test.describe("Protocol dose backfill via the schedule grid", () => {
     });
 
     await page.route("**/api/v1/protocols/runs/run-1/doses/log", (route) =>
-      route.fulfill({ status: 500, body: "Server error" }),
+      route.fulfill({ status: 400, body: "day 1 (2026-03-02) hasn't happened yet" }),
     );
 
     await page.goto("/protocols/proto-1");
@@ -208,8 +251,10 @@ test.describe("Protocol dose backfill via the schedule grid", () => {
     await page.getByRole("button", { name: "Log", exact: true }).click();
 
     // The mutation failed — the cell must still show "missed" (no false
-    // success) and the popover remains open for the user to retry.
+    // success), the popover stays open, and the failure is visible (not
+    // silently swallowed) so the user knows to retry or investigate.
     await expect(page.getByRole("dialog", { name: "Log day 2" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Day 2, missed — log or skip" })).toBeVisible();
+    await expect(page.getByRole("alert")).toContainText("hasn't happened yet");
   });
 });
