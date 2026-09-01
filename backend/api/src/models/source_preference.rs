@@ -21,6 +21,15 @@ pub struct UpsertSourcePreference {
     pub preferred_source: String,
 }
 
+/// The full set of `source` values that can appear on a `health_records` row:
+/// every integration sync job's hardcoded source literal, plus `"manual"`
+/// (freeform user entry) and `"healthkit"` (the cycle-guarded write-back
+/// source, see ADR-0008). A `preferred_source` outside this list can never
+/// match any real row, so `POST /source-preferences` rejects it — a typo'd
+/// preference should fail loudly rather than silently becoming inert in the
+/// dedup-collapse logic (`SOURCE_PREFERENCE_EXCLUSION`).
+pub const KNOWN_HEALTH_RECORD_SOURCES: &[&str] = &["garmin", "oura", "manual", "healthkit"];
+
 /// One competing source for a metric in the overlap-scan result.
 #[derive(Serialize)]
 pub struct OverlapSource {

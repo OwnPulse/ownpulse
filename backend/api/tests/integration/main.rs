@@ -34,6 +34,7 @@ mod protocols;
 mod saved_medicines;
 mod security_fixes;
 mod sleep;
+mod source_preference_reads;
 mod sources;
 mod stats;
 mod sync_jobs;

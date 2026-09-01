@@ -165,3 +165,80 @@ async fn test_overlap_scan_is_user_scoped() {
         "user B must not see user A's overlaps"
     );
 }
+
+// ---------------------------------------------------------------------------
+// POST /source-preferences — preferred_source validation
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn test_upsert_source_preference_accepts_known_source() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/source-preferences",
+            &token,
+            Some(&json!({ "metric_type": "heart_rate", "preferred_source": "garmin" })),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 201);
+    let body = common::body_json(resp).await;
+    assert_eq!(body["preferred_source"], "garmin");
+}
+
+#[tokio::test]
+async fn test_upsert_source_preference_rejects_unknown_source() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/source-preferences",
+            &token,
+            Some(&json!({ "metric_type": "heart_rate", "preferred_source": "garmn" })),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(
+        resp.status(),
+        400,
+        "typo'd source must be rejected, not silently accepted"
+    );
+    let body = common::body_json(resp).await;
+    let message = body["error"].as_str().unwrap_or_default();
+    assert!(
+        message.contains("garmn"),
+        "error message should be descriptive: {message}"
+    );
+}
+
+#[tokio::test]
+async fn test_upsert_source_preference_unauthenticated() {
+    let app = common::setup().await;
+
+    let resp = app
+        .app
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/api/v1/source-preferences")
+                .header("content-type", "application/json")
+                .body(axum::body::Body::from(
+                    json!({ "metric_type": "heart_rate", "preferred_source": "garmin" })
+                        .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 401);
+}
