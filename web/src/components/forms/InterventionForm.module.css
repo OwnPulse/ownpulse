@@ -75,7 +75,7 @@
 }
 
 .deleteChipBtn:hover {
-  background: var(--color-error, #d32f2f);
+  background: var(--color-error);
   color: #ffffff;
 }
 
@@ -86,7 +86,7 @@
   height: 1.5rem;
   padding: 0 0.5rem;
   border-radius: 999px;
-  background: var(--color-error, #d32f2f);
+  background: var(--color-error);
   color: #ffffff;
   font-size: var(--text-xs);
 }

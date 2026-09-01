@@ -12,6 +12,7 @@ import {
 import { CurveType } from "@unovis/ts";
 import { useCallback, useMemo } from "react";
 import type { WindowStats } from "../../api/stats";
+import { ACCENT_COLOR, PRIMARY_COLOR } from "../explore/chartMetricColors.generated";
 
 interface BeforeAfterPoint {
   timestamp: number;
@@ -56,12 +57,12 @@ export function BeforeAfterChart({ before, after, firstDose }: BeforeAfterChartP
           y={y}
           curveType={CurveType.Linear}
           lineWidth={2}
-          color="#3d8b8b"
+          color={ACCENT_COLOR}
         />
         <VisPlotline<BeforeAfterPoint>
           axis="x"
           value={doseTs}
-          color="#c2654a"
+          color={PRIMARY_COLOR}
           lineWidth={2}
           labelText="First dose"
         />

@@ -226,6 +226,20 @@ export function interventionColor(dictionary) {
   return token.original.value;
 }
 
+// Extracts the brand primary/accent colors (color.primary.default,
+// color.accent.default) from the token dictionary. Single source of truth for
+// PRIMARY_COLOR/ACCENT_COLOR in chartMetricColors.generated.ts, which the
+// analyze charts (LagChart, ScatterChart, BeforeAfterChart) consume instead of
+// each hardcoding its own stale pre-token copy of the brand hexes.
+export function brandColors(dictionary) {
+  const byPath = new Map(dictionary.allTokens.map((t) => [t.path.join('.'), t]));
+  const primary = byPath.get('color.primary.default');
+  const accent = byPath.get('color.accent.default');
+  if (!primary) throw new Error('color.primary.default missing from token source');
+  if (!accent) throw new Error('color.accent.default missing from token source');
+  return { primary: primary.original.value, accent: accent.original.value };
+}
+
 // --- custom CSS format -----------------------------------------------------
 
 StyleDictionary.registerFormat({
@@ -320,6 +334,7 @@ StyleDictionary.registerFormat({
       .map(([k, v]) => `  ${tsKey(k)}: ${JSON.stringify(v)},`)
       .join('\n');
     const intervention = interventionColor(dictionary);
+    const { primary, accent } = brandColors(dictionary);
     return `${HEADER_TS}
 
 /** Per-metric chart colors, keyed by canonical metric name. */
@@ -339,6 +354,12 @@ ${aliasLines}
 
 /** Marker color for intervention (substance/medication/supplement) events overlaid on charts. */
 export const INTERVENTION_COLOR: string = ${JSON.stringify(intervention)};
+
+/** Brand primary color (color.primary.default), for analyze-chart emphasis series. */
+export const PRIMARY_COLOR: string = ${JSON.stringify(primary)};
+
+/** Brand accent color (color.accent.default), for analyze-chart baseline series. */
+export const ACCENT_COLOR: string = ${JSON.stringify(accent)};
 `;
   },
 });

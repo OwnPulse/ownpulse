@@ -9,6 +9,9 @@
 // The expected colors are read from the generated token map, never hardcoded
 // hex — that keeps the test honest if the token source changes.
 
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -17,10 +20,12 @@ import {
   INTERVENTION_COLOR,
 } from "../../src/components/explore/chartColors";
 import {
+  ACCENT_COLOR,
   FALLBACK_COLORS,
   INTERVENTION_COLOR as GENERATED_INTERVENTION_COLOR,
   METRIC_ALIASES,
   METRIC_COLORS,
+  PRIMARY_COLOR,
 } from "../../src/components/explore/chartMetricColors.generated";
 
 // The ACTUAL backend `record_type` field strings the explore API emits for each
@@ -118,5 +123,31 @@ describe("INTERVENTION_COLOR export surface", () => {
 
   it("is not the old off-palette flat-UI purple", () => {
     expect(INTERVENTION_COLOR).not.toBe("#9b59b6");
+  });
+});
+
+describe("PRIMARY_COLOR / ACCENT_COLOR — analyze-chart brand colors", () => {
+  it("are not the old pre-token brand hexes the analyze charts used to hardcode", () => {
+    // LagChart/ScatterChart/BeforeAfterChart previously hardcoded #c2654a
+    // (pre-AA-darkening primary) and #3d8b8b (pre-AA-darkening accent)
+    // directly; both were superseded by the darkened tokens.json values.
+    expect(PRIMARY_COLOR).not.toBe("#c2654a");
+    expect(ACCENT_COLOR).not.toBe("#3d8b8b");
+  });
+});
+
+describe("analyze charts import brand colors from the generated token module", () => {
+  // Reads the component source directly so a regression back to a hardcoded
+  // hex literal fails this test even though it would still render correctly.
+  it.each([
+    "src/components/analyze/LagChart.tsx",
+    "src/components/analyze/ScatterChart.tsx",
+    "src/components/analyze/BeforeAfterChart.tsx",
+  ])("%s imports PRIMARY_COLOR/ACCENT_COLOR and has no literal hex color", (relPath) => {
+    const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    const source = readFileSync(resolve(webRoot, relPath), "utf8");
+    expect(source).toContain("chartMetricColors.generated");
+    expect(source).not.toMatch(/color="#[0-9a-fA-F]{3,6}"/);
+    expect(source).not.toMatch(/"#c2654a"|"#3d8b8b"/);
   });
 });

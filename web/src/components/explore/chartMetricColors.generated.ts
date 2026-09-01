@@ -44,3 +44,9 @@ export const METRIC_ALIASES: Record<string, string> = {
 
 /** Marker color for intervention (substance/medication/supplement) events overlaid on charts. */
 export const INTERVENTION_COLOR: string = "#7b61c2";
+
+/** Brand primary color (color.primary.default), for analyze-chart emphasis series. */
+export const PRIMARY_COLOR: string = "#b2573c";
+
+/** Brand accent color (color.accent.default), for analyze-chart baseline series. */
+export const ACCENT_COLOR: string = "#377c7c";
