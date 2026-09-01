@@ -12,16 +12,19 @@ concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    runs-on: macos-15
+    runs-on: macos-26
     timeout-minutes: 30
     env:
       # Pin the toolchain so CI and scripts/ci-ios.sh build with the same
-      # Swift compiler. Newest Xcode 16.x on the macos-15 runner image as of
-      # this writing (see actions/runner-images macos-15 readme) — bump this
-      # deliberately, not by relying on whatever the image defaults to.
-      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      # Swift compiler. Xcode 26.6 (Swift 6.3) on the macos-26 runner image
+      # (see actions/runner-images macos-26 readme) — bump this deliberately,
+      # not by relying on whatever the image defaults to.
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
 
@@ -31,25 +34,34 @@ jobs:
           key: spm-${{ hashFiles('ios/OwnPulse.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: spm-
 
-      # Runner images ship without any iOS simulator devices preinstalled —
-      # only the "Any iOS Simulator" placeholder. Create one from the newest
-      # available iPhone device type + iOS runtime so the destination spec
-      # below can resolve to a concrete device.
+      # Create a simulator from the newest available iPhone device type and
+      # iOS runtime. The device set an image pre-provisions varies between
+      # image releases; creating our own keeps the destination deterministic.
       - name: Create iOS simulator
         id: sim
         run: |
           set -euo pipefail
-          # Pick the highest-numbered iPhone N / iPhone N Pro model. The
-          # `productFamily == "iPhone"` predicate misclassifies iPod touch in
-          # some Xcode versions, and lexical sort picks "iPod" before
-          # "iPhone 17". Use an explicit name regex instead.
+          # Pick the highest-numbered iPhone N / iPhone N Pro model by name
+          # regex and numeric sort — the name is the only field that
+          # reliably identifies iPhone models across Xcode versions.
           DEVICE_TYPE=$(xcrun simctl list devicetypes -j \
             | jq -r '.devicetypes
                      | map(select(.name | test("^iPhone [0-9]+( Pro| Plus| Pro Max)?$")))
                      | sort_by(.name | capture("iPhone (?<n>[0-9]+)").n | tonumber)
                      | reverse
                      | .[0].identifier')
-          RUNTIME=$(xcrun simctl list runtimes -j | jq -r '.runtimes | map(select(.platform == "iOS")) | sort_by(.version) | reverse | .[0].identifier')
+          if [ -z "$DEVICE_TYPE" ] || [ "$DEVICE_TYPE" = "null" ]; then
+            echo "No iPhone device type matched; check the name regex against 'simctl list devicetypes'." >&2
+            exit 1
+          fi
+          # Numeric sort per version component; a lexical sort would order
+          # 26.10 before 26.2.
+          RUNTIME=$(xcrun simctl list runtimes -j \
+            | jq -r '.runtimes
+                     | map(select(.platform == "iOS"))
+                     | sort_by(.version | split(".") | map(tonumber))
+                     | reverse
+                     | .[0].identifier')
           echo "Using device: $DEVICE_TYPE"
           echo "Using runtime: $RUNTIME"
           SIM_UDID=$(xcrun simctl create "CITestDevice" "$DEVICE_TYPE" "$RUNTIME")
@@ -58,11 +70,13 @@ jobs:
 
       - name: Run tests
         working-directory: ios
+        env:
+          SIM_UDID: ${{ steps.sim.outputs.udid }}
         run: |
           set -o pipefail
           xcodebuild test \
             -scheme OwnPulse \
-            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -destination "platform=iOS Simulator,id=$SIM_UDID" \
             -clonedSourcePackagesDirPath .build \
             | xcbeautify --is-ci
 

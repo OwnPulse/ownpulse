@@ -833,6 +833,35 @@
       }
     },
     {
+      "description": "a request to create an intervention without dose or route",
+      "providerState": "an authenticated user exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/interventions",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "substance": "Magnesium",
+          "unit": "count",
+          "administered_at": "2026-03-28T08:00:00Z",
+          "fasted": false,
+          "notes": "Synced from Apple Health"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "some-uuid",
+          "substance": "Magnesium"
+        }
+      }
+    },
+    {
       "description": "a request to create an observation",
       "providerState": "an authenticated user exists",
       "request": {

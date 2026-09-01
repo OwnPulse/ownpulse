@@ -83,10 +83,24 @@ final class AppDependencies {
         return true
     }
 
+    /// Returns the production medication sync provider, or nil when the
+    /// platform doesn't support it. Passed explicitly by `OwnPulseApp`;
+    /// the `init` default is nil so tests never touch real HealthKit
+    /// medication APIs.
+    static func liveMedicationSyncProvider() -> (any Sendable)? {
+        #if swift(>=6.3)
+        if #available(iOS 26.0, *), HKHealthStore.isHealthDataAvailable() {
+            return MedicationSyncProvider()
+        }
+        #endif
+        return nil
+    }
+
     init(
         keychainService: KeychainServiceProtocol? = nil,
         networkClient: NetworkClientProtocol? = nil,
         healthKitProvider: HealthKitProviderProtocol? = nil,
+        medicationSyncProvider: (any Sendable)? = nil,
         syncScheduler: SyncScheduler? = nil,
         notificationCenter: (any UserNotificationCenterProtocol)? = nil,
         // No default — tests MUST pass `DatabaseManager(inMemory: true)`.
@@ -116,15 +130,7 @@ final class AppDependencies {
         self.clinicalRecordProvider = HKHealthStore.isHealthDataAvailable()
             ? ClinicalRecordProvider() : nil
 
-        #if swift(>=6.3)
-        if #available(iOS 26.0, *), HKHealthStore.isHealthDataAvailable() {
-            self.medicationSyncProvider = MedicationSyncProvider()
-        } else {
-            self.medicationSyncProvider = nil
-        }
-        #else
-        self.medicationSyncProvider = nil
-        #endif
+        self.medicationSyncProvider = medicationSyncProvider
 
         self.databaseManager = databaseManager
 

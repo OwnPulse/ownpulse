@@ -15,7 +15,7 @@ This prevents the cycle: OwnPulse writes to HealthKit, then reads the same recor
 
 One consequence: HealthKit is no longer an implicit backup for data OwnPulse itself wrote there — sync reads never see it again. The backend export is the recovery path for that data, not HealthKit.
 
-**Implementation:** `HealthKitProvider.makeReadPredicate()` builds the exclusion predicate (`NOT predicateForObjects(from: HKSource.default())`) and is applied, via `HealthKitProvider.makeAnchoredQuery()`, to every `HKAnchoredObjectQuery` in `HealthKitProvider.querySamples`, and directly to the `HKObserverQuery` in `HealthKitProvider.observeSampleUpdates()`. `MedicationSyncProvider` does not apply it — OwnPulse only reads dose events (no write-back path exists), so there's no cycle to guard against for that type, and the file is gated behind `#if swift(>=6.3)` (inert on the pinned Swift 6.0 toolchain). `ClinicalRecordProvider` does not apply it either — OwnPulse requests read-only clinical record access (`toShare: []`) and third-party apps cannot write `HKClinicalRecord`s, so there is no write → read cycle for that type today.
+**Implementation:** `HealthKitProvider.makeReadPredicate()` builds the exclusion predicate (`NOT predicateForObjects(from: HKSource.default())`) and is applied, via `HealthKitProvider.makeAnchoredQuery()`, to every `HKAnchoredObjectQuery` in `HealthKitProvider.querySamples`, and directly to the `HKObserverQuery` in `HealthKitProvider.observeSampleUpdates()`. `MedicationSyncProvider` does not apply it — OwnPulse only reads dose events (no write-back path exists), so there's no cycle to guard against for that type. The file is gated behind `#if swift(>=6.3)` (live on the pinned Xcode 26.6 / Swift 6.3 toolchain; only runs on iOS 26+ devices). `ClinicalRecordProvider` does not apply it either — OwnPulse requests read-only clinical record access (`toShare: []`) and third-party apps cannot write `HKClinicalRecord`s, so there is no write → read cycle for that type today.
 
 ## Write-Back Queue Flow
 
@@ -145,6 +145,29 @@ iOS currently consumes the endpoint with `requestNoContent` and discards the bod
 `value` is JSONB and its shape is exactly `{value, unit, start_time, end_time}`, no more, no fewer keys. Every field except `start_time` is nullable — `HealthRecordRow.value`/`unit`/`end_time` are all `Option` in the DB model, and a record posted without them still enqueues, with those keys present and `null` (never omitted). This is the iOS decode contract: iOS must decode `value`/`unit`/`end_time` as optional and treat a null `value` as a fail-reportable item, not a decode crash.
 
 This shape is pinned by two integration tests (`test_write_queue_shape_after_manual_record_insert`, `test_write_queue_shape_with_null_value_fields`), asserted key-by-key. The `ios-backend.json` Pact contract's write-queue interaction round-trips the same hardcoded JSONB via its provider-state seeder, but Pact v2 object matching is non-strict equality-of-example, not a schema check — it would not fail if a producer sub-key were renamed in `routes/health_records.rs` while the seeder's literal JSON stayed unchanged. The integration tests are the actual enforcement for this shape; the Pact contract is a consumer-facing example, not a second independent gate.
+
+## Medication Dose Import (iOS 26+)
+
+`MedicationSyncProvider` reads `HKMedicationDoseEvent`s (per-object read
+authorization, opt-in from Settings) and `SyncEngine.syncMedicationDoses`
+POSTs each taken dose to `/api/v1/interventions`. Dose and route are omitted
+when HealthKit has no quantity or the medication's form doesn't imply a
+route — the client never fabricates values.
+
+**Duplicate prevention is device-local.** The interventions endpoint has no
+server-side dedup (interventions carry no `source_id`), so the client keeps
+two pieces of state in the GRDB anchor store:
+
+- `medication_dose_event` — the HK anchored-query anchor.
+- `medication_dose_posted_ids` — dose-event UUIDs uploaded during a pass
+  whose anchor hasn't been saved yet. Persisted after every successful POST
+  and reset when the anchor saves, so a mid-pass failure can't re-upload the
+  same dose on retry.
+
+Boundary: this state lives on the device. An app reinstall, or a second
+device syncing the same iCloud Health data, re-uploads history as duplicate
+interventions. The fix is server-side dedup keyed on a `source_id` column —
+tracked as the "medication-sync idempotent bulk endpoint" follow-up.
 
 ## HealthKit Type Mappings
 

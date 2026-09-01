@@ -126,9 +126,9 @@ struct CheckinResponse: Codable, Sendable {
 
 struct CreateIntervention: Codable, Sendable {
     let substance: String
-    let dose: Double
+    let dose: Double?
     let unit: String
-    let route: String
+    let route: String?
     let administeredAt: String
     let fasted: Bool
     let notes: String?

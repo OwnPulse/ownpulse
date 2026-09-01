@@ -7,7 +7,10 @@ import UserNotifications
 
 @main
 struct OwnPulseApp: App {
-    private let dependencies = AppDependencies(databaseManager: DatabaseManager())
+    private let dependencies = AppDependencies(
+        medicationSyncProvider: AppDependencies.liveMedicationSyncProvider(),
+        databaseManager: DatabaseManager()
+    )
     @Environment(\.scenePhase) private var scenePhase
     @UIApplicationDelegateAdaptor private var notificationDelegate: NotificationDelegate
     // Explicit light/dark/system appearance preference (mirrors the web
