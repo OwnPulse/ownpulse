@@ -36,3 +36,8 @@
   font-size: var(--text-sm);
   color: var(--color-text-muted);
 }
+
+.syncError {
+  font-size: var(--text-sm);
+  color: var(--color-error);
+}

@@ -1517,6 +1517,73 @@
           "expires_at": "2026-04-30T00:00:00Z"
         }
       }
+    },
+    {
+      "description": "a request to list integration statuses",
+      "providerState": "a connected google_calendar integration exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/integrations",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": [
+          {
+            "source": "google_calendar",
+            "connected": true,
+            "last_synced_at": "2026-08-01T12:00:00Z",
+            "last_sync_error": null
+          }
+        ]
+      }
+    },
+    {
+      "description": "a request to manually sync the google_calendar integration",
+      "providerState": "a connected google_calendar integration exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/google-calendar/sync",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "source": "google_calendar",
+          "records_inserted": 3
+        }
+      }
+    },
+    {
+      "description": "a request to manually sync the google_calendar integration while rate limited",
+      "providerState": "a connected google_calendar integration exists and a sync ran recently",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/integrations/google-calendar/sync",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token"
+        }
+      },
+      "response": {
+        "status": 429,
+        "headers": {
+          "Content-Type": "application/json",
+          "Retry-After": "30"
+        },
+        "body": {
+          "error": "rate limited, retry after 30s"
+        }
+      }
     }
   ],
   "metadata": { "pactSpecification": { "version": "2.0.0" } }

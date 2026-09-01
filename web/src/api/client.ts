@@ -9,6 +9,8 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    /** Seconds from the `Retry-After` response header, when the backend sent one (429s). */
+    public retryAfterSeconds?: number,
   ) {
     super(message);
     this.name = "ApiError";
@@ -99,7 +101,15 @@ async function request<T>(path: string, options: RequestInit = {}, isRetry = fal
 
   if (!response.ok) {
     const body = await response.text();
-    throw new ApiError(response.status, body);
+    // `?.` guards a couple of existing unit tests that stub a bare object in
+    // place of a real `Response` and don't set `headers`.
+    const retryAfterHeader = response.headers?.get("retry-after");
+    const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+    throw new ApiError(
+      response.status,
+      body,
+      Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
+    );
   }
 
   if (response.status === 204) {
