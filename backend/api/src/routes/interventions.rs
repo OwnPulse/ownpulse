@@ -16,14 +16,66 @@ use crate::models::intervention::{
 use crate::routes::events::publish_event;
 
 /// POST /interventions — no substance name validation per project rules.
+///
+/// Idempotent for synced records: when `source_id` is set and a row with
+/// the same (user, source, source_id) already exists, returns 200 with the
+/// existing row instead of creating a duplicate. Fresh inserts return 201.
 pub async fn create(
     State(state): State<AppState>,
     AuthUser { id: user_id, .. }: AuthUser,
     Json(body): Json<CreateIntervention>,
 ) -> Result<(StatusCode, Json<InterventionRow>), ApiError> {
-    let row = db::insert(&state.pool, user_id, &body).await?;
-    publish_event(&state.event_tx, user_id, "interventions", None);
-    Ok((StatusCode::CREATED, Json(row)))
+    // source_id is btree-indexed; oversized values would fail the insert
+    // with a 500 instead of a clean rejection.
+    for (field, value) in [("source", &body.source), ("source_id", &body.source_id)] {
+        if let Some(value) = value
+            && value.len() > 255
+        {
+            return Err(ApiError::BadRequest(format!(
+                "{field} must be at most 255 characters"
+            )));
+        }
+    }
+
+    if let Some(row) = db::insert(&state.pool, user_id, &body).await? {
+        publish_event(&state.event_tx, user_id, "interventions", None);
+        return Ok((StatusCode::CREATED, Json(row)));
+    }
+
+    // The insert conflicted, which only happens with a source_id present.
+    let source = body.source.as_deref().unwrap_or("manual");
+    let Some(source_id) = body.source_id.as_deref() else {
+        return Err(ApiError::Internal(
+            "intervention insert returned no row without a source_id".to_string(),
+        ));
+    };
+
+    if let Some(existing) = db::get_by_source_id(&state.pool, user_id, source, source_id).await? {
+        // source_id is client-controlled free text, so keep it out of the
+        // logs; the row id is enough to look it up.
+        tracing::info!(source, intervention_id = %existing.id,
+            "replayed intervention create; returning existing row");
+        return Ok((StatusCode::OK, Json(existing)));
+    }
+
+    // The conflicting row was deleted between insert and fetch. Retry the
+    // insert, then the fetch — a second conflict means a row with this
+    // identity exists again, and returning it keeps the endpoint 2xx for
+    // sync clients, which treat any other status as a failed upload.
+    if let Some(row) = db::insert(&state.pool, user_id, &body).await? {
+        publish_event(&state.event_tx, user_id, "interventions", None);
+        return Ok((StatusCode::CREATED, Json(row)));
+    }
+    let existing = db::get_by_source_id(&state.pool, user_id, source, source_id)
+        .await?
+        .ok_or_else(|| {
+            ApiError::Conflict(
+                "intervention create raced with concurrent deletes; retry".to_string(),
+            )
+        })?;
+    tracing::info!(source, intervention_id = %existing.id,
+        "replayed intervention create; returning existing row");
+    Ok((StatusCode::OK, Json(existing)))
 }
 
 /// GET /interventions

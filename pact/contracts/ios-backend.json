@@ -846,8 +846,9 @@
           "substance": "Magnesium",
           "unit": "count",
           "administered_at": "2026-03-28T08:00:00Z",
-          "fasted": false,
-          "notes": "Synced from Apple Health"
+          "notes": "Synced from Apple Health",
+          "source": "healthkit",
+          "source_id": "bbbbbbbb-5555-6666-7777-888888888888"
         }
       },
       "response": {
@@ -858,6 +859,46 @@
         "body": {
           "id": "some-uuid",
           "substance": "Magnesium"
+        },
+        "matchingRules": {
+          "$.body.id": {
+            "match": "type"
+          }
+        }
+      }
+    },
+    {
+      "description": "a replayed request to create an already-synced intervention",
+      "providerState": "an intervention synced from healthkit already exists",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/interventions",
+        "headers": {
+          "Authorization": "Bearer some-jwt-token",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "substance": "Magnesium",
+          "unit": "count",
+          "administered_at": "2026-03-28T08:00:00Z",
+          "notes": "Synced from Apple Health",
+          "source": "healthkit",
+          "source_id": "aaaaaaaa-1111-2222-3333-444444444444"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "some-uuid",
+          "substance": "Magnesium"
+        },
+        "matchingRules": {
+          "$.body.id": {
+            "match": "type"
+          }
         }
       }
     },

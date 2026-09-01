@@ -263,7 +263,7 @@ async fn test_export_json() {
     assert_eq!(export_status, 200, "export failed: {body_text}");
 
     let json: serde_json::Value = serde_json::from_str(&body_text).unwrap();
-    assert_eq!(json["schema_version"], "0.3.0");
+    assert_eq!(json["schema_version"], "0.4.0");
     assert!(json["health_records"].is_array());
     assert!(json["interventions"].is_array());
     assert!(json["daily_checkins"].is_array());
@@ -709,7 +709,7 @@ async fn test_export_json_empty_data() {
     assert_eq!(export_resp.status(), 200);
 
     let json = common::body_json(export_resp).await;
-    assert_eq!(json["schema_version"], "0.3.0");
+    assert_eq!(json["schema_version"], "0.4.0");
     for key in [
         "health_records",
         "interventions",

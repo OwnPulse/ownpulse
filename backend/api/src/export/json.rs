@@ -40,7 +40,8 @@ pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sq
 
     let interventions = sqlx::query_as::<_, InterventionRow>(
         "SELECT id, user_id, substance, dose, unit, route, administered_at, \
-         fasted, timing_relative_to, notes, healthkit_written, created_at, updated_at \
+         fasted, timing_relative_to, notes, healthkit_written, source, source_id, \
+         created_at, updated_at \
          FROM interventions WHERE user_id = $1 ORDER BY administered_at",
     )
     .bind(user_id)
@@ -149,7 +150,7 @@ pub async fn stream_json_export(pool: &PgPool, user_id: Uuid) -> Result<Body, sq
     .await?;
 
     let mut payload = serde_json::json!({
-        "schema_version": "0.3.0",
+        "schema_version": "0.4.0",
         "exported_at": Utc::now(),
         "health_records": health_records,
         "interventions": interventions,

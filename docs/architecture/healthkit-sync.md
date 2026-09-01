@@ -152,22 +152,31 @@ This shape is pinned by two integration tests (`test_write_queue_shape_after_man
 authorization, opt-in from Settings) and `SyncEngine.syncMedicationDoses`
 POSTs each taken dose to `/api/v1/interventions`. Dose and route are omitted
 when HealthKit has no quantity or the medication's form doesn't imply a
-route — the client never fabricates values.
+route, and `fasted` is always omitted (HealthKit doesn't record it) — the
+client never fabricates values.
 
-**Duplicate prevention is device-local.** The interventions endpoint has no
-server-side dedup (interventions carry no `source_id`), so the client keeps
-two pieces of state in the GRDB anchor store:
+**Duplicate prevention is two-layered.**
 
-- `medication_dose_event` — the HK anchored-query anchor.
-- `medication_dose_posted_ids` — dose-event UUIDs uploaded during a pass
-  whose anchor hasn't been saved yet. Persisted after every successful POST
-  and reset when the anchor saves, so a mid-pass failure can't re-upload the
-  same dose on retry.
+- Server: interventions carry `source`/`source_id`
+  (`0037_interventions_source_dedup.sql`), and the medication sync sends
+  `source: "healthkit"` with the dose-event UUID as `source_id`. A replayed
+  POST returns 200 with the existing row instead of inserting. HealthKit
+  sample UUIDs sync across a user's devices via iCloud, so this dedupes
+  reinstalls and multi-device setups alike — with one boundary: rows synced
+  before 0037 shipped have `source_id = NULL` and are never deduplicated
+  retroactively (the UUID was never sent).
+- Client: two pieces of state in the GRDB anchor store cut replay chatter —
+  `medication_dose_event` (the HK anchored-query anchor) and
+  `medication_dose_posted_ids` (dose-event UUIDs uploaded during a pass
+  whose anchor hasn't been saved yet; persisted after every successful POST
+  and reset when the anchor saves).
 
-Boundary: this state lives on the device. An app reinstall, or a second
-device syncing the same iCloud Health data, re-uploads history as duplicate
-interventions. The fix is server-side dedup keyed on a `source_id` column —
-tracked as the "medication-sync idempotent bulk endpoint" follow-up.
+The import is copy/append-only, not a mirror: a dose edited in Apple Health
+as delete-and-re-add gets a new UUID and imports as a new intervention; the
+original is not updated or removed. The reverse also holds: deleting an
+imported intervention in OwnPulse doesn't touch Apple Health, and a later
+full re-read (anchor reset) re-imports the dose unless it was also removed
+there.
 
 ## HealthKit Type Mappings
 

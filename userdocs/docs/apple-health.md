@@ -50,6 +50,8 @@ Doses marked **Taken** in Apple Health then appear in OwnPulse as interventions.
 
 To stop or narrow the import later, open the Apple Health app and change which medications OwnPulse can read under **Profile > Apps and Services > OwnPulse**.
 
+To permanently remove an imported dose, delete it in both places: deleting it only in OwnPulse leaves the dose event in Apple Health, and a future full re-sync (for example after reinstalling the app) imports it again.
+
 ## Troubleshooting
 
 If sync appears stuck, open the OwnPulse iOS app and check the sync status on the Settings screen. If the last sync time is stale, try tapping **Sync Now**. If that does not help, verify HealthKit permissions in iOS Settings and ensure background app refresh is enabled for OwnPulse.

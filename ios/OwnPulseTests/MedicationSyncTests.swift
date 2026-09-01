@@ -148,6 +148,10 @@ struct MedicationDoseSyncTests {
         #expect(bodies[1].dose == nil)
         #expect(bodies[1].route == nil)
         #expect(bodies[1].notes == "Synced from Apple Health")
+        #expect(bodies[0].source == "healthkit")
+        #expect(bodies[0].sourceId == "a")
+        #expect(bodies[1].sourceId == "b")
+        #expect(bodies[0].fasted == nil)
         #expect(try anchors.anchor(forRecordType: SyncEngine.medicationAnchorKey) == Data([1]))
     }
 
