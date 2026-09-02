@@ -29,7 +29,7 @@ export GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
 ## Flow 1: Local Login
 
 1. Open http://localhost:5173/login
-2. Enter username and password
+2. Enter email and password
 3. Verify redirect to Timeline (/)
 4. Verify nav bar shows: Timeline, Log, Sources, Settings, Logout
 5. Click Logout → redirects to /login

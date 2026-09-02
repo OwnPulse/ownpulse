@@ -16,7 +16,7 @@ After authorization, you are redirected back to OwnPulse and logged in immediate
 
 ## Username and password
 
-Enter your username and password on the login screen and tap **Sign in**.
+Enter your email and password on the login screen and tap **Sign in**.
 
 ## Registering a new account
 
@@ -52,7 +52,7 @@ You can be logged in on multiple devices simultaneously. Each device maintains i
 
 ## Troubleshooting
 
-If you are stuck on the login screen after clicking **Sign in with Apple** or **Sign in with Google**, check that your browser allows popups and redirects from your OwnPulse domain. If you are using a username/password account and cannot log in, contact support or your administrator (self-hosted) to reset your password.
+If you are stuck on the login screen after clicking **Sign in with Apple** or **Sign in with Google**, check that your browser allows popups and redirects from your OwnPulse domain. If you are using an email/password account and cannot log in, contact support or your administrator (self-hosted) to reset your password.
 
 ## Security notes
 
