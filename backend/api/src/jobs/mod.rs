@@ -53,6 +53,44 @@ pub fn spawn_insight_job(pool: PgPool, cancel: CancellationToken) -> tokio::task
     })
 }
 
+/// Spawn the daily sweep that deletes refresh tokens expired past the
+/// seven-day retention margin (see `refresh_tokens::delete_expired` for why
+/// the margin exists). Rotation sweeps only the family being rotated, so
+/// tokens of abandoned families (a device that never returns) otherwise
+/// accumulate until their rows are removed here. Rows hold keyed HMAC
+/// hashes, so this is growth hygiene, not a security control.
+pub fn spawn_token_sweep_job(
+    pool: PgPool,
+    cancel: CancellationToken,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(24 * 60 * 60));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        // No pre-loop tick: tokio's first tick fires immediately, so the
+        // sweep runs once at startup. A process that redeploys more often
+        // than the interval would otherwise never sweep.
+
+        loop {
+            tokio::select! {
+                _ = cancel.cancelled() => {
+                    info!("expired-token sweep job shutting down");
+                    return;
+                }
+                _ = interval.tick() => {
+                    match crate::db::refresh_tokens::delete_expired(&pool).await {
+                        Ok(removed) => {
+                            info!(removed, "expired refresh tokens swept");
+                        }
+                        Err(err) => {
+                            error!(error = %err, "expired-token sweep failed");
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
 /// Typed outcome of a manual (`sync_user_now`) sync attempt, so route
 /// handlers map to an HTTP status by matching the variant rather than
 /// comparing error strings.
@@ -142,6 +180,23 @@ mod tests {
         cancel.cancel();
 
         let handle = spawn_insight_job(pool, cancel);
+
+        tokio::time::timeout(std::time::Duration::from_secs(2), handle)
+            .await
+            .expect("job should shut down promptly once cancelled")
+            .expect("job task should not panic");
+    }
+
+    /// Same wiring smoke test for the expired-token sweep.
+    #[tokio::test]
+    async fn spawn_token_sweep_job_shuts_down_promptly_on_cancellation() {
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://user:pass@localhost/db")
+            .expect("lazy pool construction should not touch the network");
+        let cancel = CancellationToken::new();
+        cancel.cancel();
+
+        let handle = spawn_token_sweep_job(pool, cancel);
 
         tokio::time::timeout(std::time::Duration::from_secs(2), handle)
             .await

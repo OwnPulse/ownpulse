@@ -303,6 +303,7 @@ async fn run_server() -> anyhow::Result<()> {
             state.event_tx.clone(),
         ),
         api::jobs::spawn_insight_job(state.pool.clone(), jobs_cancel.clone()),
+        api::jobs::spawn_token_sweep_job(state.pool.clone(), jobs_cancel.clone()),
     ];
 
     let app = api::build_app(state);
