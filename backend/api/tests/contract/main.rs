@@ -4,8 +4,10 @@
 //! Pact provider verification tests.
 //!
 //! Reads consumer contracts from `pact/contracts/*.json`, spins up the API
-//! against a testcontainers Postgres, and replays every interaction to verify
-//! the provider still satisfies them.
+//! against a testcontainers Postgres, and replays interactions to verify the
+//! provider still satisfies them. The iOS gate replays every interaction in
+//! [`IOS_VERIFIED_INTERACTIONS`]; the handful that cannot run in this harness
+//! are documented in [`IOS_EXCLUDED_INTERACTIONS`].
 
 mod common;
 
@@ -136,8 +138,108 @@ impl ProviderStateExecutor for StateExecutor {
                 // Seed data so admin list endpoints return non-empty arrays.
                 seed_admin_data(&self.pool).await;
             }
+            "a valid refresh token exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_refresh_token(&self.pool, user_id, &self.jwt_secret).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
             "a user with auth methods exists" => {
                 let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_auth_methods(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "a daily check-in exists for today" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_todays_checkin(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "check-ins exist in the sparkline window" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_sparkline_checkins(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "health records exist in the sparkline window" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_sparkline_health_records(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "an intervention exists in the chart window" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_chart_intervention(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "an insight exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_insight(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "a protocol with a line exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_user_protocol(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "a protocol with an active, notify-enabled run exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_active_notify_run(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "an active protocol run with a dose scheduled today exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_todays_dose_run(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "an active run with a pending dose today matching a quick-picked substance exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_quick_pick_run(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
+            "the user has a connected garmin integration" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_garmin_integration(&self.pool, user_id).await;
                 result.insert("user_id".to_string(), Value::String(user_id.to_string()));
                 result.insert("token".to_string(), Value::String(token.clone()));
 
@@ -185,14 +287,7 @@ impl ProviderStateExecutor for StateExecutor {
             }
             "a protocol run with adherence data exists" => {
                 let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
-                seed_adherence_run(
-                    &self.pool,
-                    user_id,
-                    "aaaaaaaa-1111-1111-1111-111111111111",
-                    "aaaaaaaa-2222-2222-2222-222222222222",
-                    "aaaaaaaa-3333-3333-3333-333333333333",
-                )
-                .await;
+                seed_adherence_run(&self.pool, user_id).await;
                 result.insert("user_id".to_string(), Value::String(user_id.to_string()));
                 result.insert("token".to_string(), Value::String(token.clone()));
 
@@ -253,11 +348,17 @@ impl ProviderStateExecutor for StateExecutor {
 
 async fn create_test_user(pool: &sqlx::PgPool, jwt_secret: &str) -> (Uuid, String) {
     let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash");
+    // A username is always set: `GET /admin/users` returns every user in the
+    // database and its contract interaction type-matches each row against a
+    // template whose `username` is a string, so a NULL username on any user
+    // created by an earlier interaction would fail that later one.
+    let suffix = Uuid::new_v4();
     let row: (Uuid,) = sqlx::query_as(
-        "INSERT INTO users (email, password_hash, auth_provider) \
-         VALUES ($1, $2, 'local') RETURNING id",
+        "INSERT INTO users (email, username, password_hash, auth_provider) \
+         VALUES ($1, $2, $3, 'local') RETURNING id",
     )
-    .bind(format!("contract-user-{}@example.com", Uuid::new_v4()))
+    .bind(format!("contract-user-{suffix}@example.com"))
+    .bind(format!("contract-user-{suffix}"))
     .bind(&hash)
     .fetch_one(pool)
     .await
@@ -317,10 +418,13 @@ async fn seed_admin_data(pool: &sqlx::PgPool) {
     let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash");
 
     // Target user for PATCH …/role, PATCH …/status, DELETE …/users/:id
-    // Status is 'disabled' because DELETE now requires the user to be disabled first.
+    // Status is 'disabled' because DELETE now requires the user to be disabled
+    // first. `created_at` is pinned because the role/status interactions
+    // exact-match it in their response bodies.
     sqlx::query(
-        "INSERT INTO users (id, email, username, password_hash, auth_provider, role, status) \
-         VALUES ($1, $2, $3, $4, 'google', 'user', 'disabled') \
+        // date-ok
+        "INSERT INTO users (id, email, username, password_hash, auth_provider, role, status, created_at) \
+         VALUES ($1, $2, $3, $4, 'google', 'user', 'disabled', '2026-01-01T00:00:00Z') \
          ON CONFLICT (id) DO NOTHING",
     )
     .bind(target_user_id)
@@ -349,17 +453,286 @@ async fn seed_admin_data(pool: &sqlx::PgPool) {
         let invite_id: Uuid = "660e8400-e29b-41d4-a716-446655440000"
             .parse()
             .expect("valid UUID");
+        // "list all invite codes" exact-matches a single-element array with
+        // `revoked_at: null`, so this state must fully reset invite fixtures
+        // rather than assume it replays before the create/revoke
+        // interactions: remove every invite other than the pinned one
+        // (claims first — the FK has no cascade) and reset the pinned row's
+        // fields on upsert, including `revoked_at`.
+        sqlx::query("DELETE FROM invite_claims WHERE invite_code_id <> $1")
+            .bind(invite_id)
+            .execute(pool)
+            .await
+            .expect("clear claims of non-pinned invite codes");
+        sqlx::query("DELETE FROM invite_codes WHERE id <> $1")
+            .bind(invite_id)
+            .execute(pool)
+            .await
+            .expect("clear non-pinned invite codes");
+
+        // `created_at` is pinned because the invite list/revoke interactions
+        // exact-match it in their response bodies.
         sqlx::query(
-            "INSERT INTO invite_codes (id, code, label, max_uses, use_count, created_by) \
-             VALUES ($1, 'ABC123DEF456', 'Friends', 10, 3, $2) \
-             ON CONFLICT (id) DO NOTHING",
+            // date-ok
+            "INSERT INTO invite_codes (id, code, label, max_uses, use_count, created_by, created_at) \
+             VALUES ($1, 'ABC123DEF456', 'Friends', 10, 3, $2, '2026-01-01T00:00:00Z') \
+             ON CONFLICT (id) DO UPDATE \
+                SET code = excluded.code, label = excluded.label, \
+                    max_uses = excluded.max_uses, use_count = excluded.use_count, \
+                    created_by = excluded.created_by, created_at = excluded.created_at, \
+                    expires_at = NULL, revoked_at = NULL",
         )
         .bind(invite_id)
         .bind(admin_id)
         .execute(pool)
         .await
-        .expect("insert invite code for admin interactions");
+        .expect("upsert invite code for admin interactions");
     }
+}
+
+/// Seed a `refresh_tokens` row whose hash matches the literal refresh token
+/// the contract's JSON-body refresh interaction replays, so the rotation
+/// handler finds and rotates it. A fresh family id and a future expiry make
+/// the token active (never rotated, not expired).
+async fn seed_refresh_token(pool: &sqlx::PgPool, user_id: Uuid, jwt_secret: &str) {
+    let token_hash = api::auth::refresh::hash_refresh_token("some-refresh-token", jwt_secret);
+
+    sqlx::query("DELETE FROM refresh_tokens WHERE token_hash = $1")
+        .bind(&token_hash)
+        .execute(pool)
+        .await
+        .expect("clear existing contract-test refresh token");
+
+    sqlx::query(
+        "INSERT INTO refresh_tokens (user_id, token_hash, expires_at) \
+         VALUES ($1, $2, now() + interval '30 days')",
+    )
+    .bind(user_id)
+    .bind(&token_hash)
+    .execute(pool)
+    .await
+    .expect("seed contract-test refresh token");
+}
+
+/// Link apple + google auth methods to the user, with pinned creation order
+/// (apple first — `GET /auth/methods` sorts by `created_at`). One seeder
+/// backs all three auth-method interactions, each of which re-runs it with a
+/// fresh user: list returns [apple, google], link-local returns
+/// [apple, google, local], and unlink-google returns [apple]. Fixed provider
+/// subjects are deleted first because `user_auth_methods` has
+/// `UNIQUE(provider, provider_subject)` and `UNIQUE(provider, email)` — the
+/// previous interaction's rows (owned by its own throwaway user) would
+/// otherwise collide.
+async fn seed_auth_methods(pool: &sqlx::PgPool, user_id: Uuid) {
+    sqlx::query(
+        "DELETE FROM user_auth_methods \
+         WHERE provider_subject IN ('contract-apple-sub', 'contract-google-sub')",
+    )
+    .execute(pool)
+    .await
+    .expect("clear existing contract-test auth methods");
+
+    sqlx::query(
+        // date-ok
+        "INSERT INTO user_auth_methods (user_id, provider, provider_subject, email, created_at) \
+         VALUES ($1, 'apple', 'contract-apple-sub', 'user@example.com', '2026-01-01T00:00:00Z'), \
+                ($1, 'google', 'contract-google-sub', 'user@gmail.com', '2026-01-02T00:00:00Z')",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test auth methods");
+}
+
+/// Seed today's check-in with the exact five scores the dashboard-summary
+/// contract body pins. The `date` and `*_count_7d` fields carry type
+/// matchers (calendar-dependent / shared-database counts).
+async fn seed_todays_checkin(pool: &sqlx::PgPool, user_id: Uuid) {
+    sqlx::query(
+        "INSERT INTO daily_checkins (user_id, date, energy, mood, focus, recovery, libido) \
+         VALUES ($1, CURRENT_DATE, 7, 8, 6, 7, 5)",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test today's check-in");
+}
+
+/// Seed two energy check-ins inside the fixed window the batch-series
+/// contract request queries (2026-03-21 .. 2026-03-28), producing exactly the
+/// two daily points its response body pins.
+async fn seed_sparkline_checkins(pool: &sqlx::PgPool, user_id: Uuid) {
+    sqlx::query(
+        // date-ok
+        "INSERT INTO daily_checkins (user_id, date, energy) \
+         VALUES ($1, '2026-03-21', 6), ($1, '2026-03-22', 7)",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test sparkline check-ins");
+}
+
+/// Seed body-mass and heart-rate records inside the fixed window the Explore
+/// browse-card batch-series request queries, producing exactly the two daily
+/// points per metric its response body pins.
+async fn seed_sparkline_health_records(pool: &sqlx::PgPool, user_id: Uuid) {
+    // date-ok
+    let day1 = "2026-03-21T08:00:00Z";
+    // date-ok
+    let day2 = "2026-03-22T08:00:00Z";
+    sqlx::query(
+        "INSERT INTO health_records (user_id, source, record_type, value, unit, start_time, end_time) \
+         VALUES ($1, 'manual', 'body_mass', 72.5, 'kg', $2::timestamptz, $2::timestamptz), \
+                ($1, 'manual', 'body_mass', 72.3, 'kg', $3::timestamptz, $3::timestamptz), \
+                ($1, 'manual', 'heart_rate', 65.0, 'bpm', $2::timestamptz, $2::timestamptz), \
+                ($1, 'manual', 'heart_rate', 62.0, 'bpm', $3::timestamptz, $3::timestamptz)",
+    )
+    .bind(user_id)
+    .bind(day1)
+    .bind(day2)
+    .execute(pool)
+    .await
+    .expect("seed contract-test sparkline health records");
+}
+
+/// Seed the one intervention the chart-overlay markers contract body pins,
+/// inside its request's fixed query window.
+async fn seed_chart_intervention(pool: &sqlx::PgPool, user_id: Uuid) {
+    sqlx::query(
+        // date-ok
+        "INSERT INTO interventions (user_id, substance, dose, unit, route, administered_at) \
+         VALUES ($1, 'Caffeine', 200.0, 'mg', 'oral', '2026-03-22T09:15:00Z')",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test chart intervention");
+}
+
+/// Seed the one non-dismissed insight the insights contract body pins
+/// (matchers cover the generated id and created_at).
+async fn seed_insight(pool: &sqlx::PgPool, user_id: Uuid) {
+    sqlx::query(
+        "INSERT INTO insights (user_id, insight_type, headline, detail) \
+         VALUES ($1, 'correlation', 'Sleep correlates with mood', \
+                 'Your mood scores are higher after 7+ hours of sleep.')",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test insight");
+}
+
+/// Seed the protocol + line (fixed `eeeeeeee-…` ids) that the list/get/delete
+/// protocol interactions reference directly. Upserted with full content and
+/// re-parented per call because three interactions share this state, each
+/// with a fresh user — and the delete interaction removes the rows outright,
+/// so later calls must be able to re-create them.
+async fn seed_user_protocol(pool: &sqlx::PgPool, user_id: Uuid) {
+    let protocol_id: Uuid = "eeeeeeee-1111-1111-1111-111111111111"
+        .parse()
+        .expect("valid UUID");
+    let line_id: Uuid = "eeeeeeee-2222-2222-2222-222222222222"
+        .parse()
+        .expect("valid UUID");
+
+    // Pinned start date the list/get contract bodies exact-match; also reused
+    // (at midnight UTC) as the protocol's created_at.
+    // date-ok
+    let start = "2026-03-01";
+    sqlx::query(
+        "INSERT INTO protocols \
+            (id, user_id, name, description, start_date, duration_days, status, created_at) \
+         VALUES ($1, $2, 'BPC-157 Protocol', 'Daily BPC-157 SubQ protocol', \
+                 $3::date, 28, 'active', $3::timestamptz) \
+         ON CONFLICT (id) DO UPDATE SET user_id = excluded.user_id",
+    )
+    .bind(protocol_id)
+    .bind(user_id)
+    .bind(start)
+    .execute(pool)
+    .await
+    .expect("seed contract-test user protocol");
+
+    sqlx::query(
+        "INSERT INTO protocol_lines \
+            (id, protocol_id, substance, dose, unit, route, time_of_day, \
+             schedule_pattern, sort_order) \
+         VALUES ($1, $2, 'BPC-157', 250.0, 'mcg', 'SubQ', 'AM', \
+                 '[true, true, true, true, true, true, true]'::jsonb, 0) \
+         ON CONFLICT (id) DO NOTHING",
+    )
+    .bind(line_id)
+    .bind(protocol_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test user protocol line");
+}
+
+/// Seed the notify-enabled active run (fixed `88888888-…`/`77777777-…` ids)
+/// that the list-active-runs contract body pins, including its exact
+/// `start_date` and `notify_times`. Calendar-derived response fields
+/// (`progress_pct`, dose counts) carry type matchers.
+async fn seed_active_notify_run(pool: &sqlx::PgPool, user_id: Uuid) {
+    let protocol_id: Uuid = "88888888-8888-8888-8888-888888888888"
+        .parse()
+        .expect("valid UUID");
+    let run_id: Uuid = "77777777-7777-7777-7777-777777777777"
+        .parse()
+        .expect("valid UUID");
+
+    sqlx::query(
+        "INSERT INTO protocols (id, user_id, name, duration_days) \
+         VALUES ($1, $2, 'BPC-157 Protocol', 28) \
+         ON CONFLICT (id) DO UPDATE SET user_id = excluded.user_id",
+    )
+    .bind(protocol_id)
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed contract-test notify-run protocol");
+
+    // Pinned start date the list-active-runs contract body exact-matches.
+    // date-ok
+    let start = "2026-03-28";
+    // `repeat_interval_minutes` is explicitly NULL: the column default is 30,
+    // but `create_run` binds the request's (absent) value, so API-created
+    // runs — which this fixture stands in for — carry NULL.
+    sqlx::query(
+        "INSERT INTO protocol_runs \
+            (id, protocol_id, user_id, start_date, status, notify, notify_times, \
+             repeat_interval_minutes) \
+         VALUES ($1, $2, $3, $4::date, 'active', true, '[\"08:00\", \"20:00\"]'::jsonb, \
+                 NULL) \
+         ON CONFLICT (id) DO UPDATE SET user_id = excluded.user_id",
+    )
+    .bind(run_id)
+    .bind(protocol_id)
+    .bind(user_id)
+    .bind(start)
+    .execute(pool)
+    .await
+    .expect("seed contract-test notify-enabled run");
+}
+
+/// Seed a connected Garmin integration token (encrypted with the harness's
+/// encryption key via the same code path production uses) so the
+/// integrations list/disconnect interactions see exactly one connection.
+async fn seed_garmin_integration(pool: &sqlx::PgPool, user_id: Uuid) {
+    let key = api::crypto::parse_encryption_key(common::TEST_ENCRYPTION_KEY)
+        .expect("parse test encryption key");
+    api::db::integration_tokens::upsert(
+        pool,
+        user_id,
+        "garmin",
+        "contract-test-access-token",
+        None,
+        None,
+        &key,
+    )
+    .await
+    .expect("seed contract-test garmin integration token");
 }
 
 /// Seed a protocol + protocol line (with fixed ids) for the ios-backend
@@ -432,107 +805,151 @@ async fn seed_healthkit_write_queue_item(pool: &sqlx::PgPool, user_id: Uuid) {
     .expect("seed contract-test write-queue item");
 }
 
-/// Seed a protocol + line + active run (with fixed ids) for the ios-backend
-/// contract's adherence/missed-doses interactions. `start_date` is set to
-/// three days before `CURRENT_DATE`; combined with a daily (all-true)
-/// 7-day pattern and no doses logged, this gives a deterministic result
-/// regardless of when the test runs: `today_day == 3`, so the closed days
-/// are 0/1/2 (day 3, today, is not yet closed — see `dose_status::
-/// closed_bound`), all scheduled and missed, giving `scheduled_so_far=3,
-/// completed=0, skipped=0, missed=3, adherence_pct=0.0`. Every field here is
-/// deterministic and exact-matched; only `/missed-doses`' `date` field
-/// (which depends on the real calendar date) needs a Pact type matcher.
-async fn seed_adherence_run(
+/// Fixed UUID family shared by the adherence, missed-doses, dose-status,
+/// undo-dose, todays-doses and run-scoped-log interactions in
+/// `ios-backend.json` — every one of their request paths or response bodies
+/// pins these exact ids.
+const RUN_FAMILY_PROTOCOL_ID: &str = "aaaaaaaa-1111-1111-1111-111111111111";
+const RUN_FAMILY_LINE_ID: &str = "aaaaaaaa-2222-2222-2222-222222222222";
+const RUN_FAMILY_RUN_ID: &str = "aaaaaaaa-3333-3333-3333-333333333333";
+
+/// Upsert the shared protocol/line/run family (see `RUN_FAMILY_*`) to exactly
+/// the content a provider state needs, and clear all dose rows on the run.
+///
+/// Several provider states share these fixed ids but need different content
+/// (adherence interactions expect "Contract Adherence Protocol"/Creatine,
+/// todays-doses expects "Recovery Stack"/BPC-157) and different start dates.
+/// `ON CONFLICT DO UPDATE` on *every* content column makes each state's setup
+/// self-contained: whichever state runs last owns the rows outright, so the
+/// interactions stay correct regardless of their order in the contract file.
+/// The schedule pattern is always daily (all-true, 7 days).
+#[allow(clippy::too_many_arguments)] // A seeding fixture mirroring the row's columns; a builder would obscure it.
+async fn upsert_run_family(
     pool: &sqlx::PgPool,
     user_id: Uuid,
-    protocol_id: &str,
-    line_id: &str,
-    run_id: &str,
+    protocol_name: &str,
+    substance: &str,
+    dose: f64,
+    unit: &str,
+    route: &str,
+    time_of_day: Option<&str>,
+    start_date: chrono::NaiveDate,
 ) {
-    let protocol_id: Uuid = protocol_id.parse().expect("valid protocol UUID");
-    let line_id: Uuid = line_id.parse().expect("valid protocol_line UUID");
-    let run_id: Uuid = run_id.parse().expect("valid protocol_run UUID");
+    let protocol_id: Uuid = RUN_FAMILY_PROTOCOL_ID.parse().expect("valid UUID");
+    let line_id: Uuid = RUN_FAMILY_LINE_ID.parse().expect("valid UUID");
+    let run_id: Uuid = RUN_FAMILY_RUN_ID.parse().expect("valid UUID");
 
-    // This provider state backs two interactions ("get run adherence" and
-    // "list missed doses"), each re-running the full state setup with the
-    // same fixed protocol/line/run ids but a freshly-created (different)
-    // user per call. `ON CONFLICT DO UPDATE` re-parents the fixed rows to
-    // whichever user this call created, so the run's ownership always
-    // matches the token used for that interaction's request.
     sqlx::query(
         "INSERT INTO protocols (id, user_id, name, duration_days) \
-         VALUES ($1, $2, 'Contract Adherence Protocol', 7) \
-         ON CONFLICT (id) DO UPDATE SET user_id = excluded.user_id",
+         VALUES ($1, $2, $3, 7) \
+         ON CONFLICT (id) DO UPDATE \
+            SET user_id = excluded.user_id, name = excluded.name, \
+                duration_days = excluded.duration_days",
     )
     .bind(protocol_id)
     .bind(user_id)
+    .bind(protocol_name)
     .execute(pool)
     .await
-    .expect("seed contract-test adherence protocol");
+    .expect("seed contract-test run-family protocol");
 
     sqlx::query(
         "INSERT INTO protocol_lines \
-            (id, protocol_id, substance, dose, unit, route, schedule_pattern) \
-         VALUES ($1, $2, 'Creatine', 5.0, 'g', 'oral', \
+            (id, protocol_id, substance, dose, unit, route, time_of_day, schedule_pattern) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, \
                  '[true, true, true, true, true, true, true]'::jsonb) \
-         ON CONFLICT (id) DO NOTHING",
+         ON CONFLICT (id) DO UPDATE \
+            SET substance = excluded.substance, dose = excluded.dose, \
+                unit = excluded.unit, route = excluded.route, \
+                time_of_day = excluded.time_of_day, \
+                schedule_pattern = excluded.schedule_pattern",
     )
     .bind(line_id)
     .bind(protocol_id)
+    .bind(substance)
+    .bind(dose)
+    .bind(unit)
+    .bind(route)
+    .bind(time_of_day)
     .execute(pool)
     .await
-    .expect("seed contract-test adherence line");
+    .expect("seed contract-test run-family line");
 
     sqlx::query(
         "INSERT INTO protocol_runs (id, protocol_id, user_id, start_date, status) \
-         VALUES ($1, $2, $3, CURRENT_DATE - 3, 'active') \
-         ON CONFLICT (id) DO UPDATE SET user_id = excluded.user_id",
+         VALUES ($1, $2, $3, $4, 'active') \
+         ON CONFLICT (id) DO UPDATE \
+            SET user_id = excluded.user_id, start_date = excluded.start_date, \
+                status = excluded.status",
     )
     .bind(run_id)
     .bind(protocol_id)
     .bind(user_id)
+    .bind(start_date)
     .execute(pool)
     .await
-    .expect("seed contract-test adherence run");
+    .expect("seed contract-test run-family run");
+
+    // Dose rows are part of each state's expected content too (adherence
+    // expects zero logged doses; todays-doses expects status = null), so
+    // start every state from a clean slate.
+    sqlx::query("DELETE FROM protocol_doses WHERE run_id = $1")
+        .bind(run_id)
+        .execute(pool)
+        .await
+        .expect("clear contract-test run-family doses");
 }
 
-/// Seed a protocol + line + active run (reusing `seed_adherence_run`'s fixed
-/// ids — the iOS undo-dose fixture's request path targets the same run,
-/// `aaaaaaaa-3333-…`, and the dose-status fixture returned alongside it in
-/// the same iOS PR references the same line, `aaaaaaaa-2222-…`) plus one
-/// logged `protocol_doses` row at a fixed id, for the ios-backend contract's
-/// "undo a logged dose" interaction.
-async fn seed_logged_dose(pool: &sqlx::PgPool, user_id: Uuid) {
-    seed_adherence_run(
+/// `CURRENT_DATE` from Postgres — the same clock every dose/adherence query
+/// uses, so seeded start dates can't skew from the handlers' "today" around
+/// midnight.
+async fn db_today(pool: &sqlx::PgPool) -> chrono::NaiveDate {
+    sqlx::query_scalar("SELECT CURRENT_DATE")
+        .fetch_one(pool)
+        .await
+        .expect("read CURRENT_DATE")
+}
+
+/// Seed the run family for the adherence/missed-doses/dose-status
+/// interactions. `start_date` is three days before `CURRENT_DATE`; combined
+/// with a daily (all-true) 7-day pattern and no doses logged, this gives a
+/// deterministic result regardless of when the test runs: `today_day == 3`,
+/// so the closed days are 0/1/2 (day 3, today, is not yet closed — see
+/// `dose_status::closed_bound`), all scheduled and missed, giving
+/// `scheduled_so_far=3, completed=0, skipped=0, missed=3, adherence_pct=0.0`.
+/// Every field here is deterministic and exact-matched; only the calendar
+/// `date` fields need Pact type matchers.
+async fn seed_adherence_run(pool: &sqlx::PgPool, user_id: Uuid) {
+    let start = db_today(pool).await - chrono::Duration::days(3);
+    upsert_run_family(
         pool,
         user_id,
-        "aaaaaaaa-1111-1111-1111-111111111111",
-        "aaaaaaaa-2222-2222-2222-222222222222",
-        "aaaaaaaa-3333-3333-3333-333333333333",
+        "Contract Adherence Protocol",
+        "Creatine",
+        5.0,
+        "g",
+        "oral",
+        None,
+        start,
     )
     .await;
+}
+
+/// Seed the adherence run plus one logged `protocol_doses` row at a fixed id,
+/// for the "undo a logged dose" interaction (its request path pins both the
+/// run id and the dose id).
+async fn seed_logged_dose(pool: &sqlx::PgPool, user_id: Uuid) {
+    seed_adherence_run(pool, user_id).await;
 
     let dose_id: Uuid = "bbbbbbbb-4444-4444-4444-444444444444"
         .parse()
         .expect("valid UUID");
-    let line_id: Uuid = "aaaaaaaa-2222-2222-2222-222222222222"
-        .parse()
-        .expect("valid UUID");
-    let run_id: Uuid = "aaaaaaaa-3333-3333-3333-333333333333"
-        .parse()
-        .expect("valid UUID");
+    let line_id: Uuid = RUN_FAMILY_LINE_ID.parse().expect("valid UUID");
+    let run_id: Uuid = RUN_FAMILY_RUN_ID.parse().expect("valid UUID");
 
-    // This provider state's fixed dose id is only reachable from this one
-    // call in any given test run, but re-run `DELETE`-then-`INSERT` anyway,
-    // matching `seed_healthkit_write_queue_item`'s idempotency pattern —
-    // cheap insurance against the `UNIQUE (protocol_line_id, run_id,
-    // day_number)` constraint if this state is ever invoked more than once.
-    sqlx::query("DELETE FROM protocol_doses WHERE id = $1")
-        .bind(dose_id)
-        .execute(pool)
-        .await
-        .expect("clear existing contract-test dose row");
-
+    // `seed_adherence_run` just cleared all dose rows on the run, so this
+    // insert cannot hit the `UNIQUE (protocol_line_id, run_id, day_number)`
+    // constraint.
     sqlx::query(
         "INSERT INTO protocol_doses (id, protocol_line_id, run_id, day_number, status, logged_at) \
          VALUES ($1, $2, $3, 0, 'completed', now())",
@@ -543,6 +960,47 @@ async fn seed_logged_dose(pool: &sqlx::PgPool, user_id: Uuid) {
     .execute(pool)
     .await
     .expect("seed contract-test logged dose");
+}
+
+/// Seed the run family for "list today's scheduled doses": a run started
+/// three days ago whose daily pattern schedules a BPC-157 dose today
+/// (`day_number == 3`, covered by a type matcher) with no dose row logged,
+/// so `status` is null exactly as the contract body pins it.
+async fn seed_todays_dose_run(pool: &sqlx::PgPool, user_id: Uuid) {
+    let start = db_today(pool).await - chrono::Duration::days(3);
+    upsert_run_family(
+        pool,
+        user_id,
+        "Recovery Stack",
+        "BPC-157",
+        250.0,
+        "mcg",
+        "subcutaneous",
+        Some("morning"),
+        start,
+    )
+    .await;
+}
+
+/// Seed the run family for the run-scoped quick-pick dose log. The request
+/// body pins `day_number: 3` and `administered_at: 2026-03-28T08:00:00Z`,
+/// and the handler requires `administered_at`'s local date to fall within a
+/// day of `start_date + day_number` — so the run must start exactly on
+/// 2026-03-25 (a past day 3 is loggable: backfill is supported).
+async fn seed_quick_pick_run(pool: &sqlx::PgPool, user_id: Uuid) {
+    let start = chrono::NaiveDate::from_ymd_opt(2026, 3, 25).expect("valid date");
+    upsert_run_family(
+        pool,
+        user_id,
+        "Recovery Stack",
+        "BPC-157",
+        250.0,
+        "mcg",
+        "subcutaneous",
+        Some("morning"),
+        start,
+    )
+    .await;
 }
 
 /// Seed a protocol ("Recovery Stack") + line (BPC-157, 250 mcg,
@@ -745,181 +1203,146 @@ async fn verify_contract(
     }
 }
 
-/// Regex matching the iOS HealthKit-sync interactions in `ios-backend.json`.
+/// Every `ios-backend.json` interaction the active Pact gate verifies against
+/// the live provider. Each entry has real provider-state seeding (see
+/// `StateExecutor`) and Pact `type` matchers on its server-generated /
+/// calendar-dependent response fields; everything else is matched by exact
+/// equality against seeded fixtures.
 ///
-/// The sync and confirm interactions are fully deterministic (fixed status
-/// codes and bodies, e.g. `{"received":1,"inserted":1,...}` and an empty 204).
-/// The write-queue interaction seeds one real pending item at a fixed id
-/// (`seed_healthkit_write_queue_item`) and uses `type` matchers for the two
-/// fields the provider necessarily generates dynamically (`user_id`,
-/// `scheduled_at`) — everything else, including the full `value` JSONB shape,
-/// is matched by exact equality. Together these form the active, CI-enforced
-/// slice of the iOS Pact gate: if a change to `/healthkit/sync`,
-/// `/healthkit/write-queue`, or `/healthkit/confirm` alters the status code or
-/// response shape away from what iOS expects, this test fails.
-const IOS_HEALTHKIT_INTERACTIONS: &str = "^a request to (bulk sync HealthKit records|\
-get the HealthKit write-back queue|confirm HealthKit write-back items)$";
+/// When adding an interaction to the contract, add its description here (with
+/// seeding + matchers) or to [`IOS_EXCLUDED_INTERACTIONS`] with a documented
+/// reason — [`verify_ios_contract_verifiable_set`] fails on any interaction
+/// that is in neither list.
+const IOS_VERIFIED_INTERACTIONS: &[&str] = &[
+    "a request to refresh auth token via JSON body",
+    "a request to list linked auth methods",
+    "a request to link a new auth provider",
+    "a request to unlink an auth provider",
+    "a request to bulk sync HealthKit records",
+    "a request to get the HealthKit write-back queue",
+    "a request to confirm HealthKit write-back items",
+    "a request to list all users as admin",
+    "a request to update a user role",
+    "a request to update a user status",
+    "a request to delete a user",
+    "a request to list all invite codes",
+    "a request to create an invite code",
+    "a request to revoke an invite code",
+    "a request to get the dashboard summary",
+    "a request to fetch batch series for sparklines",
+    "a request to fetch Explore browse-card sparklines for health_records metrics",
+    "a request to fetch intervention markers for chart overlays",
+    "a request to get insights",
+    "a request to upsert a daily check-in",
+    "a request to create an intervention",
+    "a request to create an intervention without dose or route",
+    "a replayed request to create an already-synced intervention",
+    "a request to list user protocols",
+    "a request to list active protocol runs",
+    "a request to get a protocol by id",
+    "a request to create a protocol",
+    "a request to delete a protocol",
+    "a request to log a protocol dose",
+    "a request to skip a protocol dose",
+    "a request to create a manual health record",
+    "a request to report anonymous api_call telemetry",
+    "a request to list integration connection status",
+    "a request to disconnect an integration",
+    "a request to get run adherence",
+    "a request to list missed doses",
+    "a request to get dose status for a run's scheduled days",
+    "a request to undo a logged dose",
+    "a request to list active protocol substances for quick-pick",
+    "a request to list today's scheduled doses across active runs",
+    "a request to log a run-scoped protocol dose from a quick-picked intervention",
+];
 
-/// The active iOS Pact gate.
+/// Interactions kept in `ios-backend.json` as documentation of what iOS sends
+/// and expects, but excluded from provider verification. Two groups:
 ///
-/// This is NOT `#[ignore]`d — it runs on `cargo test --test contract` and in CI,
-/// and it FAILS if the provider drifts from the iOS HealthKit-sync contract.
+/// External-upstream dependencies (unverifiable in this harness by design):
+/// - "a request to sign in with Apple" and "a request to link an Apple
+///   account" require Apple's JWKS endpoint plus a genuinely signed
+///   `id_token`; the harness has no Apple upstream.
+/// - "a request to connect MyChart via SMART-on-FHIR" and "a request to sync
+///   MyChart lab results" require a live FHIR upstream, and the harness
+///   config leaves `mychart_client_id` unset (MyChart disabled).
 ///
-/// It deliberately verifies only the deterministic HealthKit-sync subset (see
-/// [`IOS_HEALTHKIT_INTERACTIONS`]). Most of the remaining iOS interactions
-/// cannot be verified today because the committed `ios-backend.json` is a
-/// Pact v2 document with no matching rules for them: every dynamic field
-/// (generated UUIDs, timestamps, invite codes) and every literal path id
-/// (`proto-1`, fixed admin UUIDs) is matched by exact equality, which a real
-/// provider can never satisfy. The protocol dose log/skip interactions are
-/// the one exception — see [`verify_ios_dose_contract`], which does add
-/// matching rules and seeded state for just those two. Bringing the rest of
-/// the contract under verification requires the same treatment for every
-/// other interaction — tracked by `verify_ios_contract` below, which stays
-/// `#[ignore]`d until that work lands.
-#[tokio::test]
-async fn verify_ios_healthkit_contract() {
-    let contract = contracts_dir().join("ios-backend.json");
-    assert!(
-        contract.exists(),
-        "iOS contract file not found at {}",
-        contract.display()
-    );
+/// Known iOS-vs-backend drift (the contract documents what iOS really sends;
+/// the backend cannot satisfy it, and fixing the backend is out of scope for
+/// the contract gate — these need product fixes, not contract edits;
+/// tracked in #343):
+/// - "a request to sign in with username and password": iOS posts
+///   `{"username", "password"}` but the backend's `LoginRequest` requires an
+///   `email` field (renamed in PR #68), so the request fails deserialization.
+/// - "a request to register a push notification token": iOS posts
+///   `/api/v1/notifications/register` (iOS PR #204) but the backend serves
+///   `/api/v1/notifications/push-token` (backend PR #206) — 404.
+/// - "a request to get notification preferences": iOS defines
+///   `/api/v1/notifications/preferences` but the backend serves
+///   `/api/v1/protocols/notifications` — 404.
+/// - "a request to create an observation": iOS omits `source` from the
+///   request body, and `db::observations::insert` binds that `None` straight
+///   into the NOT NULL `observations.source` column instead of letting the
+///   `'manual'` default apply — constraint violation, 500.
+const IOS_EXCLUDED_INTERACTIONS: &[&str] = &[
+    "a request to sign in with Apple",
+    "a request to link an Apple account",
+    "a request to connect MyChart via SMART-on-FHIR",
+    "a request to sync MyChart lab results",
+    "a request to sign in with username and password",
+    "a request to register a push notification token",
+    "a request to get notification preferences",
+    "a request to create an observation",
+];
 
-    let app = common::setup().await;
-    verify_contract(
-        &app,
-        contract,
-        FilterInfo::Description(IOS_HEALTHKIT_INTERACTIONS.to_string()),
-        // The three HealthKit-sync interactions must all run — see the doc on
-        // `expected_verified`. A renamed interaction must fail the gate, not
-        // silently skip it.
-        Some(3),
-    )
-    .await;
-}
-
-/// Regex matching the iOS protocol dose log/skip interactions in
-/// `ios-backend.json`. These interactions seed real provider state (see
-/// `seed_dose_protocol`) with fixed UUIDs and use `type` matchers on the
-/// server-generated `id`/`intervention_id`/`logged_at` response fields, so
-/// they can be verified deterministically against the live provider.
-const IOS_DOSE_INTERACTIONS: &str = "^a request to (log|skip) a protocol dose$";
-
-/// Active iOS Pact gate for the protocol dose log/skip endpoints.
-///
-/// Regression test for the `line_id` / `protocol_line_id` field-name mismatch
-/// between the backend and clients: the backend request/response structs
-/// used to use `line_id` while the contract (and both clients) send/expect
-/// `protocol_line_id`, silently breaking dose logging in production. This
-/// test is NOT `#[ignore]`d — it fails the build if either interaction is
-/// ever renamed out of `IOS_DOSE_INTERACTIONS` (silent-skip guard) or if the
-/// provider's request/response shape drifts from the contract again.
-#[tokio::test]
-async fn verify_ios_dose_contract() {
-    let contract = contracts_dir().join("ios-backend.json");
-    assert!(
-        contract.exists(),
-        "iOS contract file not found at {}",
-        contract.display()
-    );
-
-    let app = common::setup().await;
-    verify_contract(
-        &app,
-        contract,
-        FilterInfo::Description(IOS_DOSE_INTERACTIONS.to_string()),
-        Some(2),
-    )
-    .await;
-}
-
-/// Regex matching the iOS adherence/missed-doses interactions in
-/// `ios-backend.json`. These seed a deterministic protocol run (see
-/// `seed_adherence_run`) via fixed UUIDs and a fixed `start_date` offset, so
-/// they verify against the live provider with only a `type` matcher on the
-/// calendar-date-dependent `date` fields.
-const IOS_ADHERENCE_INTERACTIONS: &str = "^a request to (get run adherence|list missed doses)$";
-
-/// Active iOS Pact gate for the run-adherence and missed-doses read
-/// endpoints (`GET /protocols/runs/:run_id/adherence`,
-/// `GET /protocols/runs/missed-doses`). Follows the same verified-slice
-/// pattern as [`verify_ios_dose_contract`]: NOT `#[ignore]`d, fails if the
-/// provider's response shape drifts from the contract or if either
-/// interaction is renamed out of `IOS_ADHERENCE_INTERACTIONS`.
-#[tokio::test]
-async fn verify_ios_adherence_contract() {
-    let contract = contracts_dir().join("ios-backend.json");
-    assert!(
-        contract.exists(),
-        "iOS contract file not found at {}",
-        contract.display()
-    );
-
-    let app = common::setup().await;
-    verify_contract(
-        &app,
-        contract,
-        FilterInfo::Description(IOS_ADHERENCE_INTERACTIONS.to_string()),
-        Some(2),
-    )
-    .await;
-}
-
-/// Count interactions in `contract_path` whose `description` exactly equals
-/// one of `descriptions`. Reads and parses the pact JSON directly, entirely
-/// independent of the regex `FilterInfo` that `verify_contract` passes to
-/// `pact_verifier` — the point is to give the not-yet-landed tests below a
-/// genuine second source of truth for `expected_verified` rather than
-/// re-deriving the same number from the same filter twice (which would
-/// trivially agree with itself even if the filter regex were wrong).
-fn interaction_count(contract_path: &std::path::Path, descriptions: &[&str]) -> usize {
+/// All interaction descriptions in a contract file. Parses the pact JSON
+/// directly, independent of the regex `FilterInfo` that `verify_contract`
+/// passes to `pact_verifier`, so the coverage assertion below is a genuine
+/// second source of truth rather than the same filter applied twice.
+fn interaction_descriptions(contract_path: &std::path::Path) -> Vec<String> {
     let raw = std::fs::read_to_string(contract_path).expect("read contract file");
     let json: Value = serde_json::from_str(&raw).expect("parse contract JSON");
     json["interactions"]
         .as_array()
         .expect("interactions is an array")
         .iter()
-        .filter(|interaction| {
+        .map(|interaction| {
             interaction["description"]
                 .as_str()
-                .is_some_and(|d| descriptions.contains(&d))
+                .expect("interaction has a description")
+                .to_string()
         })
-        .count()
+        .collect()
 }
 
-/// Exact interaction descriptions added by `feat/ios-dose-backfill-adherence`
-/// (PR #318, unmerged at the time this test was written) to
-/// `ios-backend.json`. Backs [`verify_ios_dose_status_contract`].
-const IOS_DOSE_STATUS_DESCRIPTIONS: &[&str] = &[
-    "a request to get dose status for a run's scheduled days",
-    "a request to undo a logged dose",
-];
+/// Escape regex metacharacters so an interaction description can be embedded
+/// verbatim in the `FilterInfo::Description` alternation.
+fn regex_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if "\\.+*?()|[]{}^$#-~".contains(c) {
+            out.push('\\');
+        }
+        out.push(c);
+    }
+    out
+}
 
-/// Regex matching the same two interactions, for `pact_verifier`'s
-/// `FilterInfo::Description`.
-const IOS_DOSE_STATUS_INTERACTIONS: &str =
-    "^a request to (get dose status for a run's scheduled days|undo a logged dose)$";
-
-/// Active iOS Pact gate for the run-doses (dose-status) and undo-dose
-/// endpoints (`GET /protocols/runs/:run_id/doses`,
-/// `DELETE /protocols/runs/:run_id/doses/:dose_id`).
+/// The active iOS Pact gate.
 ///
-/// These two interactions ship on `feat/ios-dose-backfill-adherence`
-/// (PR #318) — that PR, not this one, owns the `ios-backend.json` change
-/// that adds them. On `main` today, `ios-backend.json` doesn't contain them
-/// yet, so instead of a hardcoded `expected_verified` (which would fail
-/// before the interactions exist), `expected_verified` is computed by
-/// [`interaction_count`] from whatever contract file is actually loaded:
-/// `0` today (test passes vacuously — there is nothing to verify yet), `2`
-/// once PR #318 merges and the interactions land, at which point this
-/// becomes a real verification. The provider state it depends on,
-/// "a protocol run with a logged dose exists" (`seed_logged_dose`), already
-/// exists so that day-one verification works without a follow-up PR; "get
-/// dose status for a run's scheduled days" reuses the existing "a protocol
-/// run with adherence data exists" state (`seed_adherence_run`) unchanged.
+/// This is NOT `#[ignore]`d — it runs on `cargo test --test contract` and in
+/// CI, and it FAILS if the provider drifts from any interaction in
+/// [`IOS_VERIFIED_INTERACTIONS`]. Only the interactions in
+/// [`IOS_EXCLUDED_INTERACTIONS`] (external upstreams and documented
+/// iOS-vs-backend drift) stay outside the gate, and the coverage assertion
+/// below forces every contract interaction into exactly one of the two lists.
+///
+/// `expected_verified` is the verified list's length, so a renamed or removed
+/// interaction fails the gate instead of being silently skipped
+/// (`verify_provider_async` reports success when a filter matches nothing).
 #[tokio::test]
-async fn verify_ios_dose_status_contract() {
+async fn verify_ios_contract_verifiable_set() {
     let contract = contracts_dir().join("ios-backend.json");
     assert!(
         contract.exists(),
@@ -927,98 +1350,81 @@ async fn verify_ios_dose_status_contract() {
         contract.display()
     );
 
-    let expected = interaction_count(&contract, IOS_DOSE_STATUS_DESCRIPTIONS);
+    let all = interaction_descriptions(&contract);
 
-    let app = common::setup().await;
-    verify_contract(
-        &app,
-        contract,
-        FilterInfo::Description(IOS_DOSE_STATUS_INTERACTIONS.to_string()),
-        Some(expected),
-    )
-    .await;
-}
-
-/// Exact interaction description added by `feat/ios-quick-pick` (PR #319,
-/// unmerged at the time this test was written) to `ios-backend.json`. Backs
-/// [`verify_ios_quick_pick_contract`].
-const IOS_QUICK_PICK_DESCRIPTIONS: &[&str] =
-    &["a request to list active protocol substances for quick-pick"];
-
-/// Regex matching the same interaction, for `pact_verifier`'s
-/// `FilterInfo::Description`.
-const IOS_QUICK_PICK_INTERACTIONS: &str =
-    "^a request to list active protocol substances for quick-pick$";
-
-/// Active iOS Pact gate for `GET /protocols/active-substances`.
-///
-/// Ships on `feat/ios-quick-pick` (PR #319) — see the doc comment on
-/// [`verify_ios_dose_status_contract`] for why `expected_verified` is
-/// computed via [`interaction_count`] rather than hardcoded: `0` on `main`
-/// today, `1` once PR #319 merges. The provider state it depends on, "an
-/// active protocol run with substances exists" (`seed_active_substances_run`),
-/// already exists so verification is live from day one of the merge.
-#[tokio::test]
-async fn verify_ios_quick_pick_contract() {
-    let contract = contracts_dir().join("ios-backend.json");
-    assert!(
-        contract.exists(),
-        "iOS contract file not found at {}",
-        contract.display()
+    // Descriptions must be unique: `FilterInfo::Description` and the
+    // classification lists both key on description, so a duplicate makes an
+    // interaction silently shadow another (the base contract used to contain
+    // exactly this).
+    let unique: std::collections::HashSet<&str> = all.iter().map(String::as_str).collect();
+    assert_eq!(
+        unique.len(),
+        all.len(),
+        "ios-backend.json contains duplicate interaction descriptions"
     );
 
-    let expected = interaction_count(&contract, IOS_QUICK_PICK_DESCRIPTIONS);
+    // The lists must be disjoint — an interaction can't be both verified and
+    // excluded.
+    for desc in IOS_VERIFIED_INTERACTIONS {
+        assert!(
+            !IOS_EXCLUDED_INTERACTIONS.contains(desc),
+            "{desc:?} is in both IOS_VERIFIED_INTERACTIONS and IOS_EXCLUDED_INTERACTIONS"
+        );
+    }
 
-    let app = common::setup().await;
-    verify_contract(
-        &app,
-        contract,
-        FilterInfo::Description(IOS_QUICK_PICK_INTERACTIONS.to_string()),
-        Some(expected),
-    )
-    .await;
-}
+    // Stale-entry guard: every classified description must still exist in the
+    // contract, so a renamed/removed interaction can't leave a dead entry
+    // behind.
+    for desc in IOS_VERIFIED_INTERACTIONS
+        .iter()
+        .chain(IOS_EXCLUDED_INTERACTIONS)
+    {
+        assert!(
+            unique.contains(desc),
+            "{desc:?} is classified in this test but no longer exists in ios-backend.json"
+        );
+    }
 
-/// Regex matching the medication-sync intervention-create interactions.
-/// Both carry a `type` matcher on the server-generated response `id` and
-/// deterministic request bodies, so they verify against the live provider.
-/// The replayed-create interaction pins the load-bearing idempotency
-/// semantics: a re-POST of an already-synced dose must return 200 with the
-/// existing row, never 409 (iOS treats any non-2xx as a sync failure).
-const IOS_INTERVENTION_CREATE_INTERACTIONS: &str = "^a (request to create an intervention \
-without dose or route|replayed request to create an already-synced intervention)$";
+    // Coverage gate: every interaction must be classified.
+    for desc in &all {
+        assert!(
+            IOS_VERIFIED_INTERACTIONS.contains(&desc.as_str())
+                || IOS_EXCLUDED_INTERACTIONS.contains(&desc.as_str()),
+            "unclassified iOS contract interaction {desc:?}: add it to \
+             IOS_VERIFIED_INTERACTIONS (with provider-state seeding and matchers) \
+             or to IOS_EXCLUDED_INTERACTIONS with a documented reason"
+        );
+    }
 
-/// Active iOS Pact gate for idempotent intervention creation
-/// (`POST /interventions` with `source`/`source_id`).
-#[tokio::test]
-async fn verify_ios_intervention_create_contract() {
-    let contract = contracts_dir().join("ios-backend.json");
-    assert!(
-        contract.exists(),
-        "iOS contract file not found at {}",
-        contract.display()
+    let filter = format!(
+        "^(?:{})$",
+        IOS_VERIFIED_INTERACTIONS
+            .iter()
+            .map(|d| regex_escape(d))
+            .collect::<Vec<_>>()
+            .join("|")
     );
 
     let app = common::setup().await;
     verify_contract(
         &app,
         contract,
-        FilterInfo::Description(IOS_INTERVENTION_CREATE_INTERACTIONS.to_string()),
-        // Both interactions must run — a renamed interaction must fail the
-        // gate, not silently skip it.
-        Some(2),
+        FilterInfo::Description(filter),
+        Some(IOS_VERIFIED_INTERACTIONS.len()),
     )
     .await;
 }
 
-/// Full iOS contract verification.
+/// Full iOS contract verification, including [`IOS_EXCLUDED_INTERACTIONS`].
 ///
-/// Ignored: `ios-backend.json` lacks Pact matching rules and seeded provider
-/// state for most interactions (see [`verify_ios_healthkit_contract`]). Re-author
-/// the contract with matchers and complete the `StateExecutor` seeding, then drop
-/// this `#[ignore]`.
+/// Ignored: the excluded interactions cannot pass in this harness — the Apple
+/// and MyChart ones need live external upstreams, and the login/notification
+/// ones document real iOS-vs-backend drift (see the exclusion list's doc
+/// comment). Everything else is verified by
+/// [`verify_ios_contract_verifiable_set`]. Drop this `#[ignore]` only once
+/// the exclusion list is empty.
 #[tokio::test]
-#[ignore = "ios-backend.json needs matching rules + full provider-state seeding — tracked separately"]
+#[ignore = "verifies IOS_EXCLUDED_INTERACTIONS too — needs Apple/FHIR upstreams and iOS drift fixes"]
 async fn verify_ios_contract() {
     let contract = contracts_dir().join("ios-backend.json");
     assert!(

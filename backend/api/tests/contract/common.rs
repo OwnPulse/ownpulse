@@ -15,6 +15,12 @@ use testcontainers::runners::AsyncRunner;
 use testcontainers_modules::postgres::Postgres;
 use tokio::sync::OnceCell;
 
+/// AES-256-GCM key the contract-test server is configured with. Exposed so
+/// provider-state seeders can encrypt fixture tokens (e.g. integration
+/// tokens) with the same key the handlers will decrypt them with.
+pub const TEST_ENCRYPTION_KEY: &str =
+    "0000000000000000000000000000000000000000000000000000000000000000";
+
 /// Holds the running server address and database pool for one contract test.
 pub struct ContractTestApp {
     pub port: u16,
@@ -137,8 +143,7 @@ fn test_config(database_url: &str) -> api::config::Config {
         google_calendar_api_base_url: None,
         mychart_client_id: None,
         mychart_allow_insecure_urls: true,
-        encryption_key: "0000000000000000000000000000000000000000000000000000000000000000"
-            .to_string(),
+        encryption_key: TEST_ENCRYPTION_KEY.to_string(),
         storage_path: None,
         app_user: None,
         app_password_hash: None,
