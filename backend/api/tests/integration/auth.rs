@@ -1707,3 +1707,41 @@ async fn test_register_second_user_without_invite_fails_when_require_invite_enab
         "error message should mention invite code requirement"
     );
 }
+
+/// The daily sweep deletes tokens expired past the retention margin and
+/// nothing else.
+#[tokio::test]
+async fn test_expired_token_sweep_removes_only_expired_rows() {
+    let test_app = common::setup().await;
+    let user_id = insert_test_user(&test_app.pool, "sweepjob@example.com", "sweeppass").await;
+
+    // Three rows: long-expired (swept), freshly-expired (kept — inside the
+    // seven-day theft-detection margin), and valid (kept).
+    sqlx::query(
+        "INSERT INTO refresh_tokens (user_id, token_hash, expires_at, family_id)
+         VALUES ($1, 'long-expired-hash', now() - interval '8 days', gen_random_uuid()),
+                ($1, 'fresh-expired-hash', now() - interval '1 day', gen_random_uuid()),
+                ($1, 'valid-hash', now() + interval '1 day', gen_random_uuid())",
+    )
+    .bind(user_id)
+    .execute(&test_app.pool)
+    .await
+    .unwrap();
+
+    let removed = api::db::refresh_tokens::delete_expired(&test_app.pool)
+        .await
+        .unwrap();
+    assert_eq!(removed, 1);
+
+    let mut remaining: Vec<String> =
+        sqlx::query_scalar("SELECT token_hash FROM refresh_tokens WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(&test_app.pool)
+            .await
+            .unwrap();
+    remaining.sort();
+    assert_eq!(
+        remaining,
+        vec!["fresh-expired-hash".to_string(), "valid-hash".to_string()]
+    );
+}

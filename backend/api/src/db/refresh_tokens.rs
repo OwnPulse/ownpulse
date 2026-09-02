@@ -145,6 +145,20 @@ pub async fn cleanup_family(
     Ok(result.rows_affected())
 }
 
+/// Delete refresh tokens expired more than seven days ago. Rotation's
+/// per-family sweep only covers families that rotate again; rows of
+/// abandoned families otherwise accumulate until this global sweep removes
+/// them. The seven-day margin keeps recently-expired rotated rows around so
+/// presenting one still fires the post-grace theft detection instead of the
+/// benign unknown-token path.
+pub async fn delete_expired(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let result =
+        sqlx::query("DELETE FROM refresh_tokens WHERE expires_at < now() - interval '7 days'")
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected())
+}
+
 /// Revoke a family inside the caller's transaction. The refresh handler
 /// holds the presented row's lock, so a pool-side revocation would deadlock
 /// against itself; the post-commit [`delete_family`] passes catch any
