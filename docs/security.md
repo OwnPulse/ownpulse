@@ -19,7 +19,7 @@ Administrative access (SSH, kubectl, monitoring) goes through a Tailscale mesh V
 ## Authentication
 
 - **JWT access tokens** — HS256, 1-hour expiry by default (`JWT_EXPIRY_SECONDS`). Transmitted in the `Authorization: Bearer` header. Never stored in localStorage or cookies.
-- **Refresh tokens** — httpOnly, Secure, SameSite=Lax cookies. 30-day expiry by default (`REFRESH_TOKEN_EXPIRY_SECONDS`). Rotated on each use; old tokens are invalidated.
+- **Refresh tokens** — httpOnly, Secure, SameSite=Lax cookies. 30-day expiry by default (`REFRESH_TOKEN_EXPIRY_SECONDS`). Rotated on each use. A rotated token stays presentable for a 60-second grace window (web tabs share one cookie and race their refreshes) and always resolves to the same successor; reuse after the window is treated as theft and revokes the whole token family.
 - **Google OAuth** — used for signup and login. The server validates the Google ID token and issues its own JWT. No Google tokens are stored beyond the initial exchange.
 - **Rate limiting** — login and token refresh endpoints are rate-limited to 5 requests per 60 seconds per IP.
 

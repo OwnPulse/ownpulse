@@ -14,6 +14,7 @@ use crate::AppState;
 use crate::auth::extractor::AuthUser;
 use crate::auth::jwt::{decode_access_token, encode_access_token};
 use crate::auth::refresh::{generate_refresh_token, hash_refresh_token};
+use crate::crypto;
 use crate::db::invites;
 use crate::db::password_reset_tokens;
 use crate::db::refresh_tokens;
@@ -255,6 +256,15 @@ pub async fn register(
     issue_tokens(&state, user.id, role).await
 }
 
+/// How long a rotated refresh token stays presentable. Web tabs share one
+/// httpOnly cookie, so concurrent refreshes race; within this window every
+/// caller receives the same successor instead of a 401 logout. Reuse after
+/// the window is treated as theft and revokes the token family. Keep this
+/// well under `REFRESH_TOKEN_EXPIRY_SECONDS` — a large value disables reuse
+/// detection. `rotated_at` is written with Postgres `now()` and compared
+/// against app-side time; 60s dwarfs any realistic clock skew.
+const REFRESH_ROTATE_GRACE_SECONDS: i64 = 60;
+
 /// POST /auth/refresh — rotate refresh token, issue new access + refresh.
 ///
 /// Accepts the refresh token from either a JSON body (`{"refresh_token": "..."}`)
@@ -292,35 +302,170 @@ pub async fn refresh(
     };
 
     let token_hash = hash_refresh_token(&token_value, &state.config.jwt_secret);
+    let hash_prefix = &token_hash[..8.min(token_hash.len())];
 
-    match refresh_tokens::find_by_hash(&state.pool, &token_hash).await {
-        Ok(row) => {
-            if row.expires_at < Utc::now() {
-                return Err(ApiError::Unauthorized);
-            }
+    // The row lock serializes concurrent refreshes of this token and blocks
+    // a concurrent family revocation (logout) until the rotation commits —
+    // a revoked family can never be resurrected by an in-flight refresh.
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-            let family_id = row.family_id;
-            let user_id = row.user_id;
+    let row = refresh_tokens::find_by_hash_for_update(&mut tx, &token_hash)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-            // Rotate: delete old token, issue new pair in the same family
-            refresh_tokens::delete_by_hash(&state.pool, &token_hash)
+    let Some(row) = row else {
+        // Unknown hash: most commonly a stale tab refreshing after its
+        // family was revoked (logout). Not an attack signal by itself.
+        tracing::info!(
+            token_hash_prefix = %hash_prefix,
+            "unknown refresh token (revoked or never issued)"
+        );
+        return Err(ApiError::Unauthorized);
+    };
+
+    let family_id = row.family_id;
+    let user_id = row.user_id;
+    let now = Utc::now();
+    let grace = chrono::Duration::seconds(REFRESH_ROTATE_GRACE_SECONDS);
+
+    // Use the transaction's connection — a second pool acquire while this
+    // one is pinned can exhaust the pool under a multi-tab refresh burst.
+    let user = users::find_by_id_tx(&mut tx, user_id)
+        .await
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => ApiError::Unauthorized,
+            other => ApiError::Internal(other.to_string()),
+        })?;
+    if user.status != "active" {
+        return Err(ApiError::Forbidden);
+    }
+
+    if row.expires_at < now {
+        // An expired rotated token presented after grace is the same theft
+        // signal as a live one — don't lose it to the expiry check.
+        if row.rotated_at.is_some_and(|t| now - t > grace) {
+            revoke_family_in_tx(&state, tx, family_id).await?;
+            tracing::warn!(
+                %user_id,
+                %family_id,
+                token_hash_prefix = %hash_prefix,
+                "expired refresh token reused after grace window — family revoked"
+            );
+        }
+        return Err(ApiError::Unauthorized);
+    }
+
+    match row.rotated_at {
+        None => {
+            // Active token: rotate. Mint the successor, persist it and its
+            // encrypted copy for grace replays, all under the row lock.
+            let raw_refresh = generate_refresh_token();
+            let refresh_hash = hash_refresh_token(&raw_refresh, &state.config.jwt_secret);
+            let expires_at =
+                now + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
+            refresh_tokens::insert_with_family_tx(
+                &mut tx,
+                user_id,
+                &refresh_hash,
+                expires_at,
+                family_id,
+            )
+            .await
+            .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            let key = crypto::parse_encryption_key(&state.config.encryption_key)
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            let ciphertext = crypto::encrypt(&raw_refresh, &key)
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            refresh_tokens::mark_rotated_tx(&mut tx, &token_hash, &ciphertext)
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            tx.commit()
                 .await
                 .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-            issue_tokens_with_family(&state, user_id, family_id, is_web).await
+            if let Err(e) =
+                refresh_tokens::cleanup_family(&state.pool, family_id, REFRESH_ROTATE_GRACE_SECONDS)
+                    .await
+            {
+                tracing::warn!(%family_id, error = %e, "refresh token family cleanup failed");
+            }
+
+            rotation_response(&state, &user, raw_refresh, is_web)
         }
-        Err(sqlx::Error::RowNotFound) => {
-            // Token not found — possible replay attack. The token was already
-            // rotated, meaning an attacker (or stale client) is presenting a
-            // used token. Return 401.
+        Some(t) if now - t <= grace => {
+            // A concurrent refresh already rotated this token — normal for
+            // web tabs sharing one cookie. Return the SAME successor: a
+            // shared chain keeps a thief and the legitimate client
+            // colliding, so post-grace reuse detection still fires.
+            tx.commit()
+                .await
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            let Some(ciphertext) = row.successor_ciphertext else {
+                tracing::warn!(
+                    %user_id,
+                    %family_id,
+                    "rotated refresh token has no stored successor — rejecting"
+                );
+                return Err(ApiError::Unauthorized);
+            };
+            let key = crypto::parse_encryption_key(&state.config.encryption_key)
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+            let previous = state
+                .config
+                .encryption_key_previous
+                .as_deref()
+                .and_then(|k| crypto::parse_encryption_key(k).ok());
+            let raw_refresh = crypto::decrypt(&ciphertext, &key, previous.as_ref())
+                .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+            tracing::info!(
+                %user_id,
+                %family_id,
+                token_hash_prefix = %hash_prefix,
+                "refresh token replayed within grace — returning shared successor"
+            );
+            rotation_response(&state, &user, raw_refresh, is_web)
+        }
+        Some(_) => {
+            // Reuse well after rotation: assume the token was stolen and
+            // revoke every token in the family.
+            revoke_family_in_tx(&state, tx, family_id).await?;
             tracing::warn!(
-                token_hash_prefix = %&token_hash[..8.min(token_hash.len())],
-                "refresh token not found — possible replay attack"
+                %user_id,
+                %family_id,
+                token_hash_prefix = %hash_prefix,
+                "refresh token reused after grace window — family revoked"
             );
             Err(ApiError::Unauthorized)
         }
-        Err(_) => Err(ApiError::Unauthorized),
     }
+}
+
+/// Revoke a family from inside the refresh handler's transaction (running it
+/// on the pool would deadlock against the handler's own row lock), then run
+/// the pool-side passes that catch successors a concurrent rotation slipped
+/// past the transactional DELETE's snapshot.
+async fn revoke_family_in_tx(
+    state: &AppState,
+    mut tx: sqlx::Transaction<'_, sqlx::Postgres>,
+    family_id: Uuid,
+) -> Result<(), ApiError> {
+    refresh_tokens::delete_family_tx(&mut tx, family_id)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+    if let Err(e) = refresh_tokens::delete_family(&state.pool, family_id).await {
+        tracing::warn!(%family_id, error = %e, "post-revocation family sweep failed");
+    }
+    Ok(())
 }
 
 /// POST /auth/logout — revoke the refresh token, clear the cookie.
@@ -1298,38 +1443,23 @@ async fn issue_tokens(state: &AppState, user_id: Uuid, role: &str) -> Result<Res
     Ok(response)
 }
 
-/// Issue tokens inheriting an existing refresh-token family (used during rotation).
-async fn issue_tokens_with_family(
+/// Build the refresh-rotation response: fresh access token plus the given
+/// refresh token in the cookie (and, for native clients, the body). Performs
+/// no database writes — the caller persists the token.
+fn rotation_response(
     state: &AppState,
-    user_id: Uuid,
-    family_id: Uuid,
+    user: &crate::models::user::UserRow,
+    raw_refresh: String,
     is_web: bool,
 ) -> Result<Response, ApiError> {
-    let user = users::find_by_id(&state.pool, user_id)
-        .await
-        .map_err(|_| ApiError::Unauthorized)?;
-
-    if user.status != "active" {
-        return Err(ApiError::Forbidden);
-    }
-
     let access_token = encode_access_token(
-        user_id,
+        user.id,
         &user.role,
         &state.config.jwt_secret,
         &state.config.web_origin,
         state.config.jwt_expiry_seconds,
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
-
-    let raw_refresh = generate_refresh_token();
-    let refresh_hash = hash_refresh_token(&raw_refresh, &state.config.jwt_secret);
-    let expires_at =
-        Utc::now() + chrono::Duration::seconds(state.config.refresh_token_expiry_seconds as i64);
-
-    refresh_tokens::insert_with_family(&state.pool, user_id, &refresh_hash, expires_at, family_id)
-        .await
-        .map_err(|e| ApiError::Internal(e.to_string()))?;
 
     let secure = secure_attr(&state.config);
     let cookie = format!(

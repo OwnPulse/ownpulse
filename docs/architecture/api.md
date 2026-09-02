@@ -106,6 +106,24 @@ before any client has ever reported.
 | POST | `/auth/link` | Link a new auth provider to current user (requires JWT) | 1 |
 | DELETE | `/auth/link/:provider` | Unlink an auth provider from current user (requires JWT) | 1 |
 
+#### `POST /auth/refresh`
+
+Rotates the presented refresh token and returns a new access + refresh pair.
+The token comes from the JSON body (`{"refresh_token": "..."}`, used by iOS)
+or the httpOnly cookie (web); the body takes precedence.
+
+Rotation marks the old token rather than deleting it, and a rotated token
+stays presentable for a **60-second grace window**: web tabs share one
+cookie, so concurrent refreshes race, and within the window every caller
+receives the **same successor token** (stored AES-256-GCM encrypted on the
+rotated row until it is swept). One shared successor keeps all holders of
+a leaked token on a single chain, so rotation collisions recur and reuse
+detection still fires. Reuse of a rotated token **after** the window is
+treated as theft — every token in the family is revoked and the request
+gets 401. An unknown token is a plain 401 (typically a stale tab
+refreshing after logout). Rotation runs under a row lock, so a refresh
+racing a logout cannot resurrect the revoked family.
+
 #### `POST /auth/register`
 
 Register a new account. When the instance requires invites (`REQUIRE_INVITE=true`, the default), a valid invite code must be provided.

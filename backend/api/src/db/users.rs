@@ -50,6 +50,24 @@ pub async fn find_by_id(pool: &PgPool, id: Uuid) -> Result<UserRow, sqlx::Error>
     .await
 }
 
+/// Find a user by id on the caller's transaction connection. Callers already
+/// holding a transaction must use this instead of [`find_by_id`] — acquiring
+/// a second pool connection while one is pinned can exhaust the pool under
+/// concurrent load.
+pub async fn find_by_id_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    id: Uuid,
+) -> Result<UserRow, sqlx::Error> {
+    sqlx::query_as::<_, UserRow>(
+        "SELECT id, username, password_hash, auth_provider, email,
+                role, data_region, federation_id, status, created_at
+         FROM users WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_one(&mut **tx)
+    .await
+}
+
 /// Find a user by email address.
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<UserRow, sqlx::Error> {
     sqlx::query_as::<_, UserRow>(

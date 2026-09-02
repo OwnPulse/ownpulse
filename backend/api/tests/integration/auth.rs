@@ -273,8 +273,9 @@ async fn test_refresh_with_json_body() {
     assert!(!json["access_token"].as_str().unwrap().is_empty());
     assert_eq!(json["token_type"], "Bearer");
     // Body-based refresh (iOS) must return the rotated refresh token in the
-    // body so the client can persist it. Without this, the next refresh
-    // attempt replays the deleted token and fails 401.
+    // body so the client can persist it. Without this, the client keeps
+    // presenting the rotated token until the grace window closes and the
+    // family is revoked.
     assert!(json["refresh_token"].is_string());
     let new_refresh = json["refresh_token"].as_str().unwrap();
     assert!(!new_refresh.is_empty());
@@ -754,14 +755,13 @@ async fn test_login_returns_decodable_jwt() {
     assert!(claims.exp > chrono::Utc::now().timestamp());
 }
 
-/// Regression test: presenting an already-rotated refresh token should return 401.
-/// This verifies replay detection — once a token is rotated, the old one is invalid.
+/// A rotated token presented within the grace window gets its own
+/// successor — the multi-tab race must not 401 (and log out) the loser.
 #[tokio::test]
-async fn test_rotated_refresh_token_returns_401() {
+async fn test_rotated_token_within_grace_gets_own_successor() {
     let test_app = common::setup().await;
     insert_test_user(&test_app.pool, "grace@example.com", "replaytest").await;
 
-    // Step 1: Login to get the initial refresh token
     let login_response = test_app
         .app
         .clone()
@@ -771,59 +771,281 @@ async fn test_rotated_refresh_token_returns_401() {
         ))
         .await
         .unwrap();
-
     assert_eq!(login_response.status(), 200);
-    let old_refresh_token = extract_refresh_cookie(&login_response);
+    let shared_token = extract_refresh_cookie(&login_response);
 
-    // Step 2: Use the refresh token to rotate it (get a new one)
+    // Tab A rotates the shared token.
+    let tab_a = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={shared_token}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(tab_a.status(), 200);
+    let token_a = extract_refresh_cookie(&tab_a);
+    assert_ne!(shared_token, token_a, "token should have rotated");
+
+    // Tab B presents the same (now rotated) token within the grace window.
+    let tab_b = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={shared_token}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        tab_b.status(),
+        200,
+        "a concurrent refresh within the grace window must not 401"
+    );
+    let token_b = extract_refresh_cookie(&tab_b);
+    assert_eq!(
+        token_a, token_b,
+        "grace replays return the SAME successor — a fork would let a thief \
+         hold an undetectable parallel session"
+    );
+
+    // Every grace replay keeps returning that successor.
+    let tab_c = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={shared_token}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(tab_c.status(), 200);
+    assert_eq!(extract_refresh_cookie(&tab_c), token_a);
+
+    // The shared successor is usable and rotates normally.
+    let next = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={token_a}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(next.status(), 200, "successor token must be usable");
+}
+
+/// Rotation opportunistically sweeps the family's dead rows: rotated past
+/// grace, or expired. Active rows must survive the sweep.
+#[tokio::test]
+async fn test_rotation_sweeps_stale_family_rows() {
+    let test_app = common::setup().await;
+    let user_id = insert_test_user(&test_app.pool, "sweep@example.com", "replaytest").await;
+
+    let login_response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/login",
+            &json!({"email": "sweep@example.com", "password": "replaytest"}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(login_response.status(), 200);
+    let t0 = extract_refresh_cookie(&login_response);
+
+    // Rotate T0 → T1, then age T0 past the grace window.
+    let r1 = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={t0}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(r1.status(), 200);
+    let t1 = extract_refresh_cookie(&r1);
+
+    sqlx::query(
+        "UPDATE refresh_tokens SET rotated_at = rotated_at - interval '10 minutes'
+         WHERE user_id = $1 AND rotated_at IS NOT NULL",
+    )
+    .bind(user_id)
+    .execute(&test_app.pool)
+    .await
+    .unwrap();
+
+    // Rotating T1 sweeps the stale T0 row and leaves the fresh rows intact.
+    let r2 = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={t1}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(r2.status(), 200);
+    let t2 = extract_refresh_cookie(&r2);
+
+    let remaining: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM refresh_tokens WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&test_app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        remaining, 2,
+        "sweep removes the stale rotated row, keeping T1 (in grace) and T2 (active)"
+    );
+
+    // The surviving active token still works.
+    let r3 = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={t2}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(r3.status(), 200);
+}
+
+/// Reuse of a rotated token after the grace window is treated as theft:
+/// 401, and every token in the family is revoked.
+#[tokio::test]
+async fn test_reuse_after_grace_revokes_family() {
+    let test_app = common::setup().await;
+    let user_id = insert_test_user(&test_app.pool, "reuse@example.com", "replaytest").await;
+
+    let login_response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/login",
+            &json!({"email": "reuse@example.com", "password": "replaytest"}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(login_response.status(), 200);
+    let old_token = extract_refresh_cookie(&login_response);
+
     let refresh_response = test_app
         .app
         .clone()
         .oneshot(post_with_cookie(
             "/api/v1/auth/refresh",
-            &format!("refresh_token={old_refresh_token}"),
+            &format!("refresh_token={old_token}"),
         ))
         .await
         .unwrap();
-
     assert_eq!(refresh_response.status(), 200);
-    let new_refresh_token = extract_refresh_cookie(&refresh_response);
-    assert_ne!(
-        old_refresh_token, new_refresh_token,
-        "token should have rotated"
-    );
+    let new_token = extract_refresh_cookie(&refresh_response);
 
-    // Step 3: Present the OLD (already-rotated) refresh token — should be rejected
-    let replay_response = test_app
+    // Age the rotation past the grace window (no sleeping).
+    sqlx::query(
+        "UPDATE refresh_tokens SET rotated_at = rotated_at - interval '10 minutes'
+         WHERE user_id = $1 AND rotated_at IS NOT NULL",
+    )
+    .bind(user_id)
+    .execute(&test_app.pool)
+    .await
+    .unwrap();
+
+    let reuse_response = test_app
         .app
         .clone()
         .oneshot(post_with_cookie(
             "/api/v1/auth/refresh",
-            &format!("refresh_token={old_refresh_token}"),
+            &format!("refresh_token={old_token}"),
         ))
         .await
         .unwrap();
-
     assert_eq!(
-        replay_response.status(),
+        reuse_response.status(),
         401,
-        "presenting an already-rotated refresh token should return 401"
+        "reuse after the grace window must be rejected"
     );
 
-    // Step 4: Verify the new token still works
-    let valid_response = test_app
+    // The whole family is dead: the current token is revoked too.
+    let successor_response = test_app
         .app
+        .clone()
         .oneshot(post_with_cookie(
             "/api/v1/auth/refresh",
-            &format!("refresh_token={new_refresh_token}"),
+            &format!("refresh_token={new_token}"),
         ))
         .await
         .unwrap();
-
     assert_eq!(
-        valid_response.status(),
-        200,
-        "the current valid refresh token should still work"
+        successor_response.status(),
+        401,
+        "family revocation must invalidate the successor token"
+    );
+
+    let remaining: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM refresh_tokens WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&test_app.pool)
+            .await
+            .unwrap();
+    assert_eq!(remaining, 0, "no tokens should survive family revocation");
+}
+
+/// A token whose family was revoked by logout must stay dead. Covers the
+/// sequential case; the concurrent race is closed by the refresh handler's
+/// FOR UPDATE row lock plus the multi-pass revocation delete.
+#[tokio::test]
+async fn test_refresh_after_logout_does_not_resurrect_session() {
+    let test_app = common::setup().await;
+    let user_id = insert_test_user(&test_app.pool, "postlogout@example.com", "replaytest").await;
+
+    let login_response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/login",
+            &json!({"email": "postlogout@example.com", "password": "replaytest"}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(login_response.status(), 200);
+    let token = extract_refresh_cookie(&login_response);
+
+    let logout_response = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/logout",
+            &format!("refresh_token={token}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(logout_response.status(), 204);
+
+    let refresh_response = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={token}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(refresh_response.status(), 401);
+
+    let remaining: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM refresh_tokens WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&test_app.pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        remaining, 0,
+        "refresh after logout must not mint new tokens"
     );
 }
 

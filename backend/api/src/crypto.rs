@@ -67,16 +67,25 @@ pub fn encrypt(plaintext: &str, key: &[u8; 32]) -> Result<String, CryptoError> {
 /// Decrypt a ciphertext string, handling both versioned (`v1:...`) and legacy
 /// (unversioned hex) formats.
 ///
-/// For legacy values, the current key is tried first. If that fails and
-/// `previous_key` is provided, it is tried as a fallback to support key
-/// rotation in progress.
+/// The current key is tried first. If that fails and `previous_key` is
+/// provided, it is tried as a fallback so values encrypted before an
+/// in-progress key rotation stay readable.
 pub fn decrypt(
     ciphertext: &str,
     current_key: &[u8; 32],
     previous_key: Option<&[u8; 32]>,
 ) -> Result<String, CryptoError> {
     if let Some(rest) = ciphertext.strip_prefix("v1:") {
-        decrypt_raw(rest, current_key)
+        // Try the previous key too: values encrypted just before a key
+        // rotation must stay readable. GCM's auth tag makes a wrong-key
+        // attempt fail cleanly rather than yield garbage.
+        match decrypt_raw(rest, current_key) {
+            Ok(pt) => Ok(pt),
+            Err(_) if previous_key.is_some() => {
+                decrypt_raw(rest, previous_key.expect("checked in guard"))
+            }
+            Err(e) => Err(e),
+        }
     } else {
         // Legacy unversioned — try current key, fall back to previous.
         match decrypt_raw(ciphertext, current_key) {
@@ -286,6 +295,25 @@ mod tests {
         // current=new_key, previous=old_key — should fall back and succeed.
         let decrypted = decrypt(&legacy_hex, &new_key, Some(&old_key)).unwrap();
         assert_eq!(decrypted, plaintext);
+    }
+
+    #[test]
+    fn versioned_ciphertext_falls_back_to_previous_key() {
+        let old_key = test_key();
+        let new_key = alt_key();
+
+        // Encrypted with the old key in the current v1 format, decrypted
+        // after a key rotation: current=new, previous=old must succeed.
+        let encrypted = encrypt("secret", &old_key).unwrap();
+        assert!(encrypted.starts_with("v1:"));
+        let decrypted = decrypt(&encrypted, &new_key, Some(&old_key)).unwrap();
+        assert_eq!(decrypted, "secret");
+
+        // Without the previous key it must fail, not fall through.
+        assert!(matches!(
+            decrypt(&encrypted, &new_key, None),
+            Err(CryptoError::DecryptionFailed)
+        ));
     }
 
     #[test]

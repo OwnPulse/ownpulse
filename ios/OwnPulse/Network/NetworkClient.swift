@@ -28,10 +28,11 @@ enum NetworkError: Error {
 ///
 /// The dashboard fires several requests in parallel; when the access token has
 /// expired they each get a 401 at roughly the same time. Without coalescing
-/// each one would POST the (single-use) refresh token independently, and since
-/// the backend rotates the refresh token on every call, all but the first
-/// rotation would invalidate the others. This coordinator guarantees that N
-/// concurrent 401s trigger exactly ONE refresh — the rest await the same task.
+/// each one would POST the refresh token independently. The backend's rotation
+/// grace window tolerates such races, but only the coalesced flow guarantees
+/// the keychain ends up holding the successor token. This coordinator
+/// guarantees that N concurrent 401s trigger exactly ONE refresh — the rest
+/// await the same task.
 private actor RefreshCoordinator {
     private var inFlight: Task<Void, Error>?
 
@@ -224,8 +225,8 @@ final class NetworkClient: NetworkClientProtocol, @unchecked Sendable {
     /// Refreshes the session, coalescing concurrent callers into one refresh.
     ///
     /// All N concurrent 401s during the dashboard's parallel fetch share a
-    /// single in-flight refresh task so the single-use refresh token is rotated
-    /// exactly once. Once it completes, each original caller retries its request
+    /// single in-flight refresh task so the refresh token is rotated exactly
+    /// once. Once it completes, each original caller retries its request
     /// (with `isRetry: true`) and re-reads the freshly-saved access token from
     /// the keychain — it never triggers a second refresh.
     private func refreshToken() async throws {
@@ -264,11 +265,11 @@ final class NetworkClient: NetworkClientProtocol, @unchecked Sendable {
             throw NetworkError.unauthorized
         }
 
-        // Backend rotates the refresh token on every refresh (single-use) and
-        // returns the new one in the JSON body for native clients. Persist BOTH
-        // the access token and the rotated refresh token — saving only the
-        // access token leaves a consumed refresh token in the keychain, which
-        // breaks the next refresh and surfaces as a dashboard error on launch.
+        // Backend rotates the refresh token on every refresh and returns the
+        // new one in the JSON body for native clients. Persist BOTH the access
+        // token and the rotated refresh token — saving only the access token
+        // leaves a rotated refresh token in the keychain, which stops working
+        // once its grace window closes and surfaces as a dashboard error.
         try keychainService.save(
             key: AuthService.accessTokenKey,
             data: Data(tokenResponse.accessToken.utf8)
