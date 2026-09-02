@@ -17,12 +17,12 @@ appId: health.ownpulse.app
 
 # Confirm the login screen is visible before acting
 - assertVisible:
-    id: "usernameField"
+    id: "emailField"
 
 # Enter registration credentials (pre-registered via backend/web with invite code)
 - tapOn:
-    id: "usernameField"
-- inputText: "newuser"
+    id: "emailField"
+- inputText: "newuser@example.com"
 
 - tapOn:
     id: "passwordField"

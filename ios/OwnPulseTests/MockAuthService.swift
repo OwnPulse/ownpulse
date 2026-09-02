@@ -11,7 +11,7 @@ final class MockAuthService: AuthServiceProtocol {
     var loginWithGoogleCalled = false
     var loginWithAppleCalled = false
     var loginWithPasswordCalled = false
-    var loginWithPasswordArgs: (username: String, password: String)?
+    var loginWithPasswordArgs: (email: String, password: String)?
     var logoutCalled = false
     var handleCallbackCalled = false
     var handleCallbackURL: URL?
@@ -30,9 +30,9 @@ final class MockAuthService: AuthServiceProtocol {
         isAuthenticated = true
     }
 
-    func loginWithPassword(username: String, password: String) async throws {
+    func loginWithPassword(email: String, password: String) async throws {
         loginWithPasswordCalled = true
-        loginWithPasswordArgs = (username, password)
+        loginWithPasswordArgs = (email, password)
         if let error = loginError { throw error }
         isAuthenticated = true
     }

@@ -1874,7 +1874,7 @@ async fn test_get_notification_preferences_default() {
         .clone()
         .oneshot(common::auth_request(
             "GET",
-            "/api/v1/protocols/notifications",
+            "/api/v1/notifications/preferences",
             &token,
             None,
         ))
@@ -1905,7 +1905,7 @@ async fn test_update_notification_preferences() {
         .clone()
         .oneshot(common::auth_request(
             "PUT",
-            "/api/v1/protocols/notifications",
+            "/api/v1/notifications/preferences",
             &token,
             Some(&body),
         ))

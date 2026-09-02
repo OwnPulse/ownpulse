@@ -564,12 +564,15 @@ fn base_routes() -> Router<AppState> {
             "/protocols/runs/:run_id/doses/:dose_id",
             delete(protocols::delete_dose),
         )
+        // Under /notifications, not /protocols: both clients and both pact
+        // contracts address these here, and dose reminders are only the
+        // first consumer of per-user notification settings.
         .route(
-            "/protocols/notifications",
+            "/notifications/preferences",
             get(protocols::get_notification_preferences),
         )
         .route(
-            "/protocols/notifications",
+            "/notifications/preferences",
             put(protocols::update_notification_preferences),
         )
         .route(

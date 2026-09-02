@@ -95,7 +95,7 @@ before any client has ever reported.
 
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
-| POST | `/auth/login` | Login with username/password, returns JWT + refresh token | 1 |
+| POST | `/auth/login` | Login with email/password, returns JWT + refresh token | 1 |
 | POST | `/auth/register` | Register with invite code (see below) | 1 |
 | POST | `/auth/refresh` | Refresh token rotation (cookie) | 1 |
 | POST | `/auth/logout` | Invalidate refresh token | 1 |
