@@ -6,20 +6,25 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Insert a new intervention.
+/// Insert a new intervention. Returns `None` when `source_id` is set and a
+/// row with the same (user, source, source_id) already exists — a replayed
+/// sync upload, resolved by the caller via [`get_by_source_id`].
 pub async fn insert(
     pool: &PgPool,
     user_id: Uuid,
     intervention: &CreateIntervention,
-) -> Result<InterventionRow, sqlx::Error> {
+) -> Result<Option<InterventionRow>, sqlx::Error> {
     sqlx::query_as::<_, InterventionRow>(
         "INSERT INTO interventions
             (user_id, substance, dose, unit, route, administered_at,
-             fasted, timing_relative_to, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             fasted, timing_relative_to, notes, source, source_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9,
+                 COALESCE($10, 'manual'), $11)
+         ON CONFLICT (user_id, source, source_id)
+             WHERE source_id IS NOT NULL DO NOTHING
          RETURNING id, user_id, substance, dose, unit, route,
                    administered_at, fasted, timing_relative_to, notes,
-                   healthkit_written, created_at, updated_at",
+                   healthkit_written, source, source_id, created_at, updated_at",
     )
     .bind(user_id)
     .bind(&intervention.substance)
@@ -30,7 +35,30 @@ pub async fn insert(
     .bind(intervention.fasted)
     .bind(&intervention.timing_relative_to)
     .bind(&intervention.notes)
-    .fetch_one(pool)
+    .bind(&intervention.source)
+    .bind(&intervention.source_id)
+    .fetch_optional(pool)
+    .await
+}
+
+/// Get an intervention by its sync identity, scoped to user.
+pub async fn get_by_source_id(
+    pool: &PgPool,
+    user_id: Uuid,
+    source: &str,
+    source_id: &str,
+) -> Result<Option<InterventionRow>, sqlx::Error> {
+    sqlx::query_as::<_, InterventionRow>(
+        "SELECT id, user_id, substance, dose, unit, route,
+                administered_at, fasted, timing_relative_to, notes,
+                healthkit_written, source, source_id, created_at, updated_at
+         FROM interventions
+         WHERE user_id = $1 AND source = $2 AND source_id = $3",
+    )
+    .bind(user_id)
+    .bind(source)
+    .bind(source_id)
+    .fetch_optional(pool)
     .await
 }
 
@@ -44,7 +72,7 @@ pub async fn list(
     sqlx::query_as::<_, InterventionRow>(
         "SELECT id, user_id, substance, dose, unit, route,
                 administered_at, fasted, timing_relative_to, notes,
-                healthkit_written, created_at, updated_at
+                healthkit_written, source, source_id, created_at, updated_at
          FROM interventions
          WHERE user_id = $1
            AND ($2::timestamptz IS NULL OR administered_at >= $2)
@@ -68,7 +96,7 @@ pub async fn get_by_id(
     sqlx::query_as::<_, InterventionRow>(
         "SELECT id, user_id, substance, dose, unit, route,
                 administered_at, fasted, timing_relative_to, notes,
-                healthkit_written, created_at, updated_at
+                healthkit_written, source, source_id, created_at, updated_at
          FROM interventions
          WHERE id = $1 AND user_id = $2",
     )
@@ -101,7 +129,7 @@ pub async fn update(
          WHERE id = $1 AND user_id = $2
          RETURNING id, user_id, substance, dose, unit, route,
                    administered_at, fasted, timing_relative_to, notes,
-                   healthkit_written, created_at, updated_at",
+                   healthkit_written, source, source_id, created_at, updated_at",
     )
     .bind(id)
     .bind(user_id)

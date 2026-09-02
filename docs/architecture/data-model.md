@@ -71,11 +71,17 @@ Substance, medication, and supplement logs. Names are freeform text with no vali
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `name` | TEXT | Freeform, never validated |
-| `dosage` | DOUBLE nullable | |
+| `substance` | TEXT | Freeform, never validated |
+| `dose` | DOUBLE nullable | |
 | `unit` | TEXT nullable | e.g. `mg`, `ml`, `iu` |
 | `route` | TEXT nullable | e.g. `oral`, `sublingual`, `injection` |
-| `taken_at` | TIMESTAMPTZ | |
+| `administered_at` | TIMESTAMPTZ | |
+| `fasted` | BOOLEAN nullable | |
+| `timing_relative_to` | TEXT nullable | |
+| `notes` | TEXT nullable | |
+| `healthkit_written` | BOOLEAN nullable | Set by the HealthKit write-back flow |
+| `source` | TEXT NOT NULL | `manual` (default) or the syncing system, e.g. `healthkit`. Added in `0037_interventions_source_dedup.sql`. Immutable — absent from `PATCH`. |
+| `source_id` | TEXT nullable | Stable id in the originating system (HealthKit dose-event UUID). Partial unique index on `(user_id, source, source_id) WHERE source_id IS NOT NULL` makes synced creates idempotent; manual entries never set it. Added in `0037`. |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | Added in `0032_protocol_dose_tracking.sql`. Set on every edit via `PATCH /interventions/:id`. |
 

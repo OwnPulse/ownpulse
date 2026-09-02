@@ -658,11 +658,11 @@ actor SyncEngine {
     /// Anchor-store key for the HealthKit dose-event query anchor.
     static let medicationAnchorKey = "medication_dose_event"
     /// Anchor-store key for dose-event IDs already uploaded in a sync pass
-    /// whose anchor was never saved. The interventions endpoint has no
-    /// server-side dedup, so re-uploading a dose event after a partial
-    /// failure would create a duplicate intervention. Stored in the anchors
-    /// table deliberately — it is sync-cursor state with the anchor's
-    /// lifecycle, not a new kind of persistence.
+    /// whose anchor was never saved. The server dedupes on
+    /// (user, source, source_id), so this set is a second layer that keeps
+    /// retries from re-sending requests the server would only bounce as
+    /// replays. Stored in the anchors table deliberately — it is sync-cursor
+    /// state with the anchor's lifecycle, not a new kind of persistence.
     static let medicationPostedIDsKey = "medication_dose_posted_ids"
 
     @available(iOS 26.0, *)
@@ -690,8 +690,10 @@ actor SyncEngine {
                 unit: record.unit,
                 route: record.route,
                 administeredAt: formatter.string(from: record.administeredAt),
-                fasted: false,
-                notes: "Synced from Apple Health"
+                fasted: nil,
+                notes: "Synced from Apple Health",
+                source: "healthkit",
+                sourceId: record.sourceId
             )
             let _: InterventionResponse = try await networkClient.request(
                 method: "POST",

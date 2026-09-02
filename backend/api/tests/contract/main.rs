@@ -226,6 +226,15 @@ impl ProviderStateExecutor for StateExecutor {
                 let mut store = self.tokens.lock().expect("token store lock");
                 store.user_token = Some(token);
             }
+            "an intervention synced from healthkit already exists" => {
+                let (user_id, token) = create_test_user(&self.pool, &self.jwt_secret).await;
+                seed_synced_intervention(&self.pool, user_id).await;
+                result.insert("user_id".to_string(), Value::String(user_id.to_string()));
+                result.insert("token".to_string(), Value::String(token.clone()));
+
+                let mut store = self.tokens.lock().expect("token store lock");
+                store.user_token = Some(token);
+            }
             "the server is running" => {
                 // No setup needed — the server is already running.
             }
@@ -617,6 +626,24 @@ async fn seed_sleep_record(pool: &sqlx::PgPool, user_id: Uuid) {
     .expect("seed sleep observation");
 }
 
+/// Seed the healthkit-synced intervention that the contract's replayed-create
+/// interaction expects to already exist. `source_id` is pinned to the same
+/// literal the interaction's request body carries.
+async fn seed_synced_intervention(pool: &sqlx::PgPool, user_id: Uuid) {
+    sqlx::query(
+        // date-ok
+        "INSERT INTO interventions
+            (user_id, substance, unit, administered_at, notes, source, source_id)
+         VALUES ($1, 'Magnesium', 'count', '2026-03-28T08:00:00Z',
+                 'Synced from Apple Health', 'healthkit',
+                 'aaaaaaaa-1111-2222-3333-444444444444')",
+    )
+    .bind(user_id)
+    .execute(pool)
+    .await
+    .expect("seed synced intervention");
+}
+
 /// Resolve the path to `pact/contracts/` relative to the workspace root.
 fn contracts_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../pact/contracts")
@@ -948,6 +975,38 @@ async fn verify_ios_quick_pick_contract() {
         contract,
         FilterInfo::Description(IOS_QUICK_PICK_INTERACTIONS.to_string()),
         Some(expected),
+    )
+    .await;
+}
+
+/// Regex matching the medication-sync intervention-create interactions.
+/// Both carry a `type` matcher on the server-generated response `id` and
+/// deterministic request bodies, so they verify against the live provider.
+/// The replayed-create interaction pins the load-bearing idempotency
+/// semantics: a re-POST of an already-synced dose must return 200 with the
+/// existing row, never 409 (iOS treats any non-2xx as a sync failure).
+const IOS_INTERVENTION_CREATE_INTERACTIONS: &str = "^a (request to create an intervention \
+without dose or route|replayed request to create an already-synced intervention)$";
+
+/// Active iOS Pact gate for idempotent intervention creation
+/// (`POST /interventions` with `source`/`source_id`).
+#[tokio::test]
+async fn verify_ios_intervention_create_contract() {
+    let contract = contracts_dir().join("ios-backend.json");
+    assert!(
+        contract.exists(),
+        "iOS contract file not found at {}",
+        contract.display()
+    );
+
+    let app = common::setup().await;
+    verify_contract(
+        &app,
+        contract,
+        FilterInfo::Description(IOS_INTERVENTION_CREATE_INTERACTIONS.to_string()),
+        // Both interactions must run — a renamed interaction must fail the
+        // gate, not silently skip it.
+        Some(2),
     )
     .await;
 }

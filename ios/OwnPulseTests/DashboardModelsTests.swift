@@ -282,8 +282,10 @@ struct DashboardModelsTests {
             route: nil,
             // date-ok
             administeredAt: "2026-03-28T08:00:00Z",
-            fasted: false,
-            notes: "Synced from Apple Health"
+            fasted: nil,
+            notes: "Synced from Apple Health",
+            source: "healthkit",
+            sourceId: "dose-event-1"
         )
 
         let data = try encoder.encode(intervention)
@@ -291,7 +293,30 @@ struct DashboardModelsTests {
 
         #expect(dict?.keys.contains("dose") == false)
         #expect(dict?.keys.contains("route") == false)
+        #expect(dict?.keys.contains("fasted") == false)
         #expect(dict?["substance"] as? String == "Magnesium")
+        #expect(dict?["source"] as? String == "healthkit")
+        #expect(dict?["source_id"] as? String == "dose-event-1")
+    }
+
+    @Test("CreateIntervention omits provenance keys for manual entries")
+    func encodeCreateInterventionManualOmitsProvenance() throws {
+        let intervention = CreateIntervention(
+            substance: "Caffeine",
+            dose: 200,
+            unit: "mg",
+            route: "oral",
+            // date-ok
+            administeredAt: "2026-03-28T08:00:00Z",
+            fasted: true,
+            notes: nil
+        )
+
+        let data = try encoder.encode(intervention)
+        let dict = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+
+        #expect(dict?.keys.contains("source") == false)
+        #expect(dict?.keys.contains("source_id") == false)
     }
 
     // MARK: - CreateObservation

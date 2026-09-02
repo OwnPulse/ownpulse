@@ -19,6 +19,8 @@ pub struct InterventionRow {
     pub timing_relative_to: Option<String>,
     pub notes: Option<String>,
     pub healthkit_written: Option<bool>,
+    pub source: String,
+    pub source_id: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -33,6 +35,12 @@ pub struct CreateIntervention {
     pub fasted: Option<bool>,
     pub timing_relative_to: Option<String>,
     pub notes: Option<String>,
+    /// Originating system, e.g. "healthkit". Defaults to "manual".
+    pub source: Option<String>,
+    /// Stable id in the originating system (e.g. the HealthKit dose-event
+    /// UUID). When set, (user, source, source_id) is unique and a replayed
+    /// create returns the existing row.
+    pub source_id: Option<String>,
 }
 
 #[derive(Deserialize)]

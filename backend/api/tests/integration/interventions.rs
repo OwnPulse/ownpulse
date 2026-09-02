@@ -286,3 +286,296 @@ async fn test_update_intervention_not_found_returns_404() {
         .unwrap();
     assert_eq!(resp.status(), 404);
 }
+
+#[tokio::test]
+async fn test_synced_create_is_idempotent() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "substance": "levothyroxine",
+        "unit": "count",
+        // date-ok
+        "administered_at": "2026-03-18T07:30:00Z",
+        "source": "healthkit",
+        "source_id": "dose-event-1"
+    });
+
+    let first = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/interventions",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 201);
+    let first_json = common::body_json(first).await;
+    assert_eq!(first_json["source"], "healthkit");
+    assert_eq!(first_json["source_id"], "dose-event-1");
+
+    let replay = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/interventions",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(replay.status(), 200);
+    let replay_json = common::body_json(replay).await;
+    assert_eq!(replay_json["id"], first_json["id"]);
+
+    let list = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            "/api/v1/interventions",
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    let list_json = common::body_json(list).await;
+    assert_eq!(list_json.as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn test_manual_creates_are_never_deduped() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "substance": "caffeine",
+        "dose": 200.0,
+        "unit": "mg",
+        // date-ok
+        "administered_at": "2026-03-18T07:30:00Z"
+    });
+
+    let mut ids = Vec::new();
+    for _ in 0..2 {
+        let resp = app
+            .app
+            .clone()
+            .oneshot(common::auth_request(
+                "POST",
+                "/api/v1/interventions",
+                &token,
+                Some(&body),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 201);
+        let json = common::body_json(resp).await;
+        assert_eq!(json["source"], "manual");
+        assert_eq!(json["source_id"], serde_json::Value::Null);
+        ids.push(json["id"].clone());
+    }
+    assert_ne!(ids[0], ids[1]);
+}
+
+#[tokio::test]
+async fn test_source_id_is_scoped_per_user() {
+    let app = common::setup().await;
+    let (_user_a, token_a) = common::create_test_user(&app).await;
+    let (_user_b, token_b) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "substance": "levothyroxine",
+        "unit": "count",
+        // date-ok
+        "administered_at": "2026-03-18T07:30:00Z",
+        "source": "healthkit",
+        "source_id": "dose-event-shared"
+    });
+
+    for token in [&token_a, &token_b] {
+        let resp = app
+            .app
+            .clone()
+            .oneshot(common::auth_request(
+                "POST",
+                "/api/v1/interventions",
+                token,
+                Some(&body),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 201);
+    }
+}
+
+#[tokio::test]
+async fn test_export_includes_intervention_provenance() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "substance": "levothyroxine",
+        "unit": "count",
+        // date-ok
+        "administered_at": "2026-03-18T07:30:00Z",
+        "source": "healthkit",
+        "source_id": "dose-event-export"
+    });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/interventions",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201);
+
+    let export = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "GET",
+            "/api/v1/export/json",
+            &token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(export.status(), 200);
+    let json = common::body_json(export).await;
+    let interventions = json["interventions"].as_array().unwrap();
+    assert_eq!(interventions.len(), 1);
+    assert_eq!(interventions[0]["source"], "healthkit");
+    assert_eq!(interventions[0]["source_id"], "dose-event-export");
+}
+
+#[tokio::test]
+async fn test_oversized_source_id_is_rejected() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "substance": "levothyroxine",
+        "unit": "count",
+        // date-ok
+        "administered_at": "2026-03-18T07:30:00Z",
+        "source": "healthkit",
+        "source_id": "x".repeat(256)
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/interventions",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 400);
+}
+
+#[tokio::test]
+async fn test_replayed_create_does_not_publish_event() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let mut receiver = app.event_tx.subscribe();
+
+    let body = json!({
+        "substance": "levothyroxine",
+        "unit": "count",
+        // date-ok
+        "administered_at": "2026-03-18T07:30:00Z",
+        "source": "healthkit",
+        "source_id": "dose-event-sse"
+    });
+
+    let first = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/interventions",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 201);
+    receiver
+        .try_recv()
+        .expect("a fresh create must publish an event");
+
+    let replay = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/interventions",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(replay.status(), 200);
+
+    assert!(
+        receiver.try_recv().is_err(),
+        "a replayed create must not publish an event"
+    );
+}
+
+#[tokio::test]
+async fn test_source_defaults_to_manual_when_only_source_id_sent() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "substance": "levothyroxine",
+        "unit": "count",
+        // date-ok
+        "administered_at": "2026-03-18T07:30:00Z",
+        "source_id": "dose-event-no-source"
+    });
+
+    let first = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/interventions",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), 201);
+    let first_json = common::body_json(first).await;
+    assert_eq!(first_json["source"], "manual");
+
+    let replay = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/interventions",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(replay.status(), 200);
+    let replay_json = common::body_json(replay).await;
+    assert_eq!(replay_json["id"], first_json["id"]);
+}

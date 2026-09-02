@@ -354,6 +354,20 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 | PATCH | `/interventions/:id` | Update an intervention's fields | 1 |
 | DELETE | `/interventions/:id` | Delete an intervention | 1 |
 
+#### `POST /interventions`
+
+Creates an intervention. Optional `source` (default `"manual"`) and
+`source_id` record provenance for synced records — the iOS medication sync
+sends `source: "healthkit"` with the HealthKit dose-event UUID as
+`source_id`.
+
+**Idempotency:** when `source_id` is set, `(user, source, source_id)` is
+unique. A replayed create — same identity already stored — returns
+`200 OK` with the existing row instead of inserting a duplicate; a fresh
+insert returns `201 Created`. Replays emit no SSE event. Rows without a
+`source_id` (manual entries) are never deduplicated. Provenance is
+immutable: `PATCH` cannot change `source` or `source_id`.
+
 #### `PATCH /interventions/:id`
 
 Updates any subset of an intervention's mutable fields. All fields are

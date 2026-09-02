@@ -130,13 +130,44 @@ struct CreateIntervention: Codable, Sendable {
     let unit: String
     let route: String?
     let administeredAt: String
-    let fasted: Bool
+    /// Nil when unknown (synced records) — HealthKit doesn't record fasted
+    /// state, and a fabricated value would misrepresent the user's data.
+    let fasted: Bool?
     let notes: String?
+    /// Originating system for synced records, e.g. "healthkit". Nil for
+    /// manual entries — the server defaults to "manual".
+    let source: String?
+    /// Stable id in the originating system. When set, the server dedupes
+    /// replayed creates on (user, source, source_id).
+    let sourceId: String?
+
+    init(
+        substance: String,
+        dose: Double?,
+        unit: String,
+        route: String?,
+        administeredAt: String,
+        fasted: Bool?,
+        notes: String?,
+        source: String? = nil,
+        sourceId: String? = nil
+    ) {
+        self.substance = substance
+        self.dose = dose
+        self.unit = unit
+        self.route = route
+        self.administeredAt = administeredAt
+        self.fasted = fasted
+        self.notes = notes
+        self.source = source
+        self.sourceId = sourceId
+    }
 
     enum CodingKeys: String, CodingKey {
         case substance, dose, unit, route
         case administeredAt = "administered_at"
-        case fasted, notes
+        case fasted, notes, source
+        case sourceId = "source_id"
     }
 }
 
