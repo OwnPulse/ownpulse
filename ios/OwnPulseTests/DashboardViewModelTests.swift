@@ -19,7 +19,7 @@ struct DashboardViewModelTests {
         DashboardSummary(
             latestCheckin: LatestCheckin(
                 energy: 7, mood: 8, focus: 6, recovery: 7, libido: 5,
-                date: ISO8601DateFormatter().string(from: Date())
+                date: localToday()
             ),
             checkinCount7d: checkinCount,
             healthRecordCount7d: healthRecords,
@@ -28,6 +28,18 @@ struct DashboardViewModelTests {
             latestLabDate: nil,
             pendingFriendShares: 0
         )
+    }
+
+    /// Today's date as the local calendar day, matching what clients submit
+    /// for check-in dates. An ISO8601/UTC timestamp diverges from the local
+    /// day for part of every day in non-UTC timezones, which made
+    /// `isToday`-dependent assertions fail between UTC and local midnight.
+    private func localToday() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        return formatter.string(from: Date())
     }
 
     private func makeBatchResponse() -> BatchSeriesResponse {
