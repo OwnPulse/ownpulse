@@ -17,7 +17,7 @@ OwnPulse uses JWT (JSON Web Token) authentication with automatic refresh token r
 
 - **iOS** -- tokens are stored in the system Keychain, protected by the device's hardware security.
 - **Web** -- the JWT is held in memory and the refresh token is stored as an httpOnly cookie, inaccessible to JavaScript.
-- **Rate limiting** -- login attempts are rate limited to 5 per minute per IP address to prevent brute-force attacks.
+- **Rate limiting** -- login attempts are rate limited to 10 per minute per IP address to prevent brute-force attacks.
 
 ## No tracking
 

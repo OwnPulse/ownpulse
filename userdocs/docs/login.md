@@ -56,5 +56,5 @@ If you are stuck on the login screen after clicking **Sign in with Apple** or **
 
 ## Security notes
 
-- Login attempts are rate limited to 5 per minute per IP address to prevent brute-force attacks.
+- Login attempts are rate limited to 10 per minute per IP address to prevent brute-force attacks.
 - Refresh tokens rotate automatically -- you do not need to do anything. If you are logged out unexpectedly, simply sign in again. The previous refresh token is invalidated on rotation, so there is no window for token reuse.
