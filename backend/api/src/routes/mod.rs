@@ -194,13 +194,27 @@ fn rate_limited_auth_routes() -> Router<AppState> {
     Router::new()
         .route("/auth/login", post(auth::login))
         .route("/auth/register", post(auth::register))
-        .route("/auth/refresh", post(auth::refresh))
-        .route("/auth/logout", post(auth::logout))
         .route("/auth/google/login", get(auth::google_login))
         .route("/auth/forgot-password", post(auth::forgot_password))
         .route("/auth/reset-password", post(auth::reset_password))
         .route("/auth/garmin/login", get(garmin::garmin_login))
         .route("/auth/oura/login", get(oura::oura_login))
+}
+
+/// Session-maintenance routes get their own IP-keyed bucket, separate from
+/// the strict login bucket. Refresh traffic is routine — every client
+/// refreshes hourly (JWT expiry), app-open and multi-tab bursts stack, and
+/// the rotation grace window exists precisely because those bursts are
+/// legitimate. Sharing the 10/min login budget would let routine refresh
+/// activity lock a user out of logging in, and vice versa. Logout lives
+/// here too: it is cookie-gated and idempotent (no credential-guessing
+/// surface), and it is the immediate family-revocation path — throttling it
+/// behind login spam would extend a stolen token's lifetime. IP-keyed
+/// because neither request carries a usable JWT to key on.
+fn rate_limited_session_routes() -> Router<AppState> {
+    Router::new()
+        .route("/auth/refresh", post(auth::refresh))
+        .route("/auth/logout", post(auth::logout))
 }
 
 /// OAuth callback routes that are server-initiated redirects protected by
@@ -240,6 +254,18 @@ pub fn api_routes() -> Router<AppState> {
 
     let rate_limited_auth = rate_limited_auth_routes().layer(GovernorLayer {
         config: auth_governor_conf.into(),
+    });
+
+    // --- Session maintenance (refresh, logout): 30 req/min per IP ---
+    let refresh_governor_conf = GovernorConfigBuilder::default()
+        .key_extractor(SmartIpKeyExtractor)
+        .per_second(2) // replenish 1 token every 2s -> 30/min
+        .burst_size(30)
+        .finish()
+        .expect("failed to build refresh governor config");
+
+    let rate_limited_session = rate_limited_session_routes().layer(GovernorLayer {
+        config: refresh_governor_conf.into(),
     });
 
     // --- Explore: 30 req/min per user (JWT sub) ---
@@ -292,6 +318,7 @@ pub fn api_routes() -> Router<AppState> {
 
     base_routes()
         .merge(rate_limited_auth)
+        .merge(rate_limited_session)
         .merge(oauth_callback_routes())
         .merge(rate_limited_explore)
         .merge(rate_limited_poll_accept)
@@ -304,6 +331,7 @@ pub fn api_routes() -> Router<AppState> {
 pub fn api_routes_without_rate_limit() -> Router<AppState> {
     base_routes()
         .merge(rate_limited_auth_routes())
+        .merge(rate_limited_session_routes())
         .merge(oauth_callback_routes())
         .merge(explore_routes())
         .merge(poll_accept_routes())

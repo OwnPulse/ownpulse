@@ -716,3 +716,78 @@ async fn test_poll_respond_rate_limit_rejects_after_burst() {
         "request beyond burst should be rate limited"
     );
 }
+
+// ─── Rate limiting: /auth/refresh has its own bucket (30 req/min per IP) ────
+
+/// Exhausting the login bucket must not block refreshes, and refresh traffic
+/// must not consume the login budget — routine hourly/multi-tab refreshes
+/// sharing the 10/min login bucket would lock users out.
+#[tokio::test]
+async fn test_refresh_bucket_is_independent_from_login_bucket() {
+    let app = common::setup_with_rate_limiting().await;
+    let email = format!("buckets-{}@example.com", Uuid::new_v4());
+    let password = "bucketpassword";
+    insert_test_user(&app.pool, &email, password).await;
+
+    // The IP-keyed extractor reads X-Forwarded-For in oneshot tests (no
+    // ConnectInfo); one shared address keeps every request in one bucket.
+    let ip = "203.0.113.7";
+    let login_req = |body: &Value| {
+        Request::builder()
+            .method("POST")
+            .uri("/api/v1/auth/login")
+            .header("content-type", "application/json")
+            .header("x-forwarded-for", ip)
+            .body(Body::from(serde_json::to_string(body).unwrap()))
+            .unwrap()
+    };
+
+    // One real login to obtain a refresh cookie (consumes 1 login token).
+    let login = app
+        .app
+        .clone()
+        .oneshot(login_req(&json!({"email": email, "password": password})))
+        .await
+        .unwrap();
+    assert_eq!(login.status(), 200);
+    let refresh_token = extract_refresh_cookie(&login);
+
+    // Burn the rest of the login bucket with failed attempts.
+    for _ in 0..9 {
+        let resp = app
+            .app
+            .clone()
+            .oneshot(login_req(&json!({"email": email, "password": "wrong"})))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 401);
+    }
+    let throttled = app
+        .app
+        .clone()
+        .oneshot(login_req(&json!({"email": email, "password": password})))
+        .await
+        .unwrap();
+    assert_eq!(throttled.status(), 429, "login bucket should be exhausted");
+
+    // Refresh still works: it draws from its own bucket.
+    let refresh = app
+        .app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/auth/refresh")
+                .header("cookie", format!("refresh_token={refresh_token}"))
+                .header("x-forwarded-for", ip)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        refresh.status(),
+        200,
+        "refresh must not be throttled by the exhausted login bucket"
+    );
+}
