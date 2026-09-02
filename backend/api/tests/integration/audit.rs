@@ -10,7 +10,7 @@ use crate::common;
 #[tokio::test]
 async fn test_export_creates_audit_entry() {
     let app = common::setup().await;
-    let (_user_id, token) = common::create_test_user(&app).await;
+    let (user_id, token) = common::create_test_user(&app).await;
 
     // Trigger a JSON export.
     let export_resp = app
@@ -26,9 +26,14 @@ async fn test_export_creates_audit_entry() {
         .unwrap();
     assert_eq!(export_resp.status(), 200);
 
-    // The tokio::spawn inside the handler is fire-and-forget. Give it a moment
-    // to complete before querying the audit log.
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    // The tokio::spawn inside the handler is fire-and-forget, so wait for
+    // the row rather than guessing how long the runner needs.
+    common::wait_for_count(
+        &app.pool,
+        "SELECT count(*) FROM data_access_log WHERE user_id = $1 AND action = 'export'",
+        user_id,
+    )
+    .await;
 
     // Audit log should have the entry.
     let log_resp = app
@@ -56,7 +61,7 @@ async fn test_export_creates_audit_entry() {
 #[tokio::test]
 async fn test_csv_export_creates_audit_entry() {
     let app = common::setup().await;
-    let (_user_id, token) = common::create_test_user(&app).await;
+    let (user_id, token) = common::create_test_user(&app).await;
 
     let export_resp = app
         .app
@@ -71,7 +76,12 @@ async fn test_csv_export_creates_audit_entry() {
         .unwrap();
     assert_eq!(export_resp.status(), 200);
 
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    common::wait_for_count(
+        &app.pool,
+        "SELECT count(*) FROM data_access_log WHERE user_id = $1",
+        user_id,
+    )
+    .await;
 
     let log_resp = app
         .app
@@ -99,7 +109,7 @@ async fn test_csv_export_creates_audit_entry() {
 #[tokio::test]
 async fn test_health_record_delete_creates_audit_entry() {
     let app = common::setup().await;
-    let (_user_id, token) = common::create_test_user(&app).await;
+    let (user_id, token) = common::create_test_user(&app).await;
 
     // Create a record.
     let create_body = json!({
@@ -139,7 +149,12 @@ async fn test_health_record_delete_creates_audit_entry() {
         .unwrap();
     assert_eq!(delete_resp.status(), 204);
 
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    common::wait_for_count(
+        &app.pool,
+        "SELECT count(*) FROM data_access_log WHERE user_id = $1",
+        user_id,
+    )
+    .await;
 
     // Audit log should reflect the delete.
     let log_resp = app
@@ -193,7 +208,7 @@ async fn test_audit_log_requires_auth() {
 #[tokio::test]
 async fn test_audit_log_is_scoped_to_user() {
     let app = common::setup().await;
-    let (_user_a, token_a) = common::create_test_user(&app).await;
+    let (user_a, token_a) = common::create_test_user(&app).await;
     let (_user_b, token_b) = common::create_test_user(&app).await;
 
     // User A performs an export.
@@ -210,7 +225,12 @@ async fn test_audit_log_is_scoped_to_user() {
         .unwrap();
     assert_eq!(export_resp.status(), 200);
 
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    common::wait_for_count(
+        &app.pool,
+        "SELECT count(*) FROM data_access_log WHERE user_id = $1",
+        user_a,
+    )
+    .await;
 
     // User B's audit log should be empty.
     let log_resp = app
