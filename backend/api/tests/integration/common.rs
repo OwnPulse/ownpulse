@@ -482,3 +482,24 @@ async fn run_migrations(pool: &PgPool) {
             .unwrap_or_else(|e| panic!("migration {} failed: {e}", path.display()));
     }
 }
+
+/// Poll the database until `query` (a `SELECT count(*)`-shaped statement
+/// bound to `user_id`) returns a nonzero count, or the deadline passes.
+///
+/// Handlers that audit or log via `tokio::spawn` are fire-and-forget, so a
+/// fixed sleep either flakes on a loaded runner or wastes time on a fast
+/// one. Returns the final count so callers can assert on it.
+pub async fn wait_for_count(pool: &sqlx::PgPool, query: &str, user_id: Uuid) -> i64 {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        let count: i64 = sqlx::query_scalar(query)
+            .bind(user_id)
+            .fetch_one(pool)
+            .await
+            .expect("count query");
+        if count > 0 || std::time::Instant::now() >= deadline {
+            return count;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+    }
+}
