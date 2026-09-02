@@ -13,7 +13,8 @@
 -- fork. One shared successor keeps a thief and the legitimate client on one
 -- chain, so they keep colliding and post-grace reuse detection still fires;
 -- independent forks would let a thief hold a session undetectably forever.
--- The ciphertext lives only until the rotated row is swept (grace + next
--- rotation).
+-- The ciphertext is swept with its row on the family's next rotation or
+-- revocation; a family that goes idle right after rotating keeps it until
+-- that next activity.
 ALTER TABLE refresh_tokens ADD COLUMN rotated_at TIMESTAMPTZ;
 ALTER TABLE refresh_tokens ADD COLUMN successor_ciphertext TEXT;

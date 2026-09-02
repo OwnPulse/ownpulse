@@ -332,9 +332,14 @@ pub async fn refresh(
     let now = Utc::now();
     let grace = chrono::Duration::seconds(REFRESH_ROTATE_GRACE_SECONDS);
 
-    let user = users::find_by_id(&state.pool, user_id)
+    // Use the transaction's connection — a second pool acquire while this
+    // one is pinned can exhaust the pool under a multi-tab refresh burst.
+    let user = users::find_by_id_tx(&mut tx, user_id)
         .await
-        .map_err(|_| ApiError::Unauthorized)?;
+        .map_err(|e| match e {
+            sqlx::Error::RowNotFound => ApiError::Unauthorized,
+            other => ApiError::Internal(other.to_string()),
+        })?;
     if user.status != "active" {
         return Err(ApiError::Forbidden);
     }
@@ -457,7 +462,9 @@ async fn revoke_family_in_tx(
     tx.commit()
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
-    let _ = refresh_tokens::delete_family(&state.pool, family_id).await;
+    if let Err(e) = refresh_tokens::delete_family(&state.pool, family_id).await {
+        tracing::warn!(%family_id, error = %e, "post-revocation family sweep failed");
+    }
     Ok(())
 }
 
