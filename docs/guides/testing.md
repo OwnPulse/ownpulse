@@ -18,7 +18,7 @@ Location: `#[cfg(test)]` modules and `tests/unit/`
 
 Location: `tests/integration/`
 
-- `testcontainers-rs` spins up an ephemeral Postgres container per test module via `common::setup_db()`.
+- `testcontainers-rs` shares one Postgres container per test binary; each test gets its own database, cloned from the pre-migrated `template_ownpulse` template via `common::setup()`.
 - External APIs mocked with `wiremock`. Fixtures in `tests/fixtures/<source>/`.
 - Fully parallel-safe -- no shared state.
 - Run: `cargo test --test integration`
@@ -29,7 +29,12 @@ Location: `tests/contract/`
 
 - `pact_verifier` reads `pact/contracts/*.json`.
 - Spins up the API against a testcontainers Postgres.
-- Verifies the backend satisfies all consumer contracts.
+- The iOS gate (`verify_ios_contract_verifiable_set`) replays every
+  interaction listed in `IOS_VERIFIED_INTERACTIONS` against the live provider,
+  with per-interaction provider-state seeding. Interactions that cannot be
+  verified in the harness (Apple/FHIR upstreams, documented iOS-vs-backend
+  drift) are listed in `IOS_EXCLUDED_INTERACTIONS` with reasons; the test
+  fails if a contract interaction is in neither list.
 - Run: `cargo test --test contract`
 
 ### Additional Checks
@@ -98,6 +103,11 @@ When adding or changing an API endpoint:
 1. Check if the endpoint is referenced in a contract.
 2. If yes: update the contract and run `cargo test --test contract`.
 3. If adding a new endpoint used by iOS or web: add it to the appropriate contract.
+4. Every `ios-backend.json` interaction must also be classified in
+   `backend/api/tests/contract/main.rs`: add its description to
+   `IOS_VERIFIED_INTERACTIONS` (with provider-state seeding and Pact `type`
+   matchers on server-generated fields) or to `IOS_EXCLUDED_INTERACTIONS`
+   with a documented reason. The contract gate fails otherwise.
 
 ## Test Data
 
