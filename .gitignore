@@ -41,3 +41,4 @@ ios/vendor/
 .claude/agents/
 .claude/worktrees/
 ios/build/
+backend/lcov.info

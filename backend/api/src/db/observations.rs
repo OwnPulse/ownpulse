@@ -18,7 +18,7 @@ pub async fn insert(
     sqlx::query_as::<_, ObservationRow>(
         r#"INSERT INTO observations
             (user_id, type, name, start_time, end_time, value, source, metadata)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'manual'), $8)
          RETURNING id, user_id, type, name, start_time, end_time,
                    value, source, source_id, metadata, created_at"#,
     )
@@ -52,7 +52,7 @@ pub async fn insert_synced(
     sqlx::query_as::<_, ObservationRow>(
         r#"INSERT INTO observations
             (user_id, type, name, start_time, end_time, value, source, metadata, source_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'manual'), $8, $9)
          ON CONFLICT (user_id, source, source_id) WHERE source_id IS NOT NULL
              DO NOTHING
          RETURNING id, user_id, type, name, start_time, end_time,

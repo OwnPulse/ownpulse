@@ -102,4 +102,12 @@ struct EndpointsTests {
     @Test func protocolsListMatchesBackendPath() {
         #expect(Endpoints.protocols == "/api/v1/protocols")
     }
+
+    @Test func pushTokenRegistrationMatchesBackendPath() {
+        #expect(Endpoints.notificationsRegister == "/api/v1/notifications/push-token")
+    }
+
+    @Test func notificationPreferencesMatchesBackendPath() {
+        #expect(Endpoints.notificationPreferences == "/api/v1/notifications/preferences")
+    }
 }

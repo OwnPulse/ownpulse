@@ -13,7 +13,7 @@ protocol AuthServiceProtocol: Sendable {
     var isAuthenticated: Bool { get }
     func loginWithGoogle() async throws
     func loginWithApple() async throws
-    func loginWithPassword(username: String, password: String) async throws
+    func loginWithPassword(email: String, password: String) async throws
     func logout() async
     func handleCallback(url: URL)
 }
@@ -173,10 +173,10 @@ final class AuthService: AuthServiceProtocol {
         onLoginSuccess?()
     }
 
-    func loginWithPassword(username: String, password: String) async throws {
-        logger.info("Starting password login for user: \(username, privacy: .private)")
+    func loginWithPassword(email: String, password: String) async throws {
+        logger.info("Starting password login for user: \(email, privacy: .private)")
 
-        let body = LoginRequest(username: username, password: password)
+        let body = LoginRequest(email: email, password: password)
         let response: TokenResponse = try await networkClient.request(
             method: "POST",
             path: Endpoints.authLogin,

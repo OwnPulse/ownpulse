@@ -78,13 +78,20 @@ struct APIModelsTests {
         #expect(decoded.platform == "ios")
     }
 
-    @Test("LoginRequest roundtrips")
+    @Test("LoginRequest roundtrips and sends the email key the backend expects")
     func loginRequestRoundtrip() throws {
-        let original = LoginRequest(username: "tony", password: "secret")
+        let original = LoginRequest(email: "tony@example.com", password: "secret")
         let data = try encoder.encode(original)
         let decoded = try decoder.decode(LoginRequest.self, from: data)
-        #expect(decoded.username == "tony")
+        #expect(decoded.email == "tony@example.com")
         #expect(decoded.password == "secret")
+
+        // The wire key is the whole bug class this pins: a symmetric
+        // roundtrip passed while the app sent `username` and the backend
+        // rejected every login.
+        let json = String(data: data, encoding: .utf8) ?? ""
+        #expect(json.contains("\"email\""))
+        #expect(!json.contains("\"username\""))
     }
 
     @Test("TokenResponseWithRefresh roundtrips with snake_case keys")

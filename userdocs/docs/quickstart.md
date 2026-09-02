@@ -7,7 +7,7 @@ This guide walks you through your first five minutes with OwnPulse -- from signi
 Open your OwnPulse web dashboard in a browser. If you have an invite link, open it to go directly to the registration page.
 
 - **Google OAuth** -- tap **Sign in with Google** and authorize OwnPulse. Your account is created automatically on first login.
-- **Username and password** -- choose a username and password on the registration page, or enter existing credentials on the login page.
+- **Email and password** -- register with your email address (a username is optional) on the registration page, then sign in with that email and password.
 
 !!! note "Invite codes"
     Registration requires an invite code. If you do not have one, request one at ownpulse.health or ask your administrator (self-hosted deployments).

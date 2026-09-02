@@ -38,14 +38,14 @@ struct LoginViewModelTests {
     func loginPassword() async {
         let mock = MockAuthService()
         let vm = LoginViewModel(authService: mock)
-        vm.username = "tony"
+        vm.email = "tony@example.com"
         vm.password = "secret123"
 
         vm.performLogin(.password)
         try? await Task.sleep(for: .milliseconds(50))
 
         #expect(mock.loginWithPasswordCalled == true)
-        #expect(mock.loginWithPasswordArgs?.username == "tony")
+        #expect(mock.loginWithPasswordArgs?.email == "tony@example.com")
         #expect(mock.loginWithPasswordArgs?.password == "secret123")
     }
 
@@ -53,7 +53,7 @@ struct LoginViewModelTests {
     func passwordClearedAfterLogin() async {
         let mock = MockAuthService()
         let vm = LoginViewModel(authService: mock)
-        vm.username = "tony"
+        vm.email = "tony@example.com"
         vm.password = "secret123"
 
         vm.performLogin(.password)
@@ -100,7 +100,7 @@ struct LoginViewModelTests {
             NSLocalizedDescriptionKey: "Wrong password",
         ])
         let vm = LoginViewModel(authService: mock)
-        vm.username = "tony"
+        vm.email = "tony@example.com"
         vm.password = "wrong"
 
         vm.performLogin(.password)

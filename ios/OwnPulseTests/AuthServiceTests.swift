@@ -91,10 +91,10 @@ struct AuthServiceTests {
         }
 
         let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
-        try await service.loginWithPassword(username: "tony", password: "s3cret")
+        try await service.loginWithPassword(email: "tony@example.com", password: "s3cret")
 
         #expect(service.isAuthenticated == true)
-        #expect(capturedBody?.username == "tony")
+        #expect(capturedBody?.email == "tony@example.com")
         #expect(capturedBody?.password == "s3cret")
 
         let storedAccess = try mockKeychain.load(key: AuthService.accessTokenKey)
@@ -113,7 +113,7 @@ struct AuthServiceTests {
         let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
 
         do {
-            try await service.loginWithPassword(username: "tony", password: "wrong")
+            try await service.loginWithPassword(email: "tony@example.com", password: "wrong")
             Issue.record("Expected error to be thrown")
         } catch {
             // Expected
@@ -368,7 +368,7 @@ struct AuthServiceTests {
             authenticatedAtFireTime = service.isAuthenticated
         }
 
-        try await service.loginWithPassword(username: "a", password: "b")
+        try await service.loginWithPassword(email: "a@example.com", password: "b")
 
         #expect(fired == true)
         #expect(authenticatedAtFireTime == true)
@@ -426,7 +426,7 @@ struct AuthServiceTests {
         service.onLoginSuccess = { fired = true }
 
         do {
-            try await service.loginWithPassword(username: "a", password: "b")
+            try await service.loginWithPassword(email: "a@example.com", password: "b")
             Issue.record("expected throw")
         } catch { /* expected */ }
 

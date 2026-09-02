@@ -11,7 +11,7 @@ enum LoginMethod: Sendable {
 @Observable
 @MainActor
 final class LoginViewModel {
-    var username = ""
+    var email = ""
     var password = ""
     var loadingMethod: LoginMethod?
     var errorMessage: String?
@@ -45,7 +45,7 @@ final class LoginViewModel {
                     try await authService.loginWithGoogle()
                 case .password:
                     try await authService.loginWithPassword(
-                        username: username,
+                        email: email,
                         password: password
                     )
                     password = ""
@@ -163,12 +163,13 @@ struct LoginView: View {
     @ViewBuilder
     private func passwordFields(vm: LoginViewModel) -> some View {
         VStack(spacing: 12) {
-            TextField("Username", text: Bindable(vm).username)
-                .textContentType(.username)
+            TextField("Email", text: Bindable(vm).email)
+                .textContentType(.emailAddress)
+                .keyboardType(.emailAddress)
                 .autocorrectionDisabled()
                 .textInputAutocapitalization(.never)
                 .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("usernameField")
+                .accessibilityIdentifier("emailField")
 
             SecureField("Password", text: Bindable(vm).password)
                 .textContentType(.password)
@@ -193,7 +194,7 @@ struct LoginView: View {
                 .foregroundStyle(.background)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
-            .disabled(vm.isLoading || vm.username.isEmpty || vm.password.isEmpty)
+            .disabled(vm.isLoading || vm.email.isEmpty || vm.password.isEmpty)
             .accessibilityIdentifier("passwordSignInButton")
         }
     }

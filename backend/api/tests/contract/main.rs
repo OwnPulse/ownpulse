@@ -125,6 +125,26 @@ impl ProviderStateExecutor for StateExecutor {
                 let mut store = self.tokens.lock().expect("token store lock");
                 store.user_token = Some(token);
             }
+            // The login interaction posts a literal email + password, so
+            // this user's credentials are pinned rather than randomized.
+            "a password user exists" => {
+                let hash = bcrypt::hash("testpassword", 4).expect("bcrypt hash");
+                // Uniqueness is a functional index on LOWER(email), which
+                // ON CONFLICT cannot infer — delete then insert so the state
+                // is idempotent across replays.
+                sqlx::query("DELETE FROM users WHERE LOWER(email) = 'contract@example.com'")
+                    .execute(&self.pool)
+                    .await
+                    .expect("clear password login user");
+                sqlx::query(
+                    "INSERT INTO users (email, username, password_hash, auth_provider)
+                     VALUES ('contract@example.com', 'contractuser', $1, 'local')",
+                )
+                .bind(&hash)
+                .execute(&self.pool)
+                .await
+                .expect("seed password login user");
+            }
             "an admin user exists" => {
                 let (user_id, token) = create_admin_user(&self.pool, &self.jwt_secret).await;
                 result.insert("user_id".to_string(), Value::String(user_id.to_string()));
@@ -1214,6 +1234,10 @@ async fn verify_contract(
 /// reason — [`verify_ios_contract_verifiable_set`] fails on any interaction
 /// that is in neither list.
 const IOS_VERIFIED_INTERACTIONS: &[&str] = &[
+    "a request to sign in with email and password",
+    "a request to register a push notification token",
+    "a request to get notification preferences",
+    "a request to create an observation",
     "a request to refresh auth token via JSON body",
     "a request to list linked auth methods",
     "a request to link a new auth provider",
@@ -1268,32 +1292,11 @@ const IOS_VERIFIED_INTERACTIONS: &[&str] = &[
 ///   MyChart lab results" require a live FHIR upstream, and the harness
 ///   config leaves `mychart_client_id` unset (MyChart disabled).
 ///
-/// Known iOS-vs-backend drift (the contract documents what iOS really sends;
-/// the backend cannot satisfy it, and fixing the backend is out of scope for
-/// the contract gate — these need product fixes, not contract edits;
-/// tracked in #343):
-/// - "a request to sign in with username and password": iOS posts
-///   `{"username", "password"}` but the backend's `LoginRequest` requires an
-///   `email` field (renamed in PR #68), so the request fails deserialization.
-/// - "a request to register a push notification token": iOS posts
-///   `/api/v1/notifications/register` (iOS PR #204) but the backend serves
-///   `/api/v1/notifications/push-token` (backend PR #206) — 404.
-/// - "a request to get notification preferences": iOS defines
-///   `/api/v1/notifications/preferences` but the backend serves
-///   `/api/v1/protocols/notifications` — 404.
-/// - "a request to create an observation": iOS omits `source` from the
-///   request body, and `db::observations::insert` binds that `None` straight
-///   into the NOT NULL `observations.source` column instead of letting the
-///   `'manual'` default apply — constraint violation, 500.
 const IOS_EXCLUDED_INTERACTIONS: &[&str] = &[
     "a request to sign in with Apple",
     "a request to link an Apple account",
     "a request to connect MyChart via SMART-on-FHIR",
     "a request to sync MyChart lab results",
-    "a request to sign in with username and password",
-    "a request to register a push notification token",
-    "a request to get notification preferences",
-    "a request to create an observation",
 ];
 
 /// All interaction descriptions in a contract file. Parses the pact JSON

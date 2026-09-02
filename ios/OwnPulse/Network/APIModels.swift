@@ -154,7 +154,7 @@ struct AppleCallbackRequest: Codable, Sendable {
 }
 
 struct LoginRequest: Codable, Sendable {
-    let username: String
+    let email: String
     let password: String
 }
 

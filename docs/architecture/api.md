@@ -95,7 +95,7 @@ before any client has ever reported.
 
 | Method | Path | Description | Phase |
 |--------|------|-------------|-------|
-| POST | `/auth/login` | Login with username/password, returns JWT + refresh token | 1 |
+| POST | `/auth/login` | Login with email/password, returns JWT + refresh token | 1 |
 | POST | `/auth/register` | Register with invite code (see below) | 1 |
 | POST | `/auth/refresh` | Refresh token rotation (cookie) | 1 |
 | POST | `/auth/logout` | Invalidate refresh token | 1 |
@@ -371,6 +371,19 @@ Permanently deletes the user and cascades all associated data. Returns 204 No Co
 | GET | `/interventions/:id` | Get a single intervention | 1 |
 | PATCH | `/interventions/:id` | Update an intervention's fields | 1 |
 | DELETE | `/interventions/:id` | Delete an intervention | 1 |
+
+### Notifications
+
+| Method | Path | Description | Phase |
+|--------|------|-------------|-------|
+| GET | `/notifications/preferences` | Per-user notification defaults (dose reminders today) | 3b |
+| PUT | `/notifications/preferences` | Update notification defaults | 3b |
+| POST | `/notifications/push-token` | Register a device push token (`device_token`, `platform`: `ios` or `web`); returns the stored row | 3b |
+| DELETE | `/notifications/push-token/:device_token` | Unregister a device push token | 3b |
+
+Preferences live under `/notifications`, not `/protocols` — dose reminders
+are the first consumer, not the only intended one. Both clients and both
+pact contracts address them here.
 
 #### `POST /interventions`
 

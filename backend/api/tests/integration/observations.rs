@@ -64,3 +64,64 @@ async fn test_invalid_observation_type() {
 
     assert_eq!(response.status(), 400);
 }
+
+#[tokio::test]
+async fn test_create_observation_without_source_defaults_to_manual() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    // iOS omits `source` entirely. The insert lists the column, so the
+    // schema default can never fire — the query coalesces instead.
+    let body = json!({
+        "type": "event_instant",
+        "name": "Sauna",
+        // date-ok
+        "start_time": "2026-03-28T18:00:00Z",
+        "value": {}
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/observations",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 201);
+    let json = common::body_json(resp).await;
+    assert_eq!(json["source"], "manual");
+}
+
+#[tokio::test]
+async fn test_create_observation_preserves_explicit_source() {
+    let app = common::setup().await;
+    let (_user_id, token) = common::create_test_user(&app).await;
+
+    let body = json!({
+        "type": "event_instant",
+        "name": "Sauna",
+        // date-ok
+        "start_time": "2026-03-28T18:00:00Z",
+        "value": {},
+        "source": "healthkit"
+    });
+
+    let resp = app
+        .app
+        .oneshot(common::auth_request(
+            "POST",
+            "/api/v1/observations",
+            &token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+
+    assert_eq!(resp.status(), 201);
+    let json = common::body_json(resp).await;
+    assert_eq!(json["source"], "healthkit");
+}
