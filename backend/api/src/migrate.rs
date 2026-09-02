@@ -156,6 +156,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0037_interventions_source_dedup.sql",
         include_str!("../../../db/migrations/0037_interventions_source_dedup.sql"),
     ),
+    (
+        "0038_refresh_token_rotation_grace.sql",
+        include_str!("../../../db/migrations/0038_refresh_token_rotation_grace.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]

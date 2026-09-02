@@ -264,9 +264,12 @@ JWT refresh tokens for app authentication.
 |--------|------|-------|
 | `id` | UUID PK | |
 | `user_id` | UUID FK | References `users` |
-| `token_hash` | TEXT | bcrypt hash of the refresh token |
+| `token_hash` | TEXT | HMAC-SHA256 of the refresh token, keyed with `JWT_SECRET`. Unique. |
 | `expires_at` | TIMESTAMPTZ | |
 | `created_at` | TIMESTAMPTZ | |
+| `family_id` | UUID | Groups a rotation chain; reuse detection revokes the whole family. Added in `0005_refresh_token_family.sql`. |
+| `rotated_at` | TIMESTAMPTZ nullable | NULL = active. A rotated token stays presentable for a 60s grace window. Added in `0038_refresh_token_rotation_grace.sql`. |
+| `successor_ciphertext` | TEXT nullable | The successor token, AES-256-GCM encrypted, so grace-window replays return the same successor. Swept with the row. Added in `0038`. |
 
 ### `sharing_consents`
 

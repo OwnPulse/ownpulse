@@ -50,8 +50,9 @@ export async function refreshToken(): Promise<RefreshResult> {
 }
 
 // Single-flight: concurrent callers share one in-flight refresh request
-// instead of each rotating the refresh cookie independently, which would
-// make every loser's cookie look like a replay to the backend.
+// instead of each rotating the refresh cookie independently. The backend
+// tolerates same-tab races via its rotation grace window, but one request
+// is still cheaper and avoids burning the window on self-races.
 let inFlightRefresh: Promise<RefreshResult> | null = null;
 
 export function refreshTokenOnce(): Promise<RefreshResult> {
