@@ -36,9 +36,6 @@ test("expired access token: dashboard call 401s, refreshes transparently, and re
 }) => {
   let summaryCalls = 0;
 
-  // `?token=` on first load bypasses the boot-time refresh (see useAuth) so
-  // the session starts authenticated without touching /auth/refresh — the
-  // only refresh in this test is the one client.ts triggers on the 401 below.
   await page.route("**/api/v1/dashboard/summary", (route) => {
     summaryCalls += 1;
     if (summaryCalls === 1) {
@@ -69,7 +66,9 @@ test("expired access token: dashboard call 401s, refreshes transparently, and re
     return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
   });
 
-  await page.goto(`/?token=${fakeJwt()}`);
+  // The session is established the way a returning user's is: useAuth's
+  // boot-time refresh exchanges the httpOnly cookie for an access token.
+  await page.goto("/");
 
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   // The 401'd request's data still shows up once the retry succeeds — the
@@ -85,9 +84,20 @@ test("expired access token: refresh itself fails, user is redirected to login", 
   await page.route("**/api/v1/dashboard/summary", (route) =>
     route.fulfill({ status: 401, contentType: "text/plain", body: "Unauthorized" }),
   );
-  await page.route("**/api/v1/auth/refresh", (route) =>
-    route.fulfill({ status: 401, contentType: "text/plain", body: "Unauthorized" }),
-  );
+  // The boot refresh succeeds so the user reaches the dashboard; the one
+  // client.ts fires after the 401 below is the one that fails.
+  let refreshCalls = 0;
+  await page.route("**/api/v1/auth/refresh", (route) => {
+    refreshCalls += 1;
+    if (refreshCalls === 1) {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ access_token: fakeJwt(), token_type: "bearer", expires_in: 3600 }),
+      });
+    }
+    return route.fulfill({ status: 401, contentType: "text/plain", body: "Unauthorized" });
+  });
   await page.route("**/api/v1/events*", (route) =>
     route.fulfill({ status: 200, contentType: "text/event-stream", body: "" }),
   );
@@ -99,7 +109,7 @@ test("expired access token: refresh itself fails, user is redirected to login", 
     return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
   });
 
-  await page.goto(`/?token=${fakeJwt()}`);
+  await page.goto("/");
 
   await expect(page).toHaveURL(/\/login/);
 });
