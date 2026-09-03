@@ -28,6 +28,8 @@ Thumbs.db
 # Note: .sqlx/ is NOT ignored — it must be committed per CLAUDE.md
 # (cargo sqlx prepare output for compile-time query checking)
 web/coverage/
+web/playwright-report/
+web/test-results/
 ios/.spm-cache/
 
 # Fastlane
