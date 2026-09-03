@@ -265,6 +265,12 @@ pub async fn register(
 /// against app-side time; 60s dwarfs any realistic clock skew.
 const REFRESH_ROTATE_GRACE_SECONDS: i64 = 60;
 
+/// How many distinct `refresh_token` cookies to examine. A browser holds at
+/// most a couple legitimately (ours, plus one a sibling subdomain set);
+/// anything beyond that is a client packing the header to multiply the
+/// per-request database lookups below.
+const MAX_REFRESH_COOKIES: usize = 3;
+
 /// POST /auth/refresh — rotate refresh token, issue new access + refresh.
 ///
 /// Accepts the refresh token from either a JSON body (`{"refresh_token": "..."}`)
@@ -288,15 +294,50 @@ pub async fn refresh(
             .and_then(|v| v.to_str().ok())
             .ok_or(ApiError::Unauthorized)?;
 
-        let cookie_value = cookie_header
+        // A sibling subdomain can set a `Domain`-scoped cookie of the same
+        // name, which the browser sends alongside ours, and RFC 6265 orders
+        // longer paths first — so an attacker picks what a first-match read
+        // would return. The `__Host-` prefix that prevents this outright
+        // requires `Path=/` (see docs/security.md).
+        //
+        // Disambiguate on validity rather than count: a fixation attempt
+        // needs its injected token to be live, so two live tokens is the
+        // attack, while a stale or junk duplicate — the common case, and
+        // one the user cannot clear themselves — must not lock them out.
+        let mut candidates: Vec<String> = cookie_header
             .split(';')
-            .filter_map(|c| {
-                let c = c.trim();
-                c.strip_prefix("refresh_token=")
-            })
+            .filter_map(|c| c.trim().strip_prefix("refresh_token="))
+            .map(str::to_string)
+            .collect();
+        candidates.sort();
+        candidates.dedup();
+        candidates.truncate(MAX_REFRESH_COOKIES);
+
+        let mut live: Vec<String> = Vec::new();
+        for candidate in &candidates {
+            let hash = hash_refresh_token(candidate, &state.config.jwt_secret);
+            if refresh_tokens::find_by_hash(&state.pool, &hash)
+                .await
+                .is_ok()
+            {
+                live.push(candidate.clone());
+            }
+        }
+        if live.len() > 1 {
+            tracing::warn!(
+                count = live.len(),
+                "multiple live refresh_token cookies presented — possible session fixation"
+            );
+            return Err(ApiError::Unauthorized);
+        }
+
+        // With no live candidate, fall through on the first value so the
+        // unknown-token path reports it as usual.
+        let cookie_value = live
+            .into_iter()
             .next()
-            .ok_or(ApiError::Unauthorized)?
-            .to_string();
+            .or_else(|| candidates.into_iter().next())
+            .ok_or(ApiError::Unauthorized)?;
 
         (cookie_value, true)
     };
@@ -473,17 +514,26 @@ pub async fn logout(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Response, ApiError> {
-    if let Some(token_value) = headers
+    // Revoke every presented token rather than the first: if a second
+    // refresh_token cookie is in play (a sibling subdomain can set one),
+    // logging out must end the real session, not whichever cookie happened
+    // to be parsed first.
+    let mut presented: Vec<String> = headers
         .get(axum::http::header::COOKIE)
         .and_then(|v| v.to_str().ok())
-        .and_then(|cookie_header| {
+        .map(|cookie_header| {
             cookie_header
                 .split(';')
                 .filter_map(|c| c.trim().strip_prefix("refresh_token="))
-                .next()
+                .map(str::to_string)
+                .collect()
         })
-    {
-        let token_hash = hash_refresh_token(token_value, &state.config.jwt_secret);
+        .unwrap_or_default();
+    presented.sort();
+    presented.dedup();
+
+    for token_value in presented.into_iter().take(MAX_REFRESH_COOKIES) {
+        let token_hash = hash_refresh_token(&token_value, &state.config.jwt_secret);
         // On logout, revoke the entire family to invalidate all related tokens
         if let Ok(row) = refresh_tokens::find_by_hash(&state.pool, &token_hash).await {
             let _ = refresh_tokens::delete_family(&state.pool, row.family_id).await;

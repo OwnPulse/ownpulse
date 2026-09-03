@@ -1745,3 +1745,115 @@ async fn test_expired_token_sweep_removes_only_expired_rows() {
         vec!["fresh-expired-hash".to_string(), "valid-hash".to_string()]
     );
 }
+
+/// Two *live* refresh cookies is the fixation attempt: a sibling subdomain
+/// injected a session of its own alongside ours, and the server cannot see
+/// which cookie is host-only. It refuses rather than choosing.
+#[tokio::test]
+async fn test_two_live_refresh_cookies_are_rejected() {
+    let test_app = common::setup().await;
+    insert_test_user(&test_app.pool, "victim@example.com", "replaytest").await;
+    insert_test_user(&test_app.pool, "attacker@example.com", "replaytest").await;
+
+    let mut tokens = Vec::new();
+    for email in ["victim@example.com", "attacker@example.com"] {
+        let login = test_app
+            .app
+            .clone()
+            .oneshot(post_json(
+                "/api/v1/auth/login",
+                &json!({"email": email, "password": "replaytest"}),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(login.status(), 200);
+        tokens.push(extract_refresh_cookie(&login));
+    }
+
+    let resp = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token={}; refresh_token={}", tokens[1], tokens[0]),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 401);
+}
+
+/// A stale or junk duplicate must not lock the user out: they cannot clear
+/// a cookie another subdomain set, so counting cookies rather than live
+/// sessions would strand them in a permanent re-login loop.
+#[tokio::test]
+async fn test_dead_duplicate_refresh_cookie_does_not_block_refresh() {
+    let test_app = common::setup().await;
+    insert_test_user(&test_app.pool, "stale@example.com", "replaytest").await;
+
+    let login = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/login",
+            &json!({"email": "stale@example.com", "password": "replaytest"}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(login.status(), 200);
+    let real_token = extract_refresh_cookie(&login);
+
+    let resp = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/refresh",
+            &format!("refresh_token=long-dead-value; refresh_token={real_token}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        200,
+        "a dead duplicate must be ignored, not treated as an attack"
+    );
+}
+
+/// Logout must end the real session even when an injected cookie is sent
+/// alongside it — revoking only the first-parsed token would leave the
+/// user logged in.
+#[tokio::test]
+async fn test_logout_revokes_every_presented_refresh_cookie() {
+    let test_app = common::setup().await;
+    let user_id = insert_test_user(&test_app.pool, "logoutall@example.com", "replaytest").await;
+
+    let login_response = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/login",
+            &json!({"email": "logoutall@example.com", "password": "replaytest"}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(login_response.status(), 200);
+    let real_token = extract_refresh_cookie(&login_response);
+
+    let logout = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/logout",
+            &format!("refresh_token=injected-value; refresh_token={real_token}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(logout.status(), 204);
+
+    let remaining: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM refresh_tokens WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_one(&test_app.pool)
+            .await
+            .unwrap();
+    assert_eq!(remaining, 0, "the real session must be revoked");
+}

@@ -79,11 +79,18 @@ impl KeyExtractor for JwtSubjectKeyExtractor {
 /// Read a named cookie from the request headers. Shared by every OAuth
 /// connect-flow module (garmin, oura, google_calendar) that stores CSRF
 /// state / request-token secrets in short-lived httpOnly cookies.
+///
+/// Returns `None` when the same name arrives more than once with differing
+/// values. Cookies are scoped per-site, not per-origin, so a sibling
+/// subdomain can set a `Domain`-scoped cookie of any of these names, and
+/// RFC 6265 orders longer paths first — an attacker chooses which value a
+/// first-match read would pick. Every caller treats a missing cookie as a
+/// failed CSRF or auth check, so failing closed here is the safe answer.
 pub(crate) fn read_cookie(headers: &http::HeaderMap, name: &str) -> Option<String> {
-    headers
+    let values: Vec<String> = headers
         .get(http::header::COOKIE)
         .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
+        .map(|cookies| {
             cookies
                 .split(';')
                 .filter_map(|c| {
@@ -93,8 +100,25 @@ pub(crate) fn read_cookie(headers: &http::HeaderMap, name: &str) -> Option<Strin
                         .and_then(|rest| rest.strip_prefix('='))
                         .map(|v| v.to_string())
                 })
-                .next()
+                .collect()
         })
+        .unwrap_or_default();
+
+    let mut distinct = values.clone();
+    distinct.sort();
+    distinct.dedup();
+    match distinct.len() {
+        0 => None,
+        1 => distinct.into_iter().next(),
+        n => {
+            tracing::warn!(
+                cookie = name,
+                count = n,
+                "conflicting cookies of the same name — refusing to choose"
+            );
+            None
+        }
+    }
 }
 
 /// Try to pull the JWT `sub` claim out of the `Authorization: Bearer <token>`
