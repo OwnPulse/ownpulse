@@ -918,7 +918,7 @@ Update the data types shared on an existing share. Owner only.
 
 **Response:** `204 No Content`
 
-**Errors:** `400` if `data_types` is empty or contains invalid types. `403` if the caller is not the share owner.
+**Errors:** `400` if `data_types` is empty or contains invalid types. `403` if the caller participates in the share (the invited friend) but does not own it. `404` if the share does not exist, has been revoked or declined, or the caller is not part of it — a share's existence is never confirmed to an unrelated user.
 
 #### GET `/friends/:friend_id/data`
 

@@ -54,13 +54,37 @@ pub async fn create_share(
     .await
 }
 
-/// Replace all permissions for a share with the given data types.
+/// Replace all permissions for a share the caller owns, returning false when
+/// no such share exists for `owner_id`.
+///
+/// Ownership is re-checked here under a row lock rather than trusted from the
+/// caller: a route that forgot the check would otherwise let any authenticated
+/// user rewrite another user's sharing permissions, and even a correct route
+/// leaves a window between its check and this write.
 pub async fn set_permissions(
     pool: &PgPool,
     share_id: Uuid,
+    owner_id: Uuid,
     data_types: &[String],
-) -> Result<(), sqlx::Error> {
+) -> Result<bool, sqlx::Error> {
     let mut tx = pool.begin().await?;
+
+    // Revoked and declined shares are soft-deleted, so ownership alone would
+    // still match one and report a successful permission change on a share
+    // the friend has already ended.
+    let owned: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT id FROM friend_shares
+         WHERE id = $1 AND owner_id = $2 AND status NOT IN ('revoked', 'declined')
+         FOR UPDATE",
+    )
+    .bind(share_id)
+    .bind(owner_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+    if owned.is_none() {
+        tx.rollback().await?;
+        return Ok(false);
+    }
 
     sqlx::query("DELETE FROM friend_share_permissions WHERE share_id = $1")
         .bind(share_id)
@@ -68,14 +92,18 @@ pub async fn set_permissions(
         .await?;
 
     for dt in data_types {
-        sqlx::query("INSERT INTO friend_share_permissions (share_id, data_type) VALUES ($1, $2)")
-            .bind(share_id)
-            .bind(dt)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "INSERT INTO friend_share_permissions (share_id, data_type)
+             VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        )
+        .bind(share_id)
+        .bind(dt)
+        .execute(&mut *tx)
+        .await?;
     }
 
-    tx.commit().await
+    tx.commit().await?;
+    Ok(true)
 }
 
 /// Accept a pending share by share ID (direct share).
@@ -210,13 +238,22 @@ pub async fn get_permitted_types(
 }
 
 /// Get a single share by ID.
-pub async fn get_share(pool: &PgPool, share_id: Uuid) -> Result<FriendShareRow, sqlx::Error> {
+/// Fetch a share the given user participates in. The row carries a live
+/// `invite_token`, so it is scoped to the owner or the invited friend rather
+/// than returned for any share id an authenticated caller can name.
+pub async fn get_share(
+    pool: &PgPool,
+    share_id: Uuid,
+    user_id: Uuid,
+) -> Result<FriendShareRow, sqlx::Error> {
     sqlx::query_as::<_, FriendShareRow>(
         "SELECT id, owner_id, friend_id, status, invite_token,
                 invite_expires_at, created_at, accepted_at, revoked_at
-         FROM friend_shares WHERE id = $1",
+         FROM friend_shares
+         WHERE id = $1 AND (owner_id = $2 OR friend_id = $2)",
     )
     .bind(share_id)
+    .bind(user_id)
     .fetch_one(pool)
     .await
 }

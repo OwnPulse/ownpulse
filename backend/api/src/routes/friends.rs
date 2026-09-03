@@ -83,7 +83,14 @@ pub async fn create_share(
     )
     .await?;
 
-    db::friend_shares::set_permissions(&state.pool, share.id, &body.data_types).await?;
+    // The share was just inserted for this user, so a false here means the
+    // row vanished underneath us rather than an authorization problem.
+    if !db::friend_shares::set_permissions(&state.pool, share.id, user_id, &body.data_types).await?
+    {
+        return Err(ApiError::Internal(
+            "share disappeared before its permissions were written".to_string(),
+        ));
+    }
 
     // Build response
     let friend_email = body.friend_email.clone();
@@ -175,12 +182,16 @@ pub async fn update_permissions(
 ) -> Result<StatusCode, ApiError> {
     validate_data_types(&body.data_types)?;
 
-    let share = db::friend_shares::get_share(&state.pool, id).await?;
+    let share = db::friend_shares::get_share(&state.pool, id, user_id).await?;
     if share.owner_id != user_id {
         return Err(ApiError::Forbidden);
     }
 
-    db::friend_shares::set_permissions(&state.pool, id, &body.data_types).await?;
+    // The scoped write can still find nothing if the share was deleted
+    // between the check above and this call.
+    if !db::friend_shares::set_permissions(&state.pool, id, user_id, &body.data_types).await? {
+        return Err(ApiError::NotFound);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 

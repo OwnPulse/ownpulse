@@ -448,3 +448,179 @@ async fn accept_by_token_rejects_reused_token() {
         .unwrap();
     assert_eq!(resp.status(), 404);
 }
+
+/// The owner may rewrite their own share's permissions.
+#[tokio::test]
+async fn update_permissions_succeeds_for_owner() {
+    let app = common::setup().await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let friend_email = unique_email("friend");
+    let (_friend_id, _friend_token) = create_test_user_with_email(&app, &friend_email).await;
+
+    let share = create_direct_share(&app, &owner_token, &friend_email, &["checkins"]).await;
+    let share_id = share["id"].as_str().unwrap();
+
+    let body = json!({ "data_types": ["observations"] });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/friends/shares/{share_id}/permissions"),
+            &owner_token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 204);
+
+    let permissions: Vec<String> = sqlx::query_scalar(
+        "SELECT data_type FROM friend_share_permissions WHERE share_id = $1::uuid",
+    )
+    .bind(share_id)
+    .fetch_all(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(permissions, vec!["observations".to_string()]);
+}
+
+/// A user unrelated to the share cannot rewrite its permissions. They get
+/// 404 rather than 403 — the same answer every other share endpoint gives a
+/// non-participant, so share ids aren't confirmed to strangers.
+#[tokio::test]
+async fn update_permissions_rejects_non_owner() {
+    let app = common::setup().await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let friend_email = unique_email("friend");
+    let (_friend_id, _friend_token) = create_test_user_with_email(&app, &friend_email).await;
+    let (_attacker_id, attacker_token) =
+        create_test_user_with_email(&app, &unique_email("attacker")).await;
+
+    let share = create_direct_share(&app, &owner_token, &friend_email, &["checkins"]).await;
+    let share_id = share["id"].as_str().unwrap();
+
+    let body = json!({ "data_types": ["health_records", "interventions"] });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/friends/shares/{share_id}/permissions"),
+            &attacker_token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 404);
+
+    let permissions: Vec<String> = sqlx::query_scalar(
+        "SELECT data_type FROM friend_share_permissions WHERE share_id = $1::uuid",
+    )
+    .bind(share_id)
+    .fetch_all(&app.pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        permissions,
+        vec!["checkins".to_string()],
+        "a non-owner's request must not alter stored permissions"
+    );
+}
+
+/// The invited friend participates in the share but does not own it: they
+/// reach the ownership check and are refused with 403.
+#[tokio::test]
+async fn update_permissions_rejects_friend_who_is_not_owner() {
+    let app = common::setup().await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let friend_email = unique_email("friend");
+    let (_friend_id, friend_token) = create_test_user_with_email(&app, &friend_email).await;
+
+    let share = create_direct_share(&app, &owner_token, &friend_email, &["checkins"]).await;
+    let share_id = share["id"].as_str().unwrap();
+
+    let body = json!({ "data_types": ["observations"] });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/friends/shares/{share_id}/permissions"),
+            &friend_token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 403);
+}
+
+/// A revoked share is soft-deleted, so ownership alone still matches its
+/// row — permission rewrites must not succeed on it.
+#[tokio::test]
+async fn update_permissions_rejects_revoked_share() {
+    let app = common::setup().await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let friend_email = unique_email("friend");
+    let (_friend_id, _friend_token) = create_test_user_with_email(&app, &friend_email).await;
+
+    let share = create_direct_share(&app, &owner_token, &friend_email, &["checkins"]).await;
+    let share_id = share["id"].as_str().unwrap();
+
+    let revoke = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "DELETE",
+            &format!("/api/v1/friends/shares/{share_id}"),
+            &owner_token,
+            None,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(revoke.status(), 204);
+
+    let body = json!({ "data_types": ["observations"] });
+    let resp = app
+        .app
+        .clone()
+        .oneshot(common::auth_request(
+            "PATCH",
+            &format!("/api/v1/friends/shares/{share_id}/permissions"),
+            &owner_token,
+            Some(&body),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 404);
+}
+
+/// The db layer refuses a share the caller does not own even when a route
+/// forgets to check — the guarantee that makes this a defense in depth.
+#[tokio::test]
+async fn set_permissions_db_layer_refuses_non_owner() {
+    let app = common::setup().await;
+    let (_owner_id, owner_token) = create_test_user_with_email(&app, &unique_email("owner")).await;
+    let (attacker_id, _attacker_token) =
+        create_test_user_with_email(&app, &unique_email("attacker")).await;
+
+    let share = create_link_share(&app, &owner_token, &["checkins"]).await;
+    let share_id: uuid::Uuid = share["id"].as_str().unwrap().parse().unwrap();
+
+    let changed = api::db::friend_shares::set_permissions(
+        &app.pool,
+        share_id,
+        attacker_id,
+        &["health_records".to_string()],
+    )
+    .await
+    .unwrap();
+    assert!(!changed, "set_permissions must refuse a non-owner");
+
+    let permissions: Vec<String> =
+        sqlx::query_scalar("SELECT data_type FROM friend_share_permissions WHERE share_id = $1")
+            .bind(share_id)
+            .fetch_all(&app.pool)
+            .await
+            .unwrap();
+    assert_eq!(permissions, vec!["checkins".to_string()]);
+}
