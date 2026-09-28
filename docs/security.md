@@ -23,15 +23,25 @@ Administrative access (SSH, kubectl, monitoring) goes through a Tailscale mesh V
 - **Google OAuth** — used for signup and login. The server validates the Google ID token and issues its own JWT. No Google tokens are stored beyond the initial exchange.
 - **Rate limiting** — login/register and the other credential-bearing auth endpoints share a 10 req/min per-IP bucket. `/auth/refresh` and `/auth/logout` share a separate 30 req/min per-IP bucket: hourly token refreshes and multi-tab bursts are routine traffic, and logout is the immediate token-revocation path — neither should compete with login attempts for budget. Per-IP limits key on `X-Forwarded-For`, so the outermost ingress **must strip or overwrite client-supplied `X-Forwarded-*` headers** (k3s's bundled Traefik does by default); an ingress that passes them through lets clients spoof their rate-limit identity.
 
-### Why not the `__Host-` cookie prefix
+### The `__Host-` cookie prefix, and where it does not fit
 
-`__Host-` would stop a sibling subdomain from setting a `Domain`-scoped
-cookie of the same name that the browser then sends to us — a session
-fixation vector, since the server cannot tell an injected cookie from its
-own. The prefix requires `Path=/`, but the refresh cookie is deliberately
-scoped to `Path=/api/v1/auth`, and the API shares an origin with the web
-app: widening the path would attach the refresh token to every request for
-every page and asset, multiplying the proxy and access logs it appears in.
+Cookies are scoped per site, not per origin, so a sibling subdomain can
+set a `Domain`-scoped cookie of one of our names that the browser then
+sends to us — a session fixation vector, since the server cannot tell an
+injected cookie from its own. The `__Host-` prefix closes it: browsers
+refuse a prefixed cookie that carries a `Domain` attribute, so only this
+host can set one.
+
+The access-token cookie carries the prefix (`__Host-access_token`) on any
+HTTPS origin. It costs nothing there because the cookie is already
+`Path=/`, which the prefix requires, and plain-HTTP origins fall back to
+the bare name since the prefix also demands `Secure`.
+
+The refresh cookie does not, and cannot without a trade: it is
+deliberately scoped to `Path=/api/v1/auth`, and the API shares an origin
+with the web app, so widening to `Path=/` would attach the refresh token
+to every request for every page and asset, multiplying the proxy and
+access logs it appears in.
 
 Rather than trade one exposure for the other, the server refuses to guess.
 `POST /auth/refresh` rejects a request presenting more than one *live*
@@ -44,11 +54,12 @@ OAuth CSRF cookies.
 **What this does not cover.** An injected cookie arriving in a browser
 with no session of its own is the only one presented, so it is accepted
 and establishes a session as the attacker's user. Defending that needs a
-cookie a sibling cannot set at all. Two routes to it, both open:
-`access_token` is already `Path=/`, so it can carry the `__Host-` prefix
-for free; and the Google login callback still authenticates its CSRF
-`state` against a cookie rather than the server-side `oauth_states` table
-the Calendar connect flow uses. Revisit the prefix for `refresh_token`
+cookie a sibling cannot set at all — the `__Host-` prefix, which browsers
+refuse to accept with a `Domain` attribute. The access-token cookie
+carries it (it is `Path=/` already, so the prefix is free); the refresh
+cookie cannot without widening its path. The Google login callback still
+authenticates its CSRF `state` against an unprefixed cookie — tracked in
+#350. Revisit the prefix for `refresh_token`
 itself if the API ever moves to its own origin, where `Path=/` costs
 nothing.
 
