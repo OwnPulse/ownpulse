@@ -11,7 +11,8 @@ import styles from "./Login.module.css";
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   email_exists:
     "An account with this email already exists. Sign in with your existing method, then link additional providers from Settings.",
-  auth_required: "You must be signed in to link an account.",
+  server_error: "Sign-in could not be started. Please try again.",
+  google_declined: "Google sign-in was cancelled.",
 };
 
 export default function Login() {

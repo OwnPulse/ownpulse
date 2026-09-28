@@ -53,14 +53,14 @@ describe("Login", () => {
     expect(screen.getByText(/account with this email already exists/i)).toBeDefined();
   });
 
-  it("shows error message when redirected with ?error=auth_required", () => {
+  it("shows error message when sign-in could not be started", () => {
     render(
-      <MemoryRouter initialEntries={["/login?error=auth_required"]}>
+      <MemoryRouter initialEntries={["/login?error=server_error"]}>
         <Login />
       </MemoryRouter>,
     );
 
-    expect(screen.getByText(/must be signed in to link/i)).toBeDefined();
+    expect(screen.getByText(/could not be started/i)).toBeDefined();
   });
 
   it("shows error on failed login", async () => {

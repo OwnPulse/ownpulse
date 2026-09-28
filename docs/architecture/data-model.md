@@ -271,6 +271,27 @@ JWT refresh tokens for app authentication.
 | `rotated_at` | TIMESTAMPTZ nullable | NULL = active. A rotated token stays presentable for a 60s grace window. Added in `0038_refresh_token_rotation_grace.sql`. |
 | `successor_ciphertext` | TEXT nullable | The successor token, AES-256-GCM encrypted, so grace-window replays return the same successor. Swept with the row. Added in `0038`. |
 
+### `login_oauth_states`
+
+Short-lived server-side state for the Google **login** redirect, so the
+callback does not have to trust cookies for anything but the CSRF nonce
+itself. Rows are single-use (the callback deletes on read), honored for 10
+minutes, and swept hourly. Added in `0039_login_oauth_states.sql`.
+
+Separate from `oauth_states` (the Garmin/Oura/Calendar *connect* flows), whose
+`user_id` is NOT NULL because those flows always start authenticated.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `state` | UUID PK | The CSRF value handed to Google and echoed in the `__Host-oauth_state` cookie |
+| `is_native` | BOOLEAN | `?platform=ios` — the callback redirects to `ownpulse://` instead of setting cookies |
+| `invite_code` | TEXT nullable | Invite supplied at initiation, capped at 64 chars by a CHECK constraint |
+| `link_user_id` | UUID FK nullable | NULL = login/register. Non-NULL = link mode, bound to that user at initiation. References `users`, ON DELETE CASCADE |
+| `created_at` | TIMESTAMPTZ | Indexed, for the sweep |
+
+Not in `schema/open-schema.json`: it holds no user data and nothing here is
+exportable or portable.
+
 ### `sharing_consents`
 
 Cooperative data sharing consent. This is the trust boundary for all aggregate queries.

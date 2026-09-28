@@ -198,13 +198,31 @@ struct AuthServiceTests {
         #expect(service.isAuthenticated == false)
     }
 
-    @Test("processCallback throws invalidCallback when refresh_token is missing from fragment")
-    func processCallbackMissingRefreshToken() async {
+    @Test("processCallback accepts a token-only fragment so disabled accounts can still export")
+    func processCallbackWithoutRefreshToken() async throws {
         let mockNetwork = MockNetworkClient()
         let mockKeychain = MockKeychainService()
         let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
 
+        // The backend issues a disabled account an access token and no
+        // refresh token, so it can reach export and self-delete until that
+        // token expires. Rejecting the callback would discard it.
         let url = URL(string: "ownpulse://auth#token=test-jwt")!
+        try await service.processCallback(url: url)
+
+        #expect(service.isAuthenticated == true)
+        let stored = try mockKeychain.load(key: AuthService.accessTokenKey)
+        #expect(stored.flatMap { String(data: $0, encoding: .utf8) } == "test-jwt")
+        #expect(try mockKeychain.load(key: AuthService.refreshTokenKey) == nil)
+    }
+
+    @Test("processCallback throws invalidCallback when the fragment carries only a refresh token")
+    func processCallbackRefreshTokenWithoutAccessToken() async {
+        let mockNetwork = MockNetworkClient()
+        let mockKeychain = MockKeychainService()
+        let service = AuthService(networkClient: mockNetwork, keychainService: mockKeychain)
+
+        let url = URL(string: "ownpulse://auth#refresh_token=only-refresh")!
         do {
             try await service.processCallback(url: url)
             Issue.record("Expected error to be thrown")

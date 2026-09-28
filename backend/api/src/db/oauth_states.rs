@@ -54,3 +54,16 @@ pub async fn consume(
         }
     }))
 }
+
+/// Delete rows past their TTL. Only a flow the user abandoned (closed the
+/// provider's consent screen) leaves one behind — a completed callback
+/// deletes its own. Swept daily so those don't accumulate.
+pub async fn delete_expired(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let result = sqlx::query(
+        "DELETE FROM oauth_states WHERE created_at < now() - make_interval(mins => $1)",
+    )
+    .bind(STATE_TTL_MINUTES as i32)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected())
+}

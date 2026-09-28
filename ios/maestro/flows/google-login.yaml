@@ -1,9 +1,10 @@
 appId: health.ownpulse.app
 ---
 # Verify the Google OAuth login flow launches correctly.
-# The app opens the backend's /auth/google/login endpoint in an
-# ASWebAuthenticationSession. The backend sets the CSRF cookie and redirects
-# to Google. The session intercepts the ownpulse:// redirect with tokens.
+# The app opens the backend's /auth/google/login?platform=ios endpoint in an
+# ASWebAuthenticationSession. The backend sets the CSRF cookie, records the
+# platform against the flow's state, and redirects to Google. The session
+# intercepts the ownpulse:// redirect with tokens.
 # Maestro cannot drive the web auth session, so this flow asserts the app
 # reaches the login screen and the login button is present and actionable.
 - launchApp:

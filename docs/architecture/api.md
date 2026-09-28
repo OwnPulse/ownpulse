@@ -99,7 +99,7 @@ before any client has ever reported.
 | POST | `/auth/register` | Register with invite code (see below) | 1 |
 | POST | `/auth/refresh` | Refresh token rotation (cookie) | 1 |
 | POST | `/auth/logout` | Invalidate refresh token | 1 |
-| GET | `/auth/google/login` | Google OAuth redirect (accepts `?invite_code=`, `?mode=link`) | 1 |
+| GET | `/auth/google/login` | Google OAuth redirect (accepts `?invite_code=`, `?mode=link`, `?platform=web\|ios`) | 1 |
 | GET | `/auth/google/callback` | Google OAuth callback (login, register, or link) | 1 |
 | POST | `/auth/apple/callback` | Apple Sign-In callback (verify id_token, issue tokens) | 1 |
 | GET | `/auth/methods` | List auth methods linked to current user (requires JWT) | 1 |
@@ -149,22 +149,54 @@ Register a new account. When the instance requires invites (`REQUIRE_INVITE=true
 | 400 | Invalid or expired invite code, or validation failure |
 | 409 | Email already registered |
 
+#### How the Google login flow carries state
+
+`GET /auth/google/login` records the flow in a single-use `login_oauth_states`
+row keyed by a UUID `state`, and echoes that `state` in a short-lived
+(10 minute) httpOnly cookie — `__Host-oauth_state` on an HTTPS origin, bare
+`oauth_state` on plain HTTP, since the `__Host-` prefix requires `Secure`.
+
+`GET /auth/google/callback` requires **both**: the cookie must equal the
+`state` query parameter (this binds the callback to the browser that started
+the flow), and the `state` must still resolve to a live row (the row is
+deleted on read, so a callback cannot be replayed). Either check failing is a
+`400`, not a redirect — the platform is only knowable from the row, so
+redirecting would strand an iOS user inside `ASWebAuthenticationSession`.
+
+Platform, invite code and link target are read from the row only. No
+`oauth_platform` or `invite_code` cookie is set or read, and the callback does
+not accept a PKCE `code_verifier` (a stray one is ignored, not honored).
+
+Once the state is consumed the platform is known, so every later outcome —
+including a rejected invite and a disabled account — is a redirect to the web
+origin or to `ownpulse://`, never a JSON body.
+
+`/auth/google/login` returns `400` for an unrecognized `platform` or `mode`
+rather than falling back to a default, and stores no row. If storing the row
+fails, it redirects to `?error=server_error` on the surface the caller came
+from; the invite code is never echoed in a redirect or a log line.
+
 #### Google OAuth with invite code
 
-`GET /auth/google/login` accepts an optional `?invite_code=XYZ` query parameter. If the user does not yet have an account and invite codes are required, the invite code is validated during the OAuth callback. If no valid code is present, the callback returns a `400` JSON error (`"invite code required for new account registration"`).
+`GET /auth/google/login` accepts an optional `?invite_code=XYZ` query parameter (alphanumeric, up to 64 characters; anything else is ignored). It is stored on the state row and used if the OAuth callback has to register a new user. If invite codes are required and the code is missing, invalid, expired or exhausted, the callback redirects to `<WEB_ORIGIN>/register?error=invite_required` (or `ownpulse://auth?error=invite_required` for an iOS flow).
+
+#### Google OAuth on iOS
+
+`GET /auth/google/login?platform=ios` marks the flow native, so the callback redirects to `ownpulse://auth#token=...&refresh_token=...` instead of setting cookies. `?platform=web` is the default; any other value is a `400`.
+
+A disabled account gets an access token but no refresh token — `ownpulse://auth#token=...` with no `refresh_token`, or the access-token cookie alone on web — enough to reach export and account deletion until it expires.
 
 #### Google OAuth account linking
 
-`GET /auth/google/login` accepts an optional `?mode=link` query parameter. When present, the backend encodes a `:link` marker into the OAuth `state` parameter. On callback, the backend reads the marker and links the Google account to the currently authenticated user instead of performing a login or registration.
+`GET /auth/google/login?mode=link` links Google to the currently authenticated user instead of logging in or registering. The user must have a valid session when **initiating** the flow — the backend reads the access token cookie there and stores that user id on the state row, so the account the Google identity attaches to is fixed at initiation, not at callback time. `mode` must be exactly `link`; any other value is a `400` rather than a silent fallback to login.
 
-The user must have a valid session (JWT) when initiating the link flow. The backend reads the JWT from the `token` cookie (the same httpOnly cookie used for refresh tokens is not required -- the access token cookie is sufficient).
-
-**Error redirects from `/auth/google/callback` during linking:**
+**Redirects during linking:**
 
 | Condition | Redirect |
 |-----------|----------|
-| No valid session | `<WEB_ORIGIN>/login?error=auth_required` |
+| No valid session at `/auth/google/login?mode=link` | `<WEB_ORIGIN>/settings?error=auth_required` |
 | Google email already linked to a different user | `<WEB_ORIGIN>/settings?error=already_linked` |
+| Linking user no longer active (callback) | `403` |
 | Success | `<WEB_ORIGIN>/settings?linked=google` |
 
 #### `POST /auth/apple/callback`
