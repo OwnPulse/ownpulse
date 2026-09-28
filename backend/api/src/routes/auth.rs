@@ -25,6 +25,7 @@ use crate::models::user::{
     AppleCallbackRequest, AuthMethodRow, ForgotPasswordRequest, LinkAuthRequest, LoginRequest,
     RefreshRequest, RegisterRequest, ResetPasswordRequest, TokenResponse, TokenResponseWithRefresh,
 };
+use crate::routes::read_cookie;
 
 /// Return `"; Secure"` when the web origin uses HTTPS, empty string otherwise.
 /// This lets cookies work over plain HTTP during local development while
@@ -37,35 +38,30 @@ fn secure_attr(config: &crate::config::Config) -> &'static str {
     }
 }
 
-/// Extract a user ID from the `access_token` httpOnly cookie. Only validates
+/// Name of the access-token cookie. Carries the `__Host-` prefix when the
+/// origin is HTTPS, making the cookie host-only: no sibling subdomain can
+/// set one, so an injected value cannot impersonate an account in the
+/// browser-redirect flows that read it. The prefix also demands `Secure`,
+/// which a plain-HTTP origin cannot satisfy, so those keep the bare name —
+/// `secure_attr` gates on the same condition, and the two must agree or the
+/// browser rejects every cookie we set.
+fn access_token_cookie_name(config: &crate::config::Config) -> &'static str {
+    if secure_attr(config).is_empty() {
+        "access_token"
+    } else {
+        "__Host-access_token"
+    }
+}
+
+/// Extract a user ID from the access-token httpOnly cookie. Only validates
 /// the JWT (signature, algorithm, expiry) — does NOT check DB status.
 fn extract_user_id_from_cookie(
     headers: &HeaderMap,
-    jwt_secret: &str,
-    web_origin: &str,
+    config: &crate::config::Config,
 ) -> Option<Uuid> {
-    read_cookie(headers, "access_token")
-        .and_then(|token| decode_access_token(&token, jwt_secret, web_origin).ok())
+    read_cookie(headers, access_token_cookie_name(config))
+        .and_then(|token| decode_access_token(&token, &config.jwt_secret, &config.web_origin).ok())
         .map(|claims| claims.sub)
-}
-
-/// Read a named cookie from the request headers.
-fn read_cookie(headers: &HeaderMap, name: &str) -> Option<String> {
-    headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|cookies| {
-            cookies
-                .split(';')
-                .filter_map(|c| {
-                    let trimmed = c.trim();
-                    trimmed
-                        .strip_prefix(name)
-                        .and_then(|rest| rest.strip_prefix('='))
-                        .map(|v| v.to_string())
-                })
-                .next()
-        })
 }
 
 /// Append a Set-Cookie header to a response.
@@ -541,16 +537,20 @@ pub async fn logout(
     }
 
     let secure = secure_attr(&state.config);
-    let clear_cookie =
+    let clear_refresh =
         format!("refresh_token=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
+    // Clear the access token too: it outlives logout by up to its expiry,
+    // and the Google link flow reads it to decide which account a provider
+    // identity attaches to — so leaving it behind keeps a signed-out
+    // browser able to act as that user.
+    let clear_access = format!(
+        "{}=; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age=0",
+        access_token_cookie_name(&state.config)
+    );
 
     let mut response = StatusCode::NO_CONTENT.into_response();
-    response.headers_mut().insert(
-        SET_COOKIE,
-        clear_cookie
-            .parse()
-            .map_err(|_| ApiError::Internal("failed to build cookie header".into()))?,
-    );
+    append_cookie(&mut response, &clear_refresh)?;
+    append_cookie(&mut response, &clear_access)?;
     Ok(response)
 }
 
@@ -589,10 +589,7 @@ pub async fn google_login(
     let is_link_mode = login_query.mode.as_deref().is_some_and(|m| m == "link");
 
     // In link mode the user must already be authenticated.
-    if is_link_mode
-        && extract_user_id_from_cookie(&headers, &state.config.jwt_secret, &state.config.web_origin)
-            .is_none()
-    {
+    if is_link_mode && extract_user_id_from_cookie(&headers, &state.config).is_none() {
         let redirect_url = format!("{}/settings?error=auth_required", state.config.web_origin);
         return Ok(Redirect::to(&redirect_url).into_response());
     }
@@ -754,15 +751,11 @@ pub async fn google_callback(
     // Link mode: associate the Google account with an existing user.
     // ---------------------------------------------------------------
     if is_link_mode {
-        let linking_user_id = extract_user_id_from_cookie(
-            &headers,
-            &state.config.jwt_secret,
-            &state.config.web_origin,
-        )
-        .ok_or_else(|| {
-            // Cannot determine the authenticated user — redirect to login.
-            ApiError::BadRequest("__redirect_login_auth_required".into())
-        });
+        let linking_user_id =
+            extract_user_id_from_cookie(&headers, &state.config).ok_or_else(|| {
+                // Cannot determine the authenticated user — redirect to login.
+                ApiError::BadRequest("__redirect_login_auth_required".into())
+            });
 
         let linking_user_id = match linking_user_id {
             Ok(id) => id,
@@ -1027,7 +1020,8 @@ pub async fn google_callback(
     } else {
         // Web flow: set tokens as httpOnly cookies and redirect without tokens in URL.
         let access_cookie = format!(
-            "access_token={access_token}; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age={}",
+            "{}={access_token}; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age={}",
+            access_token_cookie_name(&state.config),
             state.config.jwt_expiry_seconds
         );
         let refresh_cookie = format!(

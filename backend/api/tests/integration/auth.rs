@@ -1857,3 +1857,55 @@ async fn test_logout_revokes_every_presented_refresh_cookie() {
             .unwrap();
     assert_eq!(remaining, 0, "the real session must be revoked");
 }
+
+/// Logout must clear the access-token cookie, not just the refresh one.
+/// It outlives logout by up to its expiry, and the Google link flow reads
+/// it to decide which account a provider identity attaches to — so leaving
+/// it behind keeps a signed-out browser able to act as that user.
+#[tokio::test]
+async fn test_logout_clears_the_access_token_cookie() {
+    let test_app = common::setup().await;
+    insert_test_user(&test_app.pool, "clearcookie@example.com", "replaytest").await;
+
+    let login = test_app
+        .app
+        .clone()
+        .oneshot(post_json(
+            "/api/v1/auth/login",
+            &json!({"email": "clearcookie@example.com", "password": "replaytest"}),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(login.status(), 200);
+    let refresh_token = extract_refresh_cookie(&login);
+
+    let logout = test_app
+        .app
+        .clone()
+        .oneshot(post_with_cookie(
+            "/api/v1/auth/logout",
+            &format!("refresh_token={refresh_token}"),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(logout.status(), 204);
+
+    let cleared: Vec<String> = logout
+        .headers()
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .map(str::to_string)
+        .collect();
+
+    assert!(
+        cleared.iter().any(|c| c.starts_with("refresh_token=;")),
+        "refresh cookie must be cleared, got: {cleared:?}"
+    );
+    assert!(
+        cleared
+            .iter()
+            .any(|c| c.starts_with("access_token=;") || c.starts_with("__Host-access_token=;")),
+        "access-token cookie must be cleared, got: {cleared:?}"
+    );
+}
