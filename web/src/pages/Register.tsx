@@ -11,6 +11,8 @@ import styles from "./Register.module.css";
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
   invite_required:
     "An invite code is required to create an account. Enter your invite code below, then try signing in with Google again.",
+  invite_invalid:
+    "That invite code is not valid or has already been used. Enter a different code, then try signing in with Google again.",
 };
 
 function isExpiringSoon(expiresAt: string): boolean {

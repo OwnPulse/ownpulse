@@ -30,26 +30,27 @@ use crate::routes::read_cookie;
 /// Return `"; Secure"` when the web origin uses HTTPS, empty string otherwise.
 /// This lets cookies work over plain HTTP during local development while
 /// remaining secure in production.
-fn secure_attr(config: &crate::config::Config) -> &'static str {
-    if config.web_origin.starts_with("https://") {
+fn secure_attr(web_origin: &str) -> &'static str {
+    if web_origin.starts_with("https://") {
         "; Secure"
     } else {
         ""
     }
 }
 
-/// Name of the access-token cookie. Carries the `__Host-` prefix when the
-/// origin is HTTPS, making the cookie host-only: no sibling subdomain can
-/// set one, so an injected value cannot impersonate an account in the
-/// browser-redirect flows that read it. The prefix also demands `Secure`,
-/// which a plain-HTTP origin cannot satisfy, so those keep the bare name —
-/// `secure_attr` gates on the same condition, and the two must agree or the
-/// browser rejects every cookie we set.
-fn access_token_cookie_name(config: &crate::config::Config) -> &'static str {
-    if secure_attr(config).is_empty() {
-        "access_token"
+/// Name of a cookie that must be host-only. Carries the `__Host-` prefix
+/// when the origin is HTTPS: no sibling subdomain can set such a cookie, so
+/// an injected value cannot impersonate an account or a flow in the
+/// browser-redirect handlers that read it. The prefix also demands `Secure`
+/// and `Path=/`, and a plain-HTTP origin cannot satisfy `Secure`, so those
+/// keep the bare name — `secure_attr` gates on the same condition, and the
+/// two must agree or the browser rejects every cookie we set. Every caller
+/// must set the cookie with `Path=/`.
+fn host_cookie_name(web_origin: &str, base: &str) -> String {
+    if secure_attr(web_origin).is_empty() {
+        base.to_string()
     } else {
-        "__Host-access_token"
+        format!("__Host-{base}")
     }
 }
 
@@ -59,9 +60,12 @@ fn extract_user_id_from_cookie(
     headers: &HeaderMap,
     config: &crate::config::Config,
 ) -> Option<Uuid> {
-    read_cookie(headers, access_token_cookie_name(config))
-        .and_then(|token| decode_access_token(&token, &config.jwt_secret, &config.web_origin).ok())
-        .map(|claims| claims.sub)
+    read_cookie(
+        headers,
+        &host_cookie_name(&config.web_origin, "access_token"),
+    )
+    .and_then(|token| decode_access_token(&token, &config.jwt_secret, &config.web_origin).ok())
+    .map(|claims| claims.sub)
 }
 
 /// Append a Set-Cookie header to a response.
@@ -536,7 +540,7 @@ pub async fn logout(
         }
     }
 
-    let secure = secure_attr(&state.config);
+    let secure = secure_attr(&state.config.web_origin);
     let clear_refresh =
         format!("refresh_token=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
     // Clear the access token too: it outlives logout by up to its expiry,
@@ -545,7 +549,7 @@ pub async fn logout(
     // browser able to act as that user.
     let clear_access = format!(
         "{}=; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age=0",
-        access_token_cookie_name(&state.config)
+        host_cookie_name(&state.config.web_origin, "access_token")
     );
 
     let mut response = StatusCode::NO_CONTENT.into_response();
@@ -567,13 +571,18 @@ pub struct GoogleLoginQuery {
 
 /// GET /auth/google/login — generate OAuth authorization URL with CSRF state.
 ///
-/// Accepts an optional `?invite_code=` query param. When provided, the code is
-/// stored in a short-lived httpOnly cookie so the callback can use it for new
-/// user registration.
+/// Everything the callback needs beyond Google's authorization code — the
+/// platform, the invite code, and whether this is a link flow (and for whom)
+/// — is recorded in a `login_oauth_states` row keyed by the CSRF state, not
+/// carried in cookies: cookies are per-site, so a sibling subdomain could set
+/// values the callback would trust. The state itself is echoed in a host-only
+/// cookie, which binds the callback to the browser that started the flow.
 ///
-/// When `?mode=link`, the flow is account-linking instead of login/register.
-/// The user must be authenticated (access_token cookie). The CSRF state is
-/// suffixed with `:link` so the callback can distinguish the two flows.
+/// Accepts an optional `?invite_code=` query param, used for new user
+/// registration. `?platform=ios` makes the callback redirect to the
+/// `ownpulse://` scheme. `?mode=link` links Google to the already
+/// authenticated user (resolved here, at initiation) instead of
+/// logging in / registering.
 pub async fn google_login(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -586,20 +595,79 @@ pub async fn google_login(
         .ok_or_else(|| ApiError::Internal("GOOGLE_CLIENT_ID not configured".to_string()))?;
     let redirect_uri = state.config.google_redirect_uri();
 
-    let is_link_mode = login_query.mode.as_deref().is_some_and(|m| m == "link");
+    let is_native = match login_query.platform.as_deref() {
+        None | Some("web") => false,
+        Some("ios") => true,
+        Some(other) => {
+            return Err(ApiError::BadRequest(format!("unknown platform: {other}")));
+        }
+    };
 
-    // In link mode the user must already be authenticated.
-    if is_link_mode && extract_user_id_from_cookie(&headers, &state.config).is_none() {
-        let redirect_url = format!("{}/settings?error=auth_required", state.config.web_origin);
-        return Ok(Redirect::to(&redirect_url).into_response());
+    // A near-miss (`Link`, `link `, an encoded variant) must not quietly mean
+    // login: the user believes they are attaching Google to the account they
+    // are signed into, and a silent fallthrough signs them in as whoever that
+    // Google identity maps to instead.
+    let is_link_mode = match login_query.mode.as_deref() {
+        None => false,
+        Some("link") => true,
+        Some(other) => {
+            return Err(ApiError::BadRequest(format!("unknown mode: {other}")));
+        }
+    };
+
+    // Link mode resolves on the settings page, so every exit it can take is
+    // a web URL. Pairing it with a native platform would end the flow on a
+    // page inside an auth session that never completes.
+    if is_link_mode && is_native {
+        return Err(ApiError::BadRequest("link mode is web-only".to_string()));
     }
 
-    let csrf_nonce = Uuid::new_v4().to_string();
-    let csrf_state = if is_link_mode {
-        format!("{csrf_nonce}:link")
+    // In link mode the user must already be authenticated, and the account
+    // the Google identity will attach to is fixed here rather than at
+    // callback time.
+    let link_user_id = if is_link_mode {
+        match extract_user_id_from_cookie(&headers, &state.config) {
+            Some(user_id) => Some(user_id),
+            None => {
+                let redirect_url =
+                    format!("{}/settings?error=auth_required", state.config.web_origin);
+                return Ok(Redirect::to(&redirect_url).into_response());
+            }
+        }
     } else {
-        csrf_nonce
+        None
     };
+
+    // Unusable codes are dropped rather than rejected — the callback reports
+    // a missing invite when registration actually needs one.
+    let invite_code = login_query.invite_code.as_deref().filter(|code| {
+        !code.is_empty() && code.len() <= 64 && code.chars().all(|c| c.is_alphanumeric())
+    });
+
+    let csrf_state = Uuid::new_v4();
+    if let Err(e) = crate::db::login_oauth_states::insert(
+        &state.pool,
+        csrf_state,
+        is_native,
+        invite_code,
+        link_user_id,
+    )
+    .await
+    {
+        // Never echo the invite code — not in the redirect, not in the log.
+        tracing::error!(error = %e, "failed to store Google login OAuth state");
+        // Send the caller back where it came from. A native caller sent to a
+        // web page would sit in `ASWebAuthenticationSession` waiting for an
+        // `ownpulse://` callback that can never arrive.
+        let redirect_url = if is_native {
+            "ownpulse://auth?error=server_error".to_string()
+        } else if is_link_mode {
+            format!("{}/settings?error=server_error", state.config.web_origin)
+        } else {
+            format!("{}/login?error=server_error", state.config.web_origin)
+        };
+        return Ok(Redirect::to(&redirect_url).into_response());
+    }
 
     let auth_url = format!(
         "https://accounts.google.com/o/oauth2/v2/auth\
@@ -610,51 +678,45 @@ pub async fn google_login(
          &state={}",
         urlencoding::encode(client_id),
         urlencoding::encode(&redirect_uri),
-        urlencoding::encode(&csrf_state),
+        csrf_state,
     );
 
-    let secure = secure_attr(&state.config);
+    let secure = secure_attr(&state.config.web_origin);
+    // `Path=/` is what the `__Host-` prefix requires, and costs nothing here:
+    // this is a ten-minute nonce, not a credential.
     let state_cookie = format!(
-        "oauth_state={csrf_state}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600"
+        "{}={csrf_state}; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age=600",
+        host_cookie_name(&state.config.web_origin, "oauth_state")
     );
 
     let mut response = Redirect::to(&auth_url).into_response();
     append_cookie(&mut response, &state_cookie)?;
-
-    // Store platform hint in a short-lived cookie so the callback knows to
-    // redirect to the native app scheme instead of the web origin.
-    if login_query.platform.as_deref() == Some("ios") {
-        let platform_cookie = format!(
-            "oauth_platform=ios; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600"
-        );
-        append_cookie(&mut response, &platform_cookie)?;
-    }
-
-    // Store invite code in a short-lived cookie if provided (alphanumeric only).
-    if let Some(ref code) = login_query.invite_code
-        && !code.is_empty()
-        && code.chars().all(|c| c.is_alphanumeric())
-    {
-        let invite_cookie = format!(
-            "invite_code={code}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=600"
-        );
-        append_cookie(&mut response, &invite_cookie)?;
-    }
-
     Ok(response)
 }
 
 #[derive(Deserialize)]
 pub struct GoogleCallbackQuery {
-    pub code: String,
-    /// CSRF state parameter — validated against the `oauth_state` cookie in web flows.
-    /// Not required when `code_verifier` is present (PKCE flow).
+    /// Absent when the user declines consent, in which case Google sends
+    /// `error` instead. Optional so that case reaches the handler and gets
+    /// a redirect rather than failing extraction with a raw 400 body.
+    pub code: Option<String>,
+    /// CSRF state parameter — must match both the host-only `oauth_state`
+    /// cookie and a live `login_oauth_states` row.
     pub state: Option<String>,
-    /// PKCE code verifier (RFC 7636) — native app flows send this instead of relying
-    /// on a CSRF cookie. Google validates it against the `code_challenge` sent during
-    /// authorization. When present, the `oauth_state` cookie check is skipped because
-    /// possession of the verifier proves the caller initiated the flow.
-    pub code_verifier: Option<String>,
+    /// Google's failure code, e.g. `access_denied` when consent is declined.
+    pub error: Option<String>,
+}
+
+/// Where to send a browser whose Google registration failed the invite
+/// check. `error` distinguishes an absent code from an unusable one so the
+/// web app can say which; the code itself is never echoed back. A native
+/// caller must get the custom scheme or its auth session never ends.
+fn invite_error_redirect(is_native: bool, web_origin: &str, error: &str) -> String {
+    if is_native {
+        format!("ownpulse://auth?error={error}")
+    } else {
+        format!("{web_origin}/register?error={error}")
+    }
 }
 
 /// GET /auth/google/callback?code=...&state=... — exchange authorization code,
@@ -664,56 +726,78 @@ pub async fn google_callback(
     headers: HeaderMap,
     Query(query): Query<GoogleCallbackQuery>,
 ) -> Result<Response, ApiError> {
-    // --- CSRF / PKCE validation ---
+    // --- CSRF validation ---
     //
-    // Two mutually exclusive flows are supported:
+    // Both checks are required and neither substitutes for the other:
     //
-    // 1. PKCE (native app): the client sends `code_verifier`; Google will
-    //    validate it against the `code_challenge` that was included in the
-    //    original authorization URL. No CSRF cookie is needed because
-    //    possession of the verifier cryptographically proves the caller
-    //    initiated the flow (RFC 7636 §4.6).
+    // 1. The host-only `oauth_state` cookie must match the `state` parameter.
+    //    This binds the callback to the browser that started the flow —
+    //    without it, an attacker who ran their own flow (this endpoint is
+    //    unauthenticated) could navigate a victim to the callback with their
+    //    own genuine state and land the victim in the attacker's account.
     //
-    // 2. Web (browser): no `code_verifier`; we validate the `state` parameter
-    //    against the short-lived httpOnly `oauth_state` cookie set by
-    //    `google_login`. This is the standard OAuth 2.0 CSRF mitigation.
-    let oauth_state_cookie = read_cookie(&headers, "oauth_state");
-
-    if query.code_verifier.is_none() {
-        // Web flow — validate state parameter against the CSRF cookie.
-        let expected_state = oauth_state_cookie
-            .as_deref()
-            .ok_or_else(|| ApiError::BadRequest("missing oauth_state cookie".into()))?;
-        let actual_state = query
-            .state
-            .as_deref()
-            .ok_or_else(|| ApiError::BadRequest("missing state parameter".into()))?;
-        if expected_state != actual_state {
-            return Err(ApiError::BadRequest("OAuth state mismatch".into()));
-        }
-    }
-    // PKCE flow — no cookie check here; Google validates the verifier during
-    // token exchange and will reject the request if it does not match.
-
-    // Link mode is web-only — PKCE flows cannot trigger it because there is
-    // no oauth_state cookie.
-    let is_link_mode = oauth_state_cookie
+    // 2. The state must resolve to a live `login_oauth_states` row, which is
+    //    deleted on read. That row — not any cookie — is the only source for
+    //    the platform, the invite code, and the link target.
+    //
+    // Failures here are a 400, not a redirect: the platform is only knowable
+    // from the row, and redirecting an iOS user to a web page inside
+    // `ASWebAuthenticationSession` hangs the session until they cancel.
+    let cookie_state = read_cookie(
+        &headers,
+        &host_cookie_name(&state.config.web_origin, "oauth_state"),
+    )
+    .ok_or_else(|| ApiError::BadRequest("missing oauth_state cookie".into()))?;
+    let query_state = query
+        .state
         .as_deref()
-        .is_some_and(|s| s.ends_with(":link"));
+        .ok_or_else(|| ApiError::BadRequest("missing state parameter".into()))?;
+    if cookie_state != query_state {
+        return Err(ApiError::BadRequest("OAuth state mismatch".into()));
+    }
+    let state_uuid =
+        Uuid::parse_str(query_state).map_err(|_| ApiError::BadRequest("invalid state".into()))?;
 
-    // Detect native-app callers: either a legacy PKCE flow (code_verifier) or
-    // the new platform cookie set by google_login when `?platform=ios` was passed.
-    let is_native_app = read_cookie(&headers, "oauth_platform").as_deref() == Some("ios")
-        || query.code_verifier.is_some();
+    // Consume before the token exchange, not after: the delete is what makes
+    // the state single-use, and two callbacks racing the same state must not
+    // both get past this point. The cost is that a transient Google failure
+    // burns the state and the user restarts the flow — the right trade.
+    let login_state = crate::db::login_oauth_states::consume(&state.pool, state_uuid)
+        .await
+        .map_err(|e| ApiError::Internal(e.to_string()))?
+        .ok_or_else(|| ApiError::BadRequest("invalid or expired OAuth state".into()))?;
 
-    // Compute cookie helpers early so both branches can use them.
-    let secure = secure_attr(&state.config);
-    let clear_state_cookie =
-        format!("oauth_state=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
-    let clear_invite_cookie =
-        format!("invite_code=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
-    let clear_platform_cookie =
-        format!("oauth_platform=; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age=0");
+    let is_native_app = login_state.is_native;
+    let invite_code = login_state.invite_code;
+
+    let secure = secure_attr(&state.config.web_origin);
+    let clear_state_cookie = format!(
+        "{}=; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age=0",
+        host_cookie_name(&state.config.web_origin, "oauth_state")
+    );
+
+    // Declining consent is the most common unhappy path: Google returns
+    // `error` and no `code`. The state is consumed above first, so this
+    // still needs a valid flow to reach — and so the platform is known and
+    // the caller gets a redirect it can follow rather than a raw body.
+    let code = match query.code.as_deref() {
+        Some(code) if query.error.is_none() => code,
+        _ => {
+            let reason = query.error.as_deref().unwrap_or("access_denied");
+            tracing::info!(
+                reason,
+                "Google sign-in did not return an authorization code"
+            );
+            let redirect_url = if is_native_app {
+                format!("ownpulse://auth?error={reason}")
+            } else {
+                format!("{}/login?error=google_declined", state.config.web_origin)
+            };
+            let mut response = Redirect::to(&redirect_url).into_response();
+            append_cookie(&mut response, &clear_state_cookie)?;
+            return Ok(response);
+        }
+    };
 
     let client_id = state
         .config
@@ -732,9 +816,10 @@ pub async fn google_callback(
         client_id,
         client_secret,
         &redirect_uri,
-        &query.code,
+        code,
         &state.config.google_token_url,
-        query.code_verifier.as_deref(),
+        // No PKCE on this flow — CSRF is the state cookie plus the row.
+        None,
     )
     .await
     .map_err(|e| ApiError::Internal(e.to_string()))?;
@@ -750,24 +835,9 @@ pub async fn google_callback(
     // ---------------------------------------------------------------
     // Link mode: associate the Google account with an existing user.
     // ---------------------------------------------------------------
-    if is_link_mode {
-        let linking_user_id =
-            extract_user_id_from_cookie(&headers, &state.config).ok_or_else(|| {
-                // Cannot determine the authenticated user — redirect to login.
-                ApiError::BadRequest("__redirect_login_auth_required".into())
-            });
-
-        let linking_user_id = match linking_user_id {
-            Ok(id) => id,
-            Err(_) => {
-                let redirect_url = format!("{}/login?error=auth_required", state.config.web_origin);
-                let mut response = Redirect::to(&redirect_url).into_response();
-                append_cookie(&mut response, &clear_state_cookie)?;
-                append_cookie(&mut response, &clear_platform_cookie)?;
-                return Ok(response);
-            }
-        };
-
+    // The link target was fixed at initiation, so no cookie present now can
+    // redirect the Google identity to a different account.
+    if let Some(linking_user_id) = login_state.link_user_id {
         // Verify user exists and is active.
         let linking_user = users::find_by_id(&state.pool, linking_user_id)
             .await
@@ -786,7 +856,6 @@ pub async fn google_callback(
                     format!("{}/settings?error=already_linked", state.config.web_origin);
                 let mut response = Redirect::to(&redirect_url).into_response();
                 append_cookie(&mut response, &clear_state_cookie)?;
-                append_cookie(&mut response, &clear_platform_cookie)?;
                 return Ok(response);
             }
             Ok(_) => {
@@ -809,7 +878,6 @@ pub async fn google_callback(
         let redirect_url = format!("{}/settings?linked=google", state.config.web_origin);
         let mut response = Redirect::to(&redirect_url).into_response();
         append_cookie(&mut response, &clear_state_cookie)?;
-        append_cookie(&mut response, &clear_platform_cookie)?;
         return Ok(response);
     }
 
@@ -817,10 +885,6 @@ pub async fn google_callback(
     // Login / register flow (existing behaviour).
     // ---------------------------------------------------------------
     let display_name = sanitize_username(google_user.email.split('@').next().unwrap_or("user"));
-
-    // Extract the invite code cookie once (used when creating new users with
-    // require_invite enabled).
-    let invite_code_cookie = read_cookie(&headers, "invite_code");
 
     // Always begin a transaction so the existence check, invite claim, and user
     // creation are atomic — prevents TOCTOU races where a concurrent deletion
@@ -860,16 +924,12 @@ pub async fn google_callback(
                     let redirect_url = "ownpulse://auth?error=email_exists";
                     let mut response = Redirect::to(redirect_url).into_response();
                     append_cookie(&mut response, &clear_state_cookie)?;
-                    append_cookie(&mut response, &clear_invite_cookie)?;
-                    append_cookie(&mut response, &clear_platform_cookie)?;
                     return Ok(response);
                 } else {
                     let redirect_url =
                         format!("{}/login?error=email_exists", state.config.web_origin);
                     let mut response = Redirect::to(&redirect_url).into_response();
                     append_cookie(&mut response, &clear_state_cookie)?;
-                    append_cookie(&mut response, &clear_invite_cookie)?;
-                    append_cookie(&mut response, &clear_platform_cookie)?;
                     return Ok(response);
                 }
             }
@@ -898,42 +958,50 @@ pub async fn google_callback(
 
             // Claim invite if required, then create.
             let claimed_invite = if state.config.require_invite && !is_first_user {
-                let code = match invite_code_cookie {
+                let code = match invite_code {
                     Some(c) => c,
                     None => {
                         tx.rollback()
                             .await
                             .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-                        if is_native_app {
-                            let redirect_url = "ownpulse://auth?error=invite_required";
-                            let mut response = Redirect::to(redirect_url).into_response();
-                            append_cookie(&mut response, &clear_state_cookie)?;
-                            append_cookie(&mut response, &clear_invite_cookie)?;
-                            append_cookie(&mut response, &clear_platform_cookie)?;
-                            return Ok(response);
-                        } else {
-                            let redirect_url = format!(
-                                "{}/register?error=invite_required",
-                                state.config.web_origin
-                            );
-                            let mut response = Redirect::to(&redirect_url).into_response();
-                            append_cookie(&mut response, &clear_state_cookie)?;
-                            append_cookie(&mut response, &clear_invite_cookie)?;
-                            append_cookie(&mut response, &clear_platform_cookie)?;
-                            return Ok(response);
-                        }
+                        let redirect_url = invite_error_redirect(
+                            is_native_app,
+                            &state.config.web_origin,
+                            "invite_required",
+                        );
+                        let mut response = Redirect::to(&redirect_url).into_response();
+                        append_cookie(&mut response, &clear_state_cookie)?;
+                        return Ok(response);
                     }
                 };
 
-                let invite = invites::claim_invite_code_tx(&mut tx, &code)
-                    .await
-                    .map_err(|e| match e {
-                        sqlx::Error::RowNotFound => {
-                            ApiError::BadRequest("invalid or expired invite code".into())
-                        }
-                        other => ApiError::Internal(other.to_string()),
-                    })?;
+                let invite = match invites::claim_invite_code_tx(&mut tx, &code).await {
+                    Ok(invite) => invite,
+                    Err(sqlx::Error::RowNotFound) => {
+                        // Every path out of this handler is a browser
+                        // navigation, so a JSON 400 would be rendered as
+                        // raw text (and, on iOS, inside an auth session
+                        // that never completes). Redirect like the
+                        // missing-code case; the code itself is never
+                        // echoed back.
+                        tx.rollback()
+                            .await
+                            .map_err(|e| ApiError::Internal(e.to_string()))?;
+                        tracing::info!(
+                            "Google registration rejected: invite code invalid, expired or exhausted"
+                        );
+                        let redirect_url = invite_error_redirect(
+                            is_native_app,
+                            &state.config.web_origin,
+                            "invite_invalid",
+                        );
+                        let mut response = Redirect::to(&redirect_url).into_response();
+                        append_cookie(&mut response, &clear_state_cookie)?;
+                        return Ok(response);
+                    }
+                    Err(other) => return Err(ApiError::Internal(other.to_string())),
+                };
                 Some(invite)
             } else {
                 None
@@ -979,10 +1047,36 @@ pub async fn google_callback(
     };
 
     if user.status != "active" {
-        // Disabled users get a short-lived access token only (no refresh token,
-        // no refresh cookie). This lets them reach export and self-delete routes
-        // before the token expires — same behaviour as password login.
-        return issue_access_token_only(&state, user.id, effective_role).await;
+        // Disabled users get a short-lived access token only (no refresh
+        // token, no refresh cookie), so they can still reach export and
+        // self-delete before it expires — the same entitlement password
+        // login grants.
+        //
+        // It rides in the URL fragment rather than a cookie: no route
+        // authenticates from the access cookie (every extractor reads the
+        // Authorization header), so a cookie would deliver nothing the
+        // client can use. A fragment is never sent to a server and is
+        // readable by the client that needs it.
+        let access_token = encode_access_token(
+            user.id,
+            effective_role,
+            &state.config.jwt_secret,
+            &state.config.web_origin,
+            state.config.jwt_expiry_seconds,
+        )
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+        let mut response = if is_native_app {
+            Redirect::to(&format!("ownpulse://auth#token={access_token}")).into_response()
+        } else {
+            Redirect::to(&format!(
+                "{}/?auth=disabled#token={access_token}",
+                state.config.web_origin
+            ))
+            .into_response()
+        };
+        append_cookie(&mut response, &clear_state_cookie)?;
+        return Ok(response);
     }
 
     // Issue tokens and build the response (shared by both invite and non-invite paths).
@@ -1014,14 +1108,12 @@ pub async fn google_callback(
         );
         let mut response = Redirect::to(&redirect_url).into_response();
         append_cookie(&mut response, &clear_state_cookie)?;
-        append_cookie(&mut response, &clear_invite_cookie)?;
-        append_cookie(&mut response, &clear_platform_cookie)?;
         Ok(response)
     } else {
         // Web flow: set tokens as httpOnly cookies and redirect without tokens in URL.
         let access_cookie = format!(
             "{}={access_token}; HttpOnly{secure}; SameSite=Lax; Path=/; Max-Age={}",
-            access_token_cookie_name(&state.config),
+            host_cookie_name(&state.config.web_origin, "access_token"),
             state.config.jwt_expiry_seconds
         );
         let refresh_cookie = format!(
@@ -1032,13 +1124,7 @@ pub async fn google_callback(
         let redirect_url = format!("{}/?auth=success", state.config.web_origin);
         let mut response = Redirect::to(&redirect_url).into_response();
 
-        for cookie_str in [
-            &access_cookie,
-            &refresh_cookie,
-            &clear_state_cookie,
-            &clear_invite_cookie,
-            &clear_platform_cookie,
-        ] {
+        for cookie_str in [&access_cookie, &refresh_cookie, &clear_state_cookie] {
             append_cookie(&mut response, cookie_str)?;
         }
         Ok(response)
@@ -1465,7 +1551,7 @@ async fn issue_tokens(state: &AppState, user_id: Uuid, role: &str) -> Result<Res
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let secure = secure_attr(&state.config);
+    let secure = secure_attr(&state.config.web_origin);
     let cookie = format!(
         "refresh_token={raw_refresh}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
         state.config.refresh_token_expiry_seconds
@@ -1505,7 +1591,7 @@ fn rotation_response(
     )
     .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let secure = secure_attr(&state.config);
+    let secure = secure_attr(&state.config.web_origin);
     let cookie = format!(
         "refresh_token={raw_refresh}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
         state.config.refresh_token_expiry_seconds
@@ -1565,7 +1651,7 @@ async fn issue_tokens_response(
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let secure = secure_attr(&state.config);
+    let secure = secure_attr(&state.config.web_origin);
     let cookie = format!(
         "refresh_token={raw_refresh}; HttpOnly{secure}; SameSite=Lax; Path=/api/v1/auth; Max-Age={}",
         state.config.refresh_token_expiry_seconds
@@ -1776,5 +1862,74 @@ mod tests {
         let result = sanitize_username("...");
         assert!(result.starts_with("user-"));
         assert_eq!(result.len(), 13); // "user-" + 8 hex chars
+    }
+
+    /// The `__Host-` prefix and the `Secure` attribute must appear together:
+    /// a browser drops a prefixed cookie sent without `Secure`, and a bare
+    /// name sent with `Secure` silently loses the host-only guarantee. Both
+    /// derive from the same predicate, and these pin them to it.
+    #[test]
+    fn host_cookie_name_and_secure_attr_agree_on_https() {
+        for origin in [
+            "https://app.ownpulse.health",
+            "https://localhost:5173",
+            "https://app.ownpulse.health:8443",
+        ] {
+            assert_eq!(secure_attr(origin), "; Secure", "origin: {origin}");
+            assert_eq!(
+                host_cookie_name(origin, "access_token"),
+                "__Host-access_token",
+                "origin: {origin}"
+            );
+            assert_eq!(
+                host_cookie_name(origin, "oauth_state"),
+                "__Host-oauth_state",
+                "origin: {origin}"
+            );
+        }
+    }
+
+    #[test]
+    fn host_cookie_name_and_secure_attr_agree_on_plain_http() {
+        for origin in ["http://localhost:5173", "http://192.168.1.10:8080"] {
+            assert_eq!(secure_attr(origin), "", "origin: {origin}");
+            assert_eq!(
+                host_cookie_name(origin, "access_token"),
+                "access_token",
+                "origin: {origin}"
+            );
+            assert_eq!(
+                host_cookie_name(origin, "oauth_state"),
+                "oauth_state",
+                "origin: {origin}"
+            );
+        }
+    }
+
+    /// `https` has to be the scheme, not merely present in the origin.
+    #[test]
+    fn secure_attr_requires_the_https_scheme() {
+        assert_eq!(secure_attr("http://https.example.com"), "");
+        assert_eq!(host_cookie_name("http://https.example.com", "x"), "x");
+    }
+
+    #[test]
+    fn invite_error_redirect_routes_native_callers_to_the_custom_scheme() {
+        assert_eq!(
+            invite_error_redirect(true, "https://app.ownpulse.health", "invite_required"),
+            "ownpulse://auth?error=invite_required"
+        );
+        assert_eq!(
+            invite_error_redirect(false, "https://app.ownpulse.health", "invite_required"),
+            "https://app.ownpulse.health/register?error=invite_required"
+        );
+    }
+
+    #[test]
+    fn invite_error_redirect_distinguishes_an_unusable_code() {
+        assert_eq!(
+            invite_error_redirect(false, "https://app.ownpulse.health", "invite_invalid"),
+            "https://app.ownpulse.health/register?error=invite_invalid"
+        );
     }
 }

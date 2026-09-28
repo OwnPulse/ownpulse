@@ -32,10 +32,15 @@ injected cookie from its own. The `__Host-` prefix closes it: browsers
 refuse a prefixed cookie that carries a `Domain` attribute, so only this
 host can set one.
 
-The access-token cookie carries the prefix (`__Host-access_token`) on any
-HTTPS origin. It costs nothing there because the cookie is already
-`Path=/`, which the prefix requires, and plain-HTTP origins fall back to
-the bare name since the prefix also demands `Secure`.
+Two cookies carry the prefix on an HTTPS origin: the access token
+(`__Host-access_token`) and the Google login CSRF nonce
+(`__Host-oauth_state`). Both are `Path=/`, which the prefix requires and
+neither pays for — one is already sent on every request, the other lives
+ten minutes and is not a credential.
+
+The prefix also demands `Secure`, which a plain-HTTP origin cannot set, so
+those origins fall back to the bare names and **lose the guarantee
+entirely** — see the caveat under Google login state below.
 
 The refresh cookie does not, and cannot without a trade: it is
 deliberately scoped to `Path=/api/v1/auth`, and the API shares an origin
@@ -51,17 +56,37 @@ and `POST /auth/logout` revokes the token family of every cookie
 presented. The shared cookie reader fails closed the same way for the
 OAuth CSRF cookies.
 
-**What this does not cover.** An injected cookie arriving in a browser
-with no session of its own is the only one presented, so it is accepted
-and establishes a session as the attacker's user. Defending that needs a
-cookie a sibling cannot set at all — the `__Host-` prefix, which browsers
-refuse to accept with a `Domain` attribute. The access-token cookie
-carries it (it is `Path=/` already, so the prefix is free); the refresh
-cookie cannot without widening its path. The Google login callback still
-authenticates its CSRF `state` against an unprefixed cookie — tracked in
-#350. Revisit the prefix for `refresh_token`
-itself if the API ever moves to its own origin, where `Path=/` costs
-nothing.
+**What this does not cover.** An injected `refresh_token` cookie arriving
+in a browser with no session of its own is the only one presented, so it
+is accepted and establishes a session as the attacker's user. Defending
+that needs the prefix, which the refresh cookie cannot take without
+widening its path. Revisit it if the API ever moves to its own origin,
+where `Path=/` costs nothing.
+
+### Google login state
+
+The Google login redirect carries nothing but the CSRF nonce in cookies.
+`GET /auth/google/login` writes a single-use `login_oauth_states` row
+holding the platform, the invite code, and — for `?mode=link` — the user id
+resolved from the access-token cookie *at initiation*; the callback reads
+all three from that row. It additionally requires the `__Host-oauth_state`
+cookie to match the `state` parameter, because the row alone cannot prove
+the callback reached the browser that started the flow: this endpoint is
+unauthenticated, so an attacker can run a real flow of their own and
+navigate a victim to the callback with a genuine state. The cookie supplies
+browser binding; the row supplies integrity for data the browser should not
+be trusted to carry. Abandoned rows in both state tables are cleared by the
+hourly sweep.
+
+**The browser-binding half is HTTPS-only.** On a plain-HTTP `WEB_ORIGIN`
+the cookie falls back to the bare `oauth_state` name, which a sibling
+subdomain can set — restoring the full login-CSRF chain the prefix exists
+to break. The server still refuses the flow unless the cookie matches, so
+an attacker needs cookie-write access on a sibling host, but that is
+exactly the attacker this defends against. The endpoint is not hard-blocked
+on HTTP: a LAN-only self-host is a legitimate deployment, and `WEB_ORIGIN`
+describes the public origin, so anyone terminating TLS at a proxy already
+gets the secure path. **Serve the app over HTTPS.**
 
 ## Client Security
 
@@ -88,9 +113,10 @@ nothing.
 ## Self-Hoster Checklist
 
 1. **Set real secrets.** The server refuses to start if `JWT_SECRET` or `ENCRYPTION_KEY` are left at their default values when `WEB_ORIGIN` is not localhost.
-2. **Back up your age private key.** Store it offline (USB drive, password manager). If you lose it, your encrypted backups are unrecoverable.
-3. **Encrypt backups.** Use the provided backup script which encrypts with your age public key before uploading.
-4. **Use a VPN for admin access.** Tailscale is recommended. Do not expose SSH or kubectl to the public internet.
+2. **Serve over HTTPS and set `WEB_ORIGIN` to the `https://` URL.** Several cookies are host-only (`__Host-` prefixed) only on an HTTPS origin, because the prefix requires `Secure`. On plain HTTP they fall back to names any sibling subdomain can set, which is what the Google login CSRF defense rests on. If you terminate TLS at a reverse proxy, `WEB_ORIGIN` must still be the public `https://` URL.
+3. **Back up your age private key.** Store it offline (USB drive, password manager). If you lose it, your encrypted backups are unrecoverable.
+4. **Encrypt backups.** Use the provided backup script which encrypts with your age public key before uploading.
+5. **Use a VPN for admin access.** Tailscale is recommended. Do not expose SSH or kubectl to the public internet.
 
 ## Roadmap
 

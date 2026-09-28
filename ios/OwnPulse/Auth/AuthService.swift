@@ -239,21 +239,26 @@ final class AuthService: AuthServiceProtocol {
             if kv.count == 2 { result[String(kv[0])] = String(kv[1]) }
         }
 
-        guard let token = params["token"],
-              let refreshToken = params["refresh_token"] else {
+        guard let token = params["token"] else {
             throw AuthError.invalidCallback
         }
 
         try keychainService.save(key: Self.accessTokenKey, data: Data(token.utf8))
-        try keychainService.save(key: Self.refreshTokenKey, data: Data(refreshToken.utf8))
+        // A disabled account is issued an access token and no refresh token,
+        // so it can still export or delete itself until that token expires.
+        // Requiring both here would discard it and leave them no way in.
+        if let refreshToken = params["refresh_token"] {
+            try keychainService.save(key: Self.refreshTokenKey, data: Data(refreshToken.utf8))
+        }
         isAuthenticated = true
         onLoginSuccess?()
     }
 
     private func buildGoogleAuthURL() throws -> URL {
         // Go through the backend's OAuth entry point, which sets the CSRF
-        // cookie and redirects to Google. The backend callback will detect
-        // the mobile web view and redirect to ownpulse:// with tokens.
+        // cookie and redirects to Google. `platform=ios` is recorded against
+        // the flow's state server-side, so the callback redirects to
+        // ownpulse:// with tokens rather than setting web cookies.
         guard let url = URL(string: "\(AppConfig.apiBaseURL)/api/v1/auth/google/login?platform=ios") else {
             throw AuthError.urlConstructionFailed
         }

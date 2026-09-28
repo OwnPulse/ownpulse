@@ -28,6 +28,10 @@ const SETTINGS_MESSAGES: Record<string, { type: "success" | "error"; text: strin
     text: "That Google account is already linked to a different user.",
   },
   "error=auth_required": { type: "error", text: "Your session expired. Please log in again." },
+  "error=server_error": {
+    type: "error",
+    text: "Account linking could not be started. Please try again.",
+  },
 };
 
 const PROVIDER_NAMES: Record<string, string> = {

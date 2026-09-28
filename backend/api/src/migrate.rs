@@ -160,6 +160,10 @@ const MIGRATIONS: &[(&str, &str)] = &[
         "0038_refresh_token_rotation_grace.sql",
         include_str!("../../../db/migrations/0038_refresh_token_rotation_grace.sql"),
     ),
+    (
+        "0039_login_oauth_states.sql",
+        include_str!("../../../db/migrations/0039_login_oauth_states.sql"),
+    ),
 ];
 
 #[derive(Debug, thiserror::Error)]
